@@ -26,6 +26,7 @@ import {
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
+import { panelForRole, ROLE_LABEL } from "@/components/RoleGate";
 import { BrandLogo } from "./BrandLogo";
 
 const NAV = [
@@ -43,6 +44,11 @@ export function SiteHeader() {
   const isAdmin = useQuery(api.admin.amIAdmin);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+
+  const role = user?.role;
+  const isStaff = !!role && role !== "user" && role !== "member";
+  const myPanel = panelForRole(role);
+  const myPanelLabel = isStaff ? (ROLE_LABEL[role] ?? "پنل من") : null;
 
   const handleSignOut = async () => {
     await signOut();
@@ -93,10 +99,17 @@ export function SiteHeader() {
                   {user?.name ?? "کاربر"}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate("/dashboard")} className="cursor-pointer">
-                  <LayoutDashboard className="ml-2 size-4" />
-                  پنل دانشجویی
-                </DropdownMenuItem>
+                {isStaff ? (
+                  <DropdownMenuItem onClick={() => navigate(myPanel)} className="cursor-pointer">
+                    <ShieldCheck className="ml-2 size-4" />
+                    {myPanelLabel}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onClick={() => navigate("/dashboard")} className="cursor-pointer">
+                    <LayoutDashboard className="ml-2 size-4" />
+                    پنل دانشجویی
+                  </DropdownMenuItem>
+                )}
                 {isAdmin && (
                   <DropdownMenuItem onClick={() => navigate("/admin")} className="cursor-pointer">
                     <ShieldCheck className="ml-2 size-4" />
@@ -149,9 +162,9 @@ export function SiteHeader() {
                 {isAuthenticated ? (
                   <div className="flex flex-col gap-2">
                     <Button asChild>
-                      <Link to="/dashboard" onClick={() => setOpen(false)}>
-                        <LayoutDashboard className="ml-2 size-4" />
-                        پنل دانشجویی
+                      <Link to={isStaff ? myPanel : "/dashboard"} onClick={() => setOpen(false)}>
+                        <ShieldCheck className="ml-2 size-4" />
+                        {isStaff ? myPanelLabel : "پنل دانشجویی"}
                       </Link>
                     </Button>
                     <Button variant="outline" onClick={handleSignOut}>

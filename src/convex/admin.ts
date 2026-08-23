@@ -28,6 +28,12 @@ export const isAdmin = async (ctx: QueryCtx) => {
   return !!admin;
 };
 
+// Content editors (admin + content_manager) can manage published content.
+export const isContentStaff = async (ctx: QueryCtx) => {
+  const user = await getCurrentUser(ctx);
+  return !!user && (user.role === "content_manager" || user.role === "admin");
+};
+
 export const amIAdmin = query({
   args: {},
   handler: async (ctx) => {
@@ -325,7 +331,7 @@ export const adminToggleCoupon = mutation({
 export const adminListCourses = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isContentStaff(ctx))) return [];
     const courses = await ctx.db.query("courses").order("desc").collect();
     return Promise.all(
       courses.map(async (c) => ({
@@ -350,7 +356,7 @@ export const adminCreateCourse = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     const slug = args.slug.trim() || args.title.trim().replace(/\s+/g, "-").toLowerCase();
     await ctx.db.insert("courses", {
       title: args.title.trim(),
@@ -395,7 +401,7 @@ export const adminUpdateCourse = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.patch(args.id, {
       title: args.title.trim(),
       categoryId: args.categoryId,
@@ -414,7 +420,7 @@ export const adminUpdateCourse = mutation({
 export const adminTogglePublish = mutation({
   args: { collection: v.string(), id: v.string(), published: v.boolean() },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.patch(args.id as any, { published: args.published } as any);
     return { ok: true };
   },
@@ -423,7 +429,7 @@ export const adminTogglePublish = mutation({
 export const adminDeleteCourse = mutation({
   args: { id: v.id("courses") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.delete(args.id);
     return { ok: true };
   },
@@ -432,7 +438,7 @@ export const adminDeleteCourse = mutation({
 export const adminDeleteArticle = mutation({
   args: { id: v.id("articles") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.delete(args.id);
     return { ok: true };
   },
@@ -441,7 +447,7 @@ export const adminDeleteArticle = mutation({
 export const adminDeleteWorkshop = mutation({
   args: { id: v.id("workshops") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.delete(args.id);
     return { ok: true };
   },
@@ -451,7 +457,7 @@ export const adminDeleteWorkshop = mutation({
 export const adminListExams = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isContentStaff(ctx))) return [];
     return (await ctx.db.query("exams").order("desc").collect()).map((e) => ({
       ...e,
       questionCount: e.questionIds.length,
@@ -477,7 +483,7 @@ export const adminCreateExam = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     if (args.count < 1 || args.count > 50) throw new Error("تعداد سؤال باید بین ۱ تا ۵۰ باشد.");
     let questions = await ctx.db.query("questions").collect();
     if (args.topicId) {
@@ -511,7 +517,7 @@ export const adminCreateExam = mutation({
 export const adminToggleExamPublish = mutation({
   args: { id: v.id("exams"), published: v.boolean() },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.patch(args.id, { published: args.published });
     return { ok: true };
   },
@@ -521,7 +527,7 @@ export const adminToggleExamPublish = mutation({
 export const adminListProducts = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isContentStaff(ctx))) return [];
     return (await ctx.db.query("products").order("desc").collect()).map((p) => ({
       ...p,
       typeLabel:
@@ -543,7 +549,7 @@ export const adminCreateProduct = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     if (!["flashcards", "guide", "poster"].includes(args.type)) {
       throw new Error("نوع محصول نامعتبر است.");
     }
@@ -572,7 +578,7 @@ export const adminUpdateProduct = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.patch(args.id, {
       title: args.title.trim(),
       type: args.type as any,
@@ -587,7 +593,7 @@ export const adminUpdateProduct = mutation({
 export const adminDeleteProduct = mutation({
   args: { id: v.id("products") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.delete(args.id);
     return { ok: true };
   },
@@ -597,7 +603,7 @@ export const adminDeleteProduct = mutation({
 export const adminListInstructors = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isContentStaff(ctx))) return [];
     const instructors = await ctx.db.query("instructors").collect();
     return Promise.all(
       instructors.map(async (i) => {
@@ -685,7 +691,7 @@ export const adminDeleteInstructor = mutation({
 export const adminGetQuestions = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isContentStaff(ctx))) return [];
     const questions = await ctx.db.query("questions").collect();
     return Promise.all(
       questions.map(async (q) => ({
@@ -706,7 +712,7 @@ export const adminCreateQuestion = mutation({
     difficulty: v.number(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     if (args.options.length < 2) throw new Error("حداقل دو گزینه لازم است.");
     await ctx.db.insert("questions", {
       text: args.text.trim(),
@@ -724,7 +730,7 @@ export const adminCreateQuestion = mutation({
 export const adminListArticles = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isContentStaff(ctx))) return [];
     return (await ctx.db.query("articles").order("desc").collect()).map((a) => ({
       ...a,
       categoryLabel: a.category || "عمومی",
@@ -744,7 +750,7 @@ export const adminCreateArticle = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.insert("articles", {
       title: args.title.trim(),
       slug: args.slug.trim() || args.title.trim().replace(/\s+/g, "-"),
@@ -774,7 +780,7 @@ export const adminUpdateArticle = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.patch(args.id, {
       title: args.title.trim(),
       category: args.category.trim() || "عمومی",
@@ -792,7 +798,7 @@ export const adminUpdateArticle = mutation({
 export const adminListWorkshops = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isContentStaff(ctx))) return [];
     const workshops = await ctx.db.query("workshops").order("desc").collect();
     return Promise.all(
       workshops.map(async (w) => ({
@@ -819,7 +825,7 @@ export const adminCreateWorkshop = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.insert("workshops", {
       title: args.title.trim(),
       slug: args.slug.trim() || args.title.trim().replace(/\s+/g, "-"),
@@ -856,7 +862,7 @@ export const adminUpdateWorkshop = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.patch(args.id, {
       title: args.title.trim(),
       instructorId: args.instructorId,

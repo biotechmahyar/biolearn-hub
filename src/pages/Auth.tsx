@@ -19,6 +19,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Dna, KeyRound, Loader2, Mail, Send, UserX } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { panelForRole } from "@/components/RoleGate";
 
 interface AuthProps {
   redirectAfterAuth?: string;
@@ -35,13 +36,12 @@ function resolveRedirectAfterAuth(
 }
 
 function Auth({ redirectAfterAuth }: AuthProps = {}) {
-  const { isLoading: authLoading, isAuthenticated, signIn } = useAuth();
+  const { isLoading: authLoading, isAuthenticated, signIn, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirect = resolveRedirectAfterAuth(
-    searchParams.get("returnTo"),
-    redirectAfterAuth,
-  );
+  // Staff members always land on their own panel instead of the student dashboard.
+  const roleHome = user ? panelForRole(user.role) : redirectAfterAuth ?? "/dashboard";
+  const redirect = resolveRedirectAfterAuth(searchParams.get("returnTo"), roleHome);
   const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
   const [mode, setMode] = useState<"otp" | "password">("otp");
   const [otp, setOtp] = useState("");

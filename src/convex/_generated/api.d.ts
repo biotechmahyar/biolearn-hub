@@ -11,10 +11,12 @@
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as auth_emailOtp from "../auth/emailOtp.js";
+import type * as collab from "../collab.js";
 import type * as comments from "../comments.js";
 import type * as content from "../content.js";
 import type * as enroll from "../enroll.js";
 import type * as http from "../http.js";
+import type * as mentor from "../mentor.js";
 import type * as seed from "../seed.js";
 import type * as tests from "../tests.js";
 import type * as tickets from "../tickets.js";
@@ -30,10 +32,12 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
   "auth/emailOtp": typeof auth_emailOtp;
+  collab: typeof collab;
   comments: typeof comments;
   content: typeof content;
   enroll: typeof enroll;
   http: typeof http;
+  mentor: typeof mentor;
   seed: typeof seed;
   tests: typeof tests;
   tickets: typeof tickets;

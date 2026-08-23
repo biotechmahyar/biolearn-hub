@@ -3,6 +3,12 @@ import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 import { isAdmin } from "./admin";
 
+// Support staff can also run the ticket desk, not only admins.
+export const isSupportStaff = async (ctx: any) => {
+  const user = await getCurrentUser(ctx);
+  return !!user && (user.role === "support" || user.role === "admin");
+};
+
 // ── Student side ────────────────────────────────────────────────────────────
 export const createTicket = mutation({
   args: { subject: v.string(), message: v.string() },
@@ -32,18 +38,18 @@ export const replyTicket = mutation({
     const ticket = await ctx.db.get(args.ticketId);
     if (!ticket) throw new Error("تیکت یافت نشد.");
 
-    const admin = await isAdmin(ctx);
+    const staff = await isSupportStaff(ctx);
     const isOwner = ticket.userId === user._id;
-    if (!admin && !isOwner) throw new Error("دسترسی ندارید.");
+    if (!staff && !isOwner) throw new Error("دسترسی ندارید.");
 
-    const author = admin ? "admin" : "student";
+    const author = staff ? "admin" : "student";
     const messages = [
       ...ticket.messages,
       { author, text: args.message.trim(), at: Date.now() },
     ];
     await ctx.db.patch(args.ticketId, {
       messages,
-      status: admin ? "answered" : ticket.status === "closed" ? "closed" : "open",
+      status: staff ? "answered" : ticket.status === "closed" ? "closed" : "open",
       updatedAt: Date.now(),
     });
     return await ctx.db.get(args.ticketId);
@@ -55,7 +61,7 @@ export const updateTicketStatus = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد حساب شوید.");
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isSupportStaff(ctx))) throw new Error("دسترسی پشتیبانی لازم است.");
     const ticket = await ctx.db.get(args.ticketId);
     if (!ticket) throw new Error("تیکت یافت نشد.");
     await ctx.db.patch(args.ticketId, { status: args.status as any, updatedAt: Date.now() });
@@ -88,12 +94,12 @@ export const getTicket = query({
   },
 });
 
-// ── Admin side ──────────────────────────────────────────────────────────────
+// ── Support desk (admins + support role) ───────────────────────────────────
 export const listAllTickets = query({
   args: {},
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
-    if (!user || !(await isAdmin(ctx))) return [];
+    if (!user || !(await isSupportStaff(ctx))) return [];
     const tickets = await ctx.db.query("tickets").order("desc").collect();
     return Promise.all(
       tickets.map(async (t) => {

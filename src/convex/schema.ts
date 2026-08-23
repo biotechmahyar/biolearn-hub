@@ -326,6 +326,86 @@ const schema = defineSchema(
       createdAt: v.number(),
     }).index("by_user", ["userId"]),
 
+    // ── Live collaboration (rooms, presence, mentoring) ───────────────────
+    presence: defineTable({
+      userId: v.id("users"),
+      name: v.optional(v.string()),
+      role: v.optional(v.string()),
+      location: v.optional(v.string()),
+      lastSeen: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_lastSeen", ["lastSeen"]),
+
+    classRooms: defineTable({
+      instructorId: v.id("users"),
+      instructorName: v.string(),
+      title: v.string(),
+      topic: v.string(),
+      description: v.string(),
+      status: v.union(v.literal("live"), v.literal("scheduled"), v.literal("ended")),
+      createdAt: v.number(),
+    })
+      .index("by_instructor", ["instructorId"])
+      .index("by_status", ["status"]),
+
+    roomMessages: defineTable({
+      roomId: v.id("classRooms"),
+      userId: v.id("users"),
+      name: v.string(),
+      role: v.optional(v.string()),
+      type: v.union(v.literal("question"), v.literal("message"), v.literal("answer")),
+      text: v.string(),
+      answer: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_room", ["roomId"])
+      .index("by_room_created", ["roomId", "createdAt"]),
+
+    mentorGroups: defineTable({
+      mentorId: v.id("users"),
+      mentorName: v.string(),
+      title: v.string(),
+      description: v.string(),
+      meetingDay: v.string(),
+      meetingTime: v.string(),
+      capacity: v.number(),
+      memberCount: v.number(),
+      createdAt: v.number(),
+    })
+      .index("by_mentor", ["mentorId"])
+      .index("by_created", ["createdAt"]),
+
+    mentorQuestions: defineTable({
+      studentId: v.id("users"),
+      studentName: v.string(),
+      topic: v.string(),
+      text: v.string(),
+      status: v.union(v.literal("open"), v.literal("answered")),
+      answer: v.optional(v.string()),
+      answeredByName: v.optional(v.string()),
+      answeredAt: v.optional(v.number()),
+      createdAt: v.number(),
+    })
+      .index("by_student", ["studentId"])
+      .index("by_status", ["status"])
+      .index("by_created", ["createdAt"]),
+
+    mentorSessions: defineTable({
+      mentorId: v.id("users"),
+      mentorName: v.string(),
+      studentId: v.id("users"),
+      title: v.string(),
+      date: v.string(),
+      time: v.string(),
+      notes: v.string(),
+      status: v.union(v.literal("scheduled"), v.literal("done"), v.literal("cancelled")),
+      createdAt: v.number(),
+    })
+      .index("by_mentor", ["mentorId"])
+      .index("by_student", ["studentId"])
+      .index("by_created", ["createdAt"]),
+
     // ── Support ───────────────────────────────────────────────────────────
     tickets: defineTable({
       userId: v.id("users"),

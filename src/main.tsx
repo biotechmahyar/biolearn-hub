@@ -1,6 +1,7 @@
 import '@vly-ai/integrations';
 import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
+import { RoleGate } from "@/components/RoleGate";
 import { SettingsProvider } from "@/lib/settings";
 import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
@@ -18,6 +19,10 @@ const Landing = lazy(() => import("./pages/Landing.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
+const InstructorPanel = lazy(() => import("./pages/panels/InstructorPanel.tsx"));
+const MentorPanel = lazy(() => import("./pages/panels/MentorPanel.tsx"));
+const SupportPanel = lazy(() => import("./pages/panels/SupportPanel.tsx"));
+const ContentPanel = lazy(() => import("./pages/panels/ContentPanel.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Public catalog pages
@@ -125,6 +130,40 @@ createRoot(document.getElementById("root")!).render(
                   <RequireAuth>
                     <Admin />
                   </RequireAuth>
+                }
+              />
+
+              {/* Role-specific panels — each role gets its own workspace */}
+              <Route
+                path="/panel/instructor"
+                element={
+                  <RoleGate allowed={["instructor", "admin"]} title="instructor studio">
+                    <InstructorPanel />
+                  </RoleGate>
+                }
+              />
+              <Route
+                path="/panel/mentor"
+                element={
+                  <RoleGate allowed={["mentor", "admin"]} title="mentor desk">
+                    <MentorPanel />
+                  </RoleGate>
+                }
+              />
+              <Route
+                path="/panel/support"
+                element={
+                  <RoleGate allowed={["support", "admin"]} title="support desk">
+                    <SupportPanel />
+                  </RoleGate>
+                }
+              />
+              <Route
+                path="/panel/content"
+                element={
+                  <RoleGate allowed={["content_manager", "admin"]} title="content studio">
+                    <ContentPanel />
+                  </RoleGate>
                 }
               />
 

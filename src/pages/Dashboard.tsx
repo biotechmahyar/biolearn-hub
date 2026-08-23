@@ -26,17 +26,21 @@ import {
   LogOut,
   MessageCircle,
   Plus,
+  Radio,
   Send,
   Sparkles,
   Target,
   Trash2,
   TrendingUp,
   Trophy,
+  Video,
   X,
   Zap,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
+import { panelForRole } from "@/components/RoleGate";
 import {
   Area,
   AreaChart,
@@ -47,12 +51,13 @@ import {
   YAxis,
 } from "recharts";
 
-type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support";
+type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
   { key: "courses", label: "دوره‌های من", icon: BookOpen },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
+  { key: "live", label: "کلاس‌های زنده", icon: Radio },
   { key: "progress", label: "پیشرفت", icon: BarChart3 },
   { key: "flashcards", label: "فلش‌کارت‌ها", icon: Layers },
   { key: "downloads", label: "دانلودها", icon: Download },
@@ -64,6 +69,12 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Staff members belong to their own panel, not the student dashboard.
+  const role = user?.role;
+  if (role && role !== "user" && role !== "member") {
+    return <Navigate to={panelForRole(role)} replace />;
+  }
   const tab = (searchParams.get("tab") as TabKey) || "overview";
 
   const setTab = (t: TabKey) => setSearchParams(t === "overview" ? {} : { tab: t });
@@ -131,6 +142,7 @@ export default function Dashboard() {
           {tab === "downloads" && <DownloadsTab />}
           {tab === "bookmarks" && <BookmarksTab />}
           {tab === "support" && <SupportTab />}
+          {tab === "live" && <LiveTab />}
         </main>
       </div>
     </div>
@@ -905,5 +917,249 @@ function EmptyState({
         {cta}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Live classes (student side) ─────────────────────────────────────────────
+type RoomRow = (typeof api.collab.listRooms)["_returnType"][number];
+
+function LiveTab() {
+  const [activeRoom, setActiveRoom] = useState<string | null>(null);
+  const rooms = useQuery(api.collab.listRooms) ?? [];
+  const online = useQuery(api.collab.listOnline) ?? [];
+  const touchPresence = useMutation(api.collab.touchPresence);
+
+  useEffect(() => {
+    touchPresence({ location: "کلاس‌های زنده" });
+    const t = setInterval(() => touchPresence({ location: "کلاس‌های زنده" }), 25_000);
+    return () => clearInterval(t);
+  }, [touchPresence]);
+
+  const live = rooms.filter((r) => r.status === "live");
+
+  if (activeRoom) {
+    return (
+      <LiveRoomView
+        roomId={activeRoom}
+        onClose={() => setActiveRoom(null)}
+        rooms={rooms}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold">کلاس‌های زنده</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          وقتی استاد آنلاین است و کلاس را شروع کرده، اینجا سؤال بپرسید — پاسخ استاد به‌صورت لحظه‌ای می‌رسد.
+        </p>
+      </div>
+
+      {/* Who is online */}
+      <div className="flex flex-wrap gap-2">
+        {online.length === 0 && (
+          <span className="text-xs text-muted-foreground">الان هیچ استادی آنلاین نیست.</span>
+        )}
+        {online
+          .filter((u) => u.role === "instructor" || u.role === "admin")
+          .map((u) => (
+            <span
+              key={u.userId}
+              className="flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-600 dark:text-emerald-400"
+            >
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+              </span>
+              {u.name} · آنلاین
+            </span>
+          ))}
+      </div>
+
+      {live.length === 0 ? (
+        <EmptyState
+          icon={Video}
+          title="کلاسی در حال برگزاری نیست"
+          desc="به محض اینکه استاد کلاس را شروع کند، اینجا ظاهر می‌شود و می‌توانید سؤال بپرسید."
+        />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {live.map((room) => (
+            <button
+              key={room._id}
+              onClick={() => setActiveRoom(room._id)}
+              className="group rounded-xl border border-border bg-card p-5 text-right transition-all hover:border-primary/50 hover:shadow-lg"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
+                  <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
+                  LIVE
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {room.messageCount} پیام
+                </span>
+              </div>
+              <h3 className="mt-3 font-bold group-hover:text-primary">{room.title}</h3>
+              <p className="mt-1 text-xs text-muted-foreground">{room.topic}</p>
+              <p className="mt-3 text-[11px] text-muted-foreground">
+                استاد: <span className="font-bold text-foreground">{room.instructorName}</span>
+              </p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveRoomView({
+  roomId,
+  onClose,
+  rooms,
+}: {
+  roomId: string;
+  onClose: () => void;
+  rooms: RoomRow[];
+}) {
+  const room = rooms.find((r) => r._id === roomId);
+  const detail = useQuery(api.collab.getRoom, { roomId: roomId as any });
+  const [text, setText] = useState("");
+  const [asQuestion, setAsQuestion] = useState(true);
+  const [sending, setSending] = useState(false);
+  const sendMessage = useMutation(api.collab.sendMessage);
+
+  const messages = detail?.messages ?? [];
+
+  async function handleSend() {
+    if (!text.trim()) return;
+    setSending(true);
+    try {
+      await sendMessage({
+        roomId: roomId as any,
+        text,
+        type: asQuestion ? "question" : "message",
+      });
+      setText("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ارسال");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="ml-1 size-4" />
+            بازگشت
+          </Button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold">{room?.title ?? detail?.title}</h3>
+              {detail?.status === "live" && (
+                <span className="flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400">
+                  <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
+                  LIVE
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              استاد: {room?.instructorName ?? detail?.instructorName}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="max-h-[55vh] space-y-3 overflow-y-auto py-4">
+          {messages.length === 0 && (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              هنوز پیامی نیست — اولین سؤال را شما بپرسید!
+            </p>
+          )}
+          {messages.map((m) => {
+            const isQuestion = m.type === "question";
+            return (
+              <div
+                key={m._id}
+                className={`rounded-lg border p-3 ${
+                  isQuestion && !m.answer
+                    ? "border-amber-500/25 bg-amber-500/5"
+                    : isQuestion && m.answer
+                      ? "border-emerald-500/25 bg-emerald-500/5"
+                      : "border-border bg-muted/30"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`flex size-7 items-center justify-center rounded-full text-xs font-bold ${
+                      m.role === "instructor"
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {(m.name ?? "؟").slice(0, 1)}
+                  </span>
+                  <span className="text-xs font-bold">{m.name}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {m.role === "instructor" ? "استاد" : "دانشجو"}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm">{m.text}</p>
+                {m.answer && (
+                  <div className="mt-2 rounded-md bg-emerald-500/10 px-3 py-2">
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      پاسخ استاد
+                    </p>
+                    <p className="mt-0.5 text-sm text-emerald-700 dark:text-emerald-200">
+                      {m.answer}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {detail?.status === "live" && (
+        <Card>
+          <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
+            <div className="flex shrink-0 gap-1 rounded-lg border bg-muted p-1">
+              <button
+                onClick={() => setAsQuestion(true)}
+                className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+                  asQuestion ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "text-muted-foreground"
+                }`}
+              >
+                سؤال
+              </button>
+              <button
+                onClick={() => setAsQuestion(false)}
+                className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+                  !asQuestion ? "bg-primary/20 text-primary" : "text-muted-foreground"
+                }`}
+              >
+                پیام
+              </button>
+            </div>
+            <Input
+              placeholder={asQuestion ? "سؤال خود را از استاد بپرسید…" : "پیامی برای کلاس بنویسید…"}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              className="flex-1"
+            />
+            <Button size="sm" onClick={handleSend} disabled={sending}>
+              <Send className="ml-1 size-4" />
+              ارسال
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
