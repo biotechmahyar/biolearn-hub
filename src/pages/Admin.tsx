@@ -31,6 +31,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatDateTime, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { toast } from "sonner";
 import { useMutation, useQuery } from "convex/react";
 import {
   Activity,
@@ -54,6 +55,7 @@ import {
   Lock,
   Menu,
   Package,
+  Pencil,
   Plus,
   Repeat,
   Send,
@@ -1574,6 +1576,7 @@ function AdminUsers() {
   const setRole = useMutation(api.admin.adminSetRole);
   const createUser = useMutation(api.admin.adminCreateUser);
   const setPassword = useMutation(api.admin.adminSetPassword);
+  const updateUser = useMutation(api.admin.adminUpdateUser);
   const deleteUser = useMutation(api.admin.adminDeleteUser);
   const [emails, setEmails] = useState("");
   const addAdmin = useMutation(api.admin.adminAddAdmin);
@@ -1590,6 +1593,17 @@ function AdminUsers() {
   const [resetPass, setResetPass] = useState("");
   const [resetErr, setResetErr] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+
+  const [editTarget, setEditTarget] = useState<{
+    _id: string;
+    name: string | null;
+    email: string | null;
+    role: string | null;
+  } | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editErr, setEditErr] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   const handleCreate = async () => {
     setFormErr(null);
@@ -1622,6 +1636,33 @@ function AdminUsers() {
       setResetErr(e instanceof Error ? e.message : "خطا در تغییر رمز.");
     } finally {
       setResetting(false);
+    }
+  };
+
+  const handleEdit = async () => {
+    if (!editTarget) return;
+    setEditErr(null);
+    if (!editName.trim()) {
+      setEditErr("نام نمی‌تواند خالی باشد.");
+      return;
+    }
+    if (!editEmail.trim().includes("@")) {
+      setEditErr("ایمیل نامعتبر است.");
+      return;
+    }
+    setEditing(true);
+    try {
+      await updateUser({
+        userId: editTarget._id as any,
+        name: editName.trim(),
+        email: editEmail.trim(),
+      });
+      setEditTarget(null);
+      toast.success("اطلاعات کاربر به‌روزرسانی شد");
+    } catch (e) {
+      setEditErr(e instanceof Error ? e.message : "خطا در ذخیره.");
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -1726,25 +1767,46 @@ function AdminUsers() {
                     )}
                   </TableCell>
                   <TableCell className="text-left">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive disabled:opacity-30"
-                      title={
-                        me?._id === u._id
-                          ? "نمی‌توانید خودتان را حذف کنید"
-                          : !isSystemAdmin && (u.role === "admin" || u.role === "site_admin")
-                            ? "فقط ادمین سامانه می‌تواند ادمین را حذف کند"
-                            : "حذف حساب کاربر"
-                      }
-                      disabled={me?._id === u._id || (!isSystemAdmin && (u.role === "admin" || u.role === "site_admin"))}
-                      onClick={() => {
-                        setDeleteTarget({ _id: u._id, name: u.name });
-                        setDeleteErr(null);
-                      }}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 rounded-md text-xs disabled:opacity-30"
+                        title={
+                          !isSystemAdmin && (u.role === "admin" || u.role === "site_admin")
+                            ? "فقط ادمین سامانه می‌تواند ادمین را ویرایش کند"
+                            : "ویرایش نام و ایمیل"
+                        }
+                        disabled={!isSystemAdmin && (u.role === "admin" || u.role === "site_admin")}
+                        onClick={() => {
+                          setEditTarget({ _id: u._id, name: u.name, email: u.email, role: u.role });
+                          setEditName(u.name ?? "");
+                          setEditEmail(u.email ?? "");
+                          setEditErr(null);
+                        }}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 rounded-md text-xs text-destructive hover:text-destructive disabled:opacity-30"
+                        title={
+                          me?._id === u._id
+                            ? "نمی‌توانید خودتان را حذف کنید"
+                            : !isSystemAdmin && (u.role === "admin" || u.role === "site_admin")
+                              ? "فقط ادمین سامانه می‌تواند ادمین را حذف کند"
+                              : "حذف حساب کاربر"
+                        }
+                        disabled={me?._id === u._id || (!isSystemAdmin && (u.role === "admin" || u.role === "site_admin"))}
+                        onClick={() => {
+                          setDeleteTarget({ _id: u._id, name: u.name });
+                          setDeleteErr(null);
+                        }}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1773,6 +1835,32 @@ function AdminUsers() {
             <Button className="w-full rounded-lg" onClick={handleReset} disabled={resetting || resetPass.length < 4}>
               {resetting ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               ذخیره رمز جدید
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editTarget !== null} onOpenChange={(o) => { if (!o) setEditTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ویرایش کاربر</DialogTitle>
+            <DialogDescription>
+              نام و ایمیل ورود {editTarget?.name ?? "کاربر"} را ویرایش کن — با ایمیل جدید وارد می‌شود.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">نام</p>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="نام کامل" />
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">ایمیل (ایمیل ورود کاربر)</p>
+              <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="name@genova.team" dir="ltr" className="text-left" />
+            </div>
+            {editErr && <p className="text-sm text-destructive">{editErr}</p>}
+            <Button className="w-full rounded-lg" onClick={handleEdit} disabled={editing}>
+              {editing ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Pencil className="ml-1.5 size-4" />}
+              ذخیره تغییرات
             </Button>
           </div>
         </DialogContent>

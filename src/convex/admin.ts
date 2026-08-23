@@ -337,6 +337,78 @@ export const adminDeleteUser = mutation({
   },
 });
 
+// Edits a user's profile: name and/or login email. Changing the email
+// migrates the auth accounts (password + OTP) so the user signs in with the
+// new address, and keeps the admins allow-list in sync.
+export const adminUpdateUser = mutation({
+  args: {
+    userId: v.id("users"),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("کاربر یافت نشد.");
+    // Site admins cannot edit system admins or site admins.
+    const targetPrivileged = user.role === "admin" || user.role === "site_admin";
+    if (!(await isSystemAdmin(ctx)) && targetPrivileged) {
+      throw new Error("فقط ادمین سامانه می‌تواند حساب‌های ادمین را ویرایش کند.");
+    }
+
+    const patch: { name?: string; email?: string } = {};
+
+    if (args.name !== undefined) {
+      const name = args.name.trim();
+      if (name.length === 0) throw new Error("نام نمی‌تواند خالی باشد.");
+      patch.name = name;
+    }
+
+    if (args.email !== undefined && args.email.trim().toLowerCase() !== (user.email ?? "")) {
+      const email = args.email.trim().toLowerCase();
+      if (!email.includes("@")) throw new Error("ایمیل نامعتبر است.");
+      // The new email must not already belong to another password account.
+      const taken = await ctx.db
+        .query("authAccounts")
+        .withIndex("providerAndAccountId", (q) =>
+          q.eq("provider", "password").eq("providerAccountId", email),
+        )
+        .first();
+      if (taken) throw new Error("حسابی با این ایمیل از قبل وجود دارد.");
+
+      // Migrate every auth account bound to the old email (password + OTP).
+      if (user.email) {
+        const accounts = await ctx.db
+          .query("authAccounts")
+          .filter((q) => q.eq(q.field("providerAccountId"), user.email!))
+          .collect();
+        await Promise.all(
+          accounts.map((a) => ctx.db.patch(a._id, { providerAccountId: email })),
+        );
+        // Keep the admins allow-list in sync (admins are identified by email).
+        const adminRow = await ctx.db
+          .query("admins")
+          .withIndex("by_email", (q) => q.eq("email", user.email!))
+          .first();
+        if (adminRow) {
+          await ctx.db.delete(adminRow._id);
+          const dup = await ctx.db
+            .query("admins")
+            .withIndex("by_email", (q) => q.eq("email", email))
+            .first();
+          if (!dup) await ctx.db.insert("admins", { email });
+        }
+      }
+      patch.email = email;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(args.userId, patch);
+    }
+    return { ok: true };
+  },
+});
+
 // Resets the password of a user that already has a password account.
 export const adminSetPassword = mutation({
   args: { userId: v.id("users"), password: v.string() },
