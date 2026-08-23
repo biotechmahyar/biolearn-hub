@@ -839,6 +839,7 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
   const create = useMutation(api.notifications.createAnnouncement);
   const remove = useMutation(api.notifications.deleteAnnouncement);
 
+  const [mode, setMode] = useState<"all" | "course">("all");
   const [courseId, setCourseId] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -851,13 +852,18 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
       setErr("عنوان اطلاعیه لازم است.");
       return;
     }
-    if (!courseId) {
+    if (mode === "course" && !courseId) {
       setErr("دوره را انتخاب کنید تا به دانشجویانش اطلاعیه برسد.");
       return;
     }
     setBusy(true);
     try {
-      await create({ targetType: "course", targetId: courseId, title, body });
+      await create({
+        targetType: mode,
+        targetId: mode === "course" ? courseId : undefined,
+        title,
+        body,
+      });
       setTitle("");
       setBody("");
     } catch (e) {
@@ -872,23 +878,50 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
       <div>
         <h2 className="text-xl font-bold text-white">اطلاعیه برای دانشجویان</h2>
         <p className="mt-1 text-sm text-slate-400">
-          مثلاً «کلاس آنلاین جمع‌بندی امشب ساعت ۲۰» — به همهٔ کسانی که در دوره ثبت‌نام کرده‌اند اطلاع داده می‌شود.
+          اطلاعیه‌ای عمومی برای همه بفرستید یا فقط به دانشجویان یکی از دوره‌های خودتان — مثلاً «کلاس آنلاین جمع‌بندی امشب ساعت ۲۰».
         </p>
       </div>
 
       <Card className="border-cyan-400/20 bg-[#0b1a2a]">
         <CardContent className="space-y-3 py-4">
-          <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
-              <SelectValue placeholder="دوره را انتخاب کنید…" />
-            </SelectTrigger>
-            <SelectContent>
-              {mine.map((c) => (
-                <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {mine.length === 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("all")}
+              className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+                mode === "all"
+                  ? "bg-cyan-500 text-white"
+                  : "bg-white/5 text-slate-400 hover:bg-white/10"
+              }`}
+            >
+              🌐 عمومی (همه کاربران)
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("course")}
+              className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
+                mode === "course"
+                  ? "bg-cyan-500 text-white"
+                  : "bg-white/5 text-slate-400 hover:bg-white/10"
+              }`}
+            >
+              📚 دانشجویان یک دوره
+            </button>
+          </div>
+
+          {mode === "course" && (
+            <Select value={courseId} onValueChange={setCourseId}>
+              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                <SelectValue placeholder="دوره را انتخاب کنید…" />
+              </SelectTrigger>
+              <SelectContent>
+                {mine.map((c) => (
+                  <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {mode === "course" && mine.length === 0 && (
             <p className="text-xs text-slate-500">
               دوره‌ای با نام شما ثبت نشده. از پنل مدیریت، پروفایل استادی‌تان را به دوره وصل کنید.
             </p>

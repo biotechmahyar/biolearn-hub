@@ -52,8 +52,8 @@ export const createAnnouncement = mutation({
         throw new Error("فقط مدیر سایت می‌تواند برای آزمون اطلاعیه بگذارد.");
       }
       targetTitle = exam.title;
-    } else if (!systemAdmin && !siteAdmin) {
-      throw new Error("فقط مدیر سایت می‌تواند اطلاعیه سراسری بگذارد.");
+    } else if (!systemAdmin && !siteAdmin && !isInstructor) {
+      throw new Error("فقط مدیر سایت یا استاد می‌تواند اطلاعیه عمومی بگذارد.");
     }
 
     return await ctx.db.insert("announcements", {
