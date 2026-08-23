@@ -6,7 +6,9 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useStudentReceiver } from "@/hooks/use-live";
 import { accent, faNum, formatDate, formatDateTime, formatPrice } from "@/lib/format";
+import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -25,19 +27,24 @@ import {
   Loader2,
   LogOut,
   MessageCircle,
+  Camera,
+  Mic,
+  Paperclip,
   Plus,
   Radio,
   Send,
   Sparkles,
+  Square,
   Target,
   Trash2,
   TrendingUp,
   Trophy,
   Video,
+  VideoOff,
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 import { panelForRole } from "@/components/RoleGate";
@@ -1022,14 +1029,101 @@ function LiveRoomView({
   onClose: () => void;
   rooms: RoomRow[];
 }) {
+  const { user } = useAuth();
   const room = rooms.find((r) => r._id === roomId);
   const detail = useQuery(api.collab.getRoom, { roomId: roomId as any });
   const [text, setText] = useState("");
   const [asQuestion, setAsQuestion] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const sendMessage = useMutation(api.collab.sendMessage);
+  const getUploadUrl = useMutation(api.collab.getUploadUrl);
+
+  // Watch the instructor's live broadcast.
+  const receiver = useStudentReceiver(roomId, room?.instructorId, user?._id);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (videoRef.current && receiver.remoteStream) {
+      videoRef.current.srcObject = receiver.remoteStream;
+    }
+  }, [receiver.remoteStream]);
+
+  // Voice recorder
+  const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const messages = detail?.messages ?? [];
+
+  async function handleSendAttachment(blob: Blob, kind: "file" | "voice" | "image", name?: string) {
+    setUploading(true);
+    try {
+      const url = await getUploadUrl();
+      const storageId = await uploadBlob(url, blob);
+      await sendMessage({
+        roomId: roomId as any,
+        text: kind === "voice" ? "🎙️ پیام صوتی" : "📎 " + (name ?? "فایل"),
+        type: "message",
+        attachmentType: kind,
+        attachmentName: name ?? "voice.webm",
+        attachmentStorageId: storageId,
+        attachmentSize: blob.size,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در آپلود");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    void handleSendAttachment(file, fileKindFromMime(file.type), file.name);
+    e.target.value = "";
+  }
+
+  async function toggleRecording() {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (ev) => {
+        if (ev.data.size > 0) chunksRef.current.push(ev.data);
+      };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, {
+          type: rec.mimeType || "audio/webm",
+        });
+        if (blob.size > 0) void handleSendAttachment(blob, "voice");
+      };
+      rec.start();
+      recorderRef.current = rec;
+      setRecording(true);
+      setRecSeconds(0);
+      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "دسترسی به میکروفون ممکن نشد");
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      recorderRef.current?.stop();
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+    };
+  }, []);
 
   async function handleSend() {
     if (!text.trim()) return;
@@ -1073,6 +1167,50 @@ function LiveRoomView({
         </div>
       </div>
 
+      {/* Instructor's live stream */}
+      {detail?.status === "live" && detail?.broadcasting && (
+        <Card className="border-red-500/20">
+          <CardContent className="space-y-3 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-sm font-bold">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-red-500" />
+                </span>
+                پخش زندهٔ استاد
+              </p>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {receiver.status === "live" ? "متصل" : "در حال اتصال…"}
+              </span>
+            </div>
+            {receiver.remoteStream ? (
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="aspect-video w-full rounded-lg border border-white/10 bg-black"
+              />
+            ) : (
+              <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 bg-muted/30">
+                {receiver.error ? (
+                  <>
+                    <VideoOff className="size-8 text-muted-foreground/50" />
+                    <p className="px-4 text-center text-xs text-muted-foreground">
+                      اتصال تصویر برقرار نشد — پیام‌ها و صدا همچنان کار می‌کنند.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="size-8 animate-spin text-muted-foreground/50" />
+                    <p className="text-xs text-muted-foreground">در حال اتصال به پخش استاد…</p>
+                  </>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="max-h-[55vh] space-y-3 overflow-y-auto py-4">
           {messages.length === 0 && (
@@ -1109,6 +1247,32 @@ function LiveRoomView({
                   </span>
                 </div>
                 <p className="mt-1.5 text-sm">{m.text}</p>
+                {m.attachmentType === "image" && m.attachmentUrl && (
+                  <img
+                    src={m.attachmentUrl}
+                    alt={m.attachmentName ?? "تصویر"}
+                    className="mt-2 max-h-64 rounded-lg border border-border"
+                  />
+                )}
+                {m.attachmentType === "voice" && m.attachmentUrl && (
+                  <audio controls src={m.attachmentUrl} className="mt-2 h-10 w-full max-w-sm" />
+                )}
+                {m.attachmentType === "file" && m.attachmentUrl && (
+                  <a
+                    href={m.attachmentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 flex max-w-sm items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs hover:bg-muted"
+                  >
+                    <FileText className="size-4 shrink-0 text-primary" />
+                    <span className="truncate">{m.attachmentName}</span>
+                    {m.attachmentSize ? (
+                      <span className="mr-auto shrink-0 font-mono text-[10px] text-muted-foreground">
+                        {formatFileSize(m.attachmentSize)}
+                      </span>
+                    ) : null}
+                  </a>
+                )}
                 {m.answer && (
                   <div className="mt-2 rounded-md bg-emerald-500/10 px-3 py-2">
                     <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
@@ -1146,6 +1310,12 @@ function LiveRoomView({
                 پیام
               </button>
             </div>
+            {recording && (
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1 text-[11px] font-bold text-red-600 dark:text-red-400">
+                <span className="size-2 animate-pulse rounded-full bg-red-500" />
+                ضبط… {recSeconds}s
+              </span>
+            )}
             <Input
               placeholder={asQuestion ? "سؤال خود را از استاد بپرسید…" : "پیامی برای کلاس بنویسید…"}
               value={text}
@@ -1153,7 +1323,39 @@ function LiveRoomView({
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               className="flex-1"
             />
-            <Button size="sm" onClick={handleSend} disabled={sending}>
+            <div className="flex shrink-0 items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.zip,.txt"
+                hidden
+                onChange={handleFilePicked}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                title="پیوست فایل / تصویر"
+                className="flex size-8 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+              >
+                {uploading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Paperclip className="size-4" />
+                )}
+              </button>
+              <button
+                onClick={() => void toggleRecording()}
+                title={recording ? "پایان ضبط" : "ضبط پیام صوتی"}
+                className={`flex size-8 items-center justify-center rounded-lg border transition-colors ${
+                  recording
+                    ? "border-red-500/40 bg-red-500/15 text-red-500 dark:text-red-400"
+                    : "bg-muted text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                {recording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
+              </button>
+            </div>
+            <Button size="sm" onClick={handleSend} disabled={sending || uploading}>
               <Send className="ml-1 size-4" />
               ارسال
             </Button>

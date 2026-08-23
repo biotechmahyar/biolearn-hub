@@ -76,6 +76,7 @@ export const createRoom = mutation({
       topic: args.topic.trim(),
       description: args.description.trim(),
       status: "live",
+      broadcasting: false,
       createdAt: Date.now(),
     });
   },
@@ -140,17 +141,37 @@ export const getRoom = query({
       .withIndex("by_room_created", (q) => q.eq("roomId", room._id))
       .order("asc")
       .take(200);
-    return { ...room, messages };
+    const enriched = await Promise.all(
+      messages.map(async (m) => {
+        const attachmentUrl = m.attachmentStorageId
+          ? await ctx.storage.getUrl(m.attachmentStorageId)
+          : undefined;
+        return { ...m, attachmentUrl };
+      }),
+    );
+    return { ...room, messages: enriched };
   },
 });
 
-// Ask a question or post a message in a live room.
+// Ask a question or post a message (with optional file/voice/image attachment) in a live room.
 export const sendMessage = mutation({
-  args: { roomId: v.id("classRooms"), text: v.string(), type: v.string() },
+  args: {
+    roomId: v.id("classRooms"),
+    text: v.string(),
+    type: v.string(),
+    attachmentType: v.optional(
+      v.union(v.literal("file"), v.literal("voice"), v.literal("image")),
+    ),
+    attachmentName: v.optional(v.string()),
+    attachmentStorageId: v.optional(v.string()),
+    attachmentSize: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد حساب شوید.");
-    if (args.text.trim().length === 0) throw new Error("متن پیام خالی است.");
+    if (args.text.trim().length === 0 && !args.attachmentStorageId) {
+      throw new Error("متن پیام یا فایل لازم است.");
+    }
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     if (room.status !== "live") throw new Error("این کلاس در حال حاضر برگزار نمی‌شود.");
@@ -164,8 +185,97 @@ export const sendMessage = mutation({
       role: user.role ?? "user",
       type: args.type as any,
       text: args.text.trim(),
+      attachmentType: args.attachmentType,
+      attachmentName: args.attachmentName,
+      attachmentStorageId: args.attachmentStorageId,
+      attachmentSize: args.attachmentSize,
       createdAt: Date.now(),
     });
+  },
+});
+
+// ── Attachments (files, voice notes, images) ───────────────────────────────
+// Client uploads the blob to this URL, gets back the storage id, then sends
+// the message with attachmentStorageId.
+export const getUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+// ── Live broadcast (WebRTC signaling) ──────────────────────────────────────
+export const startBroadcast = mutation({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند پخش را شروع کند.");
+    await ctx.db.patch(args.roomId, { broadcasting: true });
+    return { ok: true };
+  },
+});
+
+export const endBroadcast = mutation({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند پخش را پایان دهد.");
+    await ctx.db.patch(args.roomId, { broadcasting: false });
+    return { ok: true };
+  },
+});
+
+// Peer-to-peer signaling for the live stream. The instructor posts an offer,
+// every student answers, and ICE candidates are exchanged over the same table.
+export const sendSignal = mutation({
+  args: {
+    roomId: v.id("classRooms"),
+    type: v.union(v.literal("offer"), v.literal("answer"), v.literal("candidate")),
+    data: v.string(),
+    to: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    if (args.data.length > 16_000) throw new Error("سیگنال بیش از حد بزرگ است.");
+    return await ctx.db.insert("signals", {
+      roomId: room._id,
+      from: user._id,
+      to: args.to,
+      type: args.type as any,
+      data: args.data,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const listSignals = query({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    const room = await ctx.db.get(args.roomId);
+    if (!room) return [];
+    // Only participants of a live (or previously live) room may read signals.
+    if (room.status !== "live") {
+      const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+      if (!allowed && !(await isAdmin(ctx))) return [];
+    }
+    return await ctx.db
+      .query("signals")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .order("asc")
+      .take(500);
   },
 });
 

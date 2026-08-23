@@ -344,6 +344,7 @@ const schema = defineSchema(
       topic: v.string(),
       description: v.string(),
       status: v.union(v.literal("live"), v.literal("scheduled"), v.literal("ended")),
+      broadcasting: v.boolean(),
       createdAt: v.number(),
     })
       .index("by_instructor", ["instructorId"])
@@ -357,10 +358,26 @@ const schema = defineSchema(
       type: v.union(v.literal("question"), v.literal("message"), v.literal("answer")),
       text: v.string(),
       answer: v.optional(v.string()),
+      attachmentType: v.optional(
+        v.union(v.literal("file"), v.literal("voice"), v.literal("image")),
+      ),
+      attachmentName: v.optional(v.string()),
+      attachmentStorageId: v.optional(v.string()),
+      attachmentSize: v.optional(v.number()),
       createdAt: v.number(),
     })
       .index("by_room", ["roomId"])
       .index("by_room_created", ["roomId", "createdAt"]),
+
+    // WebRTC signaling: offers/answers/ICE candidates for live broadcasts.
+    signals: defineTable({
+      roomId: v.id("classRooms"),
+      from: v.id("users"),
+      to: v.optional(v.id("users")),
+      type: v.union(v.literal("offer"), v.literal("answer"), v.literal("candidate")),
+      data: v.string(), // JSON-encoded SDP or ICE candidate
+      createdAt: v.number(),
+    }).index("by_room", ["roomId"]),
 
     mentorGroups: defineTable({
       mentorId: v.id("users"),
