@@ -37,8 +37,9 @@ export const getProfileUploadUrl = mutation({
   },
 });
 
-// Stage a profile edit. It is NOT applied immediately — the site admin sees it
-// in the console and approves it (then it goes live) or rejects it.
+// Stage a profile edit. For regular members the change is NOT applied
+// immediately — an admin approves it in the console first. System and site
+// admins edit their own profile directly (applied right away).
 export const updateMyProfile = mutation({
   args: {
     firstName: v.optional(v.string()),
@@ -49,16 +50,31 @@ export const updateMyProfile = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("وارد نشده‌اید.");
+    const next = {
+      firstName: args.firstName?.trim() || undefined,
+      lastName: args.lastName?.trim() || undefined,
+      avatarStorageId: args.avatarStorageId || undefined,
+      about: args.about?.trim() || undefined,
+    };
+    // Admins publish their own profile changes without approval.
+    if (await isAnyAdmin(ctx)) {
+      const patch: Record<string, unknown> = {
+        firstName: next.firstName,
+        lastName: next.lastName,
+        avatarStorageId: next.avatarStorageId,
+        about: next.about,
+        pendingProfile: undefined,
+      };
+      if (next.firstName || next.lastName) {
+        patch.name = `${next.firstName ?? ""} ${next.lastName ?? ""}`.trim();
+      }
+      await ctx.db.patch(user._id, patch as any);
+      return { ok: true, applied: true };
+    }
     await ctx.db.patch(user._id, {
-      pendingProfile: {
-        firstName: args.firstName?.trim() || undefined,
-        lastName: args.lastName?.trim() || undefined,
-        avatarStorageId: args.avatarStorageId || undefined,
-        about: args.about?.trim() || undefined,
-        submittedAt: Date.now(),
-      },
+      pendingProfile: { ...next, submittedAt: Date.now() },
     });
-    return { ok: true };
+    return { ok: true, applied: false };
   },
 });
 

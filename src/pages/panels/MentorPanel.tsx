@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -11,6 +12,7 @@ import {
   Send,
   Sparkles,
   Trash2,
+  User,
   Users,
   X,
 } from "lucide-react";
@@ -24,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-type Tab = "questions" | "groups" | "sessions";
+type Tab = "questions" | "groups" | "sessions" | "profile";
 
 type QuestionRow = (typeof api.mentor.listMentorQuestions)["_returnType"][number];
 type GroupRow = (typeof api.collab.listMentorGroups)["_returnType"][number];
@@ -34,6 +36,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass; hint: string }[] = [
   { id: "questions", label: "سؤالات دانشجویان", icon: MessageCircleQuestion, hint: "پاسخ به سؤالات" },
   { id: "groups", label: "گروه‌های منتورینگ", icon: Users, hint: "حلقه‌های مطالعه" },
   { id: "sessions", label: "جلسات انفرادی", icon: CalendarClock, hint: "برنامه‌ریزی ۱:۱" },
+  { id: "profile", label: "پروفایل من", icon: User, hint: "عکس و مشخصات" },
 ];
 
 export default function MentorPanel() {
@@ -112,6 +115,7 @@ export default function MentorPanel() {
           {tab === "questions" && <QuestionsView />}
           {tab === "groups" && <GroupsView />}
           {tab === "sessions" && <SessionsView />}
+          {tab === "profile" && <MentorProfileView />}
         </main>
       </div>
     </div>
@@ -580,6 +584,21 @@ function SessionsView() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+// ── My profile ──────────────────────────────────────────────────────────────
+function MentorProfileView() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold text-amber-100">پروفایل من</h2>
+        <p className="mt-1 text-sm text-amber-100/50">
+          عکس، نام و معرفی کوتاه خود را ثبت کنید؛ تغییرات پس از تأیید مدیر سایت اعمال می‌شود.
+        </p>
+      </div>
+      <MemberProfileEditor />
     </div>
   );
 }

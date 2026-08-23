@@ -1,4 +1,5 @@
 import { CategoryField } from "@/components/site/CategoryField";
+import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +69,7 @@ import {
   Ticket,
   Trash2,
   TrendingUp,
+  User,
   UserCheck,
   Users,
   Video,
@@ -110,7 +112,8 @@ type Section =
   | "support"
   | "announcements"
   | "profiles"
-  | "inbox";
+  | "inbox"
+  | "myprofile";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -140,6 +143,10 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
   {
     title: "تیم",
     items: [{ key: "instructors", label: "مدرسان", icon: BookUser }],
+  },
+  {
+    title: "حساب من",
+    items: [{ key: "myprofile", label: "پروفایل من", icon: User }],
   },
 ];
 
@@ -539,6 +546,7 @@ export default function Admin() {
             {section === "workshops" && <AdminWorkshops />}
             {section === "products" && <AdminProducts />}
             {section === "instructors" && <AdminInstructors />}
+            {section === "myprofile" && <AdminMyProfile />}
             {section === "users" && <AdminUsers />}
             {section === "orders" && <AdminOrders />}
             {section === "coupons" && <AdminCoupons />}
@@ -2586,3 +2594,18 @@ function AdminInbox() {
   );
 }
 
+
+// ── My profile (admin console) ──────────────────────────────────────────────
+function AdminMyProfile() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold">پروفایل من</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          نام، عکس و معرفی خود را ثبت کنید — شما ادمین هستید و تغییرات‌تان بدون تأیید، همان لحظه اعمال و عمومی می‌شود.
+        </p>
+      </div>
+      <MemberProfileEditor />
+    </div>
+  );
+}

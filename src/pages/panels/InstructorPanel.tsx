@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { CategoryField } from "@/components/site/CategoryField";
+import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
@@ -1401,61 +1402,10 @@ function CourseStudioView() {
 
 // ── My profile (name, photo, about) + suggested courses ─────────────────────
 function ProfileView() {
-  const me = useQuery(api.profiles.getMyProfile);
   const suggested = useQuery(api.profiles.listSuggestedCourses);
-  const uploadUrl = useMutation(api.profiles.getProfileUploadUrl);
-  const update = useMutation(api.profiles.updateMyProfile);
   const toggle = useMutation(api.profiles.toggleSuggestedCourse);
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [about, setAbout] = useState("");
-  const [avatarStorageId, setAvatarStorageId] = useState<string | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const fileRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    if (me) {
-      setFirstName(me.firstName ?? "");
-      setLastName(me.lastName ?? "");
-      setAbout(me.about ?? "");
-    }
-  }, [me]);
-
-  const pickAvatar = async (file: File | undefined) => {
-    if (!file) return;
-    setAvatarPreview(URL.createObjectURL(file));
-    try {
-      const url = await uploadUrl();
-      setAvatarStorageId(await uploadBlob(url, file));
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "آپلود عکس ناموفق بود");
-    }
-  };
-
-  const handleSave = async () => {
-    setErr(null);
-    setSaved(false);
-    if (!firstName.trim() && !lastName.trim()) {
-      setErr("نام یا نام خانوادگی را وارد کنید.");
-      return;
-    }
-    setBusy(true);
-    try {
-      await update({ firstName, lastName, avatarStorageId: avatarStorageId ?? undefined, about });
-      setSaved(true);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "خطا در ذخیره");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const pending = me?.pendingProfile ?? null;
   const catalog = suggested?.catalog ?? [];
   const filtered = catalog.filter(
     (c) =>
@@ -1469,88 +1419,11 @@ function ProfileView() {
       <div>
         <h2 className="text-xl font-bold text-white">پروفایل من</h2>
         <p className="mt-1 text-sm text-slate-400">
-          نام، عکس و سوابق علمی‌تان را ثبت کنید؛ تغییرات پس از تأیید مدیر سایت در سایت نمایش داده می‌شود.
+          نام، عکس و سوابق علمی‌تان را ثبت کنید؛ تغییرات شما برای مدیر سایت ارسال می‌شود و بعد از تأیید، روی سایت نمایش داده می‌شود.
         </p>
       </div>
 
-      {pending && (
-        <div className="flex items-center gap-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-sm text-amber-300">
-          <Hourglass className="size-4 shrink-0" />
-          <span>
-            تغییرات شما در انتظار تأیید مدیر سایت است — ارسال‌شده در{" "}
-            {new Date(pending.submittedAt).toLocaleDateString("fa-IR")}.
-          </span>
-        </div>
-      )}
-
-      <Card className="border-cyan-400/20 bg-[#0b1a2a]">
-        <CardContent className="space-y-4 py-5">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative">
-              <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl border border-cyan-400/30 bg-cyan-400/10">
-                {avatarPreview || me?.avatarUrl ? (
-                  <img src={avatarPreview ?? me?.avatarUrl!} alt="عکس پروفایل" className="size-full object-cover" />
-                ) : (
-                  <User className="size-8 text-cyan-300" />
-                )}
-              </div>
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="absolute -bottom-1.5 -left-1.5 flex size-7 items-center justify-center rounded-full border border-cyan-400/40 bg-[#0b1a2a] text-cyan-300 hover:bg-cyan-400/10"
-                title="انتخاب عکس"
-              >
-                <Upload className="size-3.5" />
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => void pickAvatar(e.target.files?.[0])}
-              />
-            </div>
-            <div className="min-w-0">
-              <p className="font-bold text-white">
-                {firstName || lastName ? `${firstName} ${lastName}`.trim() : (me?.name ?? "مدرس")}
-              </p>
-              <p className="mt-0.5 text-xs text-slate-400">{me?.email ?? ""}</p>
-              <p className="mt-0.5 text-[11px] text-slate-500">عکس پروفایل در پروفایل دانشجویی و کارت‌های شما نمایش داده می‌شود.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-400">نام</label>
-              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="نام" className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-400">نام خانوادگی</label>
-              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="نام خانوادگی" className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-400">دربارهٔ مدرس</label>
-            <Textarea
-              rows={4}
-              value={about}
-              onChange={(e) => setAbout(e.target.value)}
-              placeholder="سوابق علمی، تحصیلی و تجربه‌های آموزشی خود را بنویسید…"
-              className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
-            />
-          </div>
-          {err && <p className="text-sm text-red-400">{err}</p>}
-          {saved && (
-            <p className="flex items-center gap-2 text-sm text-emerald-300">
-              <CheckCircle2 className="size-4" />
-              ذخیره شد — پس از تأیید مدیر سایت اعمال می‌شود.
-            </p>
-          )}
-          <Button onClick={handleSave} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
-            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
-            ذخیرهٔ پروفایل
-          </Button>
-        </CardContent>
-      </Card>
+      <MemberProfileEditor />
 
       {/* Suggested courses */}
       <div className="space-y-3">

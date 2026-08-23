@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -14,6 +15,7 @@ import {
   Rocket,
   Send,
   Sparkles,
+  User,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -26,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-type Tab = "drafts" | "write";
+type Tab = "drafts" | "write" | "profile";
 type ArticleRow = (typeof api.admin.adminListArticles)["_returnType"][number];
 
 type DraftItem = {
@@ -108,12 +110,24 @@ export default function ContentPanel() {
               <PenLine className="size-4" />
               نوشتن مقاله
             </button>
+            <button
+              onClick={() => setTab("profile")}
+              className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                tab === "profile"
+                  ? "border border-sky-400/30 bg-sky-400/10 text-sky-200"
+                  : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+              }`}
+            >
+              <User className="size-4" />
+              پروفایل من
+            </button>
           </nav>
         </aside>
 
         <main className="min-w-0">
           {tab === "drafts" && <DraftQueue />}
           {tab === "write" && <ArticleEditor />}
+          {tab === "profile" && <ContentProfileView />}
         </main>
       </div>
     </div>
@@ -443,6 +457,21 @@ function ArticleEditor() {
         <FileText className="size-3" />
         پیش‌نویس‌ها فقط در صف همین استودیو دیده می‌شوند.
       </p>
+    </div>
+  );
+}
+
+// ── My profile ──────────────────────────────────────────────────────────────
+function ContentProfileView() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold text-sky-100">پروفایل من</h2>
+        <p className="mt-1 text-sm text-sky-100/50">
+          عکس، نام و معرفی کوتاه خود را ثبت کنید؛ تغییرات پس از تأیید مدیر سایت اعمال می‌شود.
+        </p>
+      </div>
+      <MemberProfileEditor />
     </div>
   );
 }

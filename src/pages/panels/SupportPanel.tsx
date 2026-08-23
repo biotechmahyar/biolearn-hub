@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -9,6 +10,7 @@ import {
   Lock,
   MessageSquare,
   Send,
+  User,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -32,6 +34,7 @@ export default function SupportPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Status | "all">("all");
+  const [view, setView] = useState<"tickets" | "profile">("tickets");
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const tickets = useQuery(api.tickets.listAllTickets) ?? [];
@@ -96,6 +99,15 @@ export default function SupportPanel() {
             <Button
               variant="ghost"
               size="sm"
+              className="text-emerald-100/70 hover:bg-emerald-400/10"
+              onClick={() => setView(view === "tickets" ? "profile" : "tickets")}
+            >
+              <User className="size-4" />
+              {view === "tickets" ? "پروفایل من" : "تیکت‌ها"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               className="text-emerald-100/50"
               onClick={() => navigate(user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/")}
             >
@@ -106,6 +118,10 @@ export default function SupportPanel() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+        {view === "profile" ? (
+          <SupportProfileView />
+        ) : (
+          <>
         {/* Queue stats */}
         <div className="grid grid-cols-3 gap-3">
           {(["open", "answered", "closed"] as Status[]).map((s) => (
@@ -243,7 +259,24 @@ export default function SupportPanel() {
           <MessageSquare className="size-3" />
           پاسخ‌ها به‌صورت لحظه‌ای برای دانشجو نمایش داده می‌شوند
         </p>
+          </>
+        )}
       </main>
+    </div>
+  );
+}
+
+// ── My profile ──────────────────────────────────────────────────────────────
+function SupportProfileView() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-xl font-bold text-emerald-100">پروفایل من</h2>
+        <p className="mt-1 text-sm text-emerald-100/50">
+          عکس، نام و معرفی کوتاه خود را ثبت کنید؛ تغییرات پس از تأیید مدیر سایت اعمال می‌شود.
+        </p>
+      </div>
+      <MemberProfileEditor />
     </div>
   );
 }
