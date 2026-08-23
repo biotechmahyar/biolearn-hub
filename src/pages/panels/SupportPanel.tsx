@@ -93,7 +93,12 @@ export default function SupportPanel() {
             <Badge variant="outline" className="border-white/10 font-mono text-[10px] text-emerald-100/70">
               {user?.name ?? "پشتیبانی"}
             </Badge>
-            <Button variant="ghost" size="sm" className="text-emerald-100/50" onClick={() => navigate("/")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-emerald-100/50"
+              onClick={() => navigate(user?.role === "admin" ? "/admin" : "/")}
+            >
               <X className="size-4" />
             </Button>
           </div>

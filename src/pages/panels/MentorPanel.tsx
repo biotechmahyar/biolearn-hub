@@ -73,7 +73,12 @@ export default function MentorPanel() {
             <Badge variant="outline" className="border-white/10 font-mono text-[10px] text-amber-100/70">
               {user?.name ?? "منتور"}
             </Badge>
-            <Button variant="ghost" size="sm" className="text-amber-100/50" onClick={() => navigate("/")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-100/50"
+              onClick={() => navigate(user?.role === "admin" ? "/admin" : "/")}
+            >
               <X className="size-4" />
             </Button>
           </div>

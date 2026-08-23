@@ -87,7 +87,12 @@ export default function InstructorPanel() {
             <Badge variant="outline" className="border-cyan-400/20 font-mono text-[10px] text-cyan-300">
               {user?.name ?? "استاد"}
             </Badge>
-            <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => navigate("/")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-slate-400"
+              onClick={() => navigate(user?.role === "admin" ? "/admin" : "/")}
+            >
               <X className="size-4" />
             </Button>
           </div>

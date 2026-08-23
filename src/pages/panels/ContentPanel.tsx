@@ -71,7 +71,12 @@ export default function ContentPanel() {
             <Badge variant="outline" className="border-white/10 font-mono text-[10px] text-sky-100/70">
               {user?.name ?? "مدیر محتوا"}
             </Badge>
-            <Button variant="ghost" size="sm" className="text-sky-100/50" onClick={() => navigate("/")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sky-100/50"
+              onClick={() => navigate(user?.role === "admin" ? "/admin" : "/")}
+            >
               <X className="size-4" />
             </Button>
           </div>

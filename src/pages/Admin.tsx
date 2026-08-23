@@ -34,10 +34,13 @@ import {
   BarChart3,
   BookOpen,
   BookUser,
+  ChevronDown,
   ClipboardList,
+  Compass,
   CreditCard,
   DollarSign,
   FileText,
+  Headset,
   HelpCircle,
   Layers,
   Loader2,
@@ -51,10 +54,19 @@ import {
   Ticket,
   TrendingUp,
   Users,
+  Video,
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Bar,
   BarChart,
@@ -234,6 +246,15 @@ function Loading() {
 export default function Admin() {
   const isAdmin = useQuery(api.admin.amIAdmin);
   const [section, setSection] = useState<Section>("overview");
+  const navigate = useNavigate();
+
+  // Staff panels the admin can jump into (every role except student).
+  const ROLE_JUMP: { label: string; icon: typeof ShieldCheck; to: string }[] = [
+    { label: "استودیوی استاد", icon: Video, to: "/panel/instructor" },
+    { label: "میز منتور", icon: Compass, to: "/panel/mentor" },
+    { label: "استودیوی محتوا", icon: FileText, to: "/panel/content" },
+    { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
+  ];
 
   if (isAdmin === undefined) {
     return (
@@ -352,9 +373,49 @@ export default function Admin() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button asChild variant="outline" size="sm" className="hidden h-8 rounded-lg text-xs lg:inline-flex">
-                <Link to="/dashboard">پنل دانشجویی</Link>
-              </Button>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-lg text-xs"
+                      title="جابه‌جایی بین پنل نقش‌ها"
+                    >
+                      <Repeat className="ml-1.5 size-3.5 text-primary" />
+                      سوییچ نقش
+                      <ChevronDown className="mr-1 size-3 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel className="text-xs">
+                      پنل‌های تیم (به‌جز دانشجو)
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {ROLE_JUMP.map((r) => (
+                      <DropdownMenuItem
+                        key={r.to}
+                        onClick={() => navigate(r.to)}
+                        className="cursor-pointer"
+                      >
+                        <r.icon className="ml-2 size-4" />
+                        {r.label}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => navigate("/admin")}
+                      className="cursor-pointer"
+                    >
+                      <ShieldCheck className="ml-2 size-4" />
+                      کنسول مدیریت
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button asChild variant="outline" size="sm" className="hidden h-8 rounded-lg text-xs lg:inline-flex">
+                  <Link to="/dashboard">پنل دانشجویی</Link>
+                </Button>
+              </div>
             </div>
           </header>
 
