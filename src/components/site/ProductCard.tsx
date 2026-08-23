@@ -39,7 +39,7 @@ export function ProductCard({ product }: { product: Product }) {
         <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3.5">
           <span className="text-[15px] font-extrabold">
             {product.price === 0 ? (
-              <span className="text-emerald-600">رایگان</span>
+              <span className="text-emerald-500">رایگان</span>
             ) : (
               formatPrice(product.price)
             )}

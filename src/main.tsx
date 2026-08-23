@@ -1,6 +1,7 @@
 import '@vly-ai/integrations';
 import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
+import { SettingsProvider } from "@/lib/settings";
 import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
@@ -78,6 +79,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <VlyToolbar />
     <InstrumentationProvider>
+      <SettingsProvider>
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
           <SeedBootstrap />
@@ -132,6 +134,7 @@ createRoot(document.getElementById("root")!).render(
         </BrowserRouter>
         <Toaster />
       </ConvexAuthProvider>
+      </SettingsProvider>
     </InstrumentationProvider>
   </StrictMode>,
 );

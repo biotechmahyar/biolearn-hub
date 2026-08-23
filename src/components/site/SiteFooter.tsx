@@ -21,7 +21,7 @@ export function SiteFooter() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
-                <Send className="size-4 text-sky-600" />
+                <Send className="size-4 text-sky-500" />
                 کانال تلگرام
               </a>
               <a

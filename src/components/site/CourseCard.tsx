@@ -91,7 +91,7 @@ export function CourseCard({ course }: { course: Course }) {
           <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3.5">
             <div className="flex items-baseline gap-2">
               {course.price === 0 ? (
-                <span className="text-base font-extrabold text-emerald-600">رایگان</span>
+                <span className="text-base font-extrabold text-emerald-500">رایگان</span>
               ) : (
                 <>
                   <span className="text-base font-extrabold">{formatPrice(effective)}</span>

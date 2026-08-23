@@ -185,7 +185,7 @@ export default function Landing() {
                 transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
                 className="absolute -left-6 top-1/3 flex items-center gap-2 rounded-2xl border border-border/70 bg-card px-4 py-3 shadow-lg"
               >
-                <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
                   <TrendingUp className="size-4.5" />
                 </span>
                 <div>
@@ -199,7 +199,7 @@ export default function Landing() {
                 transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
                 className="absolute -bottom-4 right-8 flex items-center gap-2 rounded-2xl border border-border/70 bg-card px-4 py-3 shadow-lg"
               >
-                <span className="flex size-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                <span className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
                   <Zap className="size-4.5" />
                 </span>
                 <div>

@@ -159,9 +159,9 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
 
   const cards = [
     { icon: BookOpen, label: "دوره‌های من", value: faNum(enrollments?.length ?? 0), sub: `${faNum(completedLessons)} جلسه تکمیل`, color: "bg-primary/10 text-primary" },
-    { icon: ClipboardList, label: "آزمون‌های انجام‌شده", value: faNum(attempts?.length ?? 0), sub: avgPercent !== null ? `میانگین ${faNum(avgPercent)}٪` : "هنوز آزمونی نداده‌ای", color: "bg-violet-50 text-violet-600" },
-    { icon: Zap, label: "امتیاز کوئیز", value: faNum(profile?.totalPoints ?? 0), sub: "از کوئیزهای روزانه", color: "bg-amber-50 text-amber-600" },
-    { icon: Trophy, label: "تست‌های حل‌شده", value: faNum(profile?.totalAnswered ?? 0), sub: "در همهٔ آزمون‌ها", color: "bg-emerald-50 text-emerald-600" },
+    { icon: ClipboardList, label: "آزمون‌های انجام‌شده", value: faNum(attempts?.length ?? 0), sub: avgPercent !== null ? `میانگین ${faNum(avgPercent)}٪` : "هنوز آزمونی نداده‌ای", color: "bg-violet-500/10 text-violet-500" },
+    { icon: Zap, label: "امتیاز کوئیز", value: faNum(profile?.totalPoints ?? 0), sub: "از کوئیزهای روزانه", color: "bg-amber-500/10 text-amber-500" },
+    { icon: Trophy, label: "تست‌های حل‌شده", value: faNum(profile?.totalAnswered ?? 0), sub: "در همهٔ آزمون‌ها", color: "bg-emerald-500/10 text-emerald-500" },
   ];
 
   const continueCourse = (enrollments ?? []).find((e) => (e.percent ?? 0) < 100);
@@ -324,9 +324,9 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
                   variant="secondary"
                   className={cn(
                     "rounded-full",
-                    a.percent >= 70 && "bg-emerald-50 text-emerald-700",
-                    a.percent >= 40 && a.percent < 70 && "bg-amber-50 text-amber-700",
-                    a.percent < 40 && "bg-red-50 text-red-700",
+                    a.percent >= 70 && "bg-emerald-500/10 text-emerald-500",
+                    a.percent >= 40 && a.percent < 70 && "bg-amber-500/10 text-amber-500",
+                    a.percent < 40 && "bg-red-500/10 text-red-500",
                   )}
                 >
                   {faNum(a.percent)}٪
@@ -441,9 +441,9 @@ function TestsTab() {
                     <span
                       className={cn(
                         "flex size-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black",
-                        a.percent >= 70 && "bg-emerald-50 text-emerald-700",
-                        a.percent >= 40 && a.percent < 70 && "bg-amber-50 text-amber-700",
-                        a.percent < 40 && "bg-red-50 text-red-700",
+                        a.percent >= 70 && "bg-emerald-500/10 text-emerald-500",
+                        a.percent >= 40 && a.percent < 70 && "bg-amber-500/10 text-amber-500",
+                        a.percent < 40 && "bg-red-500/10 text-red-500",
                       )}
                     >
                       {faNum(a.percent)}٪
@@ -825,8 +825,8 @@ function SupportTab() {
                     variant="secondary"
                     className={cn(
                       "rounded-full",
-                      t.status === "open" && "bg-amber-50 text-amber-700",
-                      t.status === "answered" && "bg-emerald-50 text-emerald-700",
+                      t.status === "open" && "bg-amber-500/10 text-amber-500",
+                      t.status === "answered" && "bg-emerald-500/10 text-emerald-500",
                       t.status === "closed" && "bg-muted text-muted-foreground",
                     )}
                   >

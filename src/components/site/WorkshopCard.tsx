@@ -35,7 +35,7 @@ export function WorkshopCard({ workshop }: { workshop: Workshop }) {
             {workshop.topic}
           </Badge>
           {workshop.expertTalk && (
-            <Badge className="border-0 bg-emerald-500/10 text-emerald-700">نشست رایگان</Badge>
+            <Badge className="border-0 bg-emerald-500/10 text-emerald-500">نشست رایگان</Badge>
           )}
         </div>
         <h3 className="mt-3 text-[15px] font-bold leading-6">{workshop.title}</h3>
@@ -74,7 +74,7 @@ export function WorkshopCard({ workshop }: { workshop: Workshop }) {
         <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-4">
           <span className="text-[15px] font-extrabold">
             {workshop.free || workshop.price === 0 ? (
-              <span className="text-emerald-600">رایگان</span>
+              <span className="text-emerald-500">رایگان</span>
             ) : (
               formatPrice(workshop.price)
             )}

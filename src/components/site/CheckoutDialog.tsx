@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatPrice } from "@/lib/format";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { BadgeCheck, Loader2, ShieldCheck, Tag, X } from "lucide-react";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -43,11 +43,20 @@ export function CheckoutDialog({
   const purchase = useMutation(api.enroll.purchase);
 
   const [coupon, setCoupon] = useState("");
-  const [couponPercent, setCouponPercent] = useState<number | null>(null);
-  const [couponError, setCouponError] = useState<string | null>(null);
+  const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Validate against the actual coupons table so admin-created codes work.
+  const couponInfo = useQuery(
+    api.enroll.getCouponInfo,
+    appliedCode ? { code: appliedCode } : "skip",
+  );
+  const couponPercent =
+    appliedCode && couponInfo && couponInfo.valid ? couponInfo.percent : null;
+  const couponError =
+    appliedCode && couponInfo && !couponInfo.valid ? couponInfo.reason : null;
 
   const subtotal = items.reduce((acc, i) => acc + i.price, 0);
   const discount = subtotal > 0 && couponPercent ? Math.round((subtotal * couponPercent) / 100) : 0;
@@ -62,19 +71,9 @@ export function CheckoutDialog({
     }
   };
 
-  // Lightweight client hint; the server is the source of truth at purchase time.
-  const KNOWN_COUPONS: Record<string, number> = { ZIST10: 10, ZIST15: 15, START5: 5 };
-
   const handleApplyCoupon = () => {
-    setCouponError(null);
-    setCouponPercent(null);
     if (!coupon.trim()) return;
-    const percent = KNOWN_COUPONS[coupon.trim().toUpperCase()];
-    if (percent) {
-      setCouponPercent(percent);
-    } else {
-      setCouponError("کد تخفیف نامعتبر است.");
-    }
+    setAppliedCode(coupon.trim().toUpperCase());
   };
 
   const handleSubmit = async () => {
@@ -101,7 +100,7 @@ export function CheckoutDialog({
   const handleClose = () => {
     setDone(null);
     setCoupon("");
-    setCouponPercent(null);
+    setAppliedCode(null);
     setError(null);
     onOpenChange(false);
   };
@@ -112,7 +111,7 @@ export function CheckoutDialog({
         {done ? (
           <>
             <DialogHeader className="text-center">
-              <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500">
                 <BadgeCheck className="size-7" />
               </div>
               <DialogTitle className="text-xl">{successTitle}</DialogTitle>
@@ -161,7 +160,7 @@ export function CheckoutDialog({
                 <span>{formatPrice(subtotal)}</span>
               </div>
               {discount > 0 && (
-                <div className="flex items-center justify-between text-emerald-600">
+                <div className="flex items-center justify-between text-emerald-500">
                   <span className="flex items-center gap-1">
                     <Tag className="size-3.5" />
                     تخفیف ({couponPercent}٪)
@@ -181,10 +180,9 @@ export function CheckoutDialog({
                 value={coupon}
                 onChange={(e) => {
                   setCoupon(e.target.value.toUpperCase());
-                  setCouponPercent(null);
-                  setCouponError(null);
+                  setAppliedCode(null);
                 }}
-                placeholder="کد تخفیف (مثل ZIST10)"
+                placeholder="کد تخفیف (مثل GEN10)"
                 className="font-mono text-center"
               />
               <Button type="button" variant="outline" onClick={handleApplyCoupon}>

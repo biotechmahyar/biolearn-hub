@@ -123,6 +123,29 @@ export const purchase = mutation({
   },
 });
 
+// Look up a coupon from the DB so the checkout UI can preview the discount
+// with the same rules the purchase mutation enforces. Public: coupons are
+// promo codes, not secrets.
+export const getCouponInfo = query({
+  args: { code: v.string() },
+  handler: async (ctx, args) => {
+    const code = args.code.trim().toUpperCase();
+    if (!code) return null;
+    const coupon = await ctx.db
+      .query("coupons")
+      .withIndex("by_code", (q) => q.eq("code", code))
+      .first();
+    if (!coupon || !coupon.active) return { valid: false, reason: "کد تخفیف نامعتبر است." };
+    if (coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) {
+      return { valid: false, reason: "ظرفیت استفاده از این کد تخفیف تمام شده است." };
+    }
+    if (coupon.expiresAt && coupon.expiresAt < Date.now()) {
+      return { valid: false, reason: "این کد تخفیف منقضی شده است." };
+    }
+    return { valid: true, percent: coupon.percent };
+  },
+});
+
 export const getMyOrders = query({
   args: {},
   handler: async (ctx) => {
