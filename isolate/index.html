@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fa" dir="rtl" class="dark">
+<html lang="fa" dir="rtl">
 
 <head>
   <meta charset="UTF-8" />
@@ -11,15 +11,29 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
-  <script type="module" crossorigin src="/assets/index-Bq7kfUq_.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/react-vendor-uHxuI0dH.js">
-  <link rel="modulepreload" crossorigin href="/assets/framer-motion-DbSpdIBm.js">
-  <link rel="modulepreload" crossorigin href="/assets/radix-ui-xCCAjVt-.js">
-  <link rel="modulepreload" crossorigin href="/assets/charts-Cg3RfNob.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-DkefDS9U.css">
+  <script>
+    // Apply saved appearance before first paint to avoid a flash of the wrong theme.
+    (function () {
+      try {
+        var raw = window.localStorage.getItem("genova-settings");
+        var s = raw ? JSON.parse(raw) : {};
+        var root = document.documentElement;
+        if (s.theme === "light") root.classList.remove("dark");
+        else root.classList.add("dark");
+        if (s.accent) root.setAttribute("data-accent", s.accent);
+        if (s.font) root.setAttribute("data-font", s.font);
+      } catch (e) {}
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-BDFLa25x.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/react-vendor-CIHsJp53.js">
+  <link rel="modulepreload" crossorigin href="/assets/radix-ui-DzuclY1N.js">
+  <link rel="modulepreload" crossorigin href="/assets/charts-CurQwKVE.js">
+  <link rel="modulepreload" crossorigin href="/assets/framer-motion-C1Su7w3s.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-re-Kh73E.css">
 </head>
 
 <body>
