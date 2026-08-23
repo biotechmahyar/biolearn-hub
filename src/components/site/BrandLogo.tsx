@@ -35,10 +35,10 @@ export function BrandLogo({ className, withText = true }: { className?: string; 
       {withText && (
         <span className="flex flex-col leading-none">
           <span className="text-[15px] font-extrabold tracking-tight">
-            زیست‌آکادمی
+            Genova
           </span>
           <span className="text-[10px] font-medium text-muted-foreground">
-            ZistAcademy · علوم زیستی
+            Life-sciences stack · تیم داخلی
           </span>
         </span>
       )}

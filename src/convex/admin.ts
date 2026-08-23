@@ -359,7 +359,7 @@ export const adminCreateArticle = mutation({
       category: args.category.trim() || "عمومی",
       excerpt: args.excerpt.trim(),
       body: args.body,
-      authorName: args.authorName.trim() || "تیم زیست‌آکادمی",
+      authorName: args.authorName.trim() || "تیم Genova",
       accent: "teal",
       readTime: args.readTime || 5,
       published: true,

@@ -8,6 +8,78 @@ const api_seed_seedPart3 = api.seed.seedPart3;
 
 const day = 24 * 60 * 60 * 1000;
 
+const rebrand = (s: string) =>
+  s.replace(/زیست‌آکادمی/g, "Genova").replace(/ZistAcademy/g, "Genova");
+const rebrandArr = (arr: string[]) => arr.map(rebrand);
+
+// Migrates already-seeded documents to the Genova brand (idempotent).
+export const refreshBrand = mutation({
+  args: {},
+  handler: async (ctx) => {
+    for (const a of await ctx.db.query("articles").collect()) {
+      const next = {
+        title: rebrand(a.title),
+        excerpt: rebrand(a.excerpt),
+        body: rebrand(a.body),
+        authorName: rebrand(a.authorName),
+      };
+      if (
+        next.title !== a.title ||
+        next.excerpt !== a.excerpt ||
+        next.body !== a.body ||
+        next.authorName !== a.authorName
+      ) {
+        await ctx.db.patch(a._id, next);
+      }
+    }
+    for (const t of await ctx.db.query("testimonials").collect()) {
+      const next = { role: rebrand(t.role), text: rebrand(t.text), course: rebrand(t.course) };
+      if (next.role !== t.role || next.text !== t.text || next.course !== t.course) {
+        await ctx.db.patch(t._id, next);
+      }
+    }
+    for (const c of await ctx.db.query("courses").collect()) {
+      const next = {
+        title: rebrand(c.title),
+        summary: rebrand(c.summary),
+        description: rebrand(c.description),
+        includes: rebrandArr(c.includes),
+        audience: rebrandArr(c.audience),
+      };
+      if (
+        next.title !== c.title ||
+        next.summary !== c.summary ||
+        next.description !== c.description ||
+        JSON.stringify(next.includes) !== JSON.stringify(c.includes) ||
+        JSON.stringify(next.audience) !== JSON.stringify(c.audience)
+      ) {
+        await ctx.db.patch(c._id, next);
+      }
+    }
+    for (const i of await ctx.db.query("instructors").collect()) {
+      const bio = rebrand(i.bio);
+      if (bio !== i.bio) await ctx.db.patch(i._id, { bio });
+    }
+    // migrate seeded admin emails to the new domain
+    const emails = ["admin@zist.academy", "team@zist.academy"];
+    for (const e of emails) {
+      const admin = await ctx.db.query("admins").withIndex("by_email", (q) => q.eq("email", e)).first();
+      if (admin) {
+        const replacement = e === "admin@zist.academy" ? "admin@genova.team" : "team@genova.team";
+        const exists = await ctx.db.query("admins").withIndex("by_email", (q) => q.eq("email", replacement)).first();
+        if (!exists) await ctx.db.patch(admin._id, { email: replacement });
+        else await ctx.db.delete(admin._id);
+      }
+    }
+    // migrate old coupon codes to the Genova brand
+    for (const c of await ctx.db.query("coupons").collect()) {
+      const code = c.code === "ZIST10" ? "GEN10" : c.code === "ZIST15" ? "GEN15" : c.code;
+      if (code !== c.code) await ctx.db.patch(c._id, { code });
+    }
+    return { ok: true };
+  },
+});
+
 export const seedPart1 = mutation({
   args: {},
   handler: async (ctx) => {
@@ -62,15 +134,15 @@ export const seedPart1 = mutation({
 
     // ── Coupons ─────────────────────────────────────────────────────────────
     if ((await ctx.db.query("coupons").collect()).length === 0) {
-      await ctx.db.insert("coupons", { code: "ZIST10", percent: 10, active: true, maxUses: 1000, usedCount: 0 });
-      await ctx.db.insert("coupons", { code: "ZIST15", percent: 15, active: true, maxUses: 500, usedCount: 0 });
+      await ctx.db.insert("coupons", { code: "GEN10", percent: 10, active: true, maxUses: 1000, usedCount: 0 });
+      await ctx.db.insert("coupons", { code: "GEN15", percent: 15, active: true, maxUses: 500, usedCount: 0 });
       await ctx.db.insert("coupons", { code: "START5", percent: 5, active: true, maxUses: 2000, usedCount: 0 });
     }
 
     // ── Admins ──────────────────────────────────────────────────────────────
     if ((await ctx.db.query("admins").collect()).length === 0) {
-      await ctx.db.insert("admins", { email: "admin@zist.academy" });
-      await ctx.db.insert("admins", { email: "team@zist.academy" });
+      await ctx.db.insert("admins", { email: "admin@genova.team" });
+      await ctx.db.insert("admins", { email: "team@genova.team" });
     }
 
     // ── Testimonials ────────────────────────────────────────────────────────

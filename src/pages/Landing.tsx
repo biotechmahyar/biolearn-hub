@@ -71,9 +71,9 @@ export default function Landing() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <Badge variant="outline" className="mb-5 rounded-full px-3 py-1.5 text-[13px] font-medium">
+              <Badge variant="outline" className="mb-5 rounded-full px-3 py-1.5 font-mono text-[12px] font-medium">
                 <span className="ml-1.5 inline-flex size-2 rounded-full bg-emerald-500" />
-                پلتفرم تخصصی علوم زیستی — ساخته‌شده توسط دانشجویان
+                Genova · internal v0.1 · life-sciences stack
               </Badge>
             </motion.div>
             <motion.h1
@@ -93,9 +93,9 @@ export default function Landing() {
               transition={{ duration: 0.5, delay: 0.12 }}
               className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg"
             >
-              زیست‌آکادمی اکوسیستم آموزشی دانشجویان میکروبیولوژی، بیوتکنولوژی و
-              علوم زیستی است: دوره، جزوه، فلش‌کارت، آزمون تعیین سطح، کوئیز
-              روزانه و همراهی واقعی — نه فقط فروش کلاس.
+              Genova اکوسیستم آموزشی تیم ما برای دانشجویان میکروبیولوژی،
+              بیوتکنولوژی و علوم زیستی است: دوره، جزوه، فلش‌کارت، آزمون تعیین
+              سطح، کوئیز روزانه و همراهی واقعی — نه فقط فروش کلاس.
             </motion.p>
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -489,14 +489,14 @@ export default function Landing() {
       {/* ── Advantages ──────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
         <SectionHeading
-          kicker="چرا زیست‌آکادمی؟"
+          kicker="چرا Genova؟"
           title="نه فقط ویدیو؛ یک سیستم یادگیری کامل"
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { icon: Target, title: "آزمون و تحلیل عملکرد", desc: "بعد از هر آزمون، درصد موضوعی (میکروب‌شناسی، ژنتیک، بیوشیمی...) و نقاط ضعف را می‌بینی." },
             { icon: Layers, title: "پکیج کامل، نه فقط ویدیو", desc: "هر دوره شامل جزوه، تست، فلش‌کارت، آزمون و جلسهٔ رفع اشکال است." },
-            { icon: HeartHandshake, title: "همراهی واقعی", desc: "تیم ما خودش دانشجوی همین رشته‌هاست؛ پشتیبانی و راهنمایی از جنس تجربهٔ مستقیم." },
+            { icon: HeartHandshake, title: "همراهی واقعی", desc: "تیم Genova خودش دانشجوی همین رشته‌هاست؛ پشتیبانی و راهنمایی از جنس تجربهٔ مستقیم." },
             { icon: LineChart, title: "پیشرفت قابل اندازه‌گیری", desc: "پروفایل یادگیری شخصی تو ساخته می‌شود و مسیر بعدی بر اساس نقاط قوت و ضعف پیشنهاد می‌شود." },
           ].map((f) => (
             <Card key={f.title} className="border-border/70 bg-card/70 shadow-sm">
@@ -577,10 +577,9 @@ export default function Landing() {
           <div className="relative">
             <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Dna className="size-7" />
-            </span>
-            <h2 className="mx-auto mt-5 max-w-2xl text-2xl font-extrabold leading-9 sm:text-3xl text-balance">
-              عضویت رایگان است؛ یادگیری جدی شروع می‌شود
-            </h2>
+            </span>              <h2 className="mx-auto mt-5 max-w-2xl text-2xl font-extrabold leading-9 sm:text-3xl text-balance">
+                عضویت رایگان است؛ یادگیری جدی شروع می‌شود
+              </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
               با حساب رایگانت به کوئیز روزانه، آزمون تعیین سطح، محتوای رایگان و
               پروفایل یادگیری شخصی دسترسی پیدا می‌کنی. دوره‌ها و آزمون‌های

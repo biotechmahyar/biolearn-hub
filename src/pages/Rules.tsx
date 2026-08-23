@@ -34,8 +34,8 @@ const SECTIONS = [
     title: "تماس با ما",
     items: [
       "پشتیبانی و پاسخ‌گویی: شنبه تا پنجشنبه، ۹ تا ۱۸",
-      "ایمیل: hello@zist.academy",
-      "تلگرام: @zistacademy",
+      "ایمیل: hello@genova.team",
+      "تلگرام: @genova_team",
       "پاسخ‌گویی سریع‌تر از طریق تیکت داخل پنل دانشجویی انجام می‌شود.",
     ],
   },
@@ -53,8 +53,8 @@ export default function Rules() {
 
         <h1 className="text-3xl font-extrabold tracking-tight">قوانین، حریم خصوصی و بازگشت وجه</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          اعتماد مهم‌ترین سرمایهٔ ماست. این صفحه شفاف‌سازی می‌کند که چطور با
-          داده‌ها و خرید شما رفتار می‌شود.
+          Genova ابزار داخلی تیم ماست و اعتماد، مهم‌ترین سرمایهٔ آن. این صفحه
+          شفاف‌سازی می‌کند که چطور با داده‌ها و خریدها رفتار می‌شود.
         </p>
 
         <div className="mt-10 space-y-8">

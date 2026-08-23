@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as auth_emailOtp from "../auth/emailOtp.js";
+import type * as comments from "../comments.js";
 import type * as content from "../content.js";
 import type * as enroll from "../enroll.js";
 import type * as http from "../http.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
   "auth/emailOtp": typeof auth_emailOtp;
+  comments: typeof comments;
   content: typeof content;
   enroll: typeof enroll;
   http: typeof http;

@@ -174,7 +174,7 @@ export default function CourseDetail() {
             </div>
 
             {/* Buy card */}
-            <Card className="border-0 bg-white/95 text-foreground shadow-2xl backdrop-blur">
+            <Card className="border-0 bg-card/95 text-card-foreground shadow-2xl backdrop-blur">
               <CardContent className="p-6">
                 <div className="flex items-end justify-between">
                   <div>

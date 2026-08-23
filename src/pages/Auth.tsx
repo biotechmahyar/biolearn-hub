@@ -105,7 +105,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         <div className="absolute -bottom-24 -left-24 size-96 rounded-full bg-white/10 blur-3xl" />
         <Link to="/" className="relative flex items-center gap-3">
           <BrandMark className="bg-white/15 text-white" />
-          <span className="text-lg font-extrabold">زیست‌آکادمی</span>
+          <span className="text-lg font-extrabold">Genova</span>
+          <span className="rounded-full bg-white/10 px-2.5 py-1 font-mono text-[10px] text-white/70 backdrop-blur">internal</span>
         </Link>
         <div className="relative">
           <Dna className="mb-6 size-12 text-white/70" />
@@ -113,8 +114,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             یک حساب، کل مسیر یادگیری علوم زیستی
           </h1>
           <p className="mt-4 max-w-md text-sm leading-7 text-white/80">
-            کوئیز روزانه، آزمون تعیین سطح، پروفایل یادگیری شخصی، دوره‌ها و
-            پشتیبانی — همه با یک حساب کاربری. به‌زودی همین حساب در ربات تلگرام
+            یک ورود واحد برای کل پلتفرم Genova: کوئیز روزانه، آزمون تعیین سطح،
+            پروفایل یادگیری شخصی، دوره‌ها و پشتیبانی. همین حساب در ربات تلگرام
             هم فعال می‌شود.
           </p>
           <div className="mt-8 flex flex-wrap gap-2 text-xs">
@@ -125,8 +126,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             ))}
           </div>
         </div>
-        <p className="relative text-xs text-white/60">
-          © {new Date().getFullYear()} زیست‌آکادمی — تخصصی‌ترین مسیر یادگیری علوم زیستی
+        <p className="relative font-mono text-xs text-white/60">
+          © {new Date().getFullYear()} Genova · internal life-sciences platform
         </p>
       </div>
 
@@ -135,7 +136,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         <div className="w-full max-w-md">
           <Link to="/" className="mb-6 inline-flex items-center gap-2.5 lg:hidden">
             <BrandMark />
-            <span className="text-lg font-extrabold">زیست‌آکادمی</span>
+            <span className="text-lg font-extrabold">Genova</span>
           </Link>
 
           <Card className="border-border/70 shadow-xl shadow-primary/5">
@@ -293,7 +294,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
           <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
             با ورود، <Link to="/rules" className="underline hover:text-foreground">قوانین</Link> و{" "}
-            <Link to="/rules" className="underline hover:text-foreground">حریم خصوصی</Link> زیست‌آکادمی را می‌پذیری.
+            <Link to="/rules" className="underline hover:text-foreground">حریم خصوصی</Link> Genova را می‌پذیری.
           </p>
         </div>
       </div>

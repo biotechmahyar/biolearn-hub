@@ -100,9 +100,9 @@ export default function Admin() {
         <div>
           <p className="text-lg font-bold">دسترسی مدیریت لازم است</p>
           <p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">
-            این بخش فقط برای اعضای تیم زیست‌آکادمی فعال است. برای دسترسی، با
-            ایمیل ثبت‌شده در فهرست ادمین‌ها وارد شوید (مثلاً admin@zist.academy)
-            یا از یکی از ادمین‌ها بخواهید ایمیل شما را اضافه کند.
+            این بخش فقط برای اعضای تیم Genova فعال است. با ایمیل ثبت‌شده در
+            فهرست ادمین‌ها وارد شوید (مثلاً <span dir="ltr" className="font-mono">admin@genova.team</span>)
+            یا از یک ادمین بخواهید ایمیل شما را اضافه کند.
           </p>
         </div>
         <Button asChild variant="outline" className="rounded-full">
@@ -120,7 +120,9 @@ export default function Admin() {
             <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <ShieldCheck className="size-5" />
             </span>
-            <span className="text-[15px] font-extrabold">پنل مدیریت زیست‌آکادمی</span>
+            <span className="text-[15px] font-extrabold">
+              Genova <span className="font-mono text-xs font-medium text-muted-foreground">· admin console</span>
+            </span>
           </div>
           <Button asChild variant="outline" size="sm" className="rounded-full">
             <Link to="/dashboard">بازگشت به پنل دانشجویی</Link>
@@ -568,7 +570,7 @@ function AdminUsers() {
 
       <Card className="border-border/70 shadow-sm">
         <CardContent className="flex flex-col gap-2 p-4 sm:flex-row">
-          <Input value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="ایمیل ادمین جدید (مثلاً ali@zist.academy)" className="flex-1" dir="ltr" />
+          <Input value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="ایمیل ادمین جدید (مثلاً ali@genova.team)" className="flex-1" dir="ltr" />
           <Button variant="outline" className="rounded-full" onClick={() => { if (emails.trim()) addAdmin({ email: emails.trim() }); setEmails(""); }}>
             <Plus className="ml-1.5 size-4" />
             افزودن به ادمین‌ها

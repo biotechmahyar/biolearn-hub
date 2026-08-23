@@ -82,7 +82,9 @@ export default function Dashboard() {
             <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
               <GraduationCap className="size-5" />
             </span>
-            <span className="hidden text-[15px] font-extrabold sm:block">پنل دانشجویی زیست‌آکادمی</span>
+            <span className="hidden text-[15px] font-extrabold sm:block">
+              Genova <span className="font-mono text-xs font-medium text-muted-foreground">· workspace</span>
+            </span>
           </Link>
           <div className="flex items-center gap-2">
             <span className="hidden text-sm text-muted-foreground sm:block">

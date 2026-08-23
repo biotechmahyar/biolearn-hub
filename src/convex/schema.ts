@@ -344,6 +344,17 @@ const schema = defineSchema(
       .index("by_user", ["userId"])
       .index("by_status", ["status"]),
 
+    // ── Comments (articles, courses, ...) ─────────────────────────────────
+    comments: defineTable({
+      contentType: v.string(), // article | course
+      contentId: v.string(),
+      userId: v.id("users"),
+      text: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_content", ["contentType", "contentId"])
+      .index("by_user", ["userId"]),
+
     // ── Trust & community ─────────────────────────────────────────────────
     testimonials: defineTable({
       name: v.string(),

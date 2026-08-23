@@ -9,14 +9,14 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-4">
           <div className="md:col-span-2">
             <BrandLogo />
-            <p className="mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
-              زیست‌آکادمی پلتفرم تخصصی آموزش علوم زیستی برای دانشجویان است؛
-              توسط تیمی از دانشجویان میکروبیولوژی و بیوتکنولوژی ساخته شده تا
-              مسیر یادگیری از ترم اول تا امتحان و پژوهش، شفاف و همراهانه باشد.
-            </p>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
+            Genova پلتفرم داخلی تیم ما برای آموزش تخصصی علوم زیستی است؛
+            ساخته‌شده توسط تیمی از دانشجویان میکروبیولوژی و بیوتکنولوژی تا مسیر
+            یادگیری از ترم اول تا امتحان و پژوهش، شفاف و همراهانه باشد.
+          </p>
             <div className="mt-5 flex gap-3">
               <a
-                href="https://t.me/zistacademy"
+                href="https://t.me/genova_team"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -25,7 +25,7 @@ export function SiteFooter() {
                 کانال تلگرام
               </a>
               <a
-                href="mailto:hello@zist.academy"
+                href="mailto:hello@genova.team"
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               >
                 <Mail className="size-4 text-primary" />
@@ -46,7 +46,7 @@ export function SiteFooter() {
           </div>
 
           <div>
-            <h4 className="text-sm font-bold">زیست‌آکادمی</h4>
+            <h4 className="text-sm font-bold">Genova</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-muted-foreground">
               <li><Link to="/instructors" className="transition-colors hover:text-foreground">مدرس‌ها و تیم</Link></li>
               <li><Link to="/workshops" className="transition-colors hover:text-foreground">کارگاه‌ها و نشست‌ها</Link></li>
@@ -63,9 +63,9 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} زیست‌آکادمی — ساخته‌شده با عشق برای دانشجویان علوم زیستی</p>
+          <p>© {new Date().getFullYear()} Genova — ابزار داخلی تیم برای علوم زیستی</p>
           <p className="flex items-center gap-1.5">
-            تیم: ۴ دانشجوی میکروبیولوژی + ۱ دانشجوی بیوتکنولوژی
+            ساخته‌شده توسط ۴ دانشجوی میکروبیولوژی + ۱ دانشجوی بیوتکنولوژی
           </p>
         </div>
       </div>
