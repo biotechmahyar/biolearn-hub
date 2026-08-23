@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   InputOTP,
   InputOTPGroup,
@@ -239,10 +240,9 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                         </div>
                         <div className="relative">
                           <KeyRound className="absolute right-3 top-3 size-4 text-muted-foreground" />
-                          <Input
+                          <PasswordInput
                             name="password"
                             placeholder="رمز عبور"
-                            type="password"
                             className="pr-10"
                             disabled={isLoading}
                             required

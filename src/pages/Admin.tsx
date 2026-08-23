@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
   SelectContent,
@@ -42,9 +43,12 @@ import {
   Compass,
   CreditCard,
   DollarSign,
+  Eye,
+  EyeOff,
   FileText,
   Headset,
   HelpCircle,
+  Home,
   Layers,
   Loader2,
   Lock,
@@ -355,8 +359,8 @@ export default function Admin() {
             </Button>
             <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
               <Link to="/">
-                <X className="ml-2 size-4" />
-                خروج از کنسول
+                <Home className="ml-2 size-4" />
+                بازگشت به صفحهٔ اصلی
               </Link>
             </Button>
           </div>
@@ -432,8 +436,8 @@ export default function Admin() {
                     </Button>
                     <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
                       <Link to="/">
-                        <X className="ml-2 size-4" />
-                        خروج از کنسول
+                        <Home className="ml-2 size-4" />
+                        بازگشت به صفحهٔ اصلی
                       </Link>
                     </Button>
                   </div>
@@ -481,6 +485,12 @@ export default function Admin() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 )}
+                <Button asChild variant="outline" size="sm" className="h-8 rounded-lg text-xs">
+                  <Link to="/" title="بازگشت به صفحهٔ اصلی">
+                    <Home className="ml-1.5 size-3.5" />
+                    <span className="hidden sm:inline">صفحهٔ اصلی</span>
+                  </Link>
+                </Button>
                 <Button asChild variant="outline" size="sm" className="hidden h-8 rounded-lg text-xs lg:inline-flex">
                   <Link to="/dashboard">پنل دانشجویی</Link>
                 </Button>
@@ -1635,7 +1645,7 @@ function AdminUsers() {
             </div>
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">رمز عبور اولیه</p>
-              <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="حداقل ۴ کاراکتر" dir="ltr" className="text-left" type="password" />
+              <PasswordInput ltr value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="حداقل ۴ کاراکتر" dir="ltr" className="text-left" />
             </div>
             <div>
               <p className="mb-1.5 text-xs font-medium text-muted-foreground">نقش / سطح دسترسی</p>
@@ -1752,11 +1762,11 @@ function AdminUsers() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <Input
+            <PasswordInput
+              ltr
               value={resetPass}
               onChange={(e) => setResetPass(e.target.value)}
               placeholder="رمز جدید (حداقل ۴ کاراکتر)"
-              type="password"
               dir="ltr"
             />
             {resetErr && <p className="text-sm text-destructive">{resetErr}</p>}
