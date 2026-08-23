@@ -292,6 +292,8 @@ export default function Admin() {
   const navigate = useNavigate();
   // System admins (full power) vs site admins (lower-tier team managers).
   const isSystemAdmin = user?.role === "admin";
+  // Both system and site admins can jump between the team panels.
+  const canRoleSwitch = user?.role === "admin" || user?.role === "site_admin";
 
   // Staff panels the admin can jump into (every role except student).
   const ROLE_JUMP: { label: string; icon: typeof ShieldCheck; to: string }[] = [
@@ -396,7 +398,7 @@ export default function Admin() {
         </aside>
 
         {/* Main column */}
-        <main className="min-w-0 flex-1">
+        <main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
           {/* Console topbar */}
           <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur-lg">
             <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-6">
@@ -474,7 +476,7 @@ export default function Admin() {
               </Sheet>
 
               <div className="flex items-center gap-2">
-                {isSystemAdmin && (
+                {canRoleSwitch && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
