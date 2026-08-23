@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   BellRing,
   BookOpen,
+  BookUser,
   Brush,
   Camera,
   CheckCircle2,
@@ -300,9 +301,15 @@ function RoomsView({
             </div>
             <h3 className="mt-3 break-words font-bold text-white group-hover:text-cyan-200">{room.title}</h3>
             <p className="mt-1 break-words text-xs text-slate-400">{room.topic}</p>
-            <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-400">
-              <HelpCircle className="size-3.5 shrink-0 text-amber-300" />
-              {room.openQuestions} سؤال بی‌پاسخ
+            <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <BookUser className="size-3.5 shrink-0 text-cyan-300/70" />
+                <span className="truncate">{room.instructorName}</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1.5">
+                <HelpCircle className="size-3.5 text-amber-300" />
+                {room.openQuestions} سؤال بی‌پاسخ
+              </span>
             </div>
           </button>
         ))}
@@ -325,6 +332,10 @@ function RoomsView({
                 >
                   <p className="truncate text-sm text-slate-300">{room.title}</p>
                   <p className="truncate text-[11px] text-slate-500">{room.topic}</p>
+                  <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-cyan-300/60">
+                    <BookUser className="size-3 shrink-0" />
+                    استاد: {room.instructorName}
+                  </p>
                 </button>
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge
@@ -537,7 +548,10 @@ function RoomView({
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400">{room?.topic ?? detail?.topic}</p>
+            <p className="text-xs text-slate-400">
+              {room?.topic ?? detail?.topic} ·{" "}
+              <span className="text-cyan-300/70">استاد: {room?.instructorName ?? detail?.instructorName}</span>
+            </p>
           </div>
         </div>
         {isLive && (
