@@ -145,7 +145,7 @@ export default function InstructorPanel() {
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[220px_1fr]">
         {/* Side nav */}
         <aside className="lg:sticky lg:top-20 lg:self-start">
-          <nav className="flex flex-row gap-1 overflow-x-auto lg:flex-col">
+          <nav className="flex flex-wrap gap-1 lg:flex-col">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -156,8 +156,8 @@ export default function InstructorPanel() {
                     : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                 }`}
               >
-                <t.icon className="size-4" />
-                {t.label}
+                <t.icon className="size-4 shrink-0" />
+                <span className="whitespace-nowrap">{t.label}</span>
               </button>
             ))}
           </nav>
@@ -282,12 +282,12 @@ function RoomsView({
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {live.map((room) => (
           <button
             key={room._id}
             onClick={() => onOpen(room._id)}
-            className="group rounded-xl border border-cyan-400/15 bg-[#0b1a2a] p-4 text-right transition-all hover:border-cyan-400/40 hover:bg-[#0e2033]"
+            className="group min-w-0 rounded-xl border border-cyan-400/15 bg-[#0b1a2a] p-4 text-right transition-all hover:border-cyan-400/40 hover:bg-[#0e2033]"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
@@ -298,10 +298,10 @@ function RoomsView({
                 {room.messageCount} پیام
               </span>
             </div>
-            <h3 className="mt-3 font-bold text-white group-hover:text-cyan-200">{room.title}</h3>
-            <p className="mt-1 text-xs text-slate-400">{room.topic}</p>
+            <h3 className="mt-3 break-words font-bold text-white group-hover:text-cyan-200">{room.title}</h3>
+            <p className="mt-1 break-words text-xs text-slate-400">{room.topic}</p>
             <div className="mt-3 flex items-center gap-2 text-[11px] text-slate-400">
-              <HelpCircle className="size-3.5 text-amber-300" />
+              <HelpCircle className="size-3.5 shrink-0 text-amber-300" />
               {room.openQuestions} سؤال بی‌پاسخ
             </div>
           </button>
@@ -1171,18 +1171,20 @@ function CoursesView({ instructorName }: { instructorName: string | null }) {
           دوره‌هایی که به نام شما ثبت شده‌اند؛ دانشجویان از این‌جا پیشرفتشان را دنبال می‌کنند.
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {mine.map((c) => (
-          <Card key={c._id} className="border-white/5 bg-[#0b1a2a]">
+          <Card key={c._id} className="min-w-0 border-white/5 bg-[#0b1a2a]">
             <CardContent className="space-y-3 py-4">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="font-bold text-white">{c.title}</h3>
+                <h3 className="min-w-0 break-words font-bold text-white">{c.title}</h3>
                 <MonitorPlay className="size-5 shrink-0 text-cyan-300" />
               </div>
-              <p className="text-xs text-slate-400">{c.summary}</p>
+              <p className="break-words text-xs text-slate-400">{c.summary}</p>
               <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <Users className="size-3.5" />
-                {c.studentsCount ?? 0} دانشجو · {c.syllabus?.length ?? 0} جلسه
+                <Users className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  {c.studentsCount ?? 0} دانشجو · {c.syllabus?.length ?? 0} جلسه
+                </span>
               </div>
             </CardContent>
           </Card>
