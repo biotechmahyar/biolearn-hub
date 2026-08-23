@@ -339,8 +339,8 @@ export default function Admin() {
   const active = ALL_SECTIONS.find((s) => s.key === section)!;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto flex max-w-[1400px]">
+    <div className="h-screen overflow-hidden bg-background">
+      <div className="mx-auto flex h-full max-w-[1400px]">
         {/* Console sidebar */}
         <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-l border-border/70 bg-card/50 p-4 lg:flex">
           <Link to="/" className="flex items-center gap-2.5 px-1">
