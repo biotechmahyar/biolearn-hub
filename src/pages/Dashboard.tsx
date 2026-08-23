@@ -14,6 +14,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   Award,
   BarChart3,
+  BellRing,
   BookOpen,
   Bookmark,
   BookmarkCheck,
@@ -58,13 +59,14 @@ import {
   YAxis,
 } from "recharts";
 
-type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live";
+type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
   { key: "courses", label: "دوره‌های من", icon: BookOpen },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
   { key: "live", label: "کلاس‌های زنده", icon: Radio },
+  { key: "announcements", label: "اعلان‌ها", icon: BellRing },
   { key: "progress", label: "پیشرفت", icon: BarChart3 },
   { key: "flashcards", label: "فلش‌کارت‌ها", icon: Layers },
   { key: "downloads", label: "دانلودها", icon: Download },
@@ -150,6 +152,7 @@ export default function Dashboard() {
           {tab === "bookmarks" && <BookmarksTab />}
           {tab === "support" && <SupportTab />}
           {tab === "live" && <LiveTab />}
+          {tab === "announcements" && <AnnouncementsTab />}
         </main>
       </div>
     </div>
@@ -1362,6 +1365,58 @@ function LiveRoomView({
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+// ── Announcements (from site admins / instructors) ──────────────────────────
+function AnnouncementsTab() {
+  const anns = useQuery(api.notifications.listAnnouncements) ?? [];
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold">اعلان‌ها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          اطلاعیه‌های مدیر سایت و استادها — برای دوره‌های شما و آزمون‌ها.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {anns.map((a) => (
+          <Card key={a._id} className="border-border/70 shadow-sm">
+            <CardContent className="flex items-start gap-3 py-4">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <BellRing className="size-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-bold">{a.title}</p>
+                  <Badge variant="outline" className="rounded-full text-[10px] text-muted-foreground">
+                    {a.targetType === "all"
+                      ? "سراسری"
+                      : a.targetType === "course"
+                        ? `دوره: ${a.targetTitle ?? "—"}`
+                        : `آزمون: ${a.targetTitle ?? "—"}`}
+                  </Badge>
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {a.authorName} · {formatDateTime(a.createdAt)}
+                </p>
+                {a.body && <p className="mt-2 text-sm leading-6">{a.body}</p>}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {anns.length === 0 && (
+          <EmptyState
+            icon={BellRing}
+            title="اعلانی نیست"
+            desc="وقتی مدیر سایت یا استادها اطلاعیه‌ای بفرستند، اینجا نمایش داده می‌شود."
+          />
+        )}
+      </div>
     </div>
   );
 }

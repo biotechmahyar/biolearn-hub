@@ -106,6 +106,7 @@ export const purchase = mutation({
             courseId: item.refId as any,
             completedLessons: [],
             enrolledAt: Date.now(),
+            lastActiveAt: Date.now(),
           });
         }
       }
@@ -215,7 +216,10 @@ export const markLessonComplete = mutation({
     } else if (!args.completed) {
       completed = completed.filter((l) => l !== args.lessonId);
     }
-    await ctx.db.patch(enrollment._id, { completedLessons: completed });
+    await ctx.db.patch(enrollment._id, {
+      completedLessons: completed,
+      lastActiveAt: Date.now(),
+    });
     return { completedLessons: completed };
   },
 });

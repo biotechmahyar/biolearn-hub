@@ -17,6 +17,7 @@ import type * as content from "../content.js";
 import type * as enroll from "../enroll.js";
 import type * as http from "../http.js";
 import type * as mentor from "../mentor.js";
+import type * as notifications from "../notifications.js";
 import type * as seed from "../seed.js";
 import type * as tests from "../tests.js";
 import type * as tickets from "../tickets.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   enroll: typeof enroll;
   http: typeof http;
   mentor: typeof mentor;
+  notifications: typeof notifications;
   seed: typeof seed;
   tests: typeof tests;
   tickets: typeof tickets;

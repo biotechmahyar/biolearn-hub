@@ -4,15 +4,48 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
+import { requestNotificationPermission } from "@/components/site/NotificationCenter";
 import { faNum, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
-import { CheckCircle2, ChevronLeft, RotateCcw, XCircle } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import {
+  BellRing,
+  CheckCircle2,
+  ChevronLeft,
+  Loader2,
+  RotateCcw,
+  XCircle,
+} from "lucide-react";
+import { useState } from "react";
 import { Link, useParams } from "react-router";
+import { toast } from "sonner";
 
 export default function TestResult() {
   const { attemptId = "" } = useParams();
   const attempt = useQuery(api.tests.getAttempt, { attemptId: attemptId as any });
+  const armNextExam = useMutation(api.notifications.armNextExamReminder);
+  const [reminderState, setReminderState] = useState<"idle" | "busy" | "armed">("idle");
+
+  const handleRemindNext = async () => {
+    setReminderState("busy");
+    try {
+      const granted = await requestNotificationPermission();
+      const res = await armNextExam();
+      if (res.ok) {
+        setReminderState("armed");
+        toast.success(
+          granted
+            ? "فعال شد 🔔 — وقتی آزمون بعدی منتشر شد، دو بار به شما نوتیف می‌دهیم."
+            : "فعال شد 🔔 — یادآوری داخل سایت نمایش داده می‌شود.",
+        );
+      }
+    } catch {
+      toast.error("خطا در فعال‌سازی یادآوری");
+    } finally {
+      setReminderState("idle");
+    }
+  };
+
 
   if (attempt === undefined) {
     return (
@@ -108,6 +141,35 @@ export default function TestResult() {
                 </Link>
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Next exam reminder */}
+        <Card className="mt-6 border-primary/30 bg-primary/5 shadow-sm">
+          <CardContent className="flex flex-col items-start gap-4 p-6 sm:flex-row sm:items-center">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/15">
+              <BellRing className="size-6 text-primary" />
+            </span>
+            <div className="flex-1">
+              <p className="font-bold">یادآوری آزمون بعدی</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                به محض اینکه آزمون جدیدی منتشر شود، دو بار یادآوری می‌کنیم که فقط
+                ۲۴ ساعت فرصت داری در آن شرکت کنی. (برای نوتیف گوشی/لپ‌تاپ اجازهٔ
+                نمایش نوتیف مرورگر لازم است.)
+              </p>
+            </div>
+            <Button
+              className="shrink-0 rounded-full"
+              onClick={handleRemindNext}
+              disabled={reminderState === "busy" || reminderState === "armed"}
+            >
+              {reminderState === "busy" ? (
+                <Loader2 className="ml-2 size-4 animate-spin" />
+              ) : (
+                <BellRing className="ml-2 size-4" />
+              )}
+              {reminderState === "armed" ? "فعال شد ✓" : "یادآوری کن"}
+            </Button>
           </CardContent>
         </Card>
 

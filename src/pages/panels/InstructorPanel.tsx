@@ -4,6 +4,7 @@ import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { useMutation, useQuery } from "convex/react";
 import {
+  BellRing,
   BookOpen,
   Camera,
   CheckCircle2,
@@ -21,6 +22,7 @@ import {
   Radio,
   Send,
   Square,
+  Trash2,
   Users,
   Video,
   X,
@@ -31,17 +33,25 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
-type Tab = "rooms" | "online" | "courses";
+type Tab = "rooms" | "online" | "courses" | "announcements";
 
 type RoomRow = (typeof api.collab.listRooms)["_returnType"][number];
 type OnlineRow = (typeof api.collab.listOnline)["_returnType"][number];
 
 const TABS: { id: Tab; label: string; icon: typeof Video }[] = [
   { id: "rooms", label: "کلاس‌های زنده", icon: Video },
+  { id: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
   { id: "online", label: "دانشجویان آنلاین", icon: Users },
   { id: "courses", label: "دوره‌های من", icon: BookOpen },
 ];
@@ -134,6 +144,7 @@ export default function InstructorPanel() {
           )}
           {tab === "online" && <OnlineView online={online} />}
           {tab === "courses" && <CoursesView instructorName={user?.name ?? null} />}
+          {tab === "announcements" && <AnnouncementsView instructorName={user?.name ?? null} />}
         </main>
       </div>
     </div>
@@ -816,6 +827,125 @@ function CoursesView({ instructorName }: { instructorName: string | null }) {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+// ── Announcements to my students ────────────────────────────────────────────
+function AnnouncementsView({ instructorName }: { instructorName: string | null }) {
+  const courses = useQuery(api.content.listCourses, {}) ?? [];
+  const mine = courses.filter((c) => c.instructor?.name === instructorName);
+  const myAnns = useQuery(api.notifications.listMyAnnouncements) ?? [];
+  const create = useMutation(api.notifications.createAnnouncement);
+  const remove = useMutation(api.notifications.deleteAnnouncement);
+
+  const [courseId, setCourseId] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleCreate = async () => {
+    setErr(null);
+    if (title.trim().length < 3) {
+      setErr("عنوان اطلاعیه لازم است.");
+      return;
+    }
+    if (!courseId) {
+      setErr("دوره را انتخاب کنید تا به دانشجویانش اطلاعیه برسد.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await create({ targetType: "course", targetId: courseId, title, body });
+      setTitle("");
+      setBody("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ارسال اطلاعیه");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">اطلاعیه برای دانشجویان</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          مثلاً «کلاس آنلاین جمع‌بندی امشب ساعت ۲۰» — به همهٔ کسانی که در دوره ثبت‌نام کرده‌اند اطلاع داده می‌شود.
+        </p>
+      </div>
+
+      <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+        <CardContent className="space-y-3 py-4">
+          <Select value={courseId} onValueChange={setCourseId}>
+            <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+              <SelectValue placeholder="دوره را انتخاب کنید…" />
+            </SelectTrigger>
+            <SelectContent>
+              {mine.map((c) => (
+                <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {mine.length === 0 && (
+            <p className="text-xs text-slate-500">
+              دوره‌ای با نام شما ثبت نشده. از پنل مدیریت، پروفایل استادی‌تان را به دوره وصل کنید.
+            </p>
+          )}
+          <Input
+            placeholder="عنوان اطلاعیه (مثلاً: کلاس آنلاین جمع‌بندی امشب)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+          />
+          <Textarea
+            placeholder="متن اطلاعیه…"
+            rows={3}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+          />
+          {err && <p className="text-sm text-red-400">{err}</p>}
+          <Button onClick={handleCreate} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
+            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
+            ارسال اطلاعیه
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">اطلاعیه‌های قبلی</p>
+        {myAnns.map((a) => (
+          <Card key={a._id} className="border-white/5 bg-white/[0.02]">
+            <CardContent className="flex items-start gap-3 py-3.5">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-cyan-400/10">
+                <BellRing className="size-4 text-cyan-300" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-bold text-slate-100">{a.title}</p>
+                  <button
+                    onClick={() => remove({ id: a._id })}
+                    className="text-slate-600 transition-colors hover:text-red-400"
+                    title="حذف"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {a.targetType === "all" ? "همه" : `برای: ${a.targetTitle ?? "—"}`} ·{" "}
+                  {new Date(a.createdAt).toLocaleDateString("fa-IR")}
+                </p>
+                {a.body && <p className="mt-1.5 text-sm text-slate-300">{a.body}</p>}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {myAnns.length === 0 && (
+          <p className="py-8 text-center text-sm text-slate-500">هنوز اطلاعیه‌ای نفرستاده‌اید.</p>
+        )}
+      </div>
     </div>
   );
 }

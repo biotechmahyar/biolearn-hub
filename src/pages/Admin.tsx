@@ -34,6 +34,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   Activity,
   BarChart3,
+  BellRing,
   BookOpen,
   BookUser,
   ChevronDown,
@@ -94,7 +95,8 @@ type Section =
   | "users"
   | "orders"
   | "coupons"
-  | "support";
+  | "support"
+  | "announcements";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -105,6 +107,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "orders", label: "سفارش‌ها", icon: CreditCard },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
+      { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
     ],
   },
   {
@@ -498,6 +501,7 @@ export default function Admin() {
             {section === "orders" && <AdminOrders />}
             {section === "coupons" && <AdminCoupons />}
             {section === "support" && <AdminSupport />}
+            {section === "announcements" && <AdminAnnouncements />}
           </div>
         </main>
       </div>
@@ -2048,6 +2052,155 @@ function AdminSupport() {
           </Card>
         );
       })()}
+    </div>
+  );
+}
+
+// ── Announcements (site admins → everyone / course / exam) ──────────────────
+function AdminAnnouncements() {
+  const anns = useQuery(api.notifications.listAllAnnouncements);
+  const courses = useQuery(api.content.listCourses, {}) ?? [];
+  const exams = useQuery(api.admin.adminListExams) ?? [];
+  const create = useMutation(api.notifications.createAnnouncement);
+  const remove = useMutation(api.notifications.deleteAnnouncement);
+
+  const [targetType, setTargetType] = useState<"all" | "course" | "exam">("all");
+  const [targetId, setTargetId] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleCreate = async () => {
+    setErr(null);
+    if (title.trim().length < 3) {
+      setErr("عنوان اطلاعیه لازم است.");
+      return;
+    }
+    if (targetType !== "all" && !targetId) {
+      setErr("دوره یا آزمون را انتخاب کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await create({
+        targetType,
+        targetId: targetType === "all" ? undefined : targetId,
+        title,
+        body,
+      });
+      setTitle("");
+      setBody("");
+      setTargetType("all");
+      setTargetId("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ارسال اطلاعیه");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="اطلاعیه‌ها" subtitle="announcements / notify students" count={anns?.length} />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">ارسال اطلاعیه جدید</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
+            <Select value={targetType} onValueChange={(v) => { setTargetType(v as any); setTargetId(""); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">همهٔ کاربران</SelectItem>
+                <SelectItem value="course">دانشجویان یک دوره</SelectItem>
+                <SelectItem value="exam">برای یک آزمون</SelectItem>
+              </SelectContent>
+            </Select>
+            {targetType === "course" ? (
+              <Select value={targetId} onValueChange={setTargetId}>
+                <SelectTrigger><SelectValue placeholder="دوره را انتخاب کنید…" /></SelectTrigger>
+                <SelectContent>
+                  {courses.map((c) => (
+                    <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : targetType === "exam" ? (
+              <Select value={targetId} onValueChange={setTargetId}>
+                <SelectTrigger><SelectValue placeholder="آزمون را انتخاب کنید…" /></SelectTrigger>
+                <SelectContent>
+                  {exams.map((e) => (
+                    <SelectItem key={e._id} value={e._id}>{e.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center text-xs text-muted-foreground">
+                اطلاعیه برای همهٔ کاربران (دانشجویان، اعضا و…) ارسال می‌شود.
+              </div>
+            )}
+          </div>
+          <Input placeholder="عنوان اطلاعیه (مثلاً: کلاس آنلاین جمع‌بندی امشب)" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Textarea placeholder="متن اطلاعیه…" rows={3} value={body} onChange={(e) => setBody(e.target.value)} />
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          <Button className="rounded-lg" onClick={handleCreate} disabled={busy}>
+            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
+            ارسال اطلاعیه
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>عنوان</TableHead>
+                <TableHead>مخاطب</TableHead>
+                <TableHead>نویسنده</TableHead>
+                <TableHead>تاریخ</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(anns ?? []).map((a) => (
+                <TableRow key={a._id}>
+                  <TableCell className="max-w-56 truncate font-medium">{a.title}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {a.targetType === "all"
+                      ? "همه"
+                      : a.targetType === "course"
+                        ? `دوره: ${a.targetTitle ?? "—"}`
+                        : `آزمون: ${a.targetTitle ?? "—"}`}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{a.authorName}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(a.createdAt)}</TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                      title="حذف اطلاعیه"
+                      onClick={() => remove({ id: a._id })}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(anns ?? []).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                    هنوز اطلاعیه‌ای ارسال نشده است.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

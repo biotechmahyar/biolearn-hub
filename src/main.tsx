@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { RoleGate } from "@/components/RoleGate";
 import { SettingsProvider } from "@/lib/settings";
+import { NotificationCenter } from "@/components/site/NotificationCenter";
 import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
@@ -87,6 +88,7 @@ createRoot(document.getElementById("root")!).render(
       <SettingsProvider>
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
+          <NotificationCenter />
           <SeedBootstrap />
           <RouteSyncer />
           <Suspense fallback={<RouteLoading />}>

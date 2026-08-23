@@ -309,9 +309,49 @@ const schema = defineSchema(
       courseId: v.id("courses"),
       completedLessons: v.array(v.string()),
       enrolledAt: v.number(),
+      lastActiveAt: v.optional(v.number()),
     })
       .index("by_user", ["userId"])
       .index("by_course", ["courseId"]),
+
+    // Reminders shown to a user (exam deadlines, course nudges). Each row can
+    // be shown up to 2 times before it is considered done.
+    reminders: defineTable({
+      userId: v.id("users"),
+      kind: v.union(
+        v.literal("exam_new"),
+        v.literal("exam_next"),
+        v.literal("course_nudge"),
+      ),
+      refId: v.string(), // exam/course id
+      title: v.string(),
+      body: v.string(),
+      link: v.string(), // route to open
+      shownCount: v.number(),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_kind", ["userId", "kind"]),
+
+    // Announcements from site admins (everyone) or instructors (their own
+    // students / courses).
+    announcements: defineTable({
+      authorId: v.id("users"),
+      authorName: v.string(),
+      authorRole: v.string(),
+      targetType: v.union(
+        v.literal("all"),
+        v.literal("course"),
+        v.literal("exam"),
+      ),
+      targetId: v.optional(v.string()),
+      targetTitle: v.optional(v.string()),
+      title: v.string(),
+      body: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_created", ["createdAt"])
+      .index("by_author", ["authorId"]),
 
     bookmarks: defineTable({
       userId: v.id("users"),
