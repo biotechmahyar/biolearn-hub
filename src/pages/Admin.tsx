@@ -126,7 +126,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
 
 const ALL_SECTIONS = NAV_GROUPS.flatMap((g) => g.items);
 
-const ROLES = ["user", "member", "instructor", "mentor", "content_manager", "support", "admin"];
+const ROLES = ["user", "member", "instructor", "mentor", "content_manager", "support", "site_admin", "admin"];
 const ROLE_LABELS: Record<string, string> = {
   user: "دانشجو",
   member: "عضو",
@@ -134,6 +134,7 @@ const ROLE_LABELS: Record<string, string> = {
   mentor: "منتور",
   content_manager: "مدیر محتوا",
   support: "پشتیبانی",
+  site_admin: "ادمین سایت",
   admin: "ادمین",
 };
 
@@ -248,10 +249,13 @@ function Loading() {
 
 // ── Shell ───────────────────────────────────────────────────────────────────
 export default function Admin() {
+  const { user } = useAuth();
   const isAdmin = useQuery(api.admin.amIAdmin);
   const [section, setSection] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navigate = useNavigate();
+  // System admins (full power) vs site admins (lower-tier team managers).
+  const isSystemAdmin = user?.role === "admin";
 
   // Staff panels the admin can jump into (every role except student).
   const ROLE_JUMP: { label: string; icon: typeof ShieldCheck; to: string }[] = [
@@ -434,6 +438,7 @@ export default function Admin() {
               </Sheet>
 
               <div className="flex items-center gap-2">
+                {isSystemAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -472,6 +477,7 @@ export default function Admin() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                )}
                 <Button asChild variant="outline" size="sm" className="hidden h-8 rounded-lg text-xs lg:inline-flex">
                   <Link to="/dashboard">پنل دانشجویی</Link>
                 </Button>
@@ -1549,6 +1555,7 @@ function AdminInstructors() {
 // ── Users ───────────────────────────────────────────────────────────────────
 function AdminUsers() {
   const { user: me } = useAuth();
+  const isSystemAdmin = me?.role === "admin";
   const users = useQuery(api.admin.adminGetUsers);
   const setRole = useMutation(api.admin.adminSetRole);
   const createUser = useMutation(api.admin.adminCreateUser);
@@ -1631,7 +1638,7 @@ function AdminUsers() {
               <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {ROLES.map((r) => (
+                  {(isSystemAdmin ? ROLES : ROLES.filter((r) => r !== "admin" && r !== "site_admin")).map((r) => (
                     <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1651,15 +1658,17 @@ function AdminUsers() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="flex flex-col gap-2 p-4 sm:flex-row">
-          <Input value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="ایمیل ادمین جدید (مثلاً ali@genova.team)" className="flex-1" dir="ltr" />
-          <Button variant="outline" className="rounded-lg" onClick={() => { if (emails.trim()) addAdmin({ email: emails.trim() }); setEmails(""); }}>
-            <Plus className="ml-1.5 size-4" />
-            افزودن به ادمین‌ها
-          </Button>
-        </CardContent>
-      </Card>
+      {isSystemAdmin && (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col gap-2 p-4 sm:flex-row">
+            <Input value={emails} onChange={(e) => setEmails(e.target.value)} placeholder="ایمیل ادمین جدید (مثلاً ali@genova.team)" className="flex-1" dir="ltr" />
+            <Button variant="outline" className="rounded-lg" onClick={() => { if (emails.trim()) addAdmin({ email: emails.trim() }); setEmails(""); }}>
+              <Plus className="ml-1.5 size-4" />
+              افزودن به ادمین‌ها
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-border/70 shadow-sm">
         <CardContent className="p-0">
@@ -1682,7 +1691,7 @@ function AdminUsers() {
                     <Select value={u.role ?? "user"} onValueChange={(v) => setRole({ userId: u._id, role: v })}>
                       <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {ROLES.map((r) => (
+                        {(isSystemAdmin ? ROLES : ROLES.filter((r) => r !== "admin" && r !== "site_admin")).map((r) => (
                           <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
                         ))}
                       </SelectContent>
@@ -1707,8 +1716,14 @@ function AdminUsers() {
                       size="sm"
                       variant="ghost"
                       className="h-7 rounded-md text-xs text-destructive hover:text-destructive disabled:opacity-30"
-                      title={me?._id === u._id ? "نمی‌توانید خودتان را حذف کنید" : "حذف حساب کاربر"}
-                      disabled={me?._id === u._id}
+                      title={
+                        me?._id === u._id
+                          ? "نمی‌توانید خودتان را حذف کنید"
+                          : !isSystemAdmin && (u.role === "admin" || u.role === "site_admin")
+                            ? "فقط ادمین سامانه می‌تواند ادمین را حذف کند"
+                            : "حذف حساب کاربر"
+                      }
+                      disabled={me?._id === u._id || (!isSystemAdmin && (u.role === "admin" || u.role === "site_admin"))}
                       onClick={() => {
                         setDeleteTarget({ _id: u._id, name: u.name });
                         setDeleteErr(null);

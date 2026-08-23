@@ -6,6 +6,7 @@ import { Navigate, useLocation } from "react-router";
 // Which panel a role lands on after sign-in.
 export const ROLE_HOME: Record<string, string> = {
   admin: "/admin",
+  site_admin: "/admin",
   instructor: "/panel/instructor",
   mentor: "/panel/mentor",
   content_manager: "/panel/content",
@@ -14,6 +15,7 @@ export const ROLE_HOME: Record<string, string> = {
 
 export const ROLE_LABEL: Record<string, string> = {
   admin: "مدیریت",
+  site_admin: "مدیریت سایت",
   instructor: "استودیوی استاد",
   mentor: "میز منتور",
   content_manager: "استودیوی محتوا",

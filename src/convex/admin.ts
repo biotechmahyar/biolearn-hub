@@ -10,6 +10,7 @@ const ROLES = [
   "mentor",
   "content_manager",
   "support",
+  "site_admin",
   "admin",
 ] as const;
 
@@ -28,16 +29,41 @@ export const isAdmin = async (ctx: QueryCtx) => {
   return !!admin;
 };
 
-// Content editors (admin + content_manager) can manage published content.
+// Content editors can manage published content: content_manager, system
+// admins and site admins (site admins run the whole site console).
 export const isContentStaff = async (ctx: QueryCtx) => {
   const user = await getCurrentUser(ctx);
-  return !!user && (user.role === "content_manager" || user.role === "admin");
+  return (
+    !!user &&
+    (user.role === "content_manager" ||
+      user.role === "admin" ||
+      user.role === "site_admin")
+  );
+};
+
+// Site admins are lower-tier admins: they can manage the team (mentors,
+// students, instructors, ...) and site content, but they cannot promote,
+// demote or delete system admins (and cannot create/assign the admin roles).
+export const isSiteAdmin = async (ctx: QueryCtx) => {
+  const user = await getCurrentUser(ctx);
+  return !!user && user.role === "site_admin";
+};
+
+// Anyone allowed inside the admin console: system admins + site admins.
+export const isAnyAdmin = async (ctx: QueryCtx) => {
+  return (await isAdmin(ctx)) || (await isSiteAdmin(ctx));
+};
+
+// System admins (the full-power allow-list) are the only ones who can manage
+// other admins (promote, demote, delete) or the site_admin role.
+export const isSystemAdmin = async (ctx: QueryCtx) => {
+  return await isAdmin(ctx);
 };
 
 export const amIAdmin = query({
   args: {},
   handler: async (ctx) => {
-    return await isAdmin(ctx);
+    return await isAnyAdmin(ctx);
   },
 });
 
@@ -45,7 +71,7 @@ export const amIAdmin = query({
 export const getAdminStats = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return null;
+    if (!(await isAnyAdmin(ctx))) return null;
 
     const [users, orders, enrollments, attempts, courses, questions, tickets] =
       await Promise.all([
@@ -94,7 +120,7 @@ export const getAdminStats = query({
 export const getRevenueSeries = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isAnyAdmin(ctx))) return [];
     const orders = await ctx.db
       .query("orders")
       .withIndex("by_status", (q) => q.eq("status", "paid"))
@@ -114,7 +140,7 @@ export const getRevenueSeries = query({
 export const getEnrollmentStats = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isAnyAdmin(ctx))) return [];
     const enrollments = await ctx.db.query("enrollments").collect();
     const byCourse = new Map<string, number>();
     for (const e of enrollments) {
@@ -133,7 +159,7 @@ export const getEnrollmentStats = query({
 export const adminGetUsers = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isAnyAdmin(ctx))) return [];
     const users = await ctx.db.query("users").collect();
     return users
       .map((u) => ({
@@ -153,10 +179,20 @@ export const adminGetUsers = query({
 export const adminSetRole = mutation({
   args: { userId: v.id("users"), role: v.string() },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     if (!isRole(args.role)) throw new Error("نقش نامعتبر است.");
     const user = await ctx.db.get(args.userId);
     if (!user) throw new Error("کاربر یافت نشد.");
+    // Site admins cannot promote to an admin role, nor change the role of
+    // anyone who already holds the admin or site_admin role.
+    const targetPrivileged =
+      user.role === "admin" || user.role === "site_admin";
+    if (
+      !(await isSystemAdmin(ctx)) &&
+      (targetPrivileged || args.role === "admin" || args.role === "site_admin")
+    ) {
+      throw new Error("فقط ادمین سامانه می‌تواند نقش‌های ادمین را مدیریت کند.");
+    }
     await ctx.db.patch(args.userId, { role: args.role });
     // Keep the admins allow-list in sync with the role.
     if (user.email) {
@@ -184,7 +220,10 @@ export const adminCreateUser = mutation({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isSystemAdmin(ctx)) && (args.role === "admin" || args.role === "site_admin")) {
+      throw new Error("فقط ادمین سامانه می‌تواند حساب ادمین بسازد.");
+    }
     const email = args.email.trim().toLowerCase();
     if (!email.includes("@")) throw new Error("ایمیل نامعتبر است.");
     if (args.password.length < 4) throw new Error("رمز عبور باید حداقل ۴ کاراکتر باشد.");
@@ -224,11 +263,17 @@ export const adminCreateUser = mutation({
 export const adminDeleteUser = mutation({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     const user = await ctx.db.get(args.userId);
     if (!user) throw new Error("کاربر یافت نشد.");
     const me = await getCurrentUser(ctx);
     if (me && me._id === args.userId) throw new Error("نمی‌توانید حساب خودتان را حذف کنید.");
+    if (
+      !(await isSystemAdmin(ctx)) &&
+      (user.role === "admin" || user.role === "site_admin")
+    ) {
+      throw new Error("فقط ادمین سامانه می‌تواند حساب ادمین را حذف کند.");
+    }
 
     // Remove the auth account so the user can no longer sign in.
     if (user.email) {
@@ -296,7 +341,7 @@ export const adminDeleteUser = mutation({
 export const adminSetPassword = mutation({
   args: { userId: v.id("users"), password: v.string() },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     if (args.password.length < 4) throw new Error("رمز عبور باید حداقل ۴ کاراکتر باشد.");
     const user = await ctx.db.get(args.userId);
     if (!user?.email) throw new Error("کاربر یا ایمیل یافت نشد.");
@@ -318,7 +363,7 @@ export const adminSetPassword = mutation({
 export const adminAddAdmin = mutation({
   args: { email: v.string() },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isSystemAdmin(ctx))) throw new Error("فقط ادمین سامانه می‌تواند ادمین اضافه کند.");
     const email = args.email.trim().toLowerCase();
     if (!email.includes("@")) throw new Error("ایمیل نامعتبر است.");
     const existing = await ctx.db
@@ -334,7 +379,7 @@ export const adminAddAdmin = mutation({
 export const adminGetOrders = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isAnyAdmin(ctx))) return [];
     const orders = await ctx.db.query("orders").order("desc").collect();
     return Promise.all(
       orders.map(async (o) => {
@@ -348,7 +393,7 @@ export const adminGetOrders = query({
 export const adminUpdateOrderStatus = mutation({
   args: { orderId: v.id("orders"), status: v.string() },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     await ctx.db.patch(args.orderId, { status: args.status as any });
     return { ok: true };
   },
@@ -357,7 +402,7 @@ export const adminUpdateOrderStatus = mutation({
 export const adminDeleteOrder = mutation({
   args: { id: v.id("orders") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     const order = await ctx.db.get(args.id);
     if (!order) throw new Error("سفارش یافت نشد.");
     await ctx.db.delete(args.id);
@@ -369,7 +414,7 @@ export const adminDeleteOrder = mutation({
 export const adminGetCoupons = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isAdmin(ctx))) return [];
+    if (!(await isAnyAdmin(ctx))) return [];
     return await ctx.db.query("coupons").collect();
   },
 });
@@ -382,7 +427,7 @@ export const adminCreateCoupon = mutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     const code = args.code.trim().toUpperCase();
     const existing = await ctx.db
       .query("coupons")
@@ -405,7 +450,7 @@ export const adminCreateCoupon = mutation({
 export const adminToggleCoupon = mutation({
   args: { couponId: v.id("coupons"), active: v.boolean() },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     await ctx.db.patch(args.couponId, { active: args.active });
     return { ok: true };
   },
@@ -414,7 +459,7 @@ export const adminToggleCoupon = mutation({
 export const adminDeleteCoupon = mutation({
   args: { id: v.id("coupons") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     const coupon = await ctx.db.get(args.id);
     if (!coupon) throw new Error("کد تخفیف یافت نشد.");
     await ctx.db.delete(args.id);
@@ -746,7 +791,7 @@ export const adminCreateInstructor = mutation({
     verified: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     const name = args.name.trim();
     if (!name) throw new Error("نام استاد لازم است.");
     await ctx.db.insert("instructors", {
@@ -775,7 +820,7 @@ export const adminUpdateInstructor = mutation({
     verified: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     await ctx.db.patch(args.id, {
       name: args.name.trim(),
       title: args.title.trim(),
@@ -792,7 +837,7 @@ export const adminUpdateInstructor = mutation({
 export const adminDeleteInstructor = mutation({
   args: { id: v.id("instructors") },
   handler: async (ctx, args) => {
-    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     await ctx.db.delete(args.id);
     return { ok: true };
   },

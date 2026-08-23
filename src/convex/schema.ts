@@ -5,6 +5,7 @@ import { Infer, v } from "convex/values";
 // Role-based access: Student, Instructor, Mentor, Content Manager, Support, Admin
 export const ROLES = {
   ADMIN: "admin",
+  SITE_ADMIN: "site_admin",
   USER: "user",
   MEMBER: "member",
   INSTRUCTOR: "instructor",
@@ -15,6 +16,7 @@ export const ROLES = {
 
 export const roleValidator = v.union(
   v.literal(ROLES.ADMIN),
+  v.literal(ROLES.SITE_ADMIN),
   v.literal(ROLES.USER),
   v.literal(ROLES.MEMBER),
   v.literal(ROLES.INSTRUCTOR),

@@ -3,10 +3,16 @@ import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 import { isAdmin } from "./admin";
 
-// Support staff can also run the ticket desk, not only admins.
+// Support staff can also run the ticket desk: support role, system admins
+// and site admins (who manage the site from the admin console).
 export const isSupportStaff = async (ctx: any) => {
   const user = await getCurrentUser(ctx);
-  return !!user && (user.role === "support" || user.role === "admin");
+  return (
+    !!user &&
+    (user.role === "support" ||
+      user.role === "admin" ||
+      user.role === "site_admin")
+  );
 };
 
 // ── Student side ────────────────────────────────────────────────────────────
