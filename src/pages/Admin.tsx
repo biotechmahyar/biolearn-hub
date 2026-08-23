@@ -398,9 +398,9 @@ export default function Admin() {
         </aside>
 
         {/* Main column */}
-        <main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
+        <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
           {/* Console topbar */}
-          <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur-lg">
+          <header className="z-30 shrink-0 border-b border-border/70 bg-background/90 backdrop-blur-lg">
             <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-6">
               <div className="hidden items-center gap-2 font-mono text-xs text-muted-foreground sm:flex">
                 <Terminal className="size-3.5 text-primary" />
@@ -529,7 +529,7 @@ export default function Admin() {
             </div>
           </header>
 
-          <div className="p-4 sm:p-6">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
             {section === "overview" && <AdminOverview />}
             {section === "courses" && <AdminCourses />}
             {section === "questions" && <AdminQuestions />}
