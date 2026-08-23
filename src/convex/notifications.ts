@@ -41,7 +41,7 @@ export const createAnnouncement = mutation({
       const ownsCourse =
         isInstructor && !!instructorProfile && instructorProfile.name === user.name;
       if (!systemAdmin && !siteAdmin && !ownsCourse) {
-        throw new Error("فقط استاد همین دوره یا مدیر سایت می‌تواند اطلاعیه بگذارد.");
+        throw new Error("فقط مدرس همین دوره یا مدیر سایت می‌تواند اطلاعیه بگذارد.");
       }
       targetTitle = course.title;
     } else if (args.targetType === "exam") {
@@ -53,7 +53,7 @@ export const createAnnouncement = mutation({
       }
       targetTitle = exam.title;
     } else if (!systemAdmin && !siteAdmin && !isInstructor) {
-      throw new Error("فقط مدیر سایت یا استاد می‌تواند اطلاعیه عمومی بگذارد.");
+      throw new Error("فقط مدیر سایت یا مدرس می‌تواند اطلاعیه عمومی بگذارد.");
     }
 
     return await ctx.db.insert("announcements", {

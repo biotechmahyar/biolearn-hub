@@ -8,6 +8,8 @@ import {
   BellRing,
   BookOpen,
   BookUser,
+  BookmarkCheck,
+  BookmarkPlus,
   Brush,
   Camera,
   CheckCircle2,
@@ -18,6 +20,7 @@ import {
   FileText,
   HelpCircle,
   Highlighter,
+  Hourglass,
   Loader2,
   MessageSquare,
   Mic,
@@ -26,9 +29,12 @@ import {
   Plus,
   Presentation,
   Radio,
+  Save,
   Send,
   Square,
   Trash2,
+  Upload,
+  User,
   Users,
   Video,
   X,
@@ -48,9 +54,16 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-type Tab = "rooms" | "online" | "courses" | "announcements";
+type Tab = "rooms" | "online" | "courses" | "announcements" | "profile";
 
 type RoomRow = (typeof api.collab.listRooms)["_returnType"][number];
 type OnlineRow = (typeof api.collab.listOnline)["_returnType"][number];
@@ -85,9 +98,10 @@ const TOOL_SIZES: Record<WbTool, number> = {
 
 const TABS: { id: Tab; label: string; icon: typeof Video }[] = [
   { id: "rooms", label: "کلاس‌های زنده", icon: Video },
+  { id: "courses", label: "طراحی دوره", icon: BookOpen },
+  { id: "profile", label: "پروفایل من", icon: User },
   { id: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
   { id: "online", label: "دانشجویان آنلاین", icon: Users },
-  { id: "courses", label: "دوره‌های من", icon: BookOpen },
 ];
 
 export default function InstructorPanel() {
@@ -102,8 +116,8 @@ export default function InstructorPanel() {
 
   // Heartbeat so students/instructors show as online while in the studio.
   useEffect(() => {
-    touchPresence({ location: "استودیوی استاد" });
-    const t = setInterval(() => touchPresence({ location: "استودیوی استاد" }), 25_000);
+    touchPresence({ location: "استودیوی مدرس" });
+    const t = setInterval(() => touchPresence({ location: "استودیوی مدرس" }), 25_000);
     return () => clearInterval(t);
   }, [touchPresence]);
 
@@ -117,7 +131,7 @@ export default function InstructorPanel() {
               <Dna className="size-5 text-cyan-300" />
             </span>
             <div>
-              <h1 className="text-sm font-bold text-cyan-100">استودیوی استاد</h1>
+              <h1 className="text-sm font-bold text-cyan-100">استودیوی مدرس</h1>
               <p className="font-mono text-[10px] tracking-wide text-cyan-400/60">
                 instructor studio · live
               </p>
@@ -129,7 +143,7 @@ export default function InstructorPanel() {
               آنلاین
             </span>
             <Badge variant="outline" className="hidden border-cyan-400/20 font-mono text-[10px] text-cyan-300 md:inline-flex">
-              {user?.name ?? "استاد"}
+              {user?.name ?? "مدرس"}
             </Badge>
             <Button
               variant="ghost"
@@ -177,7 +191,8 @@ export default function InstructorPanel() {
             />
           )}
           {tab === "online" && <OnlineView online={online} />}
-          {tab === "courses" && <CoursesView instructorName={user?.name ?? null} />}
+          {tab === "courses" && <CourseStudioView />}
+          {tab === "profile" && <ProfileView />}
           {tab === "announcements" && <AnnouncementsView instructorName={user?.name ?? null} />}
         </main>
       </div>
@@ -334,7 +349,7 @@ function RoomsView({
                   <p className="truncate text-[11px] text-slate-500">{room.topic}</p>
                   <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-cyan-300/60">
                     <BookUser className="size-3 shrink-0" />
-                    استاد: {room.instructorName}
+                    مدرس: {room.instructorName}
                   </p>
                 </button>
                 <div className="flex shrink-0 items-center gap-2">
@@ -550,7 +565,7 @@ function RoomView({
             </div>
             <p className="text-xs text-slate-400">
               {room?.topic ?? detail?.topic} ·{" "}
-              <span className="text-cyan-300/70">استاد: {room?.instructorName ?? detail?.instructorName}</span>
+              <span className="text-cyan-300/70">مدرس: {room?.instructorName ?? detail?.instructorName}</span>
             </p>
           </div>
         </div>
@@ -649,7 +664,7 @@ function RoomView({
                   )}
                   <span className="text-xs font-bold text-slate-200">{m.name}</span>
                   <span className="font-mono text-[10px] text-slate-500">
-                    {m.role === "instructor" ? "استاد" : "دانشجو"}
+                    {m.role === "instructor" ? "مدرس" : "دانشجو"}
                   </span>
                   <span className="mr-auto font-mono text-[10px] text-slate-600">
                     {new Date(m.createdAt).toLocaleTimeString("fa-IR", {
@@ -694,7 +709,7 @@ function RoomView({
                 {isQuestion && !answered && isLive && (
                   <div className="mt-2 flex items-center gap-2">
                     <Input
-                      placeholder="پاسخ استاد…"
+                      placeholder="پاسخ مدرس…"
                       value={answers[m._id] ?? ""}
                       onChange={(e) =>
                         setAnswers((a) => ({ ...a, [m._id]: e.target.value }))
@@ -715,7 +730,7 @@ function RoomView({
                   <div className="mt-2 rounded-md border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
                     <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
                       <CheckCircle2 className="size-3.5" />
-                      پاسخ استاد
+                      پاسخ مدرس
                     </p>
                     <p className="mt-1 text-sm text-emerald-100/90">{m.answer}</p>
                   </div>
@@ -1172,48 +1187,455 @@ function OnlineView({ online }: { online: OnlineRow[] }) {
   );
 }
 
-// ── My courses ──────────────────────────────────────────────────────────────
-function CoursesView({ instructorName }: { instructorName: string | null }) {
-  const courses = useQuery(api.content.listCourses, {}) ?? [];
-  const mine = courses.filter((c) => c.instructor?.name === instructorName);
+// ── Course studio: design a course, send it to the site admin ──────────────
+const STUDIO_STATUS: Record<string, { label: string; cls: string }> = {
+  published: { label: "منتشرشده", cls: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" },
+  pending: { label: "در انتظار تأیید", cls: "border-amber-400/20 bg-amber-400/10 text-amber-300" },
+  draft: { label: "پیش‌نویس", cls: "border-slate-400/20 bg-slate-400/10 text-slate-300" },
+  rejected: { label: "رد شده", cls: "border-red-400/20 bg-red-400/10 text-red-300" },
+};
+
+function CourseStudioView() {
+  const courses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
+  const categories = useQuery(api.content.listCategories) ?? [];
+  const create = useMutation(api.courseStudio.createDraftCourse);
+  const update = useMutation(api.courseStudio.updateDraftCourse);
+  const submit = useMutation(api.courseStudio.submitCourseForReview);
+  const remove = useMutation(api.courseStudio.deleteDraftCourse);
+
+  const empty = { title: "", summary: "", description: "", price: "0", mode: "recorded", durationText: "", categoryId: "" };
+  const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; course: any } | null>(null);
+  const [form, setForm] = useState(empty);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+
+  const openCreate = () => { setForm(empty); setErr(null); setDialog({ mode: "create" }); };
+  const openEdit = (c: any) => {
+    setForm({
+      title: c.title,
+      summary: c.summary,
+      description: c.description ?? "",
+      price: String(c.price ?? 0),
+      mode: c.mode ?? "recorded",
+      durationText: c.durationText ?? "",
+      categoryId: c.categoryId ?? "",
+    });
+    setErr(null);
+    setDialog({ mode: "edit", course: c });
+  };
+
+  const handleSave = async () => {
+    setErr(null);
+    if (!form.title.trim() || !form.categoryId) {
+      setErr("عنوان و دستهٔ دوره الزامی است.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = {
+        title: form.title,
+        summary: form.summary,
+        description: form.description,
+        categoryId: form.categoryId as any,
+        price: Number(form.price) || 0,
+        mode: form.mode,
+        durationText: form.durationText,
+      };
+      if (dialog?.mode === "edit") {
+        await update({ courseId: dialog.course._id, ...payload });
+      } else {
+        await create(payload);
+      }
+      setDialog(null);
+      toast.success(dialog?.mode === "edit" ? "تغییرات ذخیره شد" : "دوره به‌عنوان پیش‌نویس ساخته شد");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSubmit = async (id: string) => {
+    setSubmittingId(id);
+    try {
+      await submit({ courseId: id as any });
+      toast.success("دوره برای بررسی به مدیر سایت ارسال شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-white">طراحی دوره</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            دوره را طراحی کنید و برای تأیید به مدیر سایت بفرستید؛ پس از تأیید، در سایت منتشر می‌شود.
+          </p>
+        </div>
+        <Button className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={openCreate}>
+          <Plus className="size-4" />
+          دورهٔ جدید
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {courses.map((c) => {
+          const st = STUDIO_STATUS[c.status] ?? STUDIO_STATUS.draft;
+          const editable = c.status === "draft" || c.status === "rejected";
+          return (
+            <Card key={c._id} className="border-white/5 bg-[#0b1a2a]">
+              <CardContent className="space-y-3 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="min-w-0 break-words font-bold text-white">{c.title}</h3>
+                      <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${st.cls}`}>
+                        {st.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 break-words text-xs text-slate-400">
+                      {c.categoryName ?? "—"} · {c.studentsCount ?? 0} دانشجو · {c.syllabusCount ?? 0} جلسه
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {editable && (
+                      <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-slate-200 hover:bg-white/10" onClick={() => openEdit(c)}>
+                        ویرایش
+                      </Button>
+                    )}
+                    {editable && (
+                      <Button
+                        size="sm"
+                        disabled={submittingId === c._id}
+                        className="bg-cyan-500 text-white hover:bg-cyan-400"
+                        onClick={() => handleSubmit(c._id)}
+                      >
+                        {submittingId === c._id ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
+                        ارسال برای بررسی
+                      </Button>
+                    )}
+                    {(c.status === "draft" || c.status === "pending" || c.status === "rejected") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-slate-500 hover:text-red-400"
+                        onClick={() => remove({ courseId: c._id })}
+                        title="حذف دوره"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {c.summary && <p className="break-words text-sm text-slate-300">{c.summary}</p>}
+                {c.reviewNote && (
+                  <p className="rounded-lg border border-red-400/20 bg-red-400/5 px-3 py-2 text-xs text-red-300">
+                    دلیل بازگشت از مدیر سایت: {c.reviewNote}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+        {courses.length === 0 && (
+          <Card className="border-white/5 bg-white/[0.02]">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <BookOpen className="size-8 text-slate-600" />
+              <p className="text-sm text-slate-400">
+                هنوز دوره‌ای طراحی نکرده‌اید. با «دورهٔ جدید» شروع کنید — پیش‌نویس فقط برای شما قابل مشاهده است.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{dialog?.mode === "edit" ? "ویرایش دوره" : "طراحی دورهٔ جدید"}</DialogTitle>
+            <DialogDescription>
+              ابتدا به‌صورت پیش‌نویس ذخیره می‌شود؛ بعد از تکمیل، «ارسال برای بررسی» را بزنید تا مدیر سایت تأیید یا بازگرداند.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Select value={form.categoryId || undefined} onValueChange={(v) => setForm({ ...form, categoryId: v })}>
+              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                <SelectValue placeholder="دستهٔ دوره" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input placeholder="خلاصهٔ دوره" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Textarea placeholder="توضیحات کامل دوره…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Input placeholder="قیمت (تومان)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+              <Input placeholder="مدت دوره (مثلاً ۱۲ ساعت)" value={form.durationText} onChange={(e) => setForm({ ...form, durationText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+              <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v })}>
+                <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                  <SelectValue placeholder="نوع دوره" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recorded">ویدئویی</SelectItem>
+                  <SelectItem value="live">زنده</SelectItem>
+                  <SelectItem value="hybrid">ترکیبی</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {err && <p className="text-sm text-red-400">{err}</p>}
+            <Button onClick={handleSave} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
+              {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "ذخیره به‌عنوان پیش‌نویس"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── My profile (name, photo, about) + suggested courses ─────────────────────
+function ProfileView() {
+  const me = useQuery(api.profiles.getMyProfile);
+  const suggested = useQuery(api.profiles.listSuggestedCourses);
+  const uploadUrl = useMutation(api.profiles.getProfileUploadUrl);
+  const update = useMutation(api.profiles.updateMyProfile);
+  const toggle = useMutation(api.profiles.toggleSuggestedCourse);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [about, setAbout] = useState("");
+  const [avatarStorageId, setAvatarStorageId] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (me) {
+      setFirstName(me.firstName ?? "");
+      setLastName(me.lastName ?? "");
+      setAbout(me.about ?? "");
+    }
+  }, [me]);
+
+  const pickAvatar = async (file: File | undefined) => {
+    if (!file) return;
+    setAvatarPreview(URL.createObjectURL(file));
+    try {
+      const url = await uploadUrl();
+      setAvatarStorageId(await uploadBlob(url, file));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "آپلود عکس ناموفق بود");
+    }
+  };
+
+  const handleSave = async () => {
+    setErr(null);
+    setSaved(false);
+    if (!firstName.trim() && !lastName.trim()) {
+      setErr("نام یا نام خانوادگی را وارد کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await update({ firstName, lastName, avatarStorageId: avatarStorageId ?? undefined, about });
+      setSaved(true);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ذخیره");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pending = me?.pendingProfile ?? null;
+  const catalog = suggested?.catalog ?? [];
+  const filtered = catalog.filter(
+    (c) =>
+      !query.trim() ||
+      c.title.includes(query.trim()) ||
+      (c.instructorName ?? "").includes(query.trim()),
+  );
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">دوره‌های من</h2>
+        <h2 className="text-xl font-bold text-white">پروفایل من</h2>
         <p className="mt-1 text-sm text-slate-400">
-          دوره‌هایی که به نام شما ثبت شده‌اند؛ دانشجویان از این‌جا پیشرفتشان را دنبال می‌کنند.
+          نام، عکس و سوابق علمی‌تان را ثبت کنید؛ تغییرات پس از تأیید مدیر سایت در سایت نمایش داده می‌شود.
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {mine.map((c) => (
-          <Card key={c._id} className="min-w-0 border-white/5 bg-[#0b1a2a]">
-            <CardContent className="space-y-3 py-4">
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="min-w-0 break-words font-bold text-white">{c.title}</h3>
-                <MonitorPlay className="size-5 shrink-0 text-cyan-300" />
-              </div>
-              <p className="break-words text-xs text-slate-400">{c.summary}</p>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <Users className="size-3.5 shrink-0" />
-                <span className="truncate">
-                  {c.studentsCount ?? 0} دانشجو · {c.syllabus?.length ?? 0} جلسه
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      {mine.length === 0 && (
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <BookOpen className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">
-              هنوز دوره‌ای به نام شما ثبت نشده. از پنل مدیریت، دوره را به پروفایل استادی خود متصل کنید.
-            </p>
-          </CardContent>
-        </Card>
+
+      {pending && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-sm text-amber-300">
+          <Hourglass className="size-4 shrink-0" />
+          <span>
+            تغییرات شما در انتظار تأیید مدیر سایت است — ارسال‌شده در{" "}
+            {new Date(pending.submittedAt).toLocaleDateString("fa-IR")}.
+          </span>
+        </div>
       )}
+
+      <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+        <CardContent className="space-y-4 py-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative">
+              <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl border border-cyan-400/30 bg-cyan-400/10">
+                {avatarPreview || me?.avatarUrl ? (
+                  <img src={avatarPreview ?? me?.avatarUrl!} alt="عکس پروفایل" className="size-full object-cover" />
+                ) : (
+                  <User className="size-8 text-cyan-300" />
+                )}
+              </div>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="absolute -bottom-1.5 -left-1.5 flex size-7 items-center justify-center rounded-full border border-cyan-400/40 bg-[#0b1a2a] text-cyan-300 hover:bg-cyan-400/10"
+                title="انتخاب عکس"
+              >
+                <Upload className="size-3.5" />
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => void pickAvatar(e.target.files?.[0])}
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-white">
+                {firstName || lastName ? `${firstName} ${lastName}`.trim() : (me?.name ?? "مدرس")}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400">{me?.email ?? ""}</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">عکس پروفایل در پروفایل دانشجویی و کارت‌های شما نمایش داده می‌شود.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-400">نام</label>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="نام" className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-400">نام خانوادگی</label>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="نام خانوادگی" className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-bold text-slate-400">دربارهٔ مدرس</label>
+            <Textarea
+              rows={4}
+              value={about}
+              onChange={(e) => setAbout(e.target.value)}
+              placeholder="سوابق علمی، تحصیلی و تجربه‌های آموزشی خود را بنویسید…"
+              className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+            />
+          </div>
+          {err && <p className="text-sm text-red-400">{err}</p>}
+          {saved && (
+            <p className="flex items-center gap-2 text-sm text-emerald-300">
+              <CheckCircle2 className="size-4" />
+              ذخیره شد — پس از تأیید مدیر سایت اعمال می‌شود.
+            </p>
+          )}
+          <Button onClick={handleSave} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
+            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
+            ذخیرهٔ پروفایل
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Suggested courses */}
+      <div className="space-y-3">
+        <div>
+          <h3 className="font-bold text-white">دوره‌های پیشنهادی مدرس</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            دوره‌هایی از مدرسان دیگر که به دانشجویان پیشنهاد می‌دهید — روی پروفایل شما نمایش داده می‌شود.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {(suggested?.mine ?? []).map((c) => (
+            <Card key={c._id} className="border-emerald-400/20 bg-[#0b1a2a]">
+              <CardContent className="space-y-2 py-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="min-w-0 break-words text-sm font-bold text-white">{c.title}</h4>
+                  <button
+                    onClick={() => void toggle({ courseId: c._id }).catch((e) => toast.error(e instanceof Error ? e.message : "خطا"))}
+                    className="shrink-0 text-emerald-300 hover:text-emerald-200"
+                    title="حذف از پیشنهادها"
+                  >
+                    <BookmarkCheck className="size-4" />
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">{c.instructorName ?? "—"} · {c.category ?? ""}</p>
+              </CardContent>
+            </Card>
+          ))}
+          {(suggested?.mine ?? []).length === 0 && (
+            <p className="text-sm text-slate-500">هنوز دوره‌ای پیشنهاد نداده‌اید.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-bold text-white">افزودن دوره از مدرسان دیگر</h3>
+            <p className="mt-1 text-sm text-slate-400">
+              همهٔ دوره‌های منتشرشدهٔ مدرسان تیم — با «افزودن به پیشنهادها» در پروفایل شما نمایش داده می‌شود.
+            </p>
+          </div>
+          <Input
+            placeholder="جستجوی دوره…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="max-w-56 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((c) => (
+            <Card key={c._id} className="border-white/5 bg-[#0b1a2a]">
+              <CardContent className="space-y-2 py-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h4 className="min-w-0 break-words text-sm font-bold text-white">{c.title}</h4>
+                  <button
+                    onClick={() => void toggle({ courseId: c._id }).catch((e) => toast.error(e instanceof Error ? e.message : "خطا"))}
+                    className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-bold transition-colors ${
+                      c.suggested
+                        ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                        : "border-cyan-400/30 bg-cyan-400/10 text-cyan-300 hover:bg-cyan-400/20"
+                    }`}
+                    title={c.suggested ? "حذف از پیشنهادها" : "افزودن به پیشنهادها"}
+                  >
+                    {c.suggested ? (
+                      <span className="flex items-center gap-1"><BookmarkCheck className="size-3" /> پیشنهادشده</span>
+                    ) : (
+                      <span className="flex items-center gap-1"><BookmarkPlus className="size-3" /> افزودن به پیشنهادها</span>
+                    )}
+                  </button>
+                </div>
+                <p className="line-clamp-2 break-words text-xs text-slate-400">{c.summary}</p>
+                <p className="text-[11px] text-slate-500">
+                  {c.instructorName ?? "—"} · {c.category ?? ""} · {c.studentsCount ?? 0} دانشجو
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+          {filtered.length === 0 && (
+            <p className="text-sm text-slate-500">دوره‌ای یافت نشد.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1310,7 +1732,7 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
           )}
           {mode === "course" && mine.length === 0 && (
             <p className="text-xs text-slate-500">
-              دوره‌ای با نام شما ثبت نشده. از پنل مدیریت، پروفایل استادی‌تان را به دوره وصل کنید.
+              دوره‌ای با نام شما ثبت نشده. از پنل مدیریت، پروفایل مدرسی‌تان را به دوره وصل کنید.
             </p>
           )}
           <Input

@@ -865,7 +865,7 @@ export const adminCreateInstructor = mutation({
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     const name = args.name.trim();
-    if (!name) throw new Error("نام استاد لازم است.");
+    if (!name) throw new Error("نام مدرس لازم است.");
     await ctx.db.insert("instructors", {
       name,
       slug: name.replace(/\s+/g, "-").toLowerCase(),

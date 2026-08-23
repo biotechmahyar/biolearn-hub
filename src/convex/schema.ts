@@ -74,6 +74,23 @@ const schema = defineSchema(
       role: v.optional(roleValidator),
       university: v.optional(v.string()),
       major: v.optional(v.string()),
+
+      // Member profiles (name parts, photo, academic bio). Edits are staged in
+      // pendingProfile until a site admin approves them.
+      firstName: v.optional(v.string()),
+      lastName: v.optional(v.string()),
+      avatarStorageId: v.optional(v.string()),
+      about: v.optional(v.string()),
+      suggestedCourseIds: v.optional(v.array(v.id("courses"))),
+      pendingProfile: v.optional(
+        v.object({
+          firstName: v.optional(v.string()),
+          lastName: v.optional(v.string()),
+          avatarStorageId: v.optional(v.string()),
+          about: v.optional(v.string()),
+          submittedAt: v.number(),
+        }),
+      ),
     }).index("email", ["email"]),
 
     // ── Catalog ──────────────────────────────────────────────────────────
@@ -136,11 +153,20 @@ const schema = defineSchema(
       featured: v.boolean(),
       popular: v.boolean(),
       createdAt: v.number(),
+
+      // Instructor-designed course flow: authorId = the user who designed it,
+      // status = draft → pending (sent to admin) → published / rejected.
+      authorId: v.optional(v.id("users")),
+      status: v.optional(
+        v.union(v.literal("draft"), v.literal("pending"), v.literal("rejected")),
+      ),
+      reviewNote: v.optional(v.string()),
     })
       .index("by_slug", ["slug"])
       .index("by_category", ["categoryId"])
       .index("by_published", ["published"])
-      .index("by_featured", ["featured"]),
+      .index("by_featured", ["featured"])
+      .index("by_author", ["authorId"]),
 
     products: defineTable({
       title: v.string(),
@@ -524,6 +550,17 @@ const schema = defineSchema(
     admins: defineTable({
       email: v.string(),
     }).index("by_email", ["email"]),
+
+    // Per-account inbox: messages the site admin sends to a specific user.
+    inboxMessages: defineTable({
+      userId: v.id("users"),
+      title: v.string(),
+      body: v.string(),
+      readAt: v.optional(v.number()),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_created", ["createdAt"]),
   },
   {
     schemaValidation: false,

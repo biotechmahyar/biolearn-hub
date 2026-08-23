@@ -39,6 +39,7 @@ import {
   BellRing,
   BookOpen,
   BookUser,
+  CheckCircle2,
   ChevronDown,
   ClipboardList,
   Compass,
@@ -50,9 +51,11 @@ import {
   Headset,
   HelpCircle,
   Home,
+  Inbox,
   Layers,
   Loader2,
   Lock,
+  Mail,
   Menu,
   Package,
   Pencil,
@@ -64,9 +67,11 @@ import {
   Ticket,
   Trash2,
   TrendingUp,
+  UserCheck,
   Users,
   Video,
   X,
+  XCircle,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -102,7 +107,9 @@ type Section =
   | "orders"
   | "coupons"
   | "support"
-  | "announcements";
+  | "announcements"
+  | "profiles"
+  | "inbox";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -110,6 +117,8 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
     items: [
       { key: "overview", label: "نمای کلی", icon: Activity },
       { key: "users", label: "کاربران و دسترسی‌ها", icon: Users },
+      { key: "profiles", label: "تأیید پروفایل‌ها", icon: UserCheck },
+      { key: "inbox", label: "صندوق ورودی", icon: Inbox },
       { key: "orders", label: "سفارش‌ها", icon: CreditCard },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
@@ -129,7 +138,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
   },
   {
     title: "تیم",
-    items: [{ key: "instructors", label: "استادان", icon: BookUser }],
+    items: [{ key: "instructors", label: "مدرسان", icon: BookUser }],
   },
 ];
 
@@ -139,7 +148,7 @@ const ROLES = ["user", "member", "instructor", "mentor", "content_manager", "sup
 const ROLE_LABELS: Record<string, string> = {
   user: "دانشجو",
   member: "عضو",
-  instructor: "استاد",
+  instructor: "مدرس",
   mentor: "منتور",
   content_manager: "مدیر محتوا",
   support: "پشتیبانی",
@@ -162,6 +171,24 @@ function StatusChip({ published }: { published: boolean }) {
     >
       <span className={cn("size-1.5 rounded-full", published ? "bg-emerald-500" : "bg-amber-500")} />
       {published ? "PUBLISHED" : "DRAFT"}
+    </span>
+  );
+}
+
+// Course rows also carry a review status: draft → pending → published/rejected.
+function CourseStatusChip({ c }: { c: any }) {
+  const status = c.status ?? (c.published ? "published" : "draft");
+  const map: Record<string, { label: string; cls: string }> = {
+    published: { label: "منتشر شده", cls: "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" },
+    pending: { label: "در انتظار تأیید", cls: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+    draft: { label: "پیش‌نویس", cls: "border-slate-400/30 bg-slate-400/10 text-slate-500" },
+    rejected: { label: "رد شده", cls: "border-red-500/30 bg-red-500/10 text-red-500" },
+  };
+  const s = map[status] ?? map.draft;
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-bold", s.cls)}>
+      <span className={cn("size-1.5 rounded-full", status === "published" ? "bg-emerald-500" : status === "pending" ? "bg-amber-500" : status === "rejected" ? "bg-red-500" : "bg-slate-400")} />
+      {s.label}
     </span>
   );
 }
@@ -268,7 +295,7 @@ export default function Admin() {
 
   // Staff panels the admin can jump into (every role except student).
   const ROLE_JUMP: { label: string; icon: typeof ShieldCheck; to: string }[] = [
-    { label: "استودیوی استاد", icon: Video, to: "/panel/instructor" },
+    { label: "استودیوی مدرس", icon: Video, to: "/panel/instructor" },
     { label: "میز منتور", icon: Compass, to: "/panel/mentor" },
     { label: "استودیوی محتوا", icon: FileText, to: "/panel/content" },
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
@@ -514,6 +541,8 @@ export default function Admin() {
             {section === "coupons" && <AdminCoupons />}
             {section === "support" && <AdminSupport />}
             {section === "announcements" && <AdminAnnouncements />}
+            {section === "profiles" && <AdminProfiles />}
+            {section === "inbox" && <AdminInbox />}
           </div>
         </main>
       </div>
@@ -620,6 +649,10 @@ function AdminCourses() {
   const update = useMutation(api.admin.adminUpdateCourse);
   const toggle = useMutation(api.admin.adminTogglePublish);
   const remove = useMutation(api.admin.adminDeleteCourse);
+  const approve = useMutation(api.courseStudio.approveCourseReview);
+  const reject = useMutation(api.courseStudio.rejectCourseReview);
+  const [rejecting, setRejecting] = useState<{ id: string; title: string } | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
 
   const empty = { title: "", summary: "", price: "0", categoryId: "", instructorId: "", mode: "recorded", bundle: "basic", published: false };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; course: any } | null>(null);
@@ -704,8 +737,25 @@ function AdminCourses() {
                   <TableCell className="text-muted-foreground">{c.category}</TableCell>
                   <TableCell>{formatPrice(c.discountPrice ?? c.price)}</TableCell>
                   <TableCell>{faNum(c.studentsCount)}</TableCell>
-                  <TableCell><StatusChip published={c.published} /></TableCell>
+                  <TableCell><CourseStatusChip c={c} /></TableCell>
                   <TableCell>
+                    {c.status === "pending" && (
+                      <div className="mb-1.5 flex justify-end gap-1.5">
+                        <Button size="sm" className="h-7 rounded-md text-xs" onClick={() => approve({ courseId: c._id })}>
+                          <CheckCircle2 className="ml-1 size-3.5" />
+                          تأیید و انتشار
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-md border-destructive/40 text-xs text-destructive"
+                          onClick={() => { setRejecting({ id: c._id, title: c.title }); setRejectNote(""); }}
+                        >
+                          <XCircle className="ml-1 size-3.5" />
+                          رد
+                        </Button>
+                      </div>
+                    )}
                     <PublishActions
                       published={c.published}
                       onToggle={() => toggle({ collection: "courses", id: c._id, published: !c.published })}
@@ -763,6 +813,38 @@ function AdminCourses() {
             <Button className="w-full" onClick={handleSave} disabled={busy}>
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "ساخت دوره"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+<Dialog open={rejecting !== null} onOpenChange={(o) => { if (!o) setRejecting(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>رد دوره: {rejecting?.title}</DialogTitle>
+            <DialogDescription>
+              دلیل بازگشت را بنویسید تا مدرس ببیند و اصلاح کند؛ دوره پیش‌نویس باقی می‌ماند.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea rows={3} placeholder="مثلاً: توضیحات دوره را کامل‌تر کنید…" value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} />
+            <Button
+              variant="destructive"
+              className="rounded-lg"
+              disabled={!rejecting}
+              onClick={async () => {
+                if (!rejecting) return;
+                try {
+                  await reject({ courseId: rejecting.id as any, note: rejectNote });
+                  setRejecting(null);
+                  toast.success("دوره رد و به مدرس بازگردانده شد");
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "خطا");
+                }
+              }}
+            >
+              <XCircle className="ml-1.5 size-4" />
+              رد و بازگشت به مدرس
             </Button>
           </div>
         </DialogContent>
@@ -1234,7 +1316,7 @@ function AdminWorkshops() {
             <TableHeader>
               <TableRow>
                 <TableHead>عنوان</TableHead>
-                <TableHead>استاد</TableHead>
+                <TableHead>مدرس</TableHead>
                 <TableHead>تاریخ</TableHead>
                 <TableHead>ظرفیت</TableHead>
                 <TableHead>وضعیت</TableHead>
@@ -1272,7 +1354,7 @@ function AdminWorkshops() {
           <div className="space-y-3">
             <Input placeholder="عنوان" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <Select value={form.instructorId || undefined} onValueChange={(v) => setForm({ ...form, instructorId: v })}>
-              <SelectTrigger><SelectValue placeholder="استاد" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="مدرس" /></SelectTrigger>
               <SelectContent>
                 {(instructors ?? []).map((i) => (
                   <SelectItem key={i._id} value={i._id}>{i.name}</SelectItem>
@@ -1472,10 +1554,10 @@ function AdminInstructors() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <SectionHeader title="استادان" subtitle="team / instructors" count={instructors?.length} />
+        <SectionHeader title="مدرسان" subtitle="team / instructors" count={instructors?.length} />
         <Button className="rounded-lg" onClick={openCreate}>
           <Plus className="ml-1.5 size-4" />
-          استاد جدید
+          مدرس جدید
         </Button>
       </div>
 
@@ -1526,14 +1608,14 @@ function AdminInstructors() {
       </Card>
 
       <p className="text-xs leading-5 text-muted-foreground">
-        برای دادن حساب ورود (ایمیل + رمز) به استاد، از بخش «کاربران و دسترسی‌ها» یک حساب با نقش
-        «استاد» بساز؛ این بخش فقط پروفایل نمایشی استاد را مدیریت می‌کند.
+        برای دادن حساب ورود (ایمیل + رمز) به مدرس، از بخش «کاربران و دسترسی‌ها» یک حساب با نقش
+        «مدرس» بساز؛ این بخش فقط پروفایل نمایشی مدرس را مدیریت می‌کند.
       </p>
 
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{dialog?.mode === "edit" ? "ویرایش استاد" : "استاد جدید"}</DialogTitle>
+            <DialogTitle>{dialog?.mode === "edit" ? "ویرایش مدرس" : "مدرس جدید"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1559,7 +1641,7 @@ function AdminInstructors() {
             </div>
             <Button className="w-full" onClick={handleSave} disabled={busy}>
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
-              {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "افزودن استاد"}
+              {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "افزودن مدرس"}
             </Button>
           </div>
         </DialogContent>
@@ -2302,3 +2384,214 @@ function AdminAnnouncements() {
     </div>
   );
 }
+
+// ── Profile approvals: members edit their profile, admin approves ──────────
+function AdminProfiles() {
+  const pending = useQuery(api.profiles.listPendingProfiles) ?? [];
+  const approve = useMutation(api.profiles.approveProfile);
+  const reject = useMutation(api.profiles.rejectProfile);
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="تأیید پروفایل‌ها" subtitle="profiles / pending review" count={pending.length} />
+
+      <div className="space-y-3">
+        {pending.map((p) => (
+          <Card key={p._id} className="border-amber-500/25 shadow-sm">
+            <CardContent className="space-y-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
+                    {p.pending.avatarUrl || p.current.avatarUrl ? (
+                      <img src={p.pending.avatarUrl ?? p.current.avatarUrl!} alt="" className="size-full object-cover" />
+                    ) : (
+                      <Users className="size-4 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold">
+                      {p.pending.firstName || p.pending.lastName
+                        ? `${p.pending.firstName ?? ""} ${p.pending.lastName ?? ""}`.trim()
+                        : (p.name ?? "—")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.email} · {ROLE_LABELS[p.role ?? "user"] ?? p.role} · ارسال: {formatDateTime(p.submittedAt)}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-8 rounded-lg text-xs" onClick={() => approve({ userId: p._id })}>
+                    <CheckCircle2 className="ml-1 size-3.5" />
+                    تأیید و اعمال
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs text-destructive" onClick={() => reject({ userId: p._id })}>
+                    <XCircle className="ml-1 size-3.5" />
+                    رد تغییرات
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                  <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">مقدار فعلی</p>
+                  <p className="text-sm font-bold">
+                    {p.current.firstName || p.current.lastName
+                      ? `${p.current.firstName ?? ""} ${p.current.lastName ?? ""}`.trim()
+                      : (p.name ?? "—")}
+                  </p>
+                  {p.current.about && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{p.current.about}</p>}
+                </div>
+                <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
+                  <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-primary/80">تغییرات پیشنهادی</p>
+                  <p className="text-sm font-bold">
+                    {p.pending.firstName || p.pending.lastName
+                      ? `${p.pending.firstName ?? ""} ${p.pending.lastName ?? ""}`.trim()
+                      : (p.name ?? "—")}
+                  </p>
+                  {p.pending.about && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{p.pending.about}</p>}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {pending.length === 0 && (
+          <Card className="border-border/70">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <UserCheck className="size-8 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">
+                درخواستی برای تأیید نیست — وقتی اعضا پروفایل‌شان را ویرایش کنند، اینجا نمایش داده می‌شود.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Inbox: send messages to a specific account, view what was sent ─────────
+function AdminInbox() {
+  const msgs = useQuery(api.inbox.adminListInbox) ?? [];
+  const users = useQuery(api.admin.adminGetUsers) ?? [];
+  const send = useMutation(api.inbox.sendInboxMessage);
+  const remove = useMutation(api.inbox.deleteInboxMessage);
+
+  const [userId, setUserId] = useState("");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleSend = async () => {
+    setErr(null);
+    if (!userId) {
+      setErr("گیرنده را انتخاب کنید — صندوق ورودی برای هر حساب جداگانه است.");
+      return;
+    }
+    if (title.trim().length < 2) {
+      setErr("عنوان پیام لازم است.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await send({ userId: userId as any, title, body });
+      setTitle("");
+      setBody("");
+      setUserId("");
+      toast.success("پیام به صندوق ورودی کاربر ارسال شد");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ارسال");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="صندوق ورودی" subtitle="inbox / per-account messages" count={msgs.length} />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">ارسال پیام به یک حساب</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Select value={userId} onValueChange={setUserId}>
+            <SelectTrigger>
+              <SelectValue placeholder="گیرنده را انتخاب کنید (دانشجو / عضو / مدرس و…)" />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((u) => (
+                <SelectItem key={u._id} value={u._id}>
+                  {u.name ?? "بدون نام"} — {u.email} ({ROLE_LABELS[u.role ?? "user"] ?? u.role})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input placeholder="عنوان پیام (مثلاً: پذیرش در دورهٔ آزمایشی)" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <Textarea placeholder="متن پیام…" rows={3} value={body} onChange={(e) => setBody(e.target.value)} />
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          <Button className="rounded-lg" onClick={handleSend} disabled={busy}>
+            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
+            ارسال به صندوق ورودی
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>عنوان</TableHead>
+                <TableHead>گیرنده</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead>تاریخ</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {msgs.map((m) => (
+                <TableRow key={m._id}>
+                  <TableCell className="max-w-56 truncate font-medium">{m.title}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {m.user ? `${m.user.name ?? "—"} · ${m.user.email ?? ""}` : "کاربر حذف‌شده"}
+                  </TableCell>
+                  <TableCell>
+                    {m.readAt ? (
+                      <span className="text-xs text-muted-foreground">خوانده‌شده</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                        <Mail className="size-3" />
+                        جدید
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(m.createdAt)}</TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                      title="حذف پیام"
+                      onClick={() => remove({ id: m._id })}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {msgs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                    هنوز پیامی ارسال نشده است.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+

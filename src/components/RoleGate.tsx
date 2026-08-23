@@ -16,7 +16,7 @@ export const ROLE_HOME: Record<string, string> = {
 export const ROLE_LABEL: Record<string, string> = {
   admin: "مدیریت",
   site_admin: "مدیریت سایت",
-  instructor: "استودیوی استاد",
+  instructor: "استودیوی مدرس",
   mentor: "میز منتور",
   content_manager: "استودیوی محتوا",
   support: "میز پشتیبانی",

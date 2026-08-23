@@ -17,10 +17,10 @@ export default function Workshops() {
         <div className="max-w-2xl">
           <p className="text-sm font-semibold text-primary">کارگاه‌ها و نشست‌ها</p>
           <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
-            از تخصص استادان مهمان استفاده کن
+            از تخصص مدرسان مهمان استفاده کن
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-[15px]">
-            کارگاه‌های زنده با استادان و متخصصان، به‌همراه نشست‌های رایگان برای
+            کارگاه‌های زنده با مدرسان و متخصصان، به‌همراه نشست‌های رایگان برای
             آشنایی با مسیرهای تخصصی و پژوهشی.
           </p>
         </div>
@@ -57,7 +57,7 @@ export default function Workshops() {
         <div className="mt-10 flex items-start gap-3 rounded-2xl border border-dashed border-border bg-card/40 p-6">
           <Mic2 className="mt-0.5 size-5 shrink-0 text-primary" />
           <div className="text-sm leading-6 text-muted-foreground">
-            <p className="font-bold text-foreground">استاد یا متخصص هستی؟</p>
+            <p className="font-bold text-foreground">مدرس یا متخصص هستی؟</p>
             <p className="mt-1">
               اگر در حوزهٔ علوم زیستی تخصص داری و می‌خواهی کارگاه برگزار کنی، با
               تیم زیست‌آکادمی در تماس باش:{" "}

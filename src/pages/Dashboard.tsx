@@ -19,15 +19,20 @@ import {
   BookOpen,
   Bookmark,
   BookmarkCheck,
+  CheckCircle2,
   ClipboardList,
   Download,
   FileText,
   GraduationCap,
+  Hourglass,
+  Inbox,
   Layers,
   LayoutDashboard,
   LifeBuoy,
   Loader2,
   LogOut,
+  Mail,
+  MailOpen,
   MessageCircle,
   Camera,
   Mic,
@@ -35,6 +40,7 @@ import {
   Plus,
   Presentation,
   Radio,
+  Save,
   Send,
   Sparkles,
   Square,
@@ -42,6 +48,8 @@ import {
   Trash2,
   TrendingUp,
   Trophy,
+  Upload,
+  User,
   Video,
   VideoOff,
   X,
@@ -61,25 +69,29 @@ import {
   YAxis,
 } from "recharts";
 
-type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements";
+type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
   { key: "courses", label: "دوره‌های من", icon: BookOpen },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
   { key: "live", label: "کلاس‌های زنده", icon: Radio },
+  { key: "inbox", label: "صندوق ورودی", icon: Inbox },
   { key: "announcements", label: "اعلان‌ها", icon: BellRing },
   { key: "progress", label: "پیشرفت", icon: BarChart3 },
   { key: "flashcards", label: "فلش‌کارت‌ها", icon: Layers },
   { key: "downloads", label: "دانلودها", icon: Download },
   { key: "bookmarks", label: "نشان‌شده‌ها", icon: Bookmark },
   { key: "support", label: "پشتیبانی", icon: LifeBuoy },
+  { key: "profile", label: "پروفایل", icon: User },
 ];
 
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const myInbox = useQuery(api.inbox.listMyInbox) ?? [];
+  const unreadCount = myInbox.filter((m) => m.unread).length;
 
   // Staff members belong to their own panel, not the student dashboard.
   const role = user?.role;
@@ -138,6 +150,11 @@ export default function Dashboard() {
               >
                 <t.icon className="size-4" />
                 {t.label}
+                {t.key === "inbox" && unreadCount > 0 && (
+                  <span className="mr-auto flex size-5 items-center justify-center rounded-full bg-red-500/15 text-[10px] font-bold text-red-500">
+                    {faNum(unreadCount)}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -155,6 +172,8 @@ export default function Dashboard() {
           {tab === "support" && <SupportTab />}
           {tab === "live" && <LiveTab />}
           {tab === "announcements" && <AnnouncementsTab />}
+          {tab === "inbox" && <InboxTab />}
+          {tab === "profile" && <StudentProfileTab />}
         </main>
       </div>
     </div>
@@ -964,14 +983,14 @@ function LiveTab() {
       <div>
         <h2 className="text-xl font-bold">کلاس‌های زنده</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          وقتی استاد آنلاین است و کلاس را شروع کرده، اینجا سؤال بپرسید — پاسخ استاد به‌صورت لحظه‌ای می‌رسد.
+          وقتی مدرس آنلاین است و کلاس را شروع کرده، اینجا سؤال بپرسید — پاسخ مدرس به‌صورت لحظه‌ای می‌رسد.
         </p>
       </div>
 
       {/* Who is online */}
       <div className="flex flex-wrap gap-2">
         {online.length === 0 && (
-          <span className="text-xs text-muted-foreground">الان هیچ استادی آنلاین نیست.</span>
+          <span className="text-xs text-muted-foreground">الان هیچ مدرسی آنلاین نیست.</span>
         )}
         {online
           .filter((u) => u.role === "instructor" || u.role === "admin")
@@ -993,7 +1012,7 @@ function LiveTab() {
         <EmptyState
           icon={Video}
           title="کلاسی در حال برگزاری نیست"
-          desc="به محض اینکه استاد کلاس را شروع کند، اینجا ظاهر می‌شود و می‌توانید سؤال بپرسید."
+          desc="به محض اینکه مدرس کلاس را شروع کند، اینجا ظاهر می‌شود و می‌توانید سؤال بپرسید."
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -1015,7 +1034,7 @@ function LiveTab() {
               <h3 className="mt-3 font-bold group-hover:text-primary">{room.title}</h3>
               <p className="mt-1 text-xs text-muted-foreground">{room.topic}</p>
               <p className="mt-3 text-[11px] text-muted-foreground">
-                استاد: <span className="font-bold text-foreground">{room.instructorName}</span>
+                مدرس: <span className="font-bold text-foreground">{room.instructorName}</span>
               </p>
             </button>
           ))}
@@ -1176,7 +1195,7 @@ function LiveRoomView({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              استاد: {room?.instructorName ?? detail?.instructorName}
+              مدرس: {room?.instructorName ?? detail?.instructorName}
             </p>
           </div>
         </div>
@@ -1192,7 +1211,7 @@ function LiveRoomView({
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-60" />
                   <span className="relative inline-flex size-2 rounded-full bg-red-500" />
                 </span>
-                {detail?.broadcastKind === "screen" ? "اشتراک صفحهٔ استاد" : "پخش زندهٔ استاد"}
+                {detail?.broadcastKind === "screen" ? "اشتراک صفحهٔ مدرس" : "پخش زندهٔ مدرس"}
               </p>
               <span className="font-mono text-[10px] text-muted-foreground">
                 {receiver.status === "live" ? "متصل" : "در حال اتصال…"}
@@ -1218,7 +1237,7 @@ function LiveRoomView({
                 )}
                 {detail?.broadcastKind === "screen" && screenStrokes.length > 0 && (
                   <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold text-yellow-300 backdrop-blur">
-                    ✏️ علامت‌های استاد روی صفحه
+                    ✏️ علامت‌های مدرس روی صفحه
                   </span>
                 )}
               </div>
@@ -1234,7 +1253,7 @@ function LiveRoomView({
                 ) : (
                   <>
                     <Loader2 className="size-8 animate-spin text-muted-foreground/50" />
-                    <p className="text-xs text-muted-foreground">در حال اتصال به پخش استاد…</p>
+                    <p className="text-xs text-muted-foreground">در حال اتصال به پخش مدرس…</p>
                   </>
                 )}
               </div>
@@ -1251,7 +1270,7 @@ function LiveRoomView({
               <Presentation className="size-4 text-primary" />
               تختهٔ کلاس
               <span className="font-mono text-[10px] font-normal text-muted-foreground">
-                زنده · استاد می‌کشد
+                زنده · مدرس می‌کشد
               </span>
             </p>
             <WhiteboardCanvas
@@ -1296,7 +1315,7 @@ function LiveRoomView({
                   </span>
                   <span className="text-xs font-bold">{m.name}</span>
                   <span className="text-[10px] text-muted-foreground">
-                    {m.role === "instructor" ? "استاد" : "دانشجو"}
+                    {m.role === "instructor" ? "مدرس" : "دانشجو"}
                   </span>
                 </div>
                 <p className="mt-1.5 text-sm">{m.text}</p>
@@ -1329,7 +1348,7 @@ function LiveRoomView({
                 {m.answer && (
                   <div className="mt-2 rounded-md bg-emerald-500/10 px-3 py-2">
                     <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                      پاسخ استاد
+                      پاسخ مدرس
                     </p>
                     <p className="mt-0.5 text-sm text-emerald-700 dark:text-emerald-200">
                       {m.answer}
@@ -1370,7 +1389,7 @@ function LiveRoomView({
               </span>
             )}
             <Input
-              placeholder={asQuestion ? "سؤال خود را از استاد بپرسید…" : "پیامی برای کلاس بنویسید…"}
+              placeholder={asQuestion ? "سؤال خود را از مدرس بپرسید…" : "پیامی برای کلاس بنویسید…"}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
@@ -1428,7 +1447,7 @@ function AnnouncementsTab() {
       <div>
         <h2 className="text-xl font-bold">اعلان‌ها</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          اطلاعیه‌های مدیر سایت و استادها — برای دوره‌های شما و آزمون‌ها.
+          اطلاعیه‌های مدیر سایت و مدرسها — برای دوره‌های شما و آزمون‌ها.
         </p>
       </div>
 
@@ -1463,10 +1482,206 @@ function AnnouncementsTab() {
           <EmptyState
             icon={BellRing}
             title="اعلانی نیست"
-            desc="وقتی مدیر سایت یا استادها اطلاعیه‌ای بفرستند، اینجا نمایش داده می‌شود."
+            desc="وقتی مدیر سایت یا مدرس‌ها اطلاعیه‌ای بفرستند، اینجا نمایش داده می‌شود."
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Inbox (messages from the site admin, per account) ───────────────────────
+function InboxTab() {
+  const msgs = useQuery(api.inbox.listMyInbox) ?? [];
+  const markRead = useMutation(api.inbox.markInboxRead);
+  const unread = msgs.filter((m) => m.unread).length;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold">صندوق ورودی</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          پیام‌های مدیر سایت — مخصوص حساب شما
+          {unread > 0 ? ` · ${faNum(unread)} پیام خوانده‌نشده` : ""}.
+        </p>
+      </div>
+      <div className="space-y-3">
+        {msgs.map((m) => (
+          <Card key={m._id} className={m.unread ? "border-primary/40 shadow-sm" : "border-border/70"}>
+            <CardContent className="flex items-start gap-3 py-4">
+              <span
+                className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
+                  m.unread ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {m.unread ? <Mail className="size-4" /> : <MailOpen className="size-4" />}
+              </span>
+              <div
+                className="min-w-0 flex-1 cursor-pointer"
+                onClick={() => {
+                  if (m.unread) void markRead({ id: m._id });
+                }}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-bold">{m.title}</p>
+                  {m.unread && <Badge className="rounded-full bg-red-500/10 text-red-500">جدید</Badge>}
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">{formatDateTime(m.createdAt)}</p>
+                {m.body && <p className="mt-2 text-sm leading-6">{m.body}</p>}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {msgs.length === 0 && (
+          <EmptyState
+            icon={Inbox}
+            title="صندوق ورودی خالی است"
+            desc="وقتی مدیر سایت پیامی برای شما بفرستد، اینجا نمایش داده می‌شود."
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Student profile (photo, name, last name — admin approves edits) ─────────
+function StudentProfileTab() {
+  const me = useQuery(api.profiles.getMyProfile);
+  const uploadUrl = useMutation(api.profiles.getProfileUploadUrl);
+  const update = useMutation(api.profiles.updateMyProfile);
+
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [about, setAbout] = useState("");
+  const [avatarStorageId, setAvatarStorageId] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (me) {
+      setFirstName(me.firstName ?? "");
+      setLastName(me.lastName ?? "");
+      setAbout(me.about ?? "");
+    }
+  }, [me]);
+
+  const pickAvatar = async (file: File | undefined) => {
+    if (!file) return;
+    setAvatarPreview(URL.createObjectURL(file));
+    try {
+      const url = await uploadUrl();
+      setAvatarStorageId(await uploadBlob(url, file));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "آپلود عکس ناموفق بود");
+    }
+  };
+
+  const handleSave = async () => {
+    setErr(null);
+    setSaved(false);
+    if (!firstName.trim() && !lastName.trim()) {
+      setErr("نام یا نام خانوادگی را وارد کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await update({ firstName, lastName, avatarStorageId: avatarStorageId ?? undefined, about });
+      setSaved(true);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ذخیره");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pending = me?.pendingProfile ?? null;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold">پروفایل من</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          عکس و نام خود را تنظیم کنید؛ تغییرات پس از تأیید مدیر سایت اعمال می‌شود.
+        </p>
+      </div>
+
+      {pending && (
+        <div className="flex items-center gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
+          <Hourglass className="size-4 shrink-0" />
+          <span>
+            تغییرات شما در انتظار تأیید مدیر سایت است — ارسال‌شده در{" "}
+            {new Date(pending.submittedAt).toLocaleDateString("fa-IR")}.
+          </span>
+        </div>
+      )}
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-4 py-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative">
+              <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl border border-primary/25 bg-primary/5">
+                {avatarPreview || me?.avatarUrl ? (
+                  <img src={avatarPreview ?? me?.avatarUrl!} alt="عکس پروفایل" className="size-full object-cover" />
+                ) : (
+                  <User className="size-8 text-primary" />
+                )}
+              </div>
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="absolute -bottom-1.5 -left-1.5 flex size-7 items-center justify-center rounded-full border border-primary/40 bg-background text-primary hover:bg-accent"
+                title="انتخاب عکس"
+              >
+                <Upload className="size-3.5" />
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => void pickAvatar(e.target.files?.[0])}
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold">{firstName || lastName ? `${firstName} ${lastName}`.trim() : (me?.name ?? "دانشجو")}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{me?.email ?? ""}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">نام</label>
+              <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="نام" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">نام خانوادگی</label>
+              <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="نام خانوادگی" />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-bold text-muted-foreground">دربارهٔ من (اختیاری)</label>
+            <Textarea
+              rows={3}
+              value={about}
+              onChange={(e) => setAbout(e.target.value)}
+              placeholder="رشته، دانشگاه یا علاقه‌مندی‌های علمی خود را بنویسید…"
+            />
+          </div>
+          {err && <p className="text-sm text-red-500">{err}</p>}
+          {saved && (
+            <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-4" />
+              ذخیره شد — پس از تأیید مدیر سایت اعمال می‌شود.
+            </p>
+          )}
+          <Button onClick={handleSave} disabled={busy}>
+            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
+            ذخیرهٔ پروفایل
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

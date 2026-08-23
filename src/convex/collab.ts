@@ -66,12 +66,12 @@ export const createRoom = mutation({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد حساب شوید.");
     if (!(await isInstructor(ctx)) && !(await isAdmin(ctx))) {
-      throw new Error("فقط استاد می‌تواند کلاس بسازد.");
+      throw new Error("فقط مدرس می‌تواند کلاس بسازد.");
     }
     if (args.title.trim().length === 0) throw new Error("عنوان کلاس لازم است.");
     return await ctx.db.insert("classRooms", {
       instructorId: user._id,
-      instructorName: user.name ?? "استاد",
+      instructorName: user.name ?? "مدرس",
       title: args.title.trim(),
       topic: args.topic.trim(),
       description: args.description.trim(),
@@ -90,7 +90,7 @@ export const deleteRoom = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند آن را حذف کند.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند آن را حذف کند.");
     // Remove the room, its messages, strokes, and signals.
     const [messages, strokes, signals] = await Promise.all([
       ctx.db.query("roomMessages").withIndex("by_room", (q) => q.eq("roomId", room._id)).collect(),
@@ -115,7 +115,7 @@ export const setRoomStatus = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند وضعیت را تغییر دهد.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند وضعیت را تغییر دهد.");
     if (args.status !== "live" && args.status !== "ended" && args.status !== "scheduled") {
       throw new Error("وضعیت نامعتبر است.");
     }
@@ -241,7 +241,7 @@ export const startBroadcast = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند پخش را شروع کند.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند پخش را شروع کند.");
     await ctx.db.patch(args.roomId, {
       broadcasting: true,
       broadcastKind: args.kind ?? "camera",
@@ -258,7 +258,7 @@ export const endBroadcast = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند پخش را پایان دهد.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند پخش را پایان دهد.");
     await ctx.db.patch(args.roomId, {
       broadcasting: false,
       broadcastKind: undefined,
@@ -277,7 +277,7 @@ export const setBoardBg = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند تخته را تغییر دهد.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند تخته را تغییر دهد.");
     if (args.bg.length > 32) throw new Error("رنگ نامعتبر است.");
     await ctx.db.patch(args.roomId, { boardBg: args.bg });
     return { ok: true };
@@ -299,7 +299,7 @@ export const addStroke = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند روی تخته بکشد.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند روی تخته بکشد.");
     if (args.points.length === 0 || args.points.length > 800) {
       throw new Error("نقطه‌های نامعتبر.");
     }
@@ -327,7 +327,7 @@ export const clearStrokes = mutation({
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند تخته را پاک کند.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند تخته را پاک کند.");
     const rows = await ctx.db
       .query("whiteboardStrokes")
       .withIndex("by_room_layer", (q) => q.eq("roomId", room._id).eq("layer", args.layer))
@@ -415,7 +415,7 @@ export const answerQuestion = mutation({
     const room = await ctx.db.get(msg.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
-    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند پاسخ دهد.");
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند پاسخ دهد.");
     if (args.answer.trim().length === 0) throw new Error("پاسخ خالی است.");
     await ctx.db.patch(msg._id, { answer: args.answer.trim() });
     return await ctx.db.get(msg._id);
