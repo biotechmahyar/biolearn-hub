@@ -56,6 +56,19 @@ export const replyTicket = mutation({
   },
 });
 
+export const deleteTicket = mutation({
+  args: { ticketId: v.id("tickets") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    if (!(await isSupportStaff(ctx))) throw new Error("دسترسی پشتیبانی لازم است.");
+    const ticket = await ctx.db.get(args.ticketId);
+    if (!ticket) throw new Error("تیکت یافت نشد.");
+    await ctx.db.delete(args.ticketId);
+    return { ok: true };
+  },
+});
+
 export const updateTicketStatus = mutation({
   args: { ticketId: v.id("tickets"), status: v.string() },
   handler: async (ctx, args) => {

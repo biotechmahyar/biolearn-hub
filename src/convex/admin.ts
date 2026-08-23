@@ -219,6 +219,79 @@ export const adminCreateUser = mutation({
   },
 });
 
+// Deletes a user account (student, instructor, ...) together with the auth
+// account, admin allow-list row and all of the user's dependent records.
+export const adminDeleteUser = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("کاربر یافت نشد.");
+    const me = await getCurrentUser(ctx);
+    if (me && me._id === args.userId) throw new Error("نمی‌توانید حساب خودتان را حذف کنید.");
+
+    // Remove the auth account so the user can no longer sign in.
+    if (user.email) {
+      const account = await ctx.db
+        .query("authAccounts")
+        .withIndex("providerAndAccountId", (q) =>
+          q.eq("provider", "password").eq("providerAccountId", user.email!),
+        )
+        .first();
+      if (account) await ctx.db.delete(account._id);
+
+      const adminRow = await ctx.db
+        .query("admins")
+        .withIndex("by_email", (q) => q.eq("email", user.email!))
+        .first();
+      if (adminRow) await ctx.db.delete(adminRow._id);
+    }
+
+    // Clean up dependent records owned by this user.
+    const deletes: Promise<void>[] = [];
+    for (const row of await ctx.db.query("enrollments").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("examAttempts").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("dailyQuizAnswers").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("bookmarks").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("flashcards").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("orders").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("tickets").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("comments").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("presence").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("mentorQuestions").withIndex("by_student", (q) => q.eq("studentId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("mentorSessions").withIndex("by_student", (q) => q.eq("studentId", args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    for (const row of await ctx.db.query("roomMessages").filter((q) => q.eq(q.field("userId"), args.userId)).collect()) {
+      deletes.push(ctx.db.delete(row._id));
+    }
+    await Promise.all(deletes);
+
+    await ctx.db.delete(args.userId);
+    return { ok: true };
+  },
+});
+
 // Resets the password of a user that already has a password account.
 export const adminSetPassword = mutation({
   args: { userId: v.id("users"), password: v.string() },
@@ -281,6 +354,17 @@ export const adminUpdateOrderStatus = mutation({
   },
 });
 
+export const adminDeleteOrder = mutation({
+  args: { id: v.id("orders") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const order = await ctx.db.get(args.id);
+    if (!order) throw new Error("سفارش یافت نشد.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
 // ── Coupons ─────────────────────────────────────────────────────────────────
 export const adminGetCoupons = query({
   args: {},
@@ -323,6 +407,17 @@ export const adminToggleCoupon = mutation({
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     await ctx.db.patch(args.couponId, { active: args.active });
+    return { ok: true };
+  },
+});
+
+export const adminDeleteCoupon = mutation({
+  args: { id: v.id("coupons") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const coupon = await ctx.db.get(args.id);
+    if (!coupon) throw new Error("کد تخفیف یافت نشد.");
+    await ctx.db.delete(args.id);
     return { ok: true };
   },
 });
@@ -519,6 +614,22 @@ export const adminToggleExamPublish = mutation({
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
     await ctx.db.patch(args.id, { published: args.published });
+    return { ok: true };
+  },
+});
+
+export const adminDeleteExam = mutation({
+  args: { id: v.id("exams") },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    const exam = await ctx.db.get(args.id);
+    if (!exam) throw new Error("آزمون یافت نشد.");
+    const attempts = await ctx.db
+      .query("examAttempts")
+      .withIndex("by_exam", (q) => q.eq("examId", args.id))
+      .collect();
+    await Promise.all(attempts.map((a) => ctx.db.delete(a._id)));
+    await ctx.db.delete(args.id);
     return { ok: true };
   },
 });
@@ -722,6 +833,26 @@ export const adminCreateQuestion = mutation({
       topicId: args.topicId,
       difficulty: args.difficulty,
     });
+    return { ok: true };
+  },
+});
+
+export const adminDeleteQuestion = mutation({
+  args: { id: v.id("questions") },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    const question = await ctx.db.get(args.id);
+    if (!question) throw new Error("سؤال یافت نشد.");
+    // Also pull the question out of any exam that references it.
+    const exams = await ctx.db.query("exams").collect();
+    for (const exam of exams) {
+      if (exam.questionIds.includes(args.id)) {
+        await ctx.db.patch(exam._id, {
+          questionIds: exam.questionIds.filter((qid) => qid !== args.id),
+        });
+      }
+    }
+    await ctx.db.delete(args.id);
     return { ok: true };
   },
 });

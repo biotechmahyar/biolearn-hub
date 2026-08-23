@@ -26,8 +26,10 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
+import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatDateTime, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useMutation, useQuery } from "convex/react";
 import {
   Activity,
@@ -45,6 +47,7 @@ import {
   Layers,
   Loader2,
   Lock,
+  Menu,
   Package,
   Plus,
   Repeat,
@@ -52,6 +55,7 @@ import {
   ShieldCheck,
   Terminal,
   Ticket,
+  Trash2,
   TrendingUp,
   Users,
   Video,
@@ -246,6 +250,7 @@ function Loading() {
 export default function Admin() {
   const isAdmin = useQuery(api.admin.amIAdmin);
   const [section, setSection] = useState<Section>("overview");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navigate = useNavigate();
 
   // Staff panels the admin can jump into (every role except student).
@@ -354,25 +359,80 @@ export default function Admin() {
         <main className="min-w-0 flex-1">
           {/* Console topbar */}
           <header className="sticky top-0 z-30 border-b border-border/70 bg-background/90 backdrop-blur-lg">
-            <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
-              <div className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
+            <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-6">
+              <div className="hidden items-center gap-2 font-mono text-xs text-muted-foreground sm:flex">
                 <Terminal className="size-3.5 text-primary" />
                 <span>admin</span>
                 <span className="text-border">/</span>
                 <span className="text-foreground">{active.label}</span>
               </div>
-              <div className="flex items-center gap-2 lg:hidden">
-                <Select value={section} onValueChange={(v) => setSection(v as Section)}>
-                  <SelectTrigger className="h-9 w-44 rounded-lg text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ALL_SECTIONS.map((s) => (
-                      <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
+
+              {/* Mobile nav drawer */}
+              <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 rounded-lg lg:hidden">
+                    <Menu className="size-4" />
+                    <span className="mr-1 text-xs">بخش‌ها</span>
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-72">
+                  <SheetTitle className="sr-only">بخش‌های پنل مدیریت</SheetTitle>
+                  <div className="mb-4 flex items-center gap-2.5">
+                    <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                      <Terminal className="size-4" />
+                    </span>
+                    <span className="leading-tight">
+                      <span className="block text-sm font-extrabold tracking-tight">Genova</span>
+                      <span className="block font-mono text-[10px] text-muted-foreground">admin console</span>
+                    </span>
+                  </div>
+                  <nav className="space-y-5">
+                    {NAV_GROUPS.map((g) => (
+                      <div key={g.title}>
+                        <p className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                          {g.title}
+                        </p>
+                        <div className="space-y-0.5">
+                          {g.items.map((s) => (
+                            <button
+                              key={s.key}
+                              type="button"
+                              onClick={() => {
+                                setSection(s.key);
+                                setMobileNavOpen(false);
+                              }}
+                              className={cn(
+                                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                                section === s.key
+                                  ? "bg-primary/15 text-primary"
+                                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                              )}
+                            >
+                              <s.icon className="size-4" />
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  </nav>
+                  <div className="mt-6 space-y-2 border-t border-border/70 pt-4">
+                    <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+                      <Link to="/dashboard">
+                        <BookOpen className="ml-2 size-4" />
+                        پنل دانشجویی
+                      </Link>
+                    </Button>
+                    <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+                      <Link to="/">
+                        <X className="ml-2 size-4" />
+                        خروج از کنسول
+                      </Link>
+                    </Button>
+                  </div>
+                </SheetContent>
+              </Sheet>
+
               <div className="flex items-center gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -464,7 +524,7 @@ function AdminOverview() {
     <div className="space-y-6">
       <SectionHeader title="نمای کلی" subtitle="system overview" />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {kpis.map((k) => (
           <Card key={k.label} className="border-border/70 shadow-sm">
             <CardContent className="p-4">
@@ -649,7 +709,7 @@ function AdminCourses() {
           <div className="space-y-3">
             <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <Textarea placeholder="خلاصهٔ دوره" rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input placeholder="قیمت (تومان)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
               <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -694,6 +754,8 @@ function AdminQuestions() {
   const questions = useQuery(api.admin.adminGetQuestions);
   const categories = useQuery(api.content.listCategories);
   const create = useMutation(api.admin.adminCreateQuestion);
+  const remove = useMutation(api.admin.adminDeleteQuestion);
+  const [err, setErr] = useState<string | null>(null);
 
   const empty = { text: "", options: ["", "", "", ""], correctIndex: "0", explanation: "", topicId: "", difficulty: "1" };
   const [open, setOpen] = useState(false);
@@ -734,6 +796,7 @@ function AdminQuestions() {
                 <TableHead>سؤال</TableHead>
                 <TableHead>موضوع</TableHead>
                 <TableHead>سختی</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -744,12 +807,31 @@ function AdminQuestions() {
                   <TableCell>
                     {q.difficulty === 1 ? "آسان" : q.difficulty === 2 ? "متوسط" : "سخت"}
                   </TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                      title="حذف سؤال"
+                      onClick={async () => {
+                        try {
+                          await remove({ id: q._id });
+                          setErr(null);
+                        } catch (e) {
+                          setErr(e instanceof Error ? e.message : "خطا در حذف");
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+      {err && <p className="text-sm text-destructive">{err}</p>}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
@@ -766,7 +848,7 @@ function AdminQuestions() {
                 onChange={(e) => setForm({ ...form, options: form.options.map((o, oi) => (oi === i ? e.target.value : o)) })}
               />
             ))}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Select value={form.correctIndex} onValueChange={(v) => setForm({ ...form, correctIndex: v })}>
                 <SelectTrigger><SelectValue placeholder="گزینهٔ صحیح" /></SelectTrigger>
                 <SelectContent>
@@ -807,6 +889,7 @@ function AdminExams() {
   const categories = useQuery(api.content.listCategories);
   const create = useMutation(api.admin.adminCreateExam);
   const toggle = useMutation(api.admin.adminToggleExamPublish);
+  const remove = useMutation(api.admin.adminDeleteExam);
 
   const empty = { title: "", description: "", durationMinutes: "30", free: false, diagnostic: false, topicId: "", count: "10", published: false };
   const [open, setOpen] = useState(false);
@@ -870,7 +953,11 @@ function AdminExams() {
                   <TableCell className="text-muted-foreground">{e.kindLabel}</TableCell>
                   <TableCell><StatusChip published={e.published} /></TableCell>
                   <TableCell>
-                    <PublishActions published={e.published} onToggle={() => toggle({ id: e._id, published: !e.published })} />
+                    <PublishActions
+                      published={e.published}
+                      onToggle={() => toggle({ id: e._id, published: !e.published })}
+                      onDelete={() => remove({ id: e._id })}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -890,7 +977,7 @@ function AdminExams() {
           <div className="space-y-3">
             <Input placeholder="عنوان آزمون" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <Textarea placeholder="توضیح کوتاه" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Input type="number" placeholder="زمان (دقیقه)" value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
               <Input type="number" placeholder="تعداد سؤال" value={form.count} onChange={(e) => setForm({ ...form, count: e.target.value })} />
               <Select value={form.topicId || undefined} onValueChange={(v) => setForm({ ...form, topicId: v })}>
@@ -1027,7 +1114,7 @@ function AdminArticles() {
           </DialogHeader>
           <div className="space-y-3">
             <Input placeholder="عنوان" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input placeholder="دسته (مثلاً روش مطالعه)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
               <Input placeholder="نویسنده" value={form.authorName} onChange={(e) => setForm({ ...form, authorName: e.target.value })} />
             </div>
@@ -1171,7 +1258,7 @@ function AdminWorkshops() {
               </SelectContent>
             </Select>
             <Input placeholder="موضوع" value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
               <Input placeholder="ساعت" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
               <Input type="number" placeholder="ظرفیت" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
@@ -1284,7 +1371,7 @@ function AdminProducts() {
           </DialogHeader>
           <div className="space-y-3">
             <Input placeholder="عنوان" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1427,14 +1514,14 @@ function AdminInstructors() {
             <DialogTitle>{dialog?.mode === "edit" ? "ویرایش استاد" : "استاد جدید"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input placeholder="نام" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <Input placeholder="تخصص (مثلاً میکروبیولوژی)" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
             <Textarea placeholder="معرفی کوتاه" rows={2} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
             <Textarea placeholder="تحصیلات (هر مورد در یک خط)" rows={2} value={form.education} onChange={(e) => setForm({ ...form, education: e.target.value })} />
             <Input placeholder="تخصص‌ها (با ، جدا کنید)" value={form.specialties} onChange={(e) => setForm({ ...form, specialties: e.target.value })} />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select value={form.accent} onValueChange={(v) => setForm({ ...form, accent: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1461,12 +1548,17 @@ function AdminInstructors() {
 
 // ── Users ───────────────────────────────────────────────────────────────────
 function AdminUsers() {
+  const { user: me } = useAuth();
   const users = useQuery(api.admin.adminGetUsers);
   const setRole = useMutation(api.admin.adminSetRole);
   const createUser = useMutation(api.admin.adminCreateUser);
   const setPassword = useMutation(api.admin.adminSetPassword);
+  const deleteUser = useMutation(api.admin.adminDeleteUser);
   const [emails, setEmails] = useState("");
   const addAdmin = useMutation(api.admin.adminAddAdmin);
+  const [deleteTarget, setDeleteTarget] = useState<{ _id: string; name: string | null } | null>(null);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "user" });
   const [formErr, setFormErr] = useState<string | null>(null);
@@ -1578,6 +1670,7 @@ function AdminUsers() {
                 <TableHead>ایمیل</TableHead>
                 <TableHead>نقش</TableHead>
                 <TableHead>رمز</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1608,6 +1701,21 @@ function AdminUsers() {
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive disabled:opacity-30"
+                      title={me?._id === u._id ? "نمی‌توانید خودتان را حذف کنید" : "حذف حساب کاربر"}
+                      disabled={me?._id === u._id}
+                      onClick={() => {
+                        setDeleteTarget({ _id: u._id, name: u.name });
+                        setDeleteErr(null);
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -1640,6 +1748,44 @@ function AdminUsers() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete account confirmation */}
+      <Dialog open={deleteTarget !== null} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>حذف حساب کاربر</DialogTitle>
+            <DialogDescription>
+              حساب «{deleteTarget?.name ?? "کاربر"}» به‌همراه تمام سوابقش (دوره‌ها، آزمون‌ها، سفارش‌ها، تیکت‌ها، نشان‌شده‌ها و…) برای همیشه حذف می‌شود. این عمل قابل بازگشت نیست.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteErr && <p className="text-sm text-destructive">{deleteErr}</p>}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              انصراف
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setDeleting(true);
+                setDeleteErr(null);
+                try {
+                  await deleteUser({ userId: deleteTarget._id as any });
+                  setDeleteTarget(null);
+                } catch (e) {
+                  setDeleteErr(e instanceof Error ? e.message : "خطا در حذف حساب");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Trash2 className="ml-1.5 size-4" />}
+              حذف برای همیشه
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1648,6 +1794,7 @@ function AdminUsers() {
 function AdminOrders() {
   const orders = useQuery(api.admin.adminGetOrders);
   const update = useMutation(api.admin.adminUpdateOrderStatus);
+  const remove = useMutation(api.admin.adminDeleteOrder);
 
   return (
     <div className="space-y-5">
@@ -1662,6 +1809,7 @@ function AdminOrders() {
                 <TableHead>آیتم‌ها</TableHead>
                 <TableHead>مبلغ</TableHead>
                 <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1683,6 +1831,17 @@ function AdminOrders() {
                       </SelectContent>
                     </Select>
                   </TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                      title="حذف سفارش"
+                      onClick={() => remove({ id: o._id })}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1698,6 +1857,7 @@ function AdminCoupons() {
   const coupons = useQuery(api.admin.adminGetCoupons);
   const create = useMutation(api.admin.adminCreateCoupon);
   const toggle = useMutation(api.admin.adminToggleCoupon);
+  const remove = useMutation(api.admin.adminDeleteCoupon);
   const [code, setCode] = useState("");
   const [percent, setPercent] = useState("10");
   const [maxUses, setMaxUses] = useState("100");
@@ -1748,6 +1908,7 @@ function AdminCoupons() {
                 <TableHead>درصد</TableHead>
                 <TableHead>استفاده</TableHead>
                 <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1759,6 +1920,17 @@ function AdminCoupons() {
                   <TableCell>
                     <Button size="sm" variant={c.active ? "secondary" : "outline"} className="rounded-lg" onClick={() => toggle({ couponId: c._id, active: !c.active })}>
                       {c.active ? "فعال" : "غیرفعال"}
+                    </Button>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                      title="حذف کد تخفیف"
+                      onClick={() => remove({ id: c._id })}
+                    >
+                      <Trash2 className="size-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -1776,6 +1948,7 @@ function AdminSupport() {
   const tickets = useQuery(api.tickets.listAllTickets);
   const reply = useMutation(api.tickets.replyTicket);
   const updateStatus = useMutation(api.tickets.updateTicketStatus);
+  const remove = useMutation(api.tickets.deleteTicket);
   const [openId, setOpenId] = useState<string | null>(null);
   const [text, setText] = useState("");
 
@@ -1814,6 +1987,15 @@ function AdminSupport() {
                   <TableCell className="text-left">
                     <Button size="sm" variant="outline" className="rounded-lg" onClick={() => setOpenId(openId === t._id ? null : t._id)}>
                       {openId === t._id ? "بستن" : "مشاهده"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mr-1 h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                      title="حذف تیکت"
+                      onClick={() => remove({ ticketId: t._id })}
+                    >
+                      <Trash2 className="size-3.5" />
                     </Button>
                   </TableCell>
                 </TableRow>
