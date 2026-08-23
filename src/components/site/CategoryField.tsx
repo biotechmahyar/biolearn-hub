@@ -18,10 +18,17 @@ export function CategoryField({
   value,
   onValueChange,
   className,
+  allValue,
+  allLabel,
+  placeholder,
 }: {
   value?: string;
   onValueChange: (id: string) => void;
   className?: string;
+  // Optional "all" choice (e.g. exams can pull questions from all topics).
+  allValue?: string;
+  allLabel?: string;
+  placeholder?: string;
 }) {
   const categories = useQuery(api.content.listCategories) ?? [];
   const create = useMutation(api.content.createCategory);
@@ -80,9 +87,12 @@ export function CategoryField({
         <div className="flex gap-2">
           <Select value={value || undefined} onValueChange={onValueChange}>
             <SelectTrigger className="flex-1 border-white/10 bg-white/5 text-slate-100">
-              <SelectValue placeholder="انتخاب دسته…" />
+              <SelectValue placeholder={placeholder ?? "انتخاب دسته…"} />
             </SelectTrigger>
             <SelectContent>
+              {allValue !== undefined && (
+                <SelectItem value={allValue}>{allLabel ?? "همه"}</SelectItem>
+              )}
               {categories.map((c) => (
                 <SelectItem key={c._id} value={c._id}>{c.name}</SelectItem>
               ))}

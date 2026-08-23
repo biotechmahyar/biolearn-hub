@@ -854,7 +854,6 @@ function AdminCourses() {
 // ── Questions ───────────────────────────────────────────────────────────────
 function AdminQuestions() {
   const questions = useQuery(api.admin.adminGetQuestions);
-  const categories = useQuery(api.content.listCategories);
   const create = useMutation(api.admin.adminCreateQuestion);
   const remove = useMutation(api.admin.adminDeleteQuestion);
   const [err, setErr] = useState<string | null>(null);
@@ -959,14 +958,11 @@ function AdminQuestions() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={form.topicId || undefined} onValueChange={(v) => setForm({ ...form, topicId: v })}>
-                <SelectTrigger><SelectValue placeholder="موضوع" /></SelectTrigger>
-                <SelectContent>
-                  {(categories ?? []).map((c) => (
-                    <SelectItem key={c._id} value={c._id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CategoryField
+                value={form.topicId || undefined}
+                onValueChange={(v) => setForm({ ...form, topicId: v })}
+                placeholder="انتخاب موضوع یا ساخت موضوع جدید…"
+              />
               <Select value={form.difficulty} onValueChange={(v) => setForm({ ...form, difficulty: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -988,7 +984,6 @@ function AdminQuestions() {
 // ── Exams ───────────────────────────────────────────────────────────────────
 function AdminExams() {
   const exams = useQuery(api.admin.adminListExams);
-  const categories = useQuery(api.content.listCategories);
   const create = useMutation(api.admin.adminCreateExam);
   const toggle = useMutation(api.admin.adminToggleExamPublish);
   const remove = useMutation(api.admin.adminDeleteExam);
@@ -1082,15 +1077,13 @@ function AdminExams() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Input type="number" placeholder="زمان (دقیقه)" value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: e.target.value })} />
               <Input type="number" placeholder="تعداد سؤال" value={form.count} onChange={(e) => setForm({ ...form, count: e.target.value })} />
-              <Select value={form.topicId || undefined} onValueChange={(v) => setForm({ ...form, topicId: v })}>
-                <SelectTrigger><SelectValue placeholder="موضوع" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">همهٔ موضوعات</SelectItem>
-                  {(categories ?? []).map((c) => (
-                    <SelectItem key={c._id} value={c._id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CategoryField
+                value={form.topicId || undefined}
+                onValueChange={(v) => setForm({ ...form, topicId: v })}
+                allValue="all"
+                allLabel="همهٔ موضوعات"
+                placeholder="انتخاب موضوع یا ساخت موضوع جدید…"
+              />
             </div>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 text-sm">
