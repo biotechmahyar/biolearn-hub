@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { isAnyAdmin, isContentStaff } from "./admin";
 
 // ── Categories ──────────────────────────────────────────────────────────────
 export const listCategories = query({
@@ -10,6 +11,33 @@ export const listCategories = query({
       .query("categories")
       .order("asc")
       .collect();
+  },
+});
+
+// Lets any content creator (instructor / admin / content staff) create a new
+// category on the fly instead of being limited to the existing ones.
+export const createCategory = mutation({
+  args: { name: v.string() },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    if (user.role !== "instructor" && !(await isAnyAdmin(ctx)) && !(await isContentStaff(ctx))) {
+      throw new Error("فقط مدرس یا مدیر می‌تواند دستهٔ جدید بسازد.");
+    }
+    const name = args.name.trim();
+    if (!name) throw new Error("نام دسته لازم است.");
+    const all = await ctx.db.query("categories").collect();
+    const existing = all.find((c) => c.name === name);
+    if (existing) return existing._id;
+    const maxOrder = all.reduce((m, c) => Math.max(m, c.order), 0);
+    return await ctx.db.insert("categories", {
+      name,
+      slug: name.replace(/\s+/g, "-").toLowerCase() + "-" + Date.now().toString(36),
+      description: "",
+      icon: "Dna",
+      accent: "teal",
+      order: maxOrder + 1,
+    });
   },
 });
 

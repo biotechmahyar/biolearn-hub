@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { CategoryField } from "@/components/site/CategoryField";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
@@ -1197,7 +1198,6 @@ const STUDIO_STATUS: Record<string, { label: string; cls: string }> = {
 
 function CourseStudioView() {
   const courses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
-  const categories = useQuery(api.content.listCategories) ?? [];
   const create = useMutation(api.courseStudio.createDraftCourse);
   const update = useMutation(api.courseStudio.updateDraftCourse);
   const submit = useMutation(api.courseStudio.submitCourseForReview);
@@ -1364,16 +1364,13 @@ function CourseStudioView() {
           </DialogHeader>
           <div className="space-y-3">
             <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <Select value={form.categoryId || undefined} onValueChange={(v) => setForm({ ...form, categoryId: v })}>
-              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
-                <SelectValue placeholder="دستهٔ دوره" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-400">دستهٔ دوره (می‌توانید دستهٔ جدید هم بسازید)</label>
+              <CategoryField
+                value={form.categoryId || undefined}
+                onValueChange={(v) => setForm({ ...form, categoryId: v })}
+              />
+            </div>
             <Input placeholder="خلاصهٔ دوره" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
             <Textarea placeholder="توضیحات کامل دوره…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

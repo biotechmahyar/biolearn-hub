@@ -1,3 +1,4 @@
+import { CategoryField } from "@/components/site/CategoryField";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -645,7 +646,6 @@ function AdminOverview() {
 // ── Courses ─────────────────────────────────────────────────────────────────
 function AdminCourses() {
   const courses = useQuery(api.admin.adminListCourses);
-  const categories = useQuery(api.content.listCategories);
   const instructors = useQuery(api.content.listInstructors);
   const create = useMutation(api.admin.adminCreateCourse);
   const update = useMutation(api.admin.adminUpdateCourse);
@@ -793,14 +793,10 @@ function AdminCourses() {
                   <SelectItem value="hybrid">ترکیبی</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={form.categoryId || undefined} onValueChange={(v) => setForm({ ...form, categoryId: v })}>
-                <SelectTrigger><SelectValue placeholder="دسته" /></SelectTrigger>
-                <SelectContent>
-                  {(categories ?? []).map((c) => (
-                    <SelectItem key={c._id} value={c._id}>{c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CategoryField
+                value={form.categoryId || undefined}
+                onValueChange={(v) => setForm({ ...form, categoryId: v })}
+              />
               <Select value={form.instructorId || undefined} onValueChange={(v) => setForm({ ...form, instructorId: v })}>
                 <SelectTrigger><SelectValue placeholder="مدرس" /></SelectTrigger>
                 <SelectContent>
