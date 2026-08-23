@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/input-otp";
 import { BrandMark } from "@/components/site/BrandLogo";
 import { useAuth } from "@/hooks/use-auth";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Dna, KeyRound, Loader2, Mail, Send, UserX } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -102,6 +103,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     }
   };
 
+  const showLoadingOverlay = isLoading && step === "signIn";
+
   const handleGuestLogin = async () => {
     setIsLoading(true);
     setError(null);
@@ -116,7 +119,29 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   };
 
   return (
-    <div className="min-h-screen bg-background lg:grid lg:grid-cols-2">
+    <div className="relative min-h-screen bg-background lg:grid lg:grid-cols-2">
+      {/* Sign-in transition overlay — covers the pause after submitting */}
+      <AnimatePresence>
+        {showLoadingOverlay && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-background/90 backdrop-blur-md"
+          >
+            <div className="relative flex size-16 items-center justify-center">
+              <span className="absolute inset-0 animate-ping rounded-2xl border border-primary/30" />
+              <span className="flex size-14 items-center justify-center rounded-2xl bg-primary/10">
+                <Dna className="size-7 animate-pulse text-primary" />
+              </span>
+            </div>
+            <div className="text-center">
+              <p className="text-sm font-bold">در حال ورود به Genova…</p>
+              <p className="mt-1 font-mono text-[11px] text-muted-foreground">establishing secure session</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Brand panel */}
       <div className="relative hidden overflow-hidden bg-gradient-to-br from-primary via-primary to-emerald-800 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 bg-lab-grid opacity-20" />

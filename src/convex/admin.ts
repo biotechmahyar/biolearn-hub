@@ -347,6 +347,7 @@ export const adminCreateCourse = mutation({
     price: v.number(),
     mode: v.string(),
     bundle: v.string(),
+    published: v.boolean(),
   },
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
@@ -372,10 +373,39 @@ export const adminCreateCourse = mutation({
       includes: [],
       hasSampleVideo: false,
       files: [],
-      published: false,
+      published: args.published,
       featured: false,
       popular: false,
       createdAt: Date.now(),
+    });
+    return { ok: true };
+  },
+});
+
+export const adminUpdateCourse = mutation({
+  args: {
+    id: v.id("courses"),
+    title: v.string(),
+    categoryId: v.id("categories"),
+    instructorId: v.id("instructors"),
+    summary: v.string(),
+    price: v.number(),
+    mode: v.string(),
+    bundle: v.string(),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.patch(args.id, {
+      title: args.title.trim(),
+      categoryId: args.categoryId,
+      instructorId: args.instructorId,
+      summary: args.summary.trim(),
+      description: args.summary.trim(),
+      price: args.price,
+      mode: args.mode as any,
+      bundle: args.bundle as any,
+      published: args.published,
     });
     return { ok: true };
   },
@@ -392,6 +422,258 @@ export const adminTogglePublish = mutation({
 
 export const adminDeleteCourse = mutation({
   args: { id: v.id("courses") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+export const adminDeleteArticle = mutation({
+  args: { id: v.id("articles") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+export const adminDeleteWorkshop = mutation({
+  args: { id: v.id("workshops") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+// ── Exams ───────────────────────────────────────────────────────────────────
+export const adminListExams = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) return [];
+    return (await ctx.db.query("exams").order("desc").collect()).map((e) => ({
+      ...e,
+      questionCount: e.questionIds.length,
+      kindLabel: e.diagnostic
+        ? "تعیین سطح"
+        : e.free
+          ? "رایگان"
+          : "پولی",
+    }));
+  },
+});
+
+// Creates an exam by pulling questions from the bank (optionally one topic).
+export const adminCreateExam = mutation({
+  args: {
+    title: v.string(),
+    description: v.string(),
+    durationMinutes: v.number(),
+    free: v.boolean(),
+    diagnostic: v.boolean(),
+    topicId: v.optional(v.id("categories")),
+    count: v.number(),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (args.count < 1 || args.count > 50) throw new Error("تعداد سؤال باید بین ۱ تا ۵۰ باشد.");
+    let questions = await ctx.db.query("questions").collect();
+    if (args.topicId) {
+      questions = questions.filter((q) => q.topicId === args.topicId);
+    }
+    if (questions.length === 0) throw new Error("در این موضوع سؤالی وجود ندارد.");
+    const picked = [...questions]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(args.count, questions.length));
+    const slug =
+      args.title.trim().replace(/\s+/g, "-").toLowerCase() +
+      "-" +
+      Date.now().toString(36);
+    await ctx.db.insert("exams", {
+      title: args.title.trim(),
+      slug,
+      description: args.description.trim(),
+      durationMinutes: args.durationMinutes,
+      questionIds: picked.map((q) => q._id),
+      free: args.free,
+      published: args.published,
+      featured: false,
+      diagnostic: args.diagnostic,
+      accent: "teal",
+      order: Date.now(),
+    });
+    return { ok: true, questionCount: picked.length };
+  },
+});
+
+export const adminToggleExamPublish = mutation({
+  args: { id: v.id("exams"), published: v.boolean() },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.patch(args.id, { published: args.published });
+    return { ok: true };
+  },
+});
+
+// ── Products ────────────────────────────────────────────────────────────────
+export const adminListProducts = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) return [];
+    return (await ctx.db.query("products").order("desc").collect()).map((p) => ({
+      ...p,
+      typeLabel:
+        p.type === "flashcards"
+          ? "فلش‌کارت"
+          : p.type === "guide"
+            ? "کتابچهٔ راهنما"
+            : "پوستر",
+    }));
+  },
+});
+
+export const adminCreateProduct = mutation({
+  args: {
+    title: v.string(),
+    type: v.string(),
+    description: v.string(),
+    price: v.number(),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!["flashcards", "guide", "poster"].includes(args.type)) {
+      throw new Error("نوع محصول نامعتبر است.");
+    }
+    await ctx.db.insert("products", {
+      title: args.title.trim(),
+      slug: args.title.trim().replace(/\s+/g, "-").toLowerCase(),
+      type: args.type as any,
+      description: args.description.trim(),
+      price: args.price,
+      accent: "teal",
+      published: args.published,
+      featured: false,
+      createdAt: Date.now(),
+    });
+    return { ok: true };
+  },
+});
+
+export const adminUpdateProduct = mutation({
+  args: {
+    id: v.id("products"),
+    title: v.string(),
+    type: v.string(),
+    description: v.string(),
+    price: v.number(),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.patch(args.id, {
+      title: args.title.trim(),
+      type: args.type as any,
+      description: args.description.trim(),
+      price: args.price,
+      published: args.published,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminDeleteProduct = mutation({
+  args: { id: v.id("products") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+// ── Instructors ─────────────────────────────────────────────────────────────
+export const adminListInstructors = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) return [];
+    const instructors = await ctx.db.query("instructors").collect();
+    return Promise.all(
+      instructors.map(async (i) => {
+        const [courses, workshops] = await Promise.all([
+          ctx.db
+            .query("courses")
+            .withIndex("by_published", (q) => q.eq("published", true))
+            .filter((q) => q.eq(q.field("instructorId"), i._id))
+            .collect(),
+          ctx.db
+            .query("workshops")
+            .filter((q) => q.eq(q.field("instructorId"), i._id))
+            .collect(),
+        ]);
+        return { ...i, courseCount: courses.length, workshopCount: workshops.length };
+      }),
+    );
+  },
+});
+
+export const adminCreateInstructor = mutation({
+  args: {
+    name: v.string(),
+    title: v.string(),
+    bio: v.string(),
+    education: v.array(v.string()),
+    specialties: v.array(v.string()),
+    accent: v.string(),
+    verified: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const name = args.name.trim();
+    if (!name) throw new Error("نام استاد لازم است.");
+    await ctx.db.insert("instructors", {
+      name,
+      slug: name.replace(/\s+/g, "-").toLowerCase(),
+      title: args.title.trim(),
+      bio: args.bio.trim(),
+      education: args.education.filter((e) => e.trim()),
+      specialties: args.specialties.filter((s) => s.trim()),
+      accent: args.accent || "teal",
+      verified: args.verified,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminUpdateInstructor = mutation({
+  args: {
+    id: v.id("instructors"),
+    name: v.string(),
+    title: v.string(),
+    bio: v.string(),
+    education: v.array(v.string()),
+    specialties: v.array(v.string()),
+    accent: v.string(),
+    verified: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.patch(args.id, {
+      name: args.name.trim(),
+      title: args.title.trim(),
+      bio: args.bio.trim(),
+      education: args.education.filter((e) => e.trim()),
+      specialties: args.specialties.filter((s) => s.trim()),
+      accent: args.accent || "teal",
+      verified: args.verified,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminDeleteInstructor = mutation({
+  args: { id: v.id("instructors") },
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     await ctx.db.delete(args.id);
@@ -439,6 +721,17 @@ export const adminCreateQuestion = mutation({
 });
 
 // ── Articles ────────────────────────────────────────────────────────────────
+export const adminListArticles = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) return [];
+    return (await ctx.db.query("articles").order("desc").collect()).map((a) => ({
+      ...a,
+      categoryLabel: a.category || "عمومی",
+    }));
+  },
+});
+
 export const adminCreateArticle = mutation({
   args: {
     title: v.string(),
@@ -448,6 +741,7 @@ export const adminCreateArticle = mutation({
     body: v.string(),
     authorName: v.string(),
     readTime: v.number(),
+    published: v.boolean(),
   },
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
@@ -460,7 +754,7 @@ export const adminCreateArticle = mutation({
       authorName: args.authorName.trim() || "تیم Genova",
       accent: "teal",
       readTime: args.readTime || 5,
-      published: true,
+      published: args.published,
       featured: false,
       createdAt: Date.now(),
     });
@@ -468,7 +762,47 @@ export const adminCreateArticle = mutation({
   },
 });
 
+export const adminUpdateArticle = mutation({
+  args: {
+    id: v.id("articles"),
+    title: v.string(),
+    category: v.string(),
+    excerpt: v.string(),
+    body: v.string(),
+    authorName: v.string(),
+    readTime: v.number(),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.patch(args.id, {
+      title: args.title.trim(),
+      category: args.category.trim() || "عمومی",
+      excerpt: args.excerpt.trim(),
+      body: args.body,
+      authorName: args.authorName.trim() || "تیم Genova",
+      readTime: args.readTime || 5,
+      published: args.published,
+    });
+    return { ok: true };
+  },
+});
+
 // ── Workshops ───────────────────────────────────────────────────────────────
+export const adminListWorkshops = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) return [];
+    const workshops = await ctx.db.query("workshops").order("desc").collect();
+    return Promise.all(
+      workshops.map(async (w) => ({
+        ...w,
+        instructor: (await ctx.db.get(w.instructorId))?.name ?? null,
+      })),
+    );
+  },
+});
+
 export const adminCreateWorkshop = mutation({
   args: {
     title: v.string(),
@@ -482,6 +816,7 @@ export const adminCreateWorkshop = mutation({
     description: v.string(),
     free: v.boolean(),
     expertTalk: v.boolean(),
+    published: v.boolean(),
   },
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
@@ -499,7 +834,41 @@ export const adminCreateWorkshop = mutation({
       agenda: [],
       free: args.free,
       expertTalk: args.expertTalk,
-      published: true,
+      published: args.published,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminUpdateWorkshop = mutation({
+  args: {
+    id: v.id("workshops"),
+    title: v.string(),
+    instructorId: v.id("instructors"),
+    topic: v.string(),
+    date: v.string(),
+    time: v.string(),
+    capacity: v.number(),
+    price: v.number(),
+    description: v.string(),
+    free: v.boolean(),
+    expertTalk: v.boolean(),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    await ctx.db.patch(args.id, {
+      title: args.title.trim(),
+      instructorId: args.instructorId,
+      topic: args.topic.trim(),
+      date: args.date,
+      time: args.time,
+      capacity: args.capacity,
+      price: args.price,
+      description: args.description,
+      free: args.free,
+      expertTalk: args.expertTalk,
+      published: args.published,
     });
     return { ok: true };
   },

@@ -81,7 +81,7 @@ export const getCourseBySlug = query({
       .query("courses")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
-    if (!course) return null;
+    if (!course || !course.published) return null;
 
     const [category, instructor] = await Promise.all([
       ctx.db.get(course.categoryId),
@@ -140,10 +140,12 @@ export const listProducts = query({
 export const getProductBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const product = await ctx.db
       .query("products")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
+    if (!product || !product.published) return null;
+    return product;
   },
 });
 
@@ -172,7 +174,7 @@ export const getWorkshopBySlug = query({
       .query("workshops")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
-    if (!workshop) return null;
+    if (!workshop || !workshop.published) return null;
     return { ...workshop, instructor: await ctx.db.get(workshop.instructorId) };
   },
 });
@@ -228,10 +230,12 @@ export const listArticles = query({
 export const getArticleBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const article = await ctx.db
       .query("articles")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
+    if (!article || !article.published) return null;
+    return article;
   },
 });
 
