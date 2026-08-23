@@ -295,6 +295,109 @@ export const getDictionaryTerm = query({
   },
 });
 
+// Dictionary editors: instructors, content managers, site admins and system
+// admins can add/edit/delete terms.
+const canEditDictionary = async (ctx: any) => {
+  const user = await getCurrentUser(ctx);
+  return (
+    !!user &&
+    (user.role === "instructor" ||
+      user.role === "content_manager" ||
+      user.role === "site_admin" ||
+      user.role === "admin")
+  );
+};
+
+const termInputValidator = {
+  term: v.string(),
+  fullName: v.string(),
+  gramStatus: v.string(),
+  shape: v.string(),
+  oxygen: v.string(),
+  habitat: v.string(),
+  diseases: v.array(v.string()),
+  virulence: v.array(v.string()),
+  diagnosis: v.string(),
+  characteristics: v.array(v.string()),
+  examNotes: v.array(v.string()),
+  sources: v.array(v.string()),
+};
+
+function slugifyTerm(term: string) {
+  const t = term.trim();
+  if (!t) return "term";
+  // Latin terms → kebab-case; Persian/other → URL-encoded.
+  if (/^[a-zA-Z0-9]/.test(t)) {
+    return t
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "term";
+  }
+  return encodeURIComponent(t).replace(/%/g, "-");
+}
+
+const listFields = (input: string) =>
+  input
+    .split(/\n|،|,/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+export const createDictionaryTerm = mutation({
+  args: { ...termInputValidator },
+  handler: async (ctx, args) => {
+    if (!(await canEditDictionary(ctx))) {
+      throw new Error("فقط مدرس، مدیر محتوا یا ادمین می‌تواند اصطلاح اضافه کند.");
+    }
+    const term = args.term.trim();
+    if (!term) throw new Error("نام اصطلاح لازم است.");
+    const existing = await ctx.db
+      .query("dictionaryTerms")
+      .withIndex("by_term", (q) => q.eq("term", term))
+      .first();
+    if (existing) throw new Error("این اصطلاح از قبل در دیکشنری وجود دارد.");
+    await ctx.db.insert("dictionaryTerms", {
+      ...args,
+      term,
+      slug: slugifyTerm(term),
+    });
+    return { ok: true };
+  },
+});
+
+export const updateDictionaryTerm = mutation({
+  args: { id: v.id("dictionaryTerms"), ...termInputValidator },
+  handler: async (ctx, args) => {
+    if (!(await canEditDictionary(ctx))) {
+      throw new Error("فقط مدرس، مدیر محتوا یا ادمین می‌تواند اصطلاح ویرایش کند.");
+    }
+    const current = await ctx.db.get(args.id);
+    if (!current) throw new Error("اصطلاح یافت نشد.");
+    const term = args.term.trim();
+    if (!term) throw new Error("نام اصطلاح لازم است.");
+    const dup = await ctx.db
+      .query("dictionaryTerms")
+      .withIndex("by_term", (q) => q.eq("term", term))
+      .first();
+    if (dup && dup._id !== args.id) {
+      throw new Error("اصطلاحی با این نام از قبل وجود دارد.");
+    }
+    const { id: _id, ...rest } = args;
+    await ctx.db.patch(args.id, { ...rest, term, slug: slugifyTerm(term) });
+    return { ok: true };
+  },
+});
+
+export const deleteDictionaryTerm = mutation({
+  args: { id: v.id("dictionaryTerms") },
+  handler: async (ctx, args) => {
+    if (!(await canEditDictionary(ctx))) {
+      throw new Error("فقط مدرس، مدیر محتوا یا ادمین می‌تواند اصطلاح حذف کند.");
+    }
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
 // ── Testimonials ────────────────────────────────────────────────────────────
 export const listTestimonials = query({
   args: {},

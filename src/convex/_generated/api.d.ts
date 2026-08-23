@@ -16,6 +16,7 @@ import type * as comments from "../comments.js";
 import type * as content from "../content.js";
 import type * as courseStudio from "../courseStudio.js";
 import type * as enroll from "../enroll.js";
+import type * as examReports from "../examReports.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
 import type * as mentor from "../mentor.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   content: typeof content;
   courseStudio: typeof courseStudio;
   enroll: typeof enroll;
+  examReports: typeof examReports;
   http: typeof http;
   inbox: typeof inbox;
   mentor: typeof mentor;

@@ -12,11 +12,20 @@ import {
   BellRing,
   CheckCircle2,
   ChevronLeft,
+  Flag,
   Loader2,
   RotateCcw,
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 
@@ -25,6 +34,11 @@ export default function TestResult() {
   const attempt = useQuery(api.tests.getAttempt, { attemptId: attemptId as any });
   const armNextExam = useMutation(api.notifications.armNextExamReminder);
   const [reminderState, setReminderState] = useState<"idle" | "busy" | "armed">("idle");
+  const reportExam = useMutation(api.examReports.submitExamReport);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportQuestionId, setReportQuestionId] = useState("");
+  const [reportComment, setReportComment] = useState("");
+  const [reportBusy, setReportBusy] = useState(false);
 
   const handleRemindNext = async () => {
     setReminderState("busy");
@@ -65,6 +79,33 @@ export default function TestResult() {
       </PublicLayout>
     );
   }
+
+  const handleReport = async () => {
+    if (!reportQuestionId || !reportComment.trim()) {
+      toast.error("سؤال را انتخاب کنید و توضیح گزارش را بنویسید.");
+      return;
+    }
+    setReportBusy(true);
+    try {
+      const res = await reportExam({
+        examId: attempt.examId as any,
+        questionId: reportQuestionId as any,
+        comment: reportComment.trim(),
+      });
+      toast.success(
+        res.duplicate
+          ? "این سؤال قبلاً توسط شما گزارش شده و در حال بررسی است."
+          : "گزارش شما ثبت شد — تیم آموزشی بررسی می‌کند.",
+      );
+      setReportOpen(false);
+      setReportQuestionId("");
+      setReportComment("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ثبت گزارش");
+    } finally {
+      setReportBusy(false);
+    }
+  };
 
   const ring = (percent: number) => {
     const r = 42;
@@ -280,6 +321,59 @@ export default function TestResult() {
             })}
           </div>
         </div>
+
+        {/* Report a question error */}
+        <Card className="mt-8 border-amber-300/40 bg-amber-50/60 dark:border-amber-500/25 dark:bg-amber-500/5">
+          <CardContent className="p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/15">
+                  <Flag className="size-5 text-amber-600 dark:text-amber-400" />
+                </span>
+                <div>
+                  <p className="font-bold">گزارش خطای سؤال</p>
+                  <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
+                    اگر فکر می‌کنید سؤالی غلط طرح شده — پاسخ صحیح اشتباه است، ابهام دارد یا
+                    گزینه‌ای ناقص است — آن را انتخاب کنید و توضیح بدهید. تیم آموزشی بررسی می‌کند
+                    و در صورت تأیید، پاسخ‌دهی مجدد انجام می‌شود.
+                  </p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="rounded-full" onClick={() => setReportOpen(!reportOpen)}>
+                {reportOpen ? "بستن" : "گزارش خطا"}
+              </Button>
+            </div>
+
+            {reportOpen && (
+              <div className="mt-5 space-y-3">
+                <Select value={reportQuestionId} onValueChange={setReportQuestionId}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="سؤال موردنظر را انتخاب کنید…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(attempt.questions as any[]).map((q, i) => (
+                      <SelectItem key={q._id} value={q._id}>
+                        {faNum(i + 1)}. {q.text.length > 70 ? `${q.text.slice(0, 70)}…` : q.text}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea
+                  rows={3}
+                  value={reportComment}
+                  onChange={(e) => setReportComment(e.target.value)}
+                  placeholder="مثلاً: گزینهٔ ۲ نیز صحیح است؛ پاسخ تشریحی با متن سؤال هم‌خوانی ندارد…"
+                />
+                <div className="flex justify-end">
+                  <Button onClick={handleReport} disabled={reportBusy} className="rounded-full">
+                    {reportBusy ? <Loader2 className="ml-2 size-4 animate-spin" /> : <Flag className="ml-2 size-4" />}
+                    ارسال گزارش
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </PublicLayout>
   );

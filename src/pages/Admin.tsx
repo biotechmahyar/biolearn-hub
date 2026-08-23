@@ -50,6 +50,7 @@ import {
   Eye,
   EyeOff,
   FileText,
+  Flag,
   Headset,
   HelpCircle,
   Home,
@@ -113,6 +114,7 @@ type Section =
   | "announcements"
   | "profiles"
   | "inbox"
+  | "examReports"
   | "myprofile";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
@@ -123,6 +125,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "users", label: "کاربران و دسترسی‌ها", icon: Users },
       { key: "profiles", label: "تأیید پروفایل‌ها", icon: UserCheck },
       { key: "inbox", label: "صندوق ورودی", icon: Inbox },
+      { key: "examReports", label: "گزارش‌های خطای آزمون", icon: Flag },
       { key: "orders", label: "سفارش‌ها", icon: CreditCard },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
@@ -547,6 +550,7 @@ export default function Admin() {
             {section === "products" && <AdminProducts />}
             {section === "instructors" && <AdminInstructors />}
             {section === "myprofile" && <AdminMyProfile />}
+            {section === "examReports" && <AdminExamReports />}
             {section === "users" && <AdminUsers />}
             {section === "orders" && <AdminOrders />}
             {section === "coupons" && <AdminCoupons />}
@@ -2606,6 +2610,117 @@ function AdminMyProfile() {
         </p>
       </div>
       <MemberProfileEditor />
+    </div>
+  );
+}
+
+// ── Exam error reports ──────────────────────────────────────────────────────
+function AdminExamReports() {
+  const reports = useQuery(api.examReports.listExamReports) ?? [];
+  const resolveReport = useMutation(api.examReports.resolveExamReport);
+  const deleteReport = useMutation(api.examReports.deleteExamReport);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const act = async (fn: () => Promise<unknown>, id: string) => {
+    setBusyId(id);
+    try {
+      await fn();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const open = reports.filter((r) => r.status === "open").length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">گزارش‌های خطای آزمون</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            دانشجوها بعد از پایان هر آزمون می‌توانند سؤال غلط‌طرح‌شده را گزارش کنند؛ بررسی و در صورت لزوم اصلاح کنید.
+          </p>
+        </div>
+        <Badge variant={open > 0 ? "default" : "secondary"} className="rounded-full">
+          {faNum(open)} گزارش باز
+        </Badge>
+      </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>سؤال</TableHead>
+                <TableHead>آزمون</TableHead>
+                <TableHead>کاربر</TableHead>
+                <TableHead>توضیح گزارش</TableHead>
+                <TableHead>تاریخ</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {reports.map((r) => (
+                <TableRow key={r._id} className={r.status === "open" ? "" : "opacity-60"}>
+                  <TableCell className="max-w-56">
+                    <p className="line-clamp-2 text-xs leading-5">{r.questionText}</p>
+                  </TableCell>
+                  <TableCell className="text-xs">{r.examTitle}</TableCell>
+                  <TableCell className="text-xs">
+                    <p className="font-medium">{r.userName}</p>
+                    <p className="text-[10px] text-muted-foreground" dir="ltr">{r.userEmail}</p>
+                  </TableCell>
+                  <TableCell className="max-w-64">
+                    <p className="line-clamp-3 text-xs leading-5 text-muted-foreground">{r.comment}</p>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {formatDateTime(r.createdAt)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={r.status === "open" ? "default" : "secondary"} className="rounded-full text-[10px]">
+                      {r.status === "open" ? "باز" : "بررسی‌شده"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {r.status === "open" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busyId === r._id}
+                          onClick={() => void act(() => resolveReport({ reportId: r._id }), r._id)}
+                        >
+                          <CheckCircle2 className="ml-1.5 size-3.5" />
+                          بررسی شد
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:text-destructive"
+                        disabled={busyId === r._id}
+                        onClick={() => void act(() => deleteReport({ reportId: r._id }), r._id)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {reports.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
+                    هنوز گزارشی ثبت نشده است.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

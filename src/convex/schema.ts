@@ -253,6 +253,18 @@ const schema = defineSchema(
       order: v.number(),
     }).index("by_slug", ["slug"]),
 
+    examReports: defineTable({
+      userId: v.id("users"),
+      examId: v.id("exams"),
+      questionId: v.id("questions"),
+      comment: v.string(),
+      status: v.union(v.literal("open"), v.literal("resolved")),
+      createdAt: v.number(),
+    })
+      .index("by_status", ["status"])
+      .index("by_user", ["userId"])
+      .index("by_exam", ["examId"]),
+
     examAttempts: defineTable({
       userId: v.id("users"),
       examId: v.id("exams"),
