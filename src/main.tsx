@@ -139,7 +139,7 @@ createRoot(document.getElementById("root")!).render(
               <Route
                 path="/panel/instructor"
                 element={
-                  <RoleGate allowed={["instructor", "admin"]} title="instructor studio">
+                  <RoleGate allowed={["instructor", "admin", "site_admin"]} title="instructor studio">
                     <InstructorPanel />
                   </RoleGate>
                 }
@@ -147,7 +147,7 @@ createRoot(document.getElementById("root")!).render(
               <Route
                 path="/panel/mentor"
                 element={
-                  <RoleGate allowed={["mentor", "admin"]} title="mentor desk">
+                  <RoleGate allowed={["mentor", "admin", "site_admin"]} title="mentor desk">
                     <MentorPanel />
                   </RoleGate>
                 }
@@ -155,7 +155,7 @@ createRoot(document.getElementById("root")!).render(
               <Route
                 path="/panel/support"
                 element={
-                  <RoleGate allowed={["support", "admin"]} title="support desk">
+                  <RoleGate allowed={["support", "admin", "site_admin"]} title="support desk">
                     <SupportPanel />
                   </RoleGate>
                 }
@@ -163,7 +163,7 @@ createRoot(document.getElementById("root")!).render(
               <Route
                 path="/panel/content"
                 element={
-                  <RoleGate allowed={["content_manager", "admin"]} title="content studio">
+                  <RoleGate allowed={["content_manager", "admin", "site_admin"]} title="content studio">
                     <ContentPanel />
                   </RoleGate>
                 }

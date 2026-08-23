@@ -149,7 +149,7 @@ export default function InstructorPanel() {
               variant="ghost"
               size="sm"
               className="text-slate-400"
-              onClick={() => navigate(user?.role === "admin" ? "/admin" : "/")}
+              onClick={() => navigate(user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/")}
             >
               <X className="size-4" />
             </Button>
