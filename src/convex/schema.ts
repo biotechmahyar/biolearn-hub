@@ -2,19 +2,59 @@ import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { Infer, v } from "convex/values";
 
-// default user roles. can add / remove based on the project as needed
+// Role-based access: Student, Instructor, Mentor, Content Manager, Support, Admin
 export const ROLES = {
   ADMIN: "admin",
   USER: "user",
   MEMBER: "member",
+  INSTRUCTOR: "instructor",
+  MENTOR: "mentor",
+  CONTENT_MANAGER: "content_manager",
+  SUPPORT: "support",
 } as const;
 
 export const roleValidator = v.union(
   v.literal(ROLES.ADMIN),
   v.literal(ROLES.USER),
   v.literal(ROLES.MEMBER),
+  v.literal(ROLES.INSTRUCTOR),
+  v.literal(ROLES.MENTOR),
+  v.literal(ROLES.CONTENT_MANAGER),
+  v.literal(ROLES.SUPPORT),
 );
 export type Role = Infer<typeof roleValidator>;
+
+// Course delivery model: Live / Recorded / Hybrid (In-person is future)
+export const courseModeValidator = v.union(
+  v.literal("live"),
+  v.literal("recorded"),
+  v.literal("hybrid"),
+);
+export type CourseMode = Infer<typeof courseModeValidator>;
+
+// Bundle tiers: Basic / Plus / Premium
+export const bundleValidator = v.union(
+  v.literal("basic"),
+  v.literal("plus"),
+  v.literal("premium"),
+);
+export type Bundle = Infer<typeof bundleValidator>;
+
+// Physical product types
+export const productTypeValidator = v.union(
+  v.literal("flashcards"),
+  v.literal("guide"),
+  v.literal("poster"),
+);
+export type ProductType = Infer<typeof productTypeValidator>;
+
+// What an order item can point at
+export const itemTypeValidator = v.union(
+  v.literal("course"),
+  v.literal("product"),
+  v.literal("workshop"),
+);
+export type ItemType = Infer<typeof itemTypeValidator>;
 
 const schema = defineSchema(
   {
@@ -23,21 +63,301 @@ const schema = defineSchema(
 
     // the users table is the default users table that is brought in by the authTables
     users: defineTable({
-      name: v.optional(v.string()), // name of the user. do not remove
-      image: v.optional(v.string()), // image of the user. do not remove
-      email: v.optional(v.string()), // email of the user. do not remove
-      emailVerificationTime: v.optional(v.number()), // email verification time. do not remove
-      isAnonymous: v.optional(v.boolean()), // is the user anonymous. do not remove
+      name: v.optional(v.string()),
+      image: v.optional(v.string()),
+      email: v.optional(v.string()),
+      emailVerificationTime: v.optional(v.number()),
+      isAnonymous: v.optional(v.boolean()),
 
-      role: v.optional(roleValidator), // role of the user. do not remove
-    }).index("email", ["email"]), // index for the email. do not remove or modify
+      role: v.optional(roleValidator),
+      university: v.optional(v.string()),
+      major: v.optional(v.string()),
+    }).index("email", ["email"]),
 
-    // add other tables here
+    // ── Catalog ──────────────────────────────────────────────────────────
+    categories: defineTable({
+      name: v.string(), // Persian display name
+      slug: v.string(),
+      description: v.string(),
+      icon: v.string(), // lucide icon name
+      accent: v.string(), // teal | emerald | sky | amber | violet | rose | indigo
+      order: v.number(),
+    }).index("by_slug", ["slug"]),
 
-    // tableName: defineTable({
-    //   ...
-    //   // table fields
-    // }).index("by_field", ["field"])
+    instructors: defineTable({
+      name: v.string(),
+      slug: v.string(),
+      title: v.string(), // e.g. "دانشجوی کارشناسی میکروبیولوژی"
+      bio: v.string(),
+      education: v.array(v.string()),
+      specialties: v.array(v.string()),
+      accent: v.string(),
+      verified: v.boolean(),
+    }).index("by_slug", ["slug"]),
+
+    courses: defineTable({
+      title: v.string(),
+      slug: v.string(),
+      categoryId: v.id("categories"),
+      instructorId: v.id("instructors"),
+      summary: v.string(),
+      description: v.string(),
+      audience: v.array(v.string()),
+      prerequisites: v.array(v.string()),
+      syllabus: v.array(
+        v.object({
+          id: v.string(),
+          title: v.string(),
+          durationMin: v.number(),
+          free: v.boolean(),
+        }),
+      ),
+      durationText: v.string(),
+      mode: courseModeValidator,
+      price: v.number(), // in Toman
+      discountPrice: v.optional(v.number()),
+      rating: v.number(),
+      ratingCount: v.number(),
+      studentsCount: v.number(),
+      accent: v.string(),
+      bundle: bundleValidator,
+      includes: v.array(v.string()),
+      hasSampleVideo: v.boolean(),
+      files: v.array(
+        v.object({
+          name: v.string(),
+          size: v.string(),
+          type: v.string(),
+        }),
+      ),
+      published: v.boolean(),
+      featured: v.boolean(),
+      popular: v.boolean(),
+      createdAt: v.number(),
+    })
+      .index("by_slug", ["slug"])
+      .index("by_category", ["categoryId"])
+      .index("by_published", ["published"])
+      .index("by_featured", ["featured"]),
+
+    products: defineTable({
+      title: v.string(),
+      slug: v.string(),
+      type: productTypeValidator,
+      description: v.string(),
+      price: v.number(),
+      accent: v.string(),
+      published: v.boolean(),
+      featured: v.boolean(),
+      createdAt: v.number(),
+    }).index("by_slug", ["slug"]),
+
+    workshops: defineTable({
+      title: v.string(),
+      slug: v.string(),
+      instructorId: v.id("instructors"),
+      topic: v.string(),
+      date: v.string(), // ISO date
+      time: v.string(), // e.g. "۱۸:۰۰"
+      capacity: v.number(),
+      registeredCount: v.number(),
+      price: v.number(),
+      description: v.string(),
+      agenda: v.array(v.string()),
+      free: v.boolean(),
+      expertTalk: v.boolean(),
+      published: v.boolean(),
+    }).index("by_slug", ["slug"]),
+
+    articles: defineTable({
+      title: v.string(),
+      slug: v.string(),
+      category: v.string(),
+      excerpt: v.string(),
+      body: v.string(),
+      authorName: v.string(),
+      accent: v.string(),
+      readTime: v.number(), // minutes
+      published: v.boolean(),
+      featured: v.boolean(),
+      createdAt: v.number(),
+    }).index("by_slug", ["slug"]),
+
+    dictionaryTerms: defineTable({
+      term: v.string(),
+      slug: v.string(),
+      fullName: v.string(),
+      gramStatus: v.string(),
+      shape: v.string(),
+      oxygen: v.string(),
+      habitat: v.string(),
+      diseases: v.array(v.string()),
+      virulence: v.array(v.string()),
+      diagnosis: v.string(),
+      characteristics: v.array(v.string()),
+      examNotes: v.array(v.string()),
+      sources: v.array(v.string()),
+    })
+      .index("by_slug", ["slug"])
+      .index("by_term", ["term"]),
+
+    // ── Assessment ───────────────────────────────────────────────────────
+    questions: defineTable({
+      text: v.string(),
+      options: v.array(v.string()),
+      correctIndex: v.number(),
+      explanation: v.string(),
+      topicId: v.id("categories"),
+      difficulty: v.number(), // 1 | 2 | 3
+    }).index("by_topic", ["topicId"]),
+
+    exams: defineTable({
+      title: v.string(),
+      slug: v.string(),
+      description: v.string(),
+      durationMinutes: v.number(),
+      questionIds: v.array(v.id("questions")),
+      free: v.boolean(),
+      published: v.boolean(),
+      featured: v.boolean(),
+      diagnostic: v.boolean(),
+      accent: v.string(),
+      order: v.number(),
+    }).index("by_slug", ["slug"]),
+
+    examAttempts: defineTable({
+      userId: v.id("users"),
+      examId: v.id("exams"),
+      answers: v.array(
+        v.object({
+          questionId: v.id("questions"),
+          chosenIndex: v.number(),
+        }),
+      ),
+      score: v.number(),
+      total: v.number(),
+      percent: v.number(),
+      topicBreakdown: v.array(
+        v.object({
+          topicId: v.id("categories"),
+          topicName: v.string(),
+          correct: v.number(),
+          total: v.number(),
+          percent: v.number(),
+        }),
+      ),
+      startedAt: v.number(),
+      finishedAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_exam", ["examId"]),
+
+    dailyQuiz: defineTable({
+      date: v.string(), // YYYY-MM-DD
+      questionId: v.id("questions"),
+      points: v.number(),
+    }).index("by_date", ["date"]),
+
+    dailyQuizAnswers: defineTable({
+      userId: v.id("users"),
+      date: v.string(),
+      questionId: v.id("questions"),
+      chosenIndex: v.number(),
+      correct: v.boolean(),
+      points: v.number(),
+      answeredAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_date", ["date"]),
+
+    // ── Commerce ──────────────────────────────────────────────────────────
+    orders: defineTable({
+      userId: v.id("users"),
+      items: v.array(
+        v.object({
+          type: itemTypeValidator,
+          refId: v.string(),
+          title: v.string(),
+          price: v.number(),
+        }),
+      ),
+      subtotal: v.number(),
+      discountAmount: v.number(),
+      total: v.number(),
+      couponCode: v.optional(v.string()),
+      status: v.union(v.literal("paid"), v.literal("pending"), v.literal("cancelled")),
+      invoiceNumber: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_status", ["status"])
+      .index("by_created", ["createdAt"]),
+
+    coupons: defineTable({
+      code: v.string(),
+      percent: v.number(),
+      active: v.boolean(),
+      maxUses: v.number(),
+      usedCount: v.number(),
+      expiresAt: v.optional(v.number()),
+    }).index("by_code", ["code"]),
+
+    enrollments: defineTable({
+      userId: v.id("users"),
+      courseId: v.id("courses"),
+      completedLessons: v.array(v.string()),
+      enrolledAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_course", ["courseId"]),
+
+    bookmarks: defineTable({
+      userId: v.id("users"),
+      contentType: v.string(), // course | article | product | workshop
+      contentId: v.string(),
+      createdAt: v.number(),
+    }).index("by_user", ["userId"]),
+
+    flashcards: defineTable({
+      userId: v.id("users"),
+      front: v.string(),
+      back: v.string(),
+      category: v.string(),
+      createdAt: v.number(),
+    }).index("by_user", ["userId"]),
+
+    // ── Support ───────────────────────────────────────────────────────────
+    tickets: defineTable({
+      userId: v.id("users"),
+      subject: v.string(),
+      status: v.union(v.literal("open"), v.literal("answered"), v.literal("closed")),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      messages: v.array(
+        v.object({
+          author: v.string(), // student | admin
+          text: v.string(),
+          at: v.number(),
+        }),
+      ),
+    })
+      .index("by_user", ["userId"])
+      .index("by_status", ["status"]),
+
+    // ── Trust & community ─────────────────────────────────────────────────
+    testimonials: defineTable({
+      name: v.string(),
+      role: v.string(),
+      text: v.string(),
+      rating: v.number(),
+      course: v.string(),
+      accent: v.string(),
+    }),
+
+    // Emails allowed into the admin panel (seedable; promotes via email match)
+    admins: defineTable({
+      email: v.string(),
+    }).index("by_email", ["email"]),
   },
   {
     schemaValidation: false,

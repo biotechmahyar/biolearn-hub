@@ -1,26 +1,36 @@
+import { Button } from "@/components/ui/button";
+import { PublicLayout } from "@/components/site/PublicLayout";
 import { motion } from "framer-motion";
+import { FlaskConical } from "lucide-react";
+import { Link } from "react-router";
 
 export default function NotFound() {
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5 }}
-      className="min-h-screen flex flex-col"
-    >
-
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="max-w-5xl mx-auto relative px-4">
-          <div className="flex items-center justify-center min-h-[200px]">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-              <p className="text-lg text-gray-600">Page Not Found</p>
-            </div>
-          </div>
+    <PublicLayout>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center"
+      >
+        <span className="flex size-16 items-center justify-center rounded-3xl bg-primary/10 text-primary">
+          <FlaskConical className="size-8" />
+        </span>
+        <p className="mt-6 text-5xl font-black tracking-tight">۴۰۴</p>
+        <h1 className="mt-2 text-xl font-extrabold">این صفحه در آزمایشگاه پیدا نشد!</h1>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
+          آدرس واردشده وجود ندارد یا به صفحهٔ دیگری منتقل شده است. از صفحهٔ اصلی
+          یا دوره‌ها ادامه بده.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <Button asChild className="rounded-full">
+            <Link to="/">بازگشت به خانه</Link>
+          </Button>
+          <Button asChild variant="outline" className="rounded-full">
+            <Link to="/courses">دوره‌ها</Link>
+          </Button>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </PublicLayout>
   );
 }

@@ -1,5 +1,7 @@
+import '@vly-ai/integrations';
 import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
+import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
@@ -14,7 +16,26 @@ import "./types/global.d.ts";
 const Landing = lazy(() => import("./pages/Landing.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
+const Admin = lazy(() => import("./pages/Admin.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+
+// Public catalog pages
+const Courses = lazy(() => import("./pages/Courses.tsx"));
+const CourseDetail = lazy(() => import("./pages/CourseDetail.tsx"));
+const Tests = lazy(() => import("./pages/Tests.tsx"));
+const TestTake = lazy(() => import("./pages/TestTake.tsx"));
+const TestResult = lazy(() => import("./pages/TestResult.tsx"));
+const DailyQuiz = lazy(() => import("./pages/DailyQuiz.tsx"));
+const Products = lazy(() => import("./pages/Products.tsx"));
+const ProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
+const Workshops = lazy(() => import("./pages/Workshops.tsx"));
+const WorkshopDetail = lazy(() => import("./pages/WorkshopDetail.tsx"));
+const Instructors = lazy(() => import("./pages/Instructors.tsx"));
+const InstructorDetail = lazy(() => import("./pages/InstructorDetail.tsx"));
+const FreeContent = lazy(() => import("./pages/FreeContent.tsx"));
+const ArticleDetail = lazy(() => import("./pages/ArticleDetail.tsx"));
+const Dictionary = lazy(() => import("./pages/Dictionary.tsx"));
+const Rules = lazy(() => import("./pages/Rules.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -59,6 +80,7 @@ createRoot(document.getElementById("root")!).render(
     <InstrumentationProvider>
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
+          <SeedBootstrap />
           <RouteSyncer />
           <Suspense fallback={<RouteLoading />}>
             <Routes>
@@ -67,6 +89,26 @@ createRoot(document.getElementById("root")!).render(
                 path="/auth"
                 element={<AuthPage redirectAfterAuth="/dashboard" />}
               />
+
+              {/* Catalog */}
+              <Route path="/courses" element={<Courses />} />
+              <Route path="/courses/:slug" element={<CourseDetail />} />
+              <Route path="/tests" element={<Tests />} />
+              <Route path="/tests/:slug" element={<TestTake />} />
+              <Route path="/tests/result/:attemptId" element={<TestResult />} />
+              <Route path="/daily-quiz" element={<DailyQuiz />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/products/:slug" element={<ProductDetail />} />
+              <Route path="/workshops" element={<Workshops />} />
+              <Route path="/workshops/:slug" element={<WorkshopDetail />} />
+              <Route path="/instructors" element={<Instructors />} />
+              <Route path="/instructors/:slug" element={<InstructorDetail />} />
+              <Route path="/free-content" element={<FreeContent />} />
+              <Route path="/free-content/:slug" element={<ArticleDetail />} />
+              <Route path="/dictionary" element={<Dictionary />} />
+              <Route path="/rules" element={<Rules />} />
+
+              {/* Authenticated */}
               <Route
                 path="/dashboard"
                 element={
@@ -75,6 +117,15 @@ createRoot(document.getElementById("root")!).render(
                   </RequireAuth>
                 }
               />
+              <Route
+                path="/admin"
+                element={
+                  <RequireAuth>
+                    <Admin />
+                  </RequireAuth>
+                }
+              />
+
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
