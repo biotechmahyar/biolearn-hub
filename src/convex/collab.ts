@@ -82,6 +82,31 @@ export const createRoom = mutation({
   },
 });
 
+export const deleteRoom = mutation({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند آن را حذف کند.");
+    // Remove the room, its messages, strokes, and signals.
+    const [messages, strokes, signals] = await Promise.all([
+      ctx.db.query("roomMessages").withIndex("by_room", (q) => q.eq("roomId", room._id)).collect(),
+      ctx.db.query("whiteboardStrokes").withIndex("by_room_layer", (q) => q.eq("roomId", room._id)).collect(),
+      ctx.db.query("signals").withIndex("by_room", (q) => q.eq("roomId", room._id)).collect(),
+    ]);
+    await Promise.all([
+      ...messages.map((m) => ctx.db.delete(m._id)),
+      ...strokes.map((s) => ctx.db.delete(s._id)),
+      ...signals.map((s) => ctx.db.delete(s._id)),
+      ctx.db.delete(room._id),
+    ]);
+    return { ok: true };
+  },
+});
+
 export const setRoomStatus = mutation({
   args: { roomId: v.id("classRooms"), status: v.string() },
   handler: async (ctx, args) => {
@@ -206,7 +231,10 @@ export const getUploadUrl = mutation({
 
 // ── Live broadcast (WebRTC signaling) ──────────────────────────────────────
 export const startBroadcast = mutation({
-  args: { roomId: v.id("classRooms") },
+  args: {
+    roomId: v.id("classRooms"),
+    kind: v.optional(v.union(v.literal("camera"), v.literal("screen"))),
+  },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد حساب شوید.");
@@ -214,7 +242,10 @@ export const startBroadcast = mutation({
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
     if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند پخش را شروع کند.");
-    await ctx.db.patch(args.roomId, { broadcasting: true });
+    await ctx.db.patch(args.roomId, {
+      broadcasting: true,
+      broadcastKind: args.kind ?? "camera",
+    });
     return { ok: true };
   },
 });
@@ -228,8 +259,102 @@ export const endBroadcast = mutation({
     if (!room) throw new Error("کلاس یافت نشد.");
     const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
     if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند پخش را پایان دهد.");
-    await ctx.db.patch(args.roomId, { broadcasting: false });
+    await ctx.db.patch(args.roomId, {
+      broadcasting: false,
+      broadcastKind: undefined,
+    });
     return { ok: true };
+  },
+});
+
+// ── Whiteboard + screen-share annotations ──────────────────────────────────
+// Only the instructor of the room (or an admin) may draw / clear / restyle.
+export const setBoardBg = mutation({
+  args: { roomId: v.id("classRooms"), bg: v.string() },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند تخته را تغییر دهد.");
+    if (args.bg.length > 32) throw new Error("رنگ نامعتبر است.");
+    await ctx.db.patch(args.roomId, { boardBg: args.bg });
+    return { ok: true };
+  },
+});
+
+export const addStroke = mutation({
+  args: {
+    roomId: v.id("classRooms"),
+    layer: v.union(v.literal("board"), v.literal("screen")),
+    tool: v.union(v.literal("pen"), v.literal("highlighter"), v.literal("eraser")),
+    color: v.string(),
+    size: v.number(),
+    points: v.array(v.object({ x: v.number(), y: v.number() })),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند روی تخته بکشد.");
+    if (args.points.length === 0 || args.points.length > 800) {
+      throw new Error("نقطه‌های نامعتبر.");
+    }
+    if (args.points.some((p) => p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1)) {
+      throw new Error("مختصات خارج از محدوده است.");
+    }
+    if (args.size <= 0 || args.size > 0.5) throw new Error("اندازه نامعتبر است.");
+    return await ctx.db.insert("whiteboardStrokes", {
+      roomId: room._id,
+      layer: args.layer,
+      tool: args.tool,
+      color: args.color.length > 32 ? "#ffffff" : args.color,
+      size: args.size,
+      points: args.points,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const clearStrokes = mutation({
+  args: { roomId: v.id("classRooms"), layer: v.union(v.literal("board"), v.literal("screen")) },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط استاد این کلاس می‌تواند تخته را پاک کند.");
+    const rows = await ctx.db
+      .query("whiteboardStrokes")
+      .withIndex("by_room_layer", (q) => q.eq("roomId", room._id).eq("layer", args.layer))
+      .collect();
+    await Promise.all(rows.map((r) => ctx.db.delete(r._id)));
+    return { ok: true };
+  },
+});
+
+export const listStrokes = query({
+  args: { roomId: v.id("classRooms"), layer: v.union(v.literal("board"), v.literal("screen")) },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    const room = await ctx.db.get(args.roomId);
+    if (!room) return [];
+    if (room.status !== "live") {
+      const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+      if (!allowed && !(await isAdmin(ctx))) return [];
+    }
+    return await ctx.db
+      .query("whiteboardStrokes")
+      .withIndex("by_room_layer_created", (q) =>
+        q.eq("roomId", room._id).eq("layer", args.layer),
+      )
+      .order("asc")
+      .take(400);
   },
 });
 

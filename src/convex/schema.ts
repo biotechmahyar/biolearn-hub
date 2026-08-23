@@ -387,10 +387,26 @@ const schema = defineSchema(
       description: v.string(),
       status: v.union(v.literal("live"), v.literal("scheduled"), v.literal("ended")),
       broadcasting: v.boolean(),
+      broadcastKind: v.optional(v.union(v.literal("camera"), v.literal("screen"))),
+      boardBg: v.optional(v.string()),
       createdAt: v.number(),
     })
       .index("by_instructor", ["instructorId"])
       .index("by_status", ["status"]),
+
+    // Instructor's whiteboard / screen-share annotations. Points are stored
+    // normalized (0..1) so every client scales them to its own canvas size.
+    whiteboardStrokes: defineTable({
+      roomId: v.id("classRooms"),
+      layer: v.union(v.literal("board"), v.literal("screen")),
+      tool: v.union(v.literal("pen"), v.literal("highlighter"), v.literal("eraser")),
+      color: v.string(),
+      size: v.number(), // fraction of the canvas min dimension
+      points: v.array(v.object({ x: v.number(), y: v.number() })),
+      createdAt: v.number(),
+    })
+      .index("by_room_layer", ["roomId", "layer"])
+      .index("by_room_layer_created", ["roomId", "layer", "createdAt"]),
 
     roomMessages: defineTable({
       roomId: v.id("classRooms"),

@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
@@ -6,19 +7,23 @@ import { useMutation, useQuery } from "convex/react";
 import {
   BellRing,
   BookOpen,
+  Brush,
   Camera,
   CheckCircle2,
   CircleDot,
   Dna,
   DoorOpen,
+  Eraser,
   FileText,
   HelpCircle,
+  Highlighter,
   Loader2,
   MessageSquare,
   Mic,
   MonitorPlay,
   Paperclip,
   Plus,
+  Presentation,
   Radio,
   Send,
   Square,
@@ -48,6 +53,34 @@ type Tab = "rooms" | "online" | "courses" | "announcements";
 
 type RoomRow = (typeof api.collab.listRooms)["_returnType"][number];
 type OnlineRow = (typeof api.collab.listOnline)["_returnType"][number];
+type StrokeRow = (typeof api.collab.listStrokes)["_returnType"][number];
+
+const BOARD_BGS = [
+  { label: "تیره", value: "#0f172a" },
+  { label: "سیاه", value: "#000000" },
+  { label: "سفید", value: "#f8fafc" },
+  { label: "کرم", value: "#f5f0e1" },
+  { label: "سبز تخته", value: "#14532d" },
+  { label: "آبی", value: "#1e3a5f" },
+];
+
+const PEN_COLORS = [
+  "#ffffff",
+  "#fde047",
+  "#ef4444",
+  "#22c55e",
+  "#38bdf8",
+  "#a78bfa",
+  "#000000",
+];
+
+const ANNO_COLORS = ["#ef4444", "#fde047", "#22c55e", "#38bdf8", "#ffffff"];
+
+const TOOL_SIZES: Record<WbTool, number> = {
+  pen: 0.012,
+  highlighter: 0.03,
+  eraser: 0.05,
+};
 
 const TABS: { id: Tab; label: string; icon: typeof Video }[] = [
   { id: "rooms", label: "کلاس‌های زنده", icon: Video },
@@ -90,11 +123,11 @@ export default function InstructorPanel() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] text-emerald-300">
+            <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] text-emerald-300 sm:flex">
               <CircleDot className="size-3 animate-pulse" />
               آنلاین
             </span>
-            <Badge variant="outline" className="border-cyan-400/20 font-mono text-[10px] text-cyan-300">
+            <Badge variant="outline" className="hidden border-cyan-400/20 font-mono text-[10px] text-cyan-300 md:inline-flex">
               {user?.name ?? "استاد"}
             </Badge>
             <Button
@@ -164,6 +197,7 @@ function RoomsView({
   const [topic, setTopic] = useState("");
   const [description, setDescription] = useState("");
   const createRoom = useMutation(api.collab.createRoom);
+  const deleteRoom = useMutation(api.collab.deleteRoom);
 
   async function handleCreate() {
     try {
@@ -281,22 +315,33 @@ function RoomsView({
           </p>
           <div className="space-y-2">
             {past.map((room) => (
-              <button
+              <div
                 key={room._id}
-                onClick={() => onOpen(room._id)}
-                className="flex w-full items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3 text-right hover:bg-white/[0.05]"
+                className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3 hover:bg-white/[0.05]"
               >
-                <div>
-                  <p className="text-sm text-slate-300">{room.title}</p>
-                  <p className="text-[11px] text-slate-500">{room.topic}</p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className="border-white/10 text-[10px] text-slate-400"
+                <button
+                  onClick={() => onOpen(room._id)}
+                  className="min-w-0 flex-1 text-right"
                 >
-                  {room.status === "ended" ? "پایان‌یافته" : "زمان‌بندی‌شده"}
-                </Badge>
-              </button>
+                  <p className="truncate text-sm text-slate-300">{room.title}</p>
+                  <p className="truncate text-[11px] text-slate-500">{room.topic}</p>
+                </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="border-white/10 text-[10px] text-slate-400"
+                  >
+                    {room.status === "ended" ? "پایان‌یافته" : "زمان‌بندی‌شده"}
+                  </Badge>
+                  <button
+                    onClick={() => void deleteRoom({ roomId: room._id as any })}
+                    title="حذف جلسه و تمام محتویاتش"
+                    className="text-slate-600 transition-colors hover:text-red-400"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -329,7 +374,22 @@ function RoomView({
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Live broadcast: publish camera/mic to every student.
+  // Whiteboard + screen-share annotation (instructor draws, students watch).
+  const boardStrokes = useQuery(api.collab.listStrokes, {
+    roomId: roomId as any,
+    layer: "board",
+  }) ?? [];
+  const screenStrokes = useQuery(api.collab.listStrokes, {
+    roomId: roomId as any,
+    layer: "screen",
+  }) ?? [];
+  const addStroke = useMutation(api.collab.addStroke);
+  const clearStrokes = useMutation(api.collab.clearStrokes);
+  const setBoardBg = useMutation(api.collab.setBoardBg);
+  const [subTab, setSubTab] = useState<"live" | "board" | "chat">("live");
+  const [screenShare, setScreenShare] = useState(false);
+
+  // Live broadcast: publish camera/mic/screen to every student.
   const broadcast = useInstructorBroadcast(roomId, user?._id);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
@@ -337,6 +397,11 @@ function RoomView({
       localVideoRef.current.srcObject = broadcast.localStream;
     }
   }, [broadcast.localStream]);
+
+  // Reset screen-share mode when the broadcast ends for any reason.
+  useEffect(() => {
+    if (broadcast.status !== "live") setScreenShare(false);
+  }, [broadcast.status]);
 
   // Voice recorder
   const [recording, setRecording] = useState(false);
@@ -488,77 +553,58 @@ function RoomView({
         )}
       </div>
 
-      {/* Live broadcast */}
-      <Card className="border-cyan-400/20 bg-[#0b1a2a]">
-        <CardContent className="space-y-3 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="flex items-center gap-2 text-sm font-bold text-cyan-200">
-                <Video className="size-4" />
-                پخش زنده برای دانشجویان
-              </p>
-              <p className="mt-0.5 text-[11px] text-slate-400">
-                {broadcast.status === "live"
-                  ? "در حال پخش — دانشجویان صدای شما را می‌شنوند و تصویر را می‌بینند."
-                  : "صدا و دوربین خود را روشن کنید تا دانشجویان شما را زنده ببینند."}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {broadcast.status === "live" ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-red-400/30 text-red-300 hover:bg-red-400/10"
-                  onClick={() => void broadcast.stop()}
-                >
-                  <Square className="size-3.5" />
-                  پایان پخش
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    size="sm"
-                    onClick={() => void broadcast.start(false)}
-                    disabled={broadcast.status === "starting"}
-                  >
-                    {broadcast.status === "starting" ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Mic className="size-3.5" />
-                    )}
-                    پخش صدا
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-cyan-400/30 text-cyan-200 hover:bg-cyan-400/10"
-                    onClick={() => void broadcast.start(true)}
-                    disabled={broadcast.status === "starting"}
-                  >
-                    <Camera className="size-3.5" />
-                    صدا + دوربین
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-          {broadcast.error && (
-            <p className="rounded-md border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs text-red-300">
-              {broadcast.error}
-            </p>
-          )}
-          {(broadcast.status === "live" || broadcast.localStream) && (
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="aspect-video w-full max-w-md rounded-lg border border-cyan-400/20 bg-black"
-            />
-          )}
-        </CardContent>
-      </Card>
+      {/* Sub-tabs: live / board / chat */}
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-white/5 bg-white/[0.02] p-1">
+        {(
+          [
+            { id: "live", label: "پخش زنده", icon: Video },
+            { id: "board", label: "تخته", icon: Presentation },
+            { id: "chat", label: "گفتگو", icon: MessageSquare },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setSubTab(t.id)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-xs font-bold transition-colors ${
+              subTab === t.id
+                ? "bg-cyan-400/15 text-cyan-200"
+                : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            }`}
+          >
+            <t.icon className="size-4" />
+            {t.label}
+          </button>
+        ))}
+      </div>
 
+      {subTab === "live" && (
+        <LiveSection
+          broadcast={broadcast}
+          localVideoRef={localVideoRef}
+          isLive={isLive}
+          screenShare={screenShare}
+          setScreenShare={setScreenShare}
+          roomId={roomId}
+          screenStrokes={screenStrokes}
+          addStroke={addStroke}
+          clearStrokes={clearStrokes}
+        />
+      )}
+
+      {subTab === "board" && (
+        <BoardSection
+          isLive={isLive}
+          roomId={roomId}
+          strokes={boardStrokes}
+          boardBg={detail?.boardBg ?? "#0f172a"}
+          addStroke={addStroke}
+          clearStrokes={clearStrokes}
+          setBoardBg={setBoardBg}
+        />
+      )}
+
+      {subTab === "chat" && (
+        <>
       {/* Chat stream */}
       <Card className="border-white/5 bg-[#0b1a2a]">
         <CardContent className="max-h-[52vh] space-y-3 overflow-y-auto py-4">
@@ -744,7 +790,332 @@ function RoomView({
           </CardContent>
         </Card>
       )}
+        </>
+      )}
     </div>
+  );
+}
+
+// ── Live broadcast section: camera / mic / screen share + annotation ───────
+function LiveSection({
+  broadcast,
+  localVideoRef,
+  isLive,
+  screenShare,
+  setScreenShare,
+  roomId,
+  screenStrokes,
+  addStroke,
+  clearStrokes,
+}: {
+  broadcast: ReturnType<typeof useInstructorBroadcast>;
+  localVideoRef: React.RefObject<HTMLVideoElement | null>;
+  isLive: boolean;
+  screenShare: boolean;
+  setScreenShare: (v: boolean) => void;
+  roomId: string;
+  screenStrokes: StrokeRow[];
+  addStroke: (args: {
+    roomId: any;
+    layer: "board" | "screen";
+    tool: WbTool;
+    color: string;
+    size: number;
+    points: { x: number; y: number }[];
+  }) => void;
+  clearStrokes: (args: { roomId: any; layer: "board" | "screen" }) => void;
+}) {
+  const [annoTool, setAnnoTool] = useState<WbTool>("pen");
+  const [annoColor, setAnnoColor] = useState("#ef4444");
+
+  return (
+    <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+      <CardContent className="space-y-3 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-bold text-cyan-200">
+              <Video className="size-4" />
+              پخش زنده برای دانشجویان
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              {broadcast.status === "live"
+                ? screenShare
+                  ? "در حال اشتراک صفحه — روی تصویر بکشید تا نکات مهم را مشخص کنید."
+                  : "در حال پخش — دانشجویان صدای شما را می‌شنوند و تصویر را می‌بینند."
+                : "صدا، دوربین یا صفحهٔ خود را پخش کنید تا دانشجویان زنده ببینند."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {broadcast.status === "live" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-red-400/30 text-red-300 hover:bg-red-400/10"
+                onClick={() => void broadcast.stop()}
+              >
+                <Square className="size-3.5" />
+                پایان پخش
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => void broadcast.start(false)}
+                  disabled={broadcast.status === "starting"}
+                >
+                  {broadcast.status === "starting" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Mic className="size-3.5" />
+                  )}
+                  پخش صدا
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-cyan-400/30 text-cyan-200 hover:bg-cyan-400/10"
+                  onClick={() => void broadcast.start(true)}
+                  disabled={broadcast.status === "starting"}
+                >
+                  <Camera className="size-3.5" />
+                  صدا + دوربین
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-cyan-400/30 text-cyan-200 hover:bg-cyan-400/10"
+                  onClick={() => {
+                    setScreenShare(true);
+                    void broadcast.start(true, "screen");
+                  }}
+                  disabled={broadcast.status === "starting"}
+                >
+                  <MonitorPlay className="size-3.5" />
+                  اشتراک صفحه
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        {broadcast.error && (
+          <p className="rounded-md border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs text-red-300">
+            {broadcast.error}
+          </p>
+        )}
+        {(broadcast.status === "live" || broadcast.localStream) && (
+          <div className="relative w-full">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="aspect-video w-full rounded-lg border border-cyan-400/20 bg-black"
+            />
+            {screenShare && isLive && (
+              <>
+                <WhiteboardCanvas
+                  strokes={screenStrokes}
+                  bg="transparent"
+                  tool={annoTool}
+                  color={annoColor}
+                  size={TOOL_SIZES[annoTool]}
+                  onDraw={(s) =>
+                    void addStroke({ roomId: roomId as any, layer: "screen", ...s })
+                  }
+                  className="absolute inset-0 rounded-lg"
+                  minHeight={0}
+                  borderClass=""
+                />
+                <div className="absolute bottom-2 left-1/2 flex max-w-[94%] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full border border-white/10 bg-black/75 px-2 py-1.5 backdrop-blur">
+                  <button
+                    onClick={() => setAnnoTool("pen")}
+                    title="قلم"
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      annoTool === "pen" ? "bg-white/20 text-white" : "text-slate-300 hover:bg-white/10"
+                    }`}
+                  >
+                    <Brush className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setAnnoTool("highlighter")}
+                    title="هایلایت"
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      annoTool === "highlighter" ? "bg-white/20 text-yellow-300" : "text-slate-300 hover:bg-white/10"
+                    }`}
+                  >
+                    <Highlighter className="size-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setAnnoTool("eraser")}
+                    title="پاک‌کن"
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
+                      annoTool === "eraser" ? "bg-white/20 text-white" : "text-slate-300 hover:bg-white/10"
+                    }`}
+                  >
+                    <Eraser className="size-3.5" />
+                  </button>
+                  <span className="mx-1 h-4 w-px shrink-0 bg-white/15" />
+                  {ANNO_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setAnnoColor(c)}
+                      title={c}
+                      className={`size-5 shrink-0 rounded-full border transition-transform ${
+                        annoColor === c ? "scale-110 border-white" : "border-white/25 hover:scale-105"
+                      }`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                  <span className="mx-1 h-4 w-px shrink-0 bg-white/15" />
+                  <button
+                    onClick={() => void clearStrokes({ roomId: roomId as any, layer: "screen" })}
+                    title="پاک کردن همهٔ علامت‌ها"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-full text-red-300 transition-colors hover:bg-red-400/15"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Whiteboard section: instructor draws, students watch live ──────────────
+function BoardSection({
+  isLive,
+  roomId,
+  strokes,
+  boardBg,
+  addStroke,
+  clearStrokes,
+  setBoardBg,
+}: {
+  isLive: boolean;
+  roomId: string;
+  strokes: StrokeRow[];
+  boardBg: string;
+  addStroke: (args: {
+    roomId: any;
+    layer: "board" | "screen";
+    tool: WbTool;
+    color: string;
+    size: number;
+    points: { x: number; y: number }[];
+  }) => void;
+  clearStrokes: (args: { roomId: any; layer: "board" | "screen" }) => void;
+  setBoardBg: (args: { roomId: any; bg: string }) => void;
+}) {
+  const [penTool, setPenTool] = useState<WbTool>("pen");
+  const [penColor, setPenColor] = useState("#ffffff");
+
+  return (
+    <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+      <CardContent className="space-y-3 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-bold text-cyan-200">
+              <Presentation className="size-4" />
+              تختهٔ کلاس
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-400">
+              رنگ زمینه و نوشته را عوض کنید و آزادانه بکشید — دانشجویان همین لحظه می‌بینند.
+            </p>
+          </div>
+          {isLive && (
+            <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+              <button
+                onClick={() => setPenTool("pen")}
+                title="قلم"
+                className={`flex size-8 items-center justify-center rounded-md transition-colors ${
+                  penTool === "pen" ? "bg-cyan-400/20 text-cyan-200" : "text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                <Brush className="size-4" />
+              </button>
+              <button
+                onClick={() => setPenTool("highlighter")}
+                title="هایلایت"
+                className={`flex size-8 items-center justify-center rounded-md transition-colors ${
+                  penTool === "highlighter" ? "bg-yellow-400/20 text-yellow-300" : "text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                <Highlighter className="size-4" />
+              </button>
+              <button
+                onClick={() => setPenTool("eraser")}
+                title="پاک‌کن"
+                className={`flex size-8 items-center justify-center rounded-md transition-colors ${
+                  penTool === "eraser" ? "bg-white/15 text-white" : "text-slate-400 hover:bg-white/10"
+                }`}
+              >
+                <Eraser className="size-4" />
+              </button>
+              <span className="mx-1 h-4 w-px bg-white/10" />
+              <button
+                onClick={() => void clearStrokes({ roomId: roomId as any, layer: "board" })}
+                title="پاک کردن تخته"
+                className="flex size-8 items-center justify-center rounded-md text-red-300 transition-colors hover:bg-red-400/15"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {isLive && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400">زمینه:</span>
+              {BOARD_BGS.map((b) => (
+                <button
+                  key={b.value}
+                  title={b.label}
+                  onClick={() => void setBoardBg({ roomId: roomId as any, bg: b.value })}
+                  className={`size-6 rounded-full border transition-transform hover:scale-110 ${
+                    boardBg === b.value ? "border-cyan-300 ring-2 ring-cyan-400/40" : "border-white/20"
+                  }`}
+                  style={{ background: b.value }}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400">رنگ قلم:</span>
+              {PEN_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setPenColor(c)}
+                  title={c}
+                  className={`size-6 rounded-full border transition-transform hover:scale-110 ${
+                    penColor === c ? "scale-110 border-cyan-300 ring-2 ring-cyan-400/40" : "border-white/20"
+                  }`}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <WhiteboardCanvas
+          strokes={strokes}
+          bg={boardBg}
+          readOnly={!isLive}
+          tool={penTool}
+          color={penColor}
+          size={TOOL_SIZES[penTool]}
+          onDraw={(s) => void addStroke({ roomId: roomId as any, layer: "board", ...s })}
+          className="min-h-[320px]"
+        />
+        <p className="text-[11px] text-slate-500">
+          {isLive
+            ? "تخته به‌صورت زنده برای همهٔ دانشجویان داخل کلاس نمایش داده می‌شود."
+            : "کلاس پایان یافته — تخته به‌صورت فقط‌خواندنی نمایش داده می‌شود."}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

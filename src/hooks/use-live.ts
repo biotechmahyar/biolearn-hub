@@ -45,17 +45,23 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
   }, [endBroadcast]);
 
   const start = useCallback(
-    async (wantVideo: boolean) => {
+    async (wantVideo: boolean, kind: "camera" | "screen" = "camera") => {
       setError(null);
       setStatus("starting");
       try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error("مرورگر شما از صدا/تصویر پشتیبانی نمی‌کند.");
+        if (!navigator.mediaDevices) {
+          throw new Error("مرورگر شما از پخش زنده پشتیبانی نمی‌کند.");
         }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: wantVideo,
-        });
+        const stream =
+          kind === "screen"
+            ? await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true,
+              })
+            : await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: wantVideo,
+              });
         streamRef.current = stream;
         setLocalStream(stream);
 
@@ -75,7 +81,7 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
 
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        await startBroadcast({ roomId: roomIdRef.current as any });
+        await startBroadcast({ roomId: roomIdRef.current as any, kind });
         await sendSignal({
           roomId: roomIdRef.current as any,
           type: "offer",

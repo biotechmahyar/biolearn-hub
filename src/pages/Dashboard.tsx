@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { WhiteboardCanvas } from "@/components/site/WhiteboardCanvas";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useStudentReceiver } from "@/hooks/use-live";
@@ -32,6 +33,7 @@ import {
   Mic,
   Paperclip,
   Plus,
+  Presentation,
   Radio,
   Send,
   Sparkles,
@@ -1043,6 +1045,16 @@ function LiveRoomView({
   const sendMessage = useMutation(api.collab.sendMessage);
   const getUploadUrl = useMutation(api.collab.getUploadUrl);
 
+  // Instructor's whiteboard + screen-share annotations (read-only for students).
+  const boardStrokes = useQuery(api.collab.listStrokes, {
+    roomId: roomId as any,
+    layer: "board",
+  }) ?? [];
+  const screenStrokes = useQuery(api.collab.listStrokes, {
+    roomId: roomId as any,
+    layer: "screen",
+  }) ?? [];
+
   // Watch the instructor's live broadcast.
   const receiver = useStudentReceiver(roomId, room?.instructorId, user?._id);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1180,19 +1192,36 @@ function LiveRoomView({
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-60" />
                   <span className="relative inline-flex size-2 rounded-full bg-red-500" />
                 </span>
-                پخش زندهٔ استاد
+                {detail?.broadcastKind === "screen" ? "اشتراک صفحهٔ استاد" : "پخش زندهٔ استاد"}
               </p>
               <span className="font-mono text-[10px] text-muted-foreground">
                 {receiver.status === "live" ? "متصل" : "در حال اتصال…"}
               </span>
             </div>
             {receiver.remoteStream ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="aspect-video w-full rounded-lg border border-white/10 bg-black"
-              />
+              <div className="relative w-full">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  className="aspect-video w-full rounded-lg border border-white/10 bg-black"
+                />
+                {detail?.broadcastKind === "screen" && (
+                  <WhiteboardCanvas
+                    strokes={screenStrokes}
+                    bg="transparent"
+                    readOnly
+                    className="absolute inset-0 rounded-lg"
+                    minHeight={0}
+                    borderClass=""
+                  />
+                )}
+                {detail?.broadcastKind === "screen" && screenStrokes.length > 0 && (
+                  <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2.5 py-1 text-[10px] font-bold text-yellow-300 backdrop-blur">
+                    ✏️ علامت‌های استاد روی صفحه
+                  </span>
+                )}
+              </div>
             ) : (
               <div className="flex aspect-video w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 bg-muted/30">
                 {receiver.error ? (
@@ -1210,6 +1239,27 @@ function LiveRoomView({
                 )}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Instructor's whiteboard — students watch it live */}
+      {detail?.status === "live" && (
+        <Card className="border-primary/20">
+          <CardContent className="space-y-2 py-4">
+            <p className="flex items-center gap-2 text-sm font-bold">
+              <Presentation className="size-4 text-primary" />
+              تختهٔ کلاس
+              <span className="font-mono text-[10px] font-normal text-muted-foreground">
+                زنده · استاد می‌کشد
+              </span>
+            </p>
+            <WhiteboardCanvas
+              strokes={boardStrokes}
+              bg={detail?.boardBg ?? "#0f172a"}
+              readOnly
+              className="min-h-[240px]"
+            />
           </CardContent>
         </Card>
       )}
