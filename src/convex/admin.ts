@@ -1,6 +1,21 @@
 import { v } from "convex/values";
+import { Scrypt } from "lucia";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getCurrentUser } from "./users";
+
+const ROLES = [
+  "user",
+  "member",
+  "instructor",
+  "mentor",
+  "content_manager",
+  "support",
+  "admin",
+] as const;
+
+type Role = (typeof ROLES)[number];
+
+const isRole = (r: string): r is Role => (ROLES as readonly string[]).includes(r);
 
 export const isAdmin = async (ctx: QueryCtx) => {
   const user = await getCurrentUser(ctx);
@@ -133,7 +148,90 @@ export const adminSetRole = mutation({
   args: { userId: v.id("users"), role: v.string() },
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
-    await ctx.db.patch(args.userId, { role: args.role as any });
+    if (!isRole(args.role)) throw new Error("نقش نامعتبر است.");
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("کاربر یافت نشد.");
+    await ctx.db.patch(args.userId, { role: args.role });
+    // Keep the admins allow-list in sync with the role.
+    if (user.email) {
+      const row = await ctx.db
+        .query("admins")
+        .withIndex("by_email", (q) => q.eq("email", user.email!))
+        .first();
+      if (args.role === "admin" && !row) {
+        await ctx.db.insert("admins", { email: user.email });
+      } else if (args.role !== "admin" && row) {
+        await ctx.db.delete(row._id);
+      }
+    }
+    return { ok: true };
+  },
+});
+
+// Creates a full login account (email + password) for a user, so they can
+// sign in directly without an OTP code. Roles control access levels.
+export const adminCreateUser = mutation({
+  args: {
+    name: v.string(),
+    email: v.string(),
+    password: v.string(),
+    role: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const email = args.email.trim().toLowerCase();
+    if (!email.includes("@")) throw new Error("ایمیل نامعتبر است.");
+    if (args.password.length < 4) throw new Error("رمز عبور باید حداقل ۴ کاراکتر باشد.");
+    if (!isRole(args.role)) throw new Error("نقش نامعتبر است.");
+    const existing = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", email),
+      )
+      .first();
+    if (existing) throw new Error("حسابی با این ایمیل از قبل وجود دارد.");
+    const secret = await new Scrypt().hash(args.password);
+    const userId = await ctx.db.insert("users", {
+      name: args.name.trim() || undefined,
+      email,
+      role: args.role,
+    });
+    await ctx.db.insert("authAccounts", {
+      userId,
+      provider: "password",
+      providerAccountId: email,
+      secret,
+    });
+    if (args.role === "admin") {
+      const row = await ctx.db
+        .query("admins")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .first();
+      if (!row) await ctx.db.insert("admins", { email });
+    }
+    return { ok: true, userId };
+  },
+});
+
+// Resets the password of a user that already has a password account.
+export const adminSetPassword = mutation({
+  args: { userId: v.id("users"), password: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (args.password.length < 4) throw new Error("رمز عبور باید حداقل ۴ کاراکتر باشد.");
+    const user = await ctx.db.get(args.userId);
+    if (!user?.email) throw new Error("کاربر یا ایمیل یافت نشد.");
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", user.email!),
+      )
+      .first();
+    if (!account) {
+      throw new Error("این کاربر حساب رمزعبوری ندارد؛ ابتدا یک حساب بسازید.");
+    }
+    const secret = await new Scrypt().hash(args.password);
+    await ctx.db.patch(account._id, { secret });
     return { ok: true };
   },
 });

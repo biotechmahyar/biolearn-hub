@@ -555,11 +555,74 @@ function AdminExams() {
 }
 
 // ── Users ───────────────────────────────────────────────────────────────────
+const ROLE_LABELS: Record<string, string> = {
+  user: "دانشجو",
+  member: "عضو",
+  instructor: "استاد",
+  mentor: "منتور",
+  content_manager: "مدیر محتوا",
+  support: "پشتیبانی",
+  admin: "ادمین",
+};
+
 function AdminUsers() {
   const users = useQuery(api.admin.adminGetUsers);
   const setRole = useMutation(api.admin.adminSetRole);
+  const createUser = useMutation(api.admin.adminCreateUser);
+  const setPassword = useMutation(api.admin.adminSetPassword);
   const [emails, setEmails] = useState("");
   const addAdmin = useMutation(api.admin.adminAddAdmin);
+
+  // create-account form
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "user" });
+  const [formErr, setFormErr] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<string | null>(null);
+
+  // reset-password dialog
+  const [resetUser, setResetUser] = useState<{ _id: string; name: string | null } | null>(null);
+  const [resetPass, setResetPass] = useState("");
+  const [resetErr, setResetErr] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  const handleCreate = async () => {
+    setFormErr(null);
+    setCreated(null);
+    if (!form.email.trim() || !form.password) {
+      setFormErr("ایمیل و رمز عبور لازم است.");
+      return;
+    }
+    setCreating(true);
+    try {
+      await createUser({
+        name: form.name,
+        email: form.email.trim(),
+        password: form.password,
+        role: form.role,
+      });
+      setCreated(form.email.trim());
+      setForm({ name: "", email: "", password: "", role: "user" });
+    } catch (e) {
+      setFormErr(e instanceof Error ? e.message : "خطا در ساخت حساب.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!resetUser) return;
+    setResetErr(null);
+    setResetting(true);
+    try {
+      await setPassword({ userId: resetUser._id as any, password: resetPass });
+      setResetPass("");
+      setResetUser(null);
+    } catch (e) {
+      setResetErr(e instanceof Error ? e.message : "خطا در تغییر رمز.");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -567,6 +630,49 @@ function AdminUsers() {
         <h1 className="text-2xl font-extrabold">کاربران</h1>
         <p className="mt-1 text-sm text-muted-foreground">{faNum(users?.length ?? 0)} کاربر</p>
       </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">ساخت حساب کاربری جدید</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">نام</p>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="مثلاً سارا محمدی" />
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">ایمیل (رمز ورود کاربر)</p>
+              <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="name@genova.team" dir="ltr" className="text-left" />
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">رمز عبور اولیه</p>
+              <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="حداقل ۴ کاراکتر" dir="ltr" className="text-left" type="password" />
+            </div>
+            <div>
+              <p className="mb-1.5 text-xs font-medium text-muted-foreground">نقش / سطح دسترسی</p>
+              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {formErr && <p className="text-sm text-destructive">{formErr}</p>}
+          {created && (
+            <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-sm text-emerald-500">
+              حساب <span dir="ltr" className="font-mono">{created}</span> ساخته شد؛ با همین ایمیل و رمز عبور وارد می‌شود.
+            </p>
+          )}
+          <Button className="rounded-full" onClick={handleCreate} disabled={creating}>
+            {creating ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Plus className="ml-1.5 size-4" />}
+            ساخت حساب
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="border-border/70 shadow-sm">
         <CardContent className="flex flex-col gap-2 p-4 sm:flex-row">
@@ -586,6 +692,7 @@ function AdminUsers() {
                 <TableHead>نام</TableHead>
                 <TableHead>ایمیل</TableHead>
                 <TableHead>نقش</TableHead>
+                <TableHead>رمز</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -598,10 +705,24 @@ function AdminUsers() {
                       <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {ROLES.map((r) => (
-                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                          <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    {u.email ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-full text-xs"
+                        onClick={() => { setResetUser({ _id: u._id, name: u.name }); setResetPass(""); setResetErr(null); }}
+                      >
+                        تغییر رمز
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -609,6 +730,31 @@ function AdminUsers() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={resetUser !== null} onOpenChange={(o) => { if (!o) setResetUser(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>تغییر رمز عبور</DialogTitle>
+            <DialogDescription>
+              رمز جدید برای {resetUser?.name ?? "کاربر"} را وارد کن.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={resetPass}
+              onChange={(e) => setResetPass(e.target.value)}
+              placeholder="رمز جدید (حداقل ۴ کاراکتر)"
+              type="password"
+              dir="ltr"
+            />
+            {resetErr && <p className="text-sm text-destructive">{resetErr}</p>}
+            <Button className="w-full rounded-full" onClick={handleReset} disabled={resetting || resetPass.length < 4}>
+              {resetting ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              ذخیره رمز جدید
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

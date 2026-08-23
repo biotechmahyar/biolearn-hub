@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/input-otp";
 import { BrandMark } from "@/components/site/BrandLogo";
 import { useAuth } from "@/hooks/use-auth";
-import { ArrowLeft, Dna, Loader2, Mail, Send, UserX } from "lucide-react";
+import { ArrowLeft, Dna, KeyRound, Loader2, Mail, Send, UserX } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
@@ -42,6 +42,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     redirectAfterAuth,
   );
   const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
+  const [mode, setMode] = useState<"otp" | "password">("otp");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +82,23 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       setError("کد واردشده صحیح نیست. دوباره بررسی کنید.");
       setIsLoading(false);
       setOtp("");
+    }
+  };
+
+  const handlePasswordLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData(event.currentTarget);
+      const res = await signIn("password", formData);
+      if (res.signingIn) {
+        navigate(redirect);
+      }
+    } catch (error) {
+      console.error("Password sign-in error:", error);
+      setError("ورود ناموفق بود. ایمیل یا رمز عبور را بررسی کنید.");
+      setIsLoading(false);
     }
   };
 
@@ -144,69 +162,149 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
               <>
                 <CardHeader className="text-center">
                   <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Mail className="size-5" />
+                    {mode === "otp" ? <Mail className="size-5" /> : <KeyRound className="size-5" />}
                   </div>
                   <CardTitle className="text-xl">ورود یا ساخت حساب</CardTitle>
                   <CardDescription>
-                    ایمیلت را وارد کن؛ کد تأیید برایت ارسال می‌شود.
+                    {mode === "otp"
+                      ? "ایمیلت را وارد کن؛ کد تأیید برایت ارسال می‌شود."
+                      : "با ایمیل و رمز عبور وارد شو (حساب‌های تیم)."}
                   </CardDescription>
                 </CardHeader>
-                <form onSubmit={handleEmailSubmit}>
-                  <CardContent>
-                    <div className="relative flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <Mail className="absolute right-3 top-3 size-4 text-muted-foreground" />
-                        <Input
-                          name="email"
-                          placeholder="name@example.com"
-                          type="email"
-                          dir="ltr"
-                          className="pr-10 text-left"
+                <CardContent className="pb-2">
+                  <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
+                    <button
+                      type="button"
+                      onClick={() => setMode("otp")}
+                      className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                        mode === "otp"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      کد یک‌بارمصرف
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("password")}
+                      className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                        mode === "password"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      رمز عبور
+                    </button>
+                  </div>
+
+                  {mode === "password" ? (
+                    <form onSubmit={handlePasswordLogin}>
+                      <div className="space-y-3">
+                        <div className="relative">
+                          <Mail className="absolute right-3 top-3 size-4 text-muted-foreground" />
+                          <Input
+                            name="email"
+                            placeholder="name@genova.team"
+                            type="email"
+                            dir="ltr"
+                            className="pr-10 text-left"
+                            disabled={isLoading}
+                            required
+                          />
+                        </div>
+                        <div className="relative">
+                          <KeyRound className="absolute right-3 top-3 size-4 text-muted-foreground" />
+                          <Input
+                            name="password"
+                            placeholder="رمز عبور"
+                            type="password"
+                            className="pr-10"
+                            disabled={isLoading}
+                            required
+                          />
+                        </div>
+                        <input type="hidden" name="flow" value="signIn" />
+                        {error && (
+                          <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                            {error}
+                          </p>
+                        )}
+                        <Button type="submit" className="w-full" disabled={isLoading}>
+                          {isLoading ? (
+                            <>
+                              <Loader2 className="ml-2 size-4 animate-spin" />
+                              در حال ورود...
+                            </>
+                          ) : (
+                            <>
+                              ورود با رمز عبور
+                              <ArrowLeft className="mr-2 size-4" />
+                            </>
+                          )}
+                        </Button>
+                        <p className="text-center text-xs leading-5 text-muted-foreground">
+                          حساب تیم توسط ادمین ساخته می‌شود؛ رمز فراموش‌شده را می‌توانی از
+                          ادمین بخواهی دوباره تنظیم کند.
+                        </p>
+                      </div>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleEmailSubmit}>
+                      <div className="relative flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Mail className="absolute right-3 top-3 size-4 text-muted-foreground" />
+                          <Input
+                            name="email"
+                            placeholder="name@example.com"
+                            type="email"
+                            dir="ltr"
+                            className="pr-10 text-left"
+                            disabled={isLoading}
+                            required
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          size="icon"
                           disabled={isLoading}
-                          required
-                        />
+                        >
+                          {isLoading ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <ArrowLeft className="size-4" />
+                          )}
+                        </Button>
+                      </div>
+                      {error && (
+                        <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                          {error}
+                        </p>
+                      )}
+                      <div className="my-5">
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                          </div>
+                          <div className="relative flex justify-center text-xs">
+                            <span className="bg-background px-2 text-muted-foreground">
+                              یا
+                            </span>
+                          </div>
+                        </div>
                       </div>
                       <Button
-                        type="submit"
-                        size="icon"
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        onClick={handleGuestLogin}
                         disabled={isLoading}
                       >
-                        {isLoading ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <ArrowLeft className="size-4" />
-                        )}
+                        <UserX className="ml-2 size-4" />
+                        ادامه به‌عنوان مهمان
                       </Button>
-                    </div>
-                    {error && (
-                      <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                        {error}
-                      </p>
-                    )}
-                    <div className="my-5">
-                      <div className="relative">
-                        <div className="absolute inset-0 flex items-center">
-                          <span className="w-full border-t" />
-                        </div>
-                        <div className="relative flex justify-center text-xs">
-                          <span className="bg-background px-2 text-muted-foreground">
-                            یا
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={handleGuestLogin}
-                      disabled={isLoading}
-                    >
-                      <UserX className="ml-2 size-4" />
-                      ادامه به‌عنوان مهمان
-                    </Button>
-                  </CardContent>
-                </form>
+                    </form>
+                  )}
+                </CardContent>
               </>
             ) : (
               <>

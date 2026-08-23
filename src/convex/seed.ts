@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { Scrypt } from "lucia";
 import { mutation } from "./_generated/server";
 import { api } from "./_generated/api";
 
@@ -77,6 +78,56 @@ export const refreshBrand = mutation({
       if (code !== c.code) await ctx.db.patch(c._id, { code });
     }
     return { ok: true };
+  },
+});
+
+// Creates the built-in admin account (admin@gmail.com / admin) with a
+// password-hashed auth account, so the team can sign in without an OTP code.
+// Idempotent: safe to call on every load.
+export const ensureAdmin = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const email = "admin@gmail.com";
+    const existingAccount = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", email),
+      )
+      .first();
+    if (existingAccount) {
+      // make sure the linked user still has admin role + admins entry
+      const user = await ctx.db.get(existingAccount.userId as any);
+      if (user) {
+        if (user.role !== "admin") await ctx.db.patch(user._id as any, { role: "admin" });
+        if (!user.email) await ctx.db.patch(user._id as any, { email });
+      }
+      const adminRow = await ctx.db
+        .query("admins")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .first();
+      if (!adminRow) await ctx.db.insert("admins", { email });
+      return { ok: true, created: false };
+    }
+
+    const secret = await new Scrypt().hash("admin");
+
+    const userId = await ctx.db.insert("users", {
+      name: "مدیر سامانه",
+      email,
+      role: "admin",
+    });
+    await ctx.db.insert("authAccounts", {
+      userId: userId as any,
+      provider: "password",
+      providerAccountId: email,
+      secret,
+    });
+    const adminRow = await ctx.db
+      .query("admins")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+    if (!adminRow) await ctx.db.insert("admins", { email });
+    return { ok: true, created: true };
   },
 });
 
