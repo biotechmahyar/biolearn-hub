@@ -6,7 +6,7 @@ import { isAdmin } from "./admin";
 // ── Role helpers ────────────────────────────────────────────────────────────
 const isMentor = async (ctx: any) => {
   const user = await getCurrentUser(ctx);
-  return !!user && (user.role === "mentor" || user.role === "admin");
+  return !!user && (user.role === "mentor" || user.role === "admin" || user.role === "site_admin");
 };
 
 // ── Student questions for mentors ───────────────────────────────────────────
@@ -33,7 +33,7 @@ export const listMentorQuestions = query({
     const user = await getCurrentUser(ctx);
     if (!user) return [];
     // Mentors see everything; students only their own.
-    if (user.role === "mentor" || user.role === "admin") {
+    if (user.role === "mentor" || user.role === "admin" || user.role === "site_admin") {
       return await ctx.db.query("mentorQuestions").order("desc").take(200);
     }
     return await ctx.db
@@ -96,7 +96,7 @@ export const listSessions = query({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
     if (!user) return [];
-    if (user.role === "mentor" || user.role === "admin") {
+    if (user.role === "mentor" || user.role === "admin" || user.role === "site_admin") {
       const sessions = await ctx.db.query("mentorSessions").order("desc").take(100);
       return Promise.all(
         sessions.map(async (s) => {

@@ -124,7 +124,7 @@ export const getAttempt = query({
     const attempt = await ctx.db.get(args.attemptId);
     if (!attempt) return null;
     const user = await getCurrentUser(ctx);
-    if (!user || (attempt.userId !== user._id && !(user.role === "admin"))) {
+    if (!user || (attempt.userId !== user._id && !(user.role === "admin" || user.role === "site_admin"))) {
       return null;
     }
     const exam = await ctx.db.get(attempt.examId);

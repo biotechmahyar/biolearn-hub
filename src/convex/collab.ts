@@ -11,7 +11,7 @@ async function getRole(ctx: any): Promise<string | null> {
 }
 
 const isInstructor = async (ctx: any) => (await getRole(ctx)) === "instructor";
-const isAdmin = async (ctx: any) => (await getRole(ctx)) === "admin";
+const isAdmin = async (ctx: any) => { const r = await getRole(ctx); return r === "admin" || r === "site_admin"; };
 
 // ── Presence ────────────────────────────────────────────────────────────────
 // Client calls this on an interval (heartbeat) to mark itself online.
