@@ -1,5 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { CategoryField } from "@/components/site/CategoryField";
+import { ClassTimer } from "@/components/site/ClassTimer";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
@@ -312,8 +313,11 @@ function RoomsView({
                 <CircleDot className="size-2.5 animate-pulse" />
                 LIVE
               </span>
-              <span className="font-mono text-[10px] text-slate-500">
-                {room.messageCount} پیام
+              <span className="flex items-center gap-2">
+                <ClassTimer startMs={room.createdAt} running={room.status === "live"} />
+                <span className="font-mono text-[10px] text-slate-500">
+                  {room.messageCount} پیام
+                </span>
               </span>
             </div>
             <h3 className="mt-3 break-words font-bold text-white group-hover:text-cyan-200">{room.title}</h3>
@@ -564,6 +568,7 @@ function RoomView({
                   LIVE
                 </span>
               )}
+              {isLive && <ClassTimer startMs={detail?.createdAt} running />}
             </div>
             <p className="text-xs text-slate-400">
               {room?.topic ?? detail?.topic} ·{" "}

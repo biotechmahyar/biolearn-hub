@@ -1,3 +1,4 @@
+import { ClassTimer } from "@/components/site/ClassTimer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1028,8 +1029,11 @@ function LiveTab() {
                   <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
                   LIVE
                 </span>
-                <span className="font-mono text-[10px] text-muted-foreground">
-                  {room.messageCount} پیام
+                <span className="flex items-center gap-2">
+                  <ClassTimer startMs={room.createdAt} running />
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {room.messageCount} پیام
+                  </span>
                 </span>
               </div>
               <h3 className="mt-3 font-bold group-hover:text-primary">{room.title}</h3>
@@ -1194,6 +1198,7 @@ function LiveRoomView({
                   LIVE
                 </span>
               )}
+              {detail?.status === "live" && <ClassTimer startMs={detail?.createdAt} running />}
             </div>
             <p className="text-xs text-muted-foreground">
               مدرس: {room?.instructorName ?? detail?.instructorName}
