@@ -9,10 +9,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
+import { uploadBlob } from "@/lib/upload";
 import { faNum, formatPrice } from "@/lib/format";
 import { useMutation, useQuery } from "convex/react";
-import { BadgeCheck, Loader2, ShieldCheck, Tag, X } from "lucide-react";
-import { useState } from "react";
+import { BadgeCheck, FileUp, Loader2, Receipt, ShieldCheck, Tag, X } from "lucide-react";
+import { useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 export type CheckoutItem = {
@@ -26,6 +27,7 @@ export function CheckoutDialog({
   open,
   onOpenChange,
   items,
+  bundleTier,
   successTitle = "خرید شما ثبت شد",
   successDescription = "دسترسی شما فعال شد؛ از پنل دانشجویی ادامه دهید.",
   onSuccess,
@@ -33,6 +35,7 @@ export function CheckoutDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   items: CheckoutItem[];
+  bundleTier?: string;
   successTitle?: string;
   successDescription?: string;
   onSuccess?: (invoice: string) => void;
@@ -41,12 +44,19 @@ export function CheckoutDialog({
   const navigate = useNavigate();
   const location = useLocation();
   const purchase = useMutation(api.enroll.purchase);
+  const submitOffline = useMutation(api.offlinePayments.submitOfflinePayment);
+  const getUploadUrl = useMutation(api.upload.getUploadUrl);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [coupon, setCoupon] = useState("");
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [payMethod, setPayMethod] = useState<"online" | "offline">("online");
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [offlineLoading, setOfflineLoading] = useState(false);
 
   // Validate against the actual coupons table so admin-created codes work.
   const couponInfo = useQuery(
@@ -102,6 +112,9 @@ export function CheckoutDialog({
     setCoupon("");
     setAppliedCode(null);
     setError(null);
+    setTrackingNumber("");
+    setReceiptFile(null);
+    setPayMethod("online");
     onOpenChange(false);
   };
 
@@ -139,7 +152,7 @@ export function CheckoutDialog({
                 تکمیل خرید
               </DialogTitle>
               <DialogDescription>
-                پرداخت در نسخهٔ اول به‌صورت آزمایشی ثبت می‌شود؛ درگاه رسمی به‌زودی متصل می‌شود.
+                پرداخت آنلاین یا آفلاین با بارگذاری فیش واریزی.
               </DialogDescription>
             </DialogHeader>
 
@@ -192,21 +205,61 @@ export function CheckoutDialog({
             {couponError && <p className="text-xs text-destructive">{couponError}</p>}
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <Button className="w-full" size="lg" onClick={handleSubmit} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="ml-2 size-4 animate-spin" />
-                  در حال ثبت...
-                </>
-              ) : isAuthenticated ? (
-                isFree ? "ثبت‌نام رایگان" : `پرداخت ${formatPrice(total)}`
-              ) : (
-                "برای ادامه وارد شوید"
-              )}
-            </Button>
+            {/* Payment method toggle */}
+            {!isFree && (
+              <div className="flex gap-1 rounded-lg bg-muted p-1">
+                <button type="button" onClick={() => setPayMethod("online")} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${payMethod === "online" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                  <span className="flex items-center justify-center gap-1.5"><ShieldCheck className="size-3.5" /> پرداخت آنلاین</span>
+                </button>
+                <button type="button" onClick={() => setPayMethod("offline")} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${payMethod === "offline" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                  <span className="flex items-center justify-center gap-1.5"><Receipt className="size-3.5" /> پرداخت آفلاین</span>
+                </button>
+              </div>
+            )}
+
+            {payMethod === "online" ? (
+              <Button className="w-full" size="lg" onClick={handleSubmit} disabled={loading}>
+                {loading ? (<><Loader2 className="ml-2 size-4 animate-spin" /> در حال ثبت...</>) : isAuthenticated ? (isFree ? "ثبت‌نام رایگان" : `پرداخت ${formatPrice(total)}`) : "برای ادامه وارد شوید"}
+              </Button>
+            ) : (
+              <div className="space-y-2.5">
+                <p className="text-xs text-muted-foreground">فیش واریزی و شماره رهگیری خود را ارسال کنید. پس از تأیید مدیر سایت، دسترسی دوره فعال می‌شود.</p>
+                <Input placeholder="شماره رهگیری / پیگیری فیش" value={trackingNumber} onChange={(e) => setTrackingNumber(e.target.value)} className="font-mono" dir="ltr" />
+                <div>
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} />
+                  <Button type="button" variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>
+                    <FileUp className="ml-2 size-4" />
+                    {receiptFile ? receiptFile.name : "انتخاب تصویر فیش"}
+                  </Button>
+                </div>
+                <Button className="w-full" size="lg" onClick={async () => {
+                  if (!trackingNumber.trim()) { setError("شماره رهگیری لازم است."); return; }
+                  if (!receiptFile) { setError("تصویر فیش لازم است."); return; }
+                  if (!isAuthenticated) { handleStart(); return; }
+                  setOfflineLoading(true); setError(null);
+                  try {
+                    const url = await getUploadUrl();
+                    const storageId = await uploadBlob(url, receiptFile);
+                    const courseItem = items.find((i) => i.type === "course");
+                    await submitOffline({
+                      courseId: (courseItem?.refId ?? items[0].refId) as any,
+                      tier: bundleTier ?? "basic",
+                      amount: total,
+                      trackingNumber: trackingNumber.trim(),
+                      receiptStorageId: storageId,
+                    });
+                    setDone(`OFF-${Date.now().toString(36).toUpperCase()}`);
+                    onSuccess?.("");
+                  } catch (e) { setError(e instanceof Error ? e.message : "خطا"); }
+                  finally { setOfflineLoading(false); }
+                }} disabled={offlineLoading}>
+                  {offlineLoading ? (<><Loader2 className="ml-2 size-4 animate-spin" /> در حال ارسال...</>) : "ارسال فیش و ثبت درخواست"}
+                </Button>
+              </div>
+            )}
             <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
               <X className="size-3.5" />
-              درگاه پرداخت رسمی و فاکتور مالیاتی در فاز بعدی
+              بازگشت وجه تا ۷ روز · دسترسی فوری پس از تأیید
             </p>
           </>
         )}

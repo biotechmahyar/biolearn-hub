@@ -112,6 +112,32 @@ export const createDraftCourse = mutation({
     price: v.number(),
     mode: v.string(),
     durationText: v.string(),
+    audience: v.optional(v.array(v.string())),
+    prerequisites: v.optional(v.array(v.string())),
+    syllabus: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          title: v.string(),
+          durationMin: v.number(),
+          free: v.boolean(),
+        }),
+      ),
+    ),
+    packagePrices: v.optional(
+      v.array(
+        v.object({
+          tier: v.union(
+            v.literal("economy"),
+            v.literal("basic"),
+            v.literal("plus"),
+            v.literal("premium"),
+          ),
+          price: v.number(),
+          features: v.array(v.string()),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -133,9 +159,9 @@ export const createDraftCourse = mutation({
       instructorId,
       summary: args.summary.trim(),
       description: args.description.trim() || args.summary.trim(),
-      audience: [],
-      prerequisites: [],
-      syllabus: [],
+      audience: args.audience ?? [],
+      prerequisites: args.prerequisites ?? [],
+      syllabus: args.syllabus ?? [],
       durationText: args.durationText.trim() || "به‌زودی",
       mode: args.mode as any,
       price: args.price,
@@ -151,6 +177,7 @@ export const createDraftCourse = mutation({
       featured: false,
       popular: false,
       createdAt: Date.now(),
+      packagePrices: args.packagePrices ?? undefined,
       authorId: user._id,
       status: "draft",
     });
@@ -168,6 +195,32 @@ export const updateDraftCourse = mutation({
     price: v.number(),
     mode: v.string(),
     durationText: v.string(),
+    audience: v.optional(v.array(v.string())),
+    prerequisites: v.optional(v.array(v.string())),
+    syllabus: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          title: v.string(),
+          durationMin: v.number(),
+          free: v.boolean(),
+        }),
+      ),
+    ),
+    packagePrices: v.optional(
+      v.array(
+        v.object({
+          tier: v.union(
+            v.literal("economy"),
+            v.literal("basic"),
+            v.literal("plus"),
+            v.literal("premium"),
+          ),
+          price: v.number(),
+          features: v.array(v.string()),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -186,6 +239,10 @@ export const updateDraftCourse = mutation({
       price: args.price,
       mode: args.mode as any,
       durationText: args.durationText.trim() || "به‌زودی",
+      audience: args.audience ?? course.audience,
+      prerequisites: args.prerequisites ?? course.prerequisites,
+      syllabus: args.syllabus ?? course.syllabus,
+      packagePrices: args.packagePrices ?? course.packagePrices,
       status: course.published ? course.status : "draft",
       reviewNote: undefined,
     });

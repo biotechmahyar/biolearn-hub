@@ -63,6 +63,7 @@ import {
   Package,
   Pencil,
   Plus,
+  Receipt,
   Repeat,
   Send,
   ShieldCheck,
@@ -115,6 +116,7 @@ type Section =
   | "profiles"
   | "inbox"
   | "examReports"
+  | "offlinePayments"
   | "myprofile";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
@@ -127,6 +129,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "inbox", label: "صندوق ورودی", icon: Inbox },
       { key: "examReports", label: "گزارش‌های خطای آزمون", icon: Flag },
       { key: "orders", label: "سفارش‌ها", icon: CreditCard },
+      { key: "offlinePayments", label: "پرداخت‌های آفلاین", icon: Receipt },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
@@ -551,6 +554,7 @@ export default function Admin() {
             {section === "instructors" && <AdminInstructors />}
             {section === "myprofile" && <AdminMyProfile />}
             {section === "examReports" && <AdminExamReports />}
+            {section === "offlinePayments" && <AdminOfflinePayments />}
             {section === "users" && <AdminUsers />}
             {section === "orders" && <AdminOrders />}
             {section === "coupons" && <AdminCoupons />}
@@ -2714,6 +2718,108 @@ function AdminExamReports() {
                 <TableRow>
                   <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
                     هنوز گزارشی ثبت نشده است.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+// ── Offline payments ──────────────────────────────────────────────────────
+function AdminOfflinePayments() {
+  const payments = useQuery(api.offlinePayments.listOfflinePayments) ?? [];
+  const approve = useMutation(api.offlinePayments.approveOfflinePayment);
+  const reject = useMutation(api.offlinePayments.rejectOfflinePayment);
+  const remove = useMutation(api.offlinePayments.deleteOfflinePayment);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const TIER: Record<string, string> = { economy: "اقتصادی", basic: "پایه", plus: "پلاس", premium: "پرمیوم" };
+  const STATUS: Record<string, { label: string; cls: string }> = {
+    pending: { label: "در انتظار", cls: "border-amber-400/20 bg-amber-400/10 text-amber-300" },
+    approved: { label: "تأیید شده", cls: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" },
+    rejected: { label: "رد شده", cls: "border-red-400/20 bg-red-400/10 text-red-300" },
+  };
+
+  const handleApprove = async (id: string) => {
+    setProcessingId(id);
+    try { await approve({ paymentId: id as any }); toast.success("پرداخت تأیید شد"); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+    finally { setProcessingId(null); }
+  };
+
+  const handleReject = async (id: string) => {
+    setProcessingId(id);
+    try { await reject({ paymentId: id as any, note: "" }); toast.success("پرداخت رد شد"); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+    finally { setProcessingId(null); }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-bold">پرداخت‌های آفلاین</h2>
+      <Card className="border-white/5 bg-[#0b1a2a]">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>دانشجو</TableHead>
+                <TableHead>دوره</TableHead>
+                <TableHead>پکیج</TableHead>
+                <TableHead>مبلغ</TableHead>
+                <TableHead>رهگیری</TableHead>
+                <TableHead>فیش</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {payments.map((p) => {
+                const st = STATUS[p.status] ?? STATUS.pending;
+                return (
+                  <TableRow key={p._id}>
+                    <TableCell>
+                      <div>
+                        <p className="text-sm font-medium text-white">{p.userName}</p>
+                        <p className="text-[11px] text-slate-500">{p.userEmail}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-300">{p.courseTitle}</TableCell>
+                    <TableCell className="text-xs text-slate-400">{TIER[p.tier] ?? p.tier}</TableCell>
+                    <TableCell className="text-sm font-mono text-white">{formatPrice(p.amount)}</TableCell>
+                    <TableCell className="font-mono text-xs text-slate-400" dir="ltr">{p.trackingNumber}</TableCell>
+                    <TableCell>
+                      <span className="text-xs text-cyan-400">{p.receiptStorageId ? "فیش آپلود شده" : "—"}</span>
+                    </TableCell>
+                    <TableCell><span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${st.cls}`}>{st.label}</span></TableCell>
+                    <TableCell className="text-left">
+                      {p.status === "pending" && (
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10" disabled={processingId === p._id} onClick={() => void handleApprove(p._id)}>
+                            <CheckCircle2 className="size-3" /> تأیید
+                          </Button>
+                          <Button size="sm" variant="outline" className="border-red-500/30 text-red-400 hover:bg-red-500/10" disabled={processingId === p._id} onClick={() => void handleReject(p._id)}>
+                            رد
+                          </Button>
+                        </div>
+                      )}
+                      {p.status !== "pending" && (
+                        <Button size="sm" variant="ghost" className="text-slate-500 hover:text-red-400" onClick={() => void remove({ paymentId: p._id })}>
+                          <Trash2 className="size-3" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {payments.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                    پرداخت آفلاین ثبت نشده است.
                   </TableCell>
                 </TableRow>
               )}

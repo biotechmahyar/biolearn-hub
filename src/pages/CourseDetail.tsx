@@ -528,6 +528,7 @@ export default function CourseDetail() {
       <CheckoutDialog
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
+        bundleTier={buying ?? course.bundle}
         items={[
           {
             type: "course",

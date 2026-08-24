@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as auth_emailOtp from "../auth/emailOtp.js";
+import type * as classEnroll from "../classEnroll.js";
 import type * as collab from "../collab.js";
 import type * as comments from "../comments.js";
 import type * as content from "../content.js";
@@ -21,10 +22,12 @@ import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
 import type * as mentor from "../mentor.js";
 import type * as notifications from "../notifications.js";
+import type * as offlinePayments from "../offlinePayments.js";
 import type * as profiles from "../profiles.js";
 import type * as seed from "../seed.js";
 import type * as tests from "../tests.js";
 import type * as tickets from "../tickets.js";
+import type * as upload from "../upload.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
   "auth/emailOtp": typeof auth_emailOtp;
+  classEnroll: typeof classEnroll;
   collab: typeof collab;
   comments: typeof comments;
   content: typeof content;
@@ -47,10 +51,12 @@ declare const fullApi: ApiFromModules<{
   inbox: typeof inbox;
   mentor: typeof mentor;
   notifications: typeof notifications;
+  offlinePayments: typeof offlinePayments;
   profiles: typeof profiles;
   seed: typeof seed;
   tests: typeof tests;
   tickets: typeof tickets;
+  upload: typeof upload;
   users: typeof users;
 }>;
 

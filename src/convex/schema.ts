@@ -166,6 +166,17 @@ const schema = defineSchema(
       popular: v.boolean(),
       createdAt: v.number(),
 
+      // Per-package pricing: each tier has its own price and features.
+      packagePrices: v.optional(
+        v.array(
+          v.object({
+            tier: bundleValidator,
+            price: v.number(),
+            features: v.array(v.string()),
+          }),
+        ),
+      ),
+
       // Instructor-designed course flow: authorId = the user who designed it,
       // status = draft → pending (sent to admin) → published / rejected.
       authorId: v.optional(v.id("users")),
@@ -574,6 +585,41 @@ const schema = defineSchema(
     admins: defineTable({
       email: v.string(),
     }).index("by_email", ["email"]),
+
+    // ── Offline payments ───────────────────────────────────────────────────
+    offlinePayments: defineTable({
+      userId: v.id("users"),
+      courseId: v.id("courses"),
+      tier: bundleValidator,
+      amount: v.number(),
+      trackingNumber: v.string(),
+      receiptStorageId: v.string(),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected"),
+      ),
+      note: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_status", ["status"])
+      .index("by_course", ["courseId"]),
+
+    // ── Class enrollment requests ──────────────────────────────────────────
+    classEnrollRequests: defineTable({
+      userId: v.id("users"),
+      roomId: v.id("classRooms"),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected"),
+      ),
+      createdAt: v.number(),
+    })
+      .index("by_room", ["roomId"])
+      .index("by_user", ["userId"])
+      .index("by_status", ["status"]),
 
     // Per-account inbox: messages the site admin sends to a specific user.
     inboxMessages: defineTable({

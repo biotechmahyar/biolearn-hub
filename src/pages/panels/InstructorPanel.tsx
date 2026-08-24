@@ -1209,15 +1209,26 @@ function CourseStudioView() {
   const submit = useMutation(api.courseStudio.submitCourseForReview);
   const remove = useMutation(api.courseStudio.deleteDraftCourse);
 
-  const empty = { title: "", summary: "", description: "", price: "0", mode: "recorded", durationText: "", categoryId: "" };
+  const TIER_LABELS: Record<string, string> = { economy: "اقتصادی", basic: "پایه", plus: "پلاس", premium: "پرمیوم" };
+  const emptyForm = {
+    title: "", summary: "", description: "", price: "0", mode: "recorded", durationText: "", categoryId: "",
+    audienceText: "", prerequisitesText: "",
+    syllabusItems: "",
+    pkgEconomy: "0", pkgBasic: "0", pkgPlus: "0", pkgPremium: "0",
+    pkgEconomyFeatures: "", pkgBasicFeatures: "", pkgPlusFeatures: "", pkgPremiumFeatures: "",
+  };
+  type CourseForm = typeof emptyForm;
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; course: any } | null>(null);
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState<CourseForm>(emptyForm);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<"basic" | "detail" | "packages">("basic");
 
-  const openCreate = () => { setForm(empty); setErr(null); setDialog({ mode: "create" }); };
+  const openCreate = () => { setForm(emptyForm); setErr(null); setActiveSection("basic"); setDialog({ mode: "create" }); };
   const openEdit = (c: any) => {
+    const pp = c.packagePrices ?? [];
+    const getPp = (t: string) => pp.find((p: any) => p.tier === t);
     setForm({
       title: c.title,
       summary: c.summary,
@@ -1226,9 +1237,32 @@ function CourseStudioView() {
       mode: c.mode ?? "recorded",
       durationText: c.durationText ?? "",
       categoryId: c.categoryId ?? "",
+      audienceText: (c.audience ?? []).join("\n"),
+      prerequisitesText: (c.prerequisites ?? []).join("\n"),
+      syllabusItems: (c.syllabus ?? []).map((s: any) => `${s.title} | ${s.durationMin} | ${s.free ? 'رایگان' : 'پولی'}`).join("\n"),
+      pkgEconomy: String(getPp("economy")?.price ?? 0),
+      pkgBasic: String(getPp("basic")?.price ?? 0),
+      pkgPlus: String(getPp("plus")?.price ?? 0),
+      pkgPremium: String(getPp("premium")?.price ?? 0),
+      pkgEconomyFeatures: (getPp("economy")?.features ?? []).join("\n"),
+      pkgBasicFeatures: (getPp("basic")?.features ?? []).join("\n"),
+      pkgPlusFeatures: (getPp("plus")?.features ?? []).join("\n"),
+      pkgPremiumFeatures: (getPp("premium")?.features ?? []).join("\n"),
     });
     setErr(null);
+    setActiveSection("basic");
     setDialog({ mode: "edit", course: c });
+  };
+
+  const parseLines = (t: string) => t.split("\n").map((s) => s.trim()).filter(Boolean);
+  const parseSyllabus = (t: string) => parseLines(t).map((line, i) => {
+    const parts = line.split("|").map((s) => s.trim());
+    return { id: `s${i}-${Date.now()}`, title: parts[0] || `جلسه ${i + 1}`, durationMin: Number(parts[1]) || 60, free: parts[2] === 'رایگان' };
+  });
+  const buildPkg = (tier: string, price: string, features: string) => {
+    const p = Number(price) || 0;
+    if (p === 0 && !features.trim()) return undefined;
+    return { tier: tier as any, price: p, features: parseLines(features) };
   };
 
   const handleSave = async () => {
@@ -1239,6 +1273,12 @@ function CourseStudioView() {
     }
     setBusy(true);
     try {
+      const packagePrices = [
+        buildPkg("economy", form.pkgEconomy, form.pkgEconomyFeatures),
+        buildPkg("basic", form.pkgBasic, form.pkgBasicFeatures),
+        buildPkg("plus", form.pkgPlus, form.pkgPlusFeatures),
+        buildPkg("premium", form.pkgPremium, form.pkgPremiumFeatures),
+      ].filter(Boolean) as any[];
       const payload = {
         title: form.title,
         summary: form.summary,
@@ -1247,6 +1287,10 @@ function CourseStudioView() {
         price: Number(form.price) || 0,
         mode: form.mode,
         durationText: form.durationText,
+        audience: parseLines(form.audienceText),
+        prerequisites: parseLines(form.prerequisitesText),
+        syllabus: parseSyllabus(form.syllabusItems),
+        packagePrices: packagePrices.length > 0 ? packagePrices : undefined,
       };
       if (dialog?.mode === "edit") {
         await update({ courseId: dialog.course._id, ...payload });
@@ -1361,38 +1405,77 @@ function CourseStudioView() {
       </div>
 
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{dialog?.mode === "edit" ? "ویرایش دوره" : "طراحی دورهٔ جدید"}</DialogTitle>
             <DialogDescription>
               ابتدا به‌صورت پیش‌نویس ذخیره می‌شود؛ بعد از تکمیل، «ارسال برای بررسی» را بزنید تا مدیر سایت تأیید یا بازگرداند.
             </DialogDescription>
           </DialogHeader>
+          {/* Section tabs */}
+          <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+            {([
+              { key: "basic" as const, label: "اطلاعات پایه" },
+              { key: "detail" as const, label: "جزئیات دوره" },
+              { key: "packages" as const, label: "پکیج‌ها و قیمت" },
+            ]).map((s) => (
+              <button key={s.key} onClick={() => setActiveSection(s.key)} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${activeSection === s.key ? "bg-cyan-500 text-white" : "text-slate-400 hover:text-white"}`}>{s.label}</button>
+            ))}
+          </div>
           <div className="space-y-3">
-            <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-400">دستهٔ دوره (می‌توانید دستهٔ جدید هم بسازید)</label>
-              <CategoryField
-                value={form.categoryId || undefined}
-                onValueChange={(v) => setForm({ ...form, categoryId: v })}
-              />
-            </div>
-            <Input placeholder="خلاصهٔ دوره" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <Textarea placeholder="توضیحات کامل دوره…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Input placeholder="قیمت (تومان)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-              <Input placeholder="مدت دوره (مثلاً ۱۲ ساعت)" value={form.durationText} onChange={(e) => setForm({ ...form, durationText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-              <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v })}>
-                <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
-                  <SelectValue placeholder="نوع دوره" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recorded">ویدئویی</SelectItem>
-                  <SelectItem value="live">زنده</SelectItem>
-                  <SelectItem value="hybrid">ترکیبی</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {activeSection === "basic" && (
+              <>
+                <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-400">دستهٔ دوره</label>
+                  <CategoryField value={form.categoryId || undefined} onValueChange={(v) => setForm({ ...form, categoryId: v })} />
+                </div>
+                <Input placeholder="خلاصهٔ دوره" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                <Textarea placeholder="توضیحات کامل دوره…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Input placeholder="قیمت (تومان)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                  <Input placeholder="مدت دوره" value={form.durationText} onChange={(e) => setForm({ ...form, durationText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                  <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v })}>
+                    <SelectTrigger className="border-white/10 bg-white/5 text-slate-100"><SelectValue placeholder="نوع دوره" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="recorded">ویدئویی</SelectItem>
+                      <SelectItem value="live">زنده</SelectItem>
+                      <SelectItem value="hybrid">ترکیبی</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+            {activeSection === "detail" && (
+              <>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-400">مناسب چه کسانی است؟ (هر خط یک آیتم)</label>
+                  <Textarea placeholder="دانشجویان میکروبیولوژی سال آخر\nعلاقه‌مندان به ژنتیک مولکولی" rows={3} value={form.audienceText} onChange={(e) => setForm({ ...form, audienceText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-400">پیش‌نیازها (هر خط یک آیتم)</label>
+                  <Textarea placeholder="زیست‌شناسی پایه\nآشنایی با شیمی آلی" rows={3} value={form.prerequisitesText} onChange={(e) => setForm({ ...form, prerequisitesText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-400">سرفصل‌ها (هر خط: عنوان | دقیقه | رایگان/پولی)</label>
+                  <Textarea placeholder="مقدمه و معرفی | 30 | رایگان\nسلول و اجزای آن | 60 | پولی\nتکثیر DNA | 45 | پولی" rows={5} value={form.syllabusItems} onChange={(e) => setForm({ ...form, syllabusItems: e.target.value })} className="border-white/10 bg-white/5 font-mono text-xs text-slate-100 placeholder:text-slate-500" />
+                </div>
+              </>
+            )}
+            {activeSection === "packages" && (
+              <>
+                <p className="text-xs text-slate-400">قیمت هر پکیج و امکانات آن را تنظیم کنید. پکیج‌هایی که قیمت ندارند در سایت نمایش داده نمی‌شوند.</p>
+                {(["economy", "basic", "plus", "premium"] as const).map((tier) => (
+                  <div key={tier} className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-cyan-300">پکیج {TIER_LABELS[tier]}</span>
+                    </div>
+                    <Input placeholder={`قیمت ${TIER_LABELS[tier]} (تومان)`} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}`]: e.target.value } as any)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                    <Textarea placeholder={`امکانات ${TIER_LABELS[tier]} (هر خط یک آیتم)`} rows={2} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features`]: e.target.value } as any)} className="border-white/10 bg-white/5 text-xs text-slate-100 placeholder:text-slate-500" />
+                  </div>
+                ))}
+              </>
+            )}
             {err && <p className="text-sm text-red-400">{err}</p>}
             <Button onClick={handleSave} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
