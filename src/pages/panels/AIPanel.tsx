@@ -82,7 +82,9 @@ export default function AIPanel() {
   const chats: any[] | undefined = useQuery(api.ai.listChats);
   const createChat = useMutation(api.ai.createChat);
   const deleteChatMutation = useMutation(api.ai.deleteChat);
-  const sendMessageMutation = useMutation(api.ai.sendMessage);
+  const saveUserMessageMutation = useMutation(api.ai.saveUserMessage);
+  const saveAssistantMessageMutation = useMutation(api.ai.saveAssistantMessage);
+  const sendAndReplyAction = useAction(api.ai.sendAndReply);
   const saveApiKeyMutation = useMutation(api.ai.saveApiKey);
   const testApiKeyAction = useAction(api.ai.testApiKey);
   const currentApiKey: string = useQuery(api.ai.getApiKey) ?? "";
@@ -180,12 +182,28 @@ export default function AIPanel() {
       const content = pendingFile
         ? `[فایل: ${pendingFile.name}]\n${input.trim()}`
         : input.trim();
-      await sendMessageMutation({
+      await saveUserMessageMutation({
         chatId: selectedChatId as any,
         content,
       } as any);
       setInput("");
       setPendingFile(null);
+      // Build conversation history
+      const history = (messages ?? []).map((m: any) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content as string,
+      }));
+      history.push({ role: "user", content });
+      // Call API (action)
+      const reply = await sendAndReplyAction({
+        messages: history as any,
+        apiKey: currentApiKey || "",
+      } as any);
+      // Save assistant reply
+      await saveAssistantMessageMutation({
+        chatId: selectedChatId as any,
+        content: String(reply ?? "پاسخی دریافت نشد."),
+      } as any);
     } catch (err) {
       console.error(err);
     } finally {
