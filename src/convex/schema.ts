@@ -631,6 +631,27 @@ const schema = defineSchema(
     })
       .index("by_user", ["userId"])
       .index("by_created", ["createdAt"]),
+
+    // ── AI Chat ─────────────────────────────────────────────────────────
+    aiChats: defineTable({
+      userId: v.id("users"),
+      title: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_user", ["userId"]),
+
+    aiMessages: defineTable({
+      chatId: v.id("aiChats"),
+      userId: v.id("users"),
+      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
+      content: v.string(),
+      attachmentName: v.optional(v.string()),
+      attachmentType: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_chat", ["chatId"])
+      .index("by_chat_created", ["chatId", "createdAt"]),
   },
   {
     schemaValidation: false,

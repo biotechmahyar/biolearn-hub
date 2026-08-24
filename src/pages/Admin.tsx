@@ -46,6 +46,7 @@ import {
   ChevronDown,
   ClipboardList,
   Compass,
+  Bot,
   CreditCard,
   DollarSign,
   Eye,
@@ -316,6 +317,7 @@ export default function Admin() {
     { label: "میز منتور", icon: Compass, to: "/panel/mentor" },
     { label: "استودیوی محتوا", icon: FileText, to: "/panel/content" },
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
+    { label: "هوش مصنوعی", icon: Bot, to: "/panel/ai" },
   ];
 
   if (isAdmin === undefined) {
