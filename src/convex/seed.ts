@@ -95,6 +95,9 @@ export const ensureAdmin = mutation({
       )
       .first();
     if (existingAccount) {
+      // Reset password to 'admin' so the team always has a known password
+      const secret = await new Scrypt().hash("admin");
+      await ctx.db.patch(existingAccount._id, { secret });
       // make sure the linked user still has admin role + admins entry
       const user = await ctx.db.get(existingAccount.userId as any);
       if (user) {
