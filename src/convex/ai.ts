@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, action } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 
 // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -67,36 +67,7 @@ export const saveApiKey = mutation({
   },
 });
 
-export const testApiKey = action({
-  args: { apiKey: v.string() },
-  handler: async (_ctx, args) => {
-    try {
-      const res = await fetch("https://api.gapgpt.app/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${args.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gapgpt-qwen-3.5",
-          messages: [{ role: "user", content: "سلام" }],
-          max_tokens: 50,
-        }),
-      });
-      if (!res.ok) {
-        const t = await res.text().catch(() => "");
-        return { ok: false, error: `خطای ${res.status}: ${t.slice(0, 150)}` };
-      }
-      const data = await res.json();
-      const reply = data.choices?.[0]?.message?.content ?? "";
-      return { ok: true, reply: reply.slice(0, 200) };
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : "خطا" };
-    }
-  },
-});
-
-// ── Mutations ────────────────────────────────────────────────────────────────
+// ── Chat Mutations ───────────────────────────────────────────────────────────
 
 export const createChat = mutation({
   args: { title: v.optional(v.string()) },
@@ -125,12 +96,18 @@ export const deleteChat = mutation({
   },
 });
 
-export const saveUserMessage = mutation({
-  args: { chatId: v.id("aiChats"), content: v.string() },
+/** Save user message, call GapGPT API, save assistant reply — all in one mutation */
+export const sendMessage = mutation({
+  args: {
+    chatId: v.id("aiChats"),
+    content: v.string(),
+  },
   handler: async (ctx, args) => {
     const userId = (await ctx.auth.getUserIdentity())?.subject;
     if (!userId) throw new Error("ورود لازم است.");
     const now = Date.now();
+
+    // 1) Save user message
     await ctx.db.insert("aiMessages", {
       chatId: args.chatId,
       userId: userId as any,
@@ -138,6 +115,8 @@ export const saveUserMessage = mutation({
       content: args.content,
       createdAt: now,
     });
+
+    // Update chat title
     const chat = await ctx.db.get(args.chatId);
     if (chat) {
       await ctx.db.patch(args.chatId, {
@@ -148,83 +127,85 @@ export const saveUserMessage = mutation({
             : (chat as any).title,
       });
     }
-  },
-});
 
-export const saveAssistantMessage = mutation({
-  args: { chatId: v.id("aiChats"), content: v.string() },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const userId = (await ctx.auth.getUserIdentity())?.subject;
-    await ctx.db.insert("aiMessages", {
-      chatId: args.chatId,
-      userId: userId as any,
-      role: "assistant",
-      content: args.content,
-      createdAt: now,
-    });
-    await ctx.db.patch(args.chatId, { updatedAt: now });
-  },
-});
+    // 2) Get API key
+    const keyRow = await ctx.db
+      .query("aiSettings")
+      .withIndex("by_key", (q) => q.eq("key", "apiKey"))
+      .first();
+    const apiKey = keyRow?.value || process.env.GAPGPT_API_KEY || "";
 
-// ── Action: Call GapGPT API and return reply ─────────────────────────────────
-
-export const sendAndReply = action({
-  args: {
-    messages: v.array(
-      v.object({
-        role: v.union(
-          v.literal("user"),
-          v.literal("assistant"),
-          v.literal("system"),
-        ),
-        content: v.string(),
-      }),
-    ),
-    apiKey: v.string(),
-  },
-  handler: async (_ctx, args) => {
-    const key = args.apiKey || process.env.GAPGPT_API_KEY || "";
-    if (!key) {
-      return "⚠️ کلید API تنظیم نشده است.";
+    if (!apiKey) {
+      const errNow = Date.now();
+      await ctx.db.insert("aiMessages", {
+        chatId: args.chatId,
+        userId: userId as any,
+        role: "assistant",
+        content: "⚠️ کلید API تنظیم نشده است. از بخش تنظیمات کلید خود را وارد کنید.",
+        createdAt: errNow,
+      });
+      await ctx.db.patch(args.chatId, { updatedAt: errNow });
+      return;
     }
 
+    // 3) Get history
+    const allMsgs = await ctx.db
+      .query("aiMessages")
+      .withIndex("by_chat_created", (q) => q.eq("chatId", args.chatId))
+      .order("asc")
+      .collect();
+
+    const history = allMsgs.map((m) => ({
+      role: (m as any).role as "user" | "assistant" | "system",
+      content: (m as any).content as string,
+    }));
+
+    // 4) Call API
     try {
-      const response = await fetch(
-        "https://api.gapgpt.app/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${key}`,
-          },
-          body: JSON.stringify({
-            model: "gapgpt-qwen-3.5",
-            messages: [
-              {
-                role: "system",
-                content:
-                  "تو دستیار هوش مصنوعی Genova هستی — پلتفرم تخصصی آموزش علوم زیستی. به فارسی پاسخ بده. پاسخ‌های دقیق و علمی بده.",
-              },
-              ...args.messages,
-            ],
-            max_tokens: 4096,
-            temperature: 0.7,
-          }),
+      const response = await fetch("https://api.gapgpt.app/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
         },
-      );
+        body: JSON.stringify({
+          model: "gapgpt-qwen-3.5",
+          messages: [
+            { role: "system", content: "تو دستیار هوش مصنوعی Genova هستی — پلتفرم تخصصی آموزش علوم زیستی. به فارسی پاسخ بده." },
+            ...history,
+          ],
+          max_tokens: 4096,
+          temperature: 0.7,
+        }),
+      });
 
       if (!response.ok) {
         const errText = await response.text().catch(() => "");
-        throw new Error(
-          `خطای API (${response.status}): ${errText.slice(0, 200)}`,
-        );
+        throw new Error(`خطای API (${response.status}): ${errText.slice(0, 200)}`);
       }
 
       const data = await response.json();
-      return data.choices?.[0]?.message?.content ?? "پاسخی دریافت نشد.";
+      const reply = data.choices?.[0]?.message?.content ?? "پاسخی دریافت نشد.";
+      const respNow = Date.now();
+      await ctx.db.insert("aiMessages", {
+        chatId: args.chatId,
+        userId: userId as any,
+        role: "assistant",
+        content: reply,
+        createdAt: respNow,
+      });
+      await ctx.db.patch(args.chatId, { updatedAt: respNow });
     } catch (e) {
-      return `⚠️ ${e instanceof Error ? e.message : "خطا در ارتباط با هوش مصنوعی"}`;
+      const errMsg = e instanceof Error ? e.message : "خطا در ارتباط با هوش مصنوعی";
+      const errNow = Date.now();
+      await ctx.db.insert("aiMessages", {
+        chatId: args.chatId,
+        userId: userId as any,
+        role: "assistant",
+        content: `⚠️ ${errMsg}`,
+        createdAt: errNow,
+      });
+      await ctx.db.patch(args.chatId, { updatedAt: errNow });
     }
   },
 });

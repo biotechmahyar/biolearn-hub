@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useSettings, ACCENT_SWATCHES, FONT_OPTIONS } from "@/lib/settings";
 import { cn } from "@/lib/utils";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useState, useRef, useEffect } from "react";
 import {
   Home,
@@ -82,11 +82,8 @@ export default function AIPanel() {
   const chats: any[] | undefined = useQuery(api.ai.listChats);
   const createChat = useMutation(api.ai.createChat);
   const deleteChatMutation = useMutation(api.ai.deleteChat);
-  const saveUserMessageMutation = useMutation(api.ai.saveUserMessage);
-  const saveAssistantMessageMutation = useMutation(api.ai.saveAssistantMessage);
-  const sendAndReplyAction = useAction(api.ai.sendAndReply);
+  const sendMessageMutation = useMutation(api.ai.sendMessage);
   const saveApiKeyMutation = useMutation(api.ai.saveApiKey);
-  const testApiKeyAction = useAction(api.ai.testApiKey);
   const currentApiKey: string = useQuery(api.ai.getApiKey) ?? "";
 
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -182,28 +179,9 @@ export default function AIPanel() {
       const content = pendingFile
         ? `[فایل: ${pendingFile.name}]\n${input.trim()}`
         : input.trim();
-      await saveUserMessageMutation({
-        chatId: selectedChatId as any,
-        content,
-      } as any);
+      await sendMessageMutation({ chatId: selectedChatId, content } as any);
       setInput("");
       setPendingFile(null);
-      // Build conversation history
-      const history = (messages ?? []).map((m: any) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content as string,
-      }));
-      history.push({ role: "user", content });
-      // Call API (action)
-      const reply = await sendAndReplyAction({
-        messages: history as any,
-        apiKey: currentApiKey || "",
-      } as any);
-      // Save assistant reply
-      await saveAssistantMessageMutation({
-        chatId: selectedChatId as any,
-        content: String(reply ?? "پاسخی دریافت نشد."),
-      } as any);
     } catch (err) {
       console.error(err);
     } finally {
@@ -247,8 +225,19 @@ export default function AIPanel() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await testApiKeyAction({ apiKey: key }) as any;
-      setTestResult({ ok: res.ok, msg: res.ok ? (res.reply ?? "") : (res.error ?? "خطا") });
+      const res = await fetch("https://api.gapgpt.app/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: "gapgpt-qwen-3.5", messages: [{ role: "user", content: "سلام" }], max_tokens: 50 }),
+      });
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        setTestResult({ ok: false, msg: `خطای ${res.status}: ${t.slice(0, 150)}` });
+      } else {
+        const data = await res.json();
+        const reply = data.choices?.[0]?.message?.content ?? "";
+        setTestResult({ ok: true, msg: reply.slice(0, 200) });
+      }
     } catch (e) {
       setTestResult({
         ok: false,
