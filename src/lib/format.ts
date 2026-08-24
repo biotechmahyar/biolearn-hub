@@ -125,6 +125,7 @@ export const MODE_LABELS: Record<string, string> = {
 };
 
 export const BUNDLE_LABELS: Record<string, string> = {
+  economy: "اقتصادی",
   basic: "پایه",
   plus: "پلاس",
   premium: "پرمیوم",

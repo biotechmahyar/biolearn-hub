@@ -36,11 +36,23 @@ export type CourseMode = Infer<typeof courseModeValidator>;
 
 // Bundle tiers: Basic / Plus / Premium
 export const bundleValidator = v.union(
+  v.literal("economy"),
   v.literal("basic"),
   v.literal("plus"),
   v.literal("premium"),
 );
 export type Bundle = Infer<typeof bundleValidator>;
+
+// Course package tiers with configurable prices and features
+export const coursePackageValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  tier: bundleValidator,
+  price: v.number(),
+  features: v.array(v.string()),
+  active: v.boolean(),
+});
+export type CoursePackage = Infer<typeof coursePackageValidator>;
 
 // Physical product types
 export const productTypeValidator = v.union(

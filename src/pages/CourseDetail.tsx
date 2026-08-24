@@ -49,12 +49,21 @@ const FAQ = [
   },
 ];
 
+const BUNDLE_ORDER = ["economy", "basic", "plus", "premium"] as const;
+
+const BUNDLE_DESC: Record<string, string> = {
+  economy: "فقط خود دوره",
+  basic: "دوره + آزمون",
+  plus: "دوره + جزوه + تست",
+  premium: "دوره + جزوه + فلش‌کارت + رفع اشکال",
+};
+
 export default function CourseDetail() {
   const { slug = "" } = useParams();
   const course = useQuery(api.content.getCourseBySlug, { slug });
   const testimonials = useQuery(api.content.listTestimonials);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [buying, setBuying] = useState<"basic" | "plus" | "premium" | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
   const markLesson = useMutation(api.enroll.markLessonComplete);
 
   if (course === undefined) {
@@ -94,7 +103,7 @@ export default function CourseDetail() {
 
   const courseReviews = (testimonials ?? []).filter((t) => t.course === course.title);
 
-  const openCheckout = (tier: "basic" | "plus" | "premium") => {
+  const openCheckout = (tier: string) => {
     setBuying(tier);
     setCheckoutOpen(true);
   };
@@ -215,7 +224,7 @@ export default function CourseDetail() {
                   </div>
                 ) : (
                   <div className="mt-5 space-y-2.5">
-                    {(["basic", "plus", "premium"] as const).map((tier) => {
+                    {BUNDLE_ORDER.map((tier) => {
                       const isSelected = buying === tier;
                       return (
                         <button
@@ -236,9 +245,7 @@ export default function CourseDetail() {
                             <span>
                               <span className="block text-sm font-bold">پکیج {BUNDLE_LABELS[tier]}</span>
                               <span className="block text-xs text-muted-foreground">
-                                {tier === "basic" && "دوره + آزمون"}
-                                {tier === "plus" && "دوره + جزوه + تست"}
-                                {tier === "premium" && "دوره + جزوه + فلش‌کارت + رفع اشکال"}
+                                {BUNDLE_DESC[tier]}
                               </span>
                             </span>
                           </span>
