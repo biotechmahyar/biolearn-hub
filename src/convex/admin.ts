@@ -566,6 +566,18 @@ export const adminCreateCourse = mutation({
     mode: v.string(),
     bundle: v.string(),
     published: v.boolean(),
+    audience: v.optional(v.array(v.string())),
+    prerequisites: v.optional(v.array(v.string())),
+    syllabus: v.optional(v.array(v.object({
+      title: v.string(),
+      durationMin: v.number(),
+      free: v.boolean(),
+    }))),
+    packagePrices: v.optional(v.array(v.object({
+      tier: v.union(v.literal("economy"), v.literal("basic"), v.literal("plus"), v.literal("premium")),
+      price: v.number(),
+      features: v.array(v.string()),
+    }))),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
@@ -577,9 +589,9 @@ export const adminCreateCourse = mutation({
       instructorId: args.instructorId,
       summary: args.summary.trim(),
       description: args.summary.trim(),
-      audience: [],
-      prerequisites: [],
-      syllabus: [],
+      audience: args.audience ?? [],
+      prerequisites: args.prerequisites ?? [],
+      syllabus: (args.syllabus ?? []).map((s, i) => ({ ...s, id: `s${i}` })),
       durationText: "به‌زودی",
       mode: args.mode as any,
       price: args.price,
@@ -588,6 +600,7 @@ export const adminCreateCourse = mutation({
       studentsCount: 0,
       accent: "teal",
       bundle: args.bundle as any,
+      packagePrices: args.packagePrices,
       includes: [],
       hasSampleVideo: false,
       files: [],
@@ -611,10 +624,22 @@ export const adminUpdateCourse = mutation({
     mode: v.string(),
     bundle: v.string(),
     published: v.boolean(),
+    audience: v.optional(v.array(v.string())),
+    prerequisites: v.optional(v.array(v.string())),
+    syllabus: v.optional(v.array(v.object({
+      title: v.string(),
+      durationMin: v.number(),
+      free: v.boolean(),
+    }))),
+    packagePrices: v.optional(v.array(v.object({
+      tier: v.union(v.literal("economy"), v.literal("basic"), v.literal("plus"), v.literal("premium")),
+      price: v.number(),
+      features: v.array(v.string()),
+    }))),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
-    await ctx.db.patch(args.id, {
+    const patch: Record<string, unknown> = {
       title: args.title.trim(),
       categoryId: args.categoryId,
       instructorId: args.instructorId,
@@ -624,7 +649,12 @@ export const adminUpdateCourse = mutation({
       mode: args.mode as any,
       bundle: args.bundle as any,
       published: args.published,
-    });
+    };
+    if (args.audience !== undefined) patch.audience = args.audience;
+    if (args.prerequisites !== undefined) patch.prerequisites = args.prerequisites;
+    if (args.syllabus !== undefined) patch.syllabus = args.syllabus.map((s, i) => ({ ...s, id: `s${i}` }));
+    if (args.packagePrices !== undefined) patch.packagePrices = args.packagePrices;
+    await ctx.db.patch(args.id, patch as any);
     return { ok: true };
   },
 });

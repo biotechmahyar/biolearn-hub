@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -672,14 +673,28 @@ function AdminCourses() {
   const [rejecting, setRejecting] = useState<{ id: string; title: string } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
 
-  const empty = { title: "", summary: "", price: "0", categoryId: "", instructorId: "", mode: "recorded", bundle: "basic", published: false };
+  const TIER_LABELS: Record<string, string> = { economy: "اقتصادی", basic: "پایه", plus: "پلاس", premium: "پرمیوم" };
+
+  const empty = {
+    title: "", summary: "", price: "0", categoryId: "", instructorId: "", mode: "recorded", bundle: "basic", published: false,
+    audienceText: "", prerequisitesText: "", syllabusItems: "",
+    pkgEconomy: "", pkgEconomyFeatures: "",
+    pkgBasic: "", pkgBasicFeatures: "",
+    pkgPlus: "", pkgPlusFeatures: "",
+    pkgPremium: "", pkgPremiumFeatures: "",
+  };
+  type CourseForm = typeof empty;
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; course: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [activeTab, setActiveTab] = useState("basic");
 
-  const openCreate = () => { setForm(empty); setErr(null); setDialog({ mode: "create" }); };
+  const openCreate = () => { setForm(empty); setErr(null); setActiveTab("basic"); setDialog({ mode: "create" }); };
   const openEdit = (c: any) => {
+    const pp = c.packagePrices ?? [];
+    const getP = (tier: string) => pp.find((p: any) => p.tier === tier);
+    const eco = getP("economy"), bsc = getP("basic"), pls = getP("plus"), prm = getP("premium");
     setForm({
       title: c.title,
       summary: c.summary,
@@ -689,10 +704,24 @@ function AdminCourses() {
       mode: c.mode,
       bundle: c.bundle,
       published: c.published,
+      audienceText: (c.audience ?? []).join("\n"),
+      prerequisitesText: (c.prerequisites ?? []).join("\n"),
+      syllabusItems: (c.syllabus ?? []).map((s: any) => `${s.title} | ${s.durationMin} | ${s.free ? 'رایگان' : 'پولی'}`).join("\n"),
+      pkgEconomy: eco ? String(eco.price) : "", pkgEconomyFeatures: eco ? eco.features.join("\n") : "",
+      pkgBasic: bsc ? String(bsc.price) : "", pkgBasicFeatures: bsc ? bsc.features.join("\n") : "",
+      pkgPlus: pls ? String(pls.price) : "", pkgPlusFeatures: pls ? pls.features.join("\n") : "",
+      pkgPremium: prm ? String(prm.price) : "", pkgPremiumFeatures: prm ? prm.features.join("\n") : "",
     });
     setErr(null);
+    setActiveTab("basic");
     setDialog({ mode: "edit", course: c });
   };
+
+  const parseLines = (t: string) => t.split("\n").map((s) => s.trim()).filter(Boolean);
+  const parseSyllabus = (t: string) => parseLines(t).map((line, i) => {
+    const parts = line.split("|").map((s) => s.trim());
+    return { title: parts[0] || `جلسه ${i + 1}`, durationMin: parseInt(parts[1]) || 30, free: parts[2]?.includes("رایگان") ?? false };
+  });
 
   const handleSave = async () => {
     setErr(null);
@@ -702,6 +731,12 @@ function AdminCourses() {
     }
     setBusy(true);
     try {
+      const packagePrices = [
+        { tier: "economy" as const, price: Number(form.pkgEconomy) || 0, features: parseLines(form.pkgEconomyFeatures) },
+        { tier: "basic" as const, price: Number(form.pkgBasic) || 0, features: parseLines(form.pkgBasicFeatures) },
+        { tier: "plus" as const, price: Number(form.pkgPlus) || 0, features: parseLines(form.pkgPlusFeatures) },
+        { tier: "premium" as const, price: Number(form.pkgPremium) || 0, features: parseLines(form.pkgPremiumFeatures) },
+      ].filter((p) => p.price > 0 || p.features.length > 0);
       const payload = {
         title: form.title,
         summary: form.summary,
@@ -711,6 +746,10 @@ function AdminCourses() {
         mode: form.mode,
         bundle: form.bundle,
         published: form.published,
+        audience: parseLines(form.audienceText),
+        prerequisites: parseLines(form.prerequisitesText),
+        syllabus: parseSyllabus(form.syllabusItems),
+        packagePrices: packagePrices.length > 0 ? packagePrices : undefined,
       };
       if (dialog?.mode === "edit") {
         await update({ id: dialog.course._id, ...payload });
@@ -789,7 +828,7 @@ function AdminCourses() {
       </Card>
 
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{dialog?.mode === "edit" ? "ویرایش دوره" : "دورهٔ جدید"}</DialogTitle>
             <DialogDescription>
@@ -797,33 +836,66 @@ function AdminCourses() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-            <Textarea placeholder="خلاصهٔ دوره" rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Input placeholder="قیمت (تومان)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
-              <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="live">کلاس زنده</SelectItem>
-                  <SelectItem value="recorded">ضبط‌شده</SelectItem>
-                  <SelectItem value="hybrid">ترکیبی</SelectItem>
-                </SelectContent>
-              </Select>
-              <CategoryField
-                value={form.categoryId || undefined}
-                onValueChange={(v) => setForm({ ...form, categoryId: v })}
-              />
-              <Select value={form.instructorId || undefined} onValueChange={(v) => setForm({ ...form, instructorId: v })}>
-                <SelectTrigger><SelectValue placeholder="مدرس" /></SelectTrigger>
-                <SelectContent>
-                  {(instructors ?? []).map((i) => (
-                    <SelectItem key={i._id} value={i._id}>{i.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="w-full">
+                <TabsTrigger value="basic" className="flex-1">اطلاعات پایه</TabsTrigger>
+                <TabsTrigger value="detail" className="flex-1">جزئیات دوره</TabsTrigger>
+                <TabsTrigger value="packages" className="flex-1">پکیج‌ها</TabsTrigger>
+              </TabsList>
+              <TabsContent value="basic" className="space-y-3 pt-2">
+                <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                <Textarea placeholder="خلاصهٔ دوره" rows={2} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Input placeholder="قیمت (تومان)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+                  <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="live">کلاس زنده</SelectItem>
+                      <SelectItem value="recorded">ضبط‌شده</SelectItem>
+                      <SelectItem value="hybrid">ترکیبی</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <CategoryField
+                    value={form.categoryId || undefined}
+                    onValueChange={(v) => setForm({ ...form, categoryId: v })}
+                  />
+                  <Select value={form.instructorId || undefined} onValueChange={(v) => setForm({ ...form, instructorId: v })}>
+                    <SelectTrigger><SelectValue placeholder="مدرس" /></SelectTrigger>
+                    <SelectContent>
+                      {(instructors ?? []).map((i) => (
+                        <SelectItem key={i._id} value={i._id}>{i.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <PublishPicker value={form.published} onChange={(v) => setForm({ ...form, published: v })} />
+              </TabsContent>
+              <TabsContent value="detail" className="space-y-3 pt-2">
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">مناسب چه کسانی است؟ (هر خط یک آیتم)</label>
+                  <Textarea placeholder="دانشجویان میکروبیولوژی سال آخر\nعلاقه‌مندان به ژنتیک مولکولی" rows={3} value={form.audienceText} onChange={(e) => setForm({ ...form, audienceText: e.target.value })} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">پیش‌نیازها (هر خط یک آیتم)</label>
+                  <Textarea placeholder="زیست‌شناسی پایه\nآشنایی با شیمی آلی" rows={3} value={form.prerequisitesText} onChange={(e) => setForm({ ...form, prerequisitesText: e.target.value })} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">سرفصل‌ها (هر خط: عنوان | دقیقه | رایگان/پولی)</label>
+                  <Textarea placeholder="مقدمه و معرفی | 30 | رایگان\nسلول و اجزای آن | 60 | پولی\nتکثیر DNA | 45 | پولی" rows={5} value={form.syllabusItems} onChange={(e) => setForm({ ...form, syllabusItems: e.target.value })} className="font-mono text-xs" />
+                </div>
+              </TabsContent>
+              <TabsContent value="packages" className="space-y-3 pt-2">
+                <p className="text-xs text-muted-foreground">قیمت هر پکیج و امکانات آن را تنظیم کنید. پکیج‌هایی که قیمت ندارند در سایت نمایش داده نمی‌شوند.</p>
+                {(["economy", "basic", "plus", "premium"] as const).map((tier) => (
+                  <div key={tier} className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2">
+                    <span className="text-xs font-bold text-primary">پکیج {TIER_LABELS[tier]}</span>
+                    <Input placeholder={`قیمت ${TIER_LABELS[tier]} (تومان)`} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}`]: e.target.value } as any)} />
+                    <Textarea placeholder={`امکانات ${TIER_LABELS[tier]} (هر خط یک آیتم)`} rows={2} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features`]: e.target.value } as any)} className="text-xs" />
+                  </div>
+                ))}
+              </TabsContent>
+            </Tabs>
             {err && <p className="text-sm text-destructive">{err}</p>}
-            <PublishPicker value={form.published} onChange={(v) => setForm({ ...form, published: v })} />
             <Button className="w-full" onClick={handleSave} disabled={busy}>
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "ساخت دوره"}
