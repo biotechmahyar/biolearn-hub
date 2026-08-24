@@ -336,7 +336,7 @@ export default function Admin() {
           <p className="text-lg font-bold">دسترسی مدیریت لازم است</p>
           <p className="mt-1 max-w-sm text-sm leading-6 text-muted-foreground">
             این بخش فقط برای اعضای تیم Genova فعال است. با ایمیل ثبت‌شده در
-            فهرست ادمین‌ها وارد شوید (مثلاً <span dir="ltr" className="font-mono">admin@gmail.com</span>)
+            فهرست ادمین‌ها وارد شوید (مثلاً <span dir="ltr" className="font-mono">admin@genova.com</span>)
             یا از یک ادمین بخواهید ایمیل شما را اضافه کند.
           </p>
         </div>

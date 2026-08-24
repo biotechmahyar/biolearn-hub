@@ -81,13 +81,13 @@ export const refreshBrand = mutation({
   },
 });
 
-// Creates the built-in admin account (admin@gmail.com / admin) with a
+// Creates the built-in admin account (admin@genova.com / admin) with a
 // password-hashed auth account, so the team can sign in without an OTP code.
 // Idempotent: safe to call on every load.
 export const ensureAdmin = mutation({
   args: {},
   handler: async (ctx) => {
-    const email = "admin@gmail.com";
+    const email = "admin@genova.com";
     const existingAccount = await ctx.db
       .query("authAccounts")
       .withIndex("providerAndAccountId", (q) =>
@@ -115,7 +115,7 @@ export const ensureAdmin = mutation({
     const secret = await new Scrypt().hash("admin");
 
     const userId = await ctx.db.insert("users", {
-      name: "مدیر سامانه",
+      name: "مهیار اسفندیاری",
       email,
       role: "admin",
     });
