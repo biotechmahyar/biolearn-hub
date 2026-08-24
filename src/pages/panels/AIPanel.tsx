@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { useState, useRef, useEffect } from "react";
 import {
-  Bot,
   Home,
   Loader2,
   Paperclip,
@@ -17,25 +16,24 @@ import {
   FileText,
   MessageSquare,
   PanelLeftOpen,
+  Dna,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import type { Id } from "@/convex/_generated/dataModel";
 import { Link } from "react-router";
 
 export default function AIPanel() {
-  const { user } = useAuth();
+  const { isLoading: authLoading, user } = useAuth();
   const chats = useQuery(api.ai.listChats);
-  const [selectedChatId, setSelectedChatId] = useState<Id<"aiChats"> | null>(
-    null,
-  );
-  const messages = useQuery(
-    api.ai.getMessages,
-    selectedChatId ? { chatId: selectedChatId } : "skip",
-  );
   const createChat = useMutation(api.ai.createChat);
   const deleteChatMutation = useMutation(api.ai.deleteChat);
   const sendMessageMutation = useMutation(api.ai.sendMessage);
+
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const messages = useQuery(
+    api.ai.getMessages,
+    selectedChatId ? { chatId: selectedChatId as any } : "skip",
+  );
 
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -59,6 +57,20 @@ export default function AIPanel() {
     }
   }, [chats, selectedChatId]);
 
+  // Loading state
+  if (authLoading || chats === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center gap-4 bg-background">
+        <span className="relative flex size-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10">
+          <Dna className="size-6 animate-pulse text-primary" />
+          <span className="absolute inset-0 animate-ping rounded-2xl border border-primary/20" />
+        </span>
+        <p className="font-mono text-xs text-muted-foreground">در حال بارگذاری...</p>
+      </div>
+    );
+  }
+
+  // Access check
   if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -71,15 +83,16 @@ export default function AIPanel() {
 
   const handleNewChat = async () => {
     const id = await createChat({ title: "چت جدید" });
-    setSelectedChatId(id);
+    setSelectedChatId(id as string);
   };
 
-  const handleDeleteChat = async (chatId: Id<"aiChats">, e?: React.MouseEvent | React.KeyboardEvent) => {
+  const handleDeleteChat = async (chatId: string, e?: React.MouseEvent | React.KeyboardEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
-    await deleteChatMutation({ chatId });
+    await deleteChatMutation({ chatId: chatId as any });
     if (selectedChatId === chatId) {
-      setSelectedChatId(chats?.find((c) => c._id !== chatId)?._id ?? null);
+      const remaining = chats?.filter((c) => c._id !== chatId);
+      setSelectedChatId(remaining && remaining.length > 0 ? remaining[0]._id : null);
     }
   };
 
@@ -91,15 +104,15 @@ export default function AIPanel() {
         ? `[فایل: ${pendingFile.name}]\n${input.trim()}`
         : input.trim();
       await sendMessageMutation({
-        chatId: selectedChatId,
+        chatId: selectedChatId as any,
         content,
         attachmentName: pendingFile?.name,
         attachmentType: pendingFile?.type,
       });
       setInput("");
       setPendingFile(null);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
     } finally {
       setSending(false);
     }
@@ -117,6 +130,9 @@ export default function AIPanel() {
     if (file) setPendingFile({ name: file.name, type: file.type });
     e.target.value = "";
   };
+
+  const userName = user.name || "شما";
+  const userInitial = userName.charAt(0);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background" dir="rtl">
@@ -159,7 +175,7 @@ export default function AIPanel() {
         </Button>
 
         <nav className="mt-2 flex-1 space-y-0.5 overflow-y-auto px-3 py-1">
-          {chats?.map((chat) => (
+          {chats?.map((chat: any) => (
             <button
               key={chat._id}
               type="button"
@@ -186,9 +202,9 @@ export default function AIPanel() {
               </span>
             </button>
           ))}
-          {chats && chats.length === 0 && (
+          {chats.length === 0 && (
             <div className="flex flex-col items-center gap-2 py-8 text-center text-xs text-muted-foreground">
-              <Bot className="size-8 opacity-30" />
+              <Sparkles className="size-8 opacity-30" />
               <p>هنوز چتی ندارید</p>
               <p>روی «چت جدید» کلیک کنید</p>
             </div>
@@ -243,7 +259,7 @@ export default function AIPanel() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-6">
-          {messages && messages.length === 0 && (
+          {(!messages || messages.length === 0) && (
             <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
               <div className="flex size-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-sky-500/20">
                 <Sparkles className="size-8 text-primary" />
@@ -276,7 +292,7 @@ export default function AIPanel() {
           )}
 
           <div className="mx-auto max-w-3xl space-y-4">
-            {messages?.map((msg) => (
+            {messages?.map((msg: any) => (
               <div
                 key={msg._id}
                 className={cn(
@@ -293,9 +309,7 @@ export default function AIPanel() {
                   )}
                 >
                   {msg.role === "user" ? (
-                    <span className="text-sm font-bold">
-                      {(user?.name ?? "شما")[0]}
-                    </span>
+                    <span className="text-sm font-bold">{userInitial}</span>
                   ) : (
                     <Sparkles className="size-4" />
                   )}
