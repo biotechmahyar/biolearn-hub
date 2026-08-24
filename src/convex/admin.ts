@@ -185,13 +185,12 @@ export const adminSetRole = mutation({
     if (!user) throw new Error("کاربر یافت نشد.");
     // Site admins cannot promote to an admin role, nor change the role of
     // anyone who already holds the admin or site_admin role.
-    const targetPrivileged =
-      user.role === "admin" || user.role === "site_admin";
+    const targetIsSystemAdmin = user.role === "admin";
     if (
       !(await isSystemAdmin(ctx)) &&
-      (targetPrivileged || args.role === "admin" || args.role === "site_admin")
+      (targetIsSystemAdmin || args.role === "admin")
     ) {
-      throw new Error("فقط ادمین سامانه می‌تواند نقش‌های ادمین را مدیریت کند.");
+      throw new Error("فقط ادمین سامانه می‌تواند نقش ادمین سامانه را مدیریت کند.");
     }
     await ctx.db.patch(args.userId, { role: args.role });
     // Keep the admins allow-list in sync with the role.
