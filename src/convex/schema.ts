@@ -632,6 +632,12 @@ const schema = defineSchema(
       .index("by_user", ["userId"])
       .index("by_created", ["createdAt"]),
 
+    // ── AI Settings ───────────────────────────────────────────────────
+    aiSettings: defineTable({
+      key: v.string(),
+      value: v.string(),
+    }).index("by_key", ["key"]),
+
     // ── AI Chat ─────────────────────────────────────────────────────────
     aiChats: defineTable({
       userId: v.id("users"),
