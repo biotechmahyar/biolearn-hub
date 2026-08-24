@@ -82,7 +82,8 @@ export default function AIPanel() {
   const chats: any[] | undefined = useQuery(api.ai.listChats);
   const createChat = useMutation(api.ai.createChat);
   const deleteChatMutation = useMutation(api.ai.deleteChat);
-  const sendMessageMutation = useMutation(api.ai.sendMessage);
+  const saveUserMessageMutation = useMutation(api.ai.saveUserMessage);
+  const saveAssistantMessageMutation = useMutation(api.ai.saveAssistantMessage);
   const saveApiKeyMutation = useMutation(api.ai.saveApiKey);
   const currentApiKey: string = useQuery(api.ai.getApiKey) ?? "";
 
@@ -179,9 +180,81 @@ export default function AIPanel() {
       const content = pendingFile
         ? `[فایل: ${pendingFile.name}]\n${input.trim()}`
         : input.trim();
-      await sendMessageMutation({ chatId: selectedChatId, content } as any);
+
+      // 1) Save user message to DB
+      await (saveUserMessageMutation as any)({
+        chatId: selectedChatId,
+        content,
+      });
       setInput("");
       setPendingFile(null);
+
+      // 2) Call GapGPT API from the frontend
+      const apiKey = currentApiKey;
+      if (!apiKey) {
+        await (saveAssistantMessageMutation as any)({
+          chatId: selectedChatId,
+          content:
+            "⚠️ کلید API تنظیم نشده است. از بخش تنظیمات کلید خود را وارد کنید.",
+        });
+        return;
+      }
+
+      // Build message history from current messages
+      const history = (messages || []).map((m: any) => ({
+        role: m.role,
+        content: m.content,
+      }));
+
+      try {
+        const res = await fetch(
+          "https://api.gapgpt.app/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: aiSettings.model,
+              messages: [
+                {
+                  role: "system",
+                  content: aiSettings.systemPrompt,
+                },
+                ...history,
+                { role: "user", content },
+              ],
+              max_tokens: 4096,
+              temperature: aiSettings.temperature,
+            }),
+          },
+        );
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(
+            `خطای API (${res.status}): ${errText.slice(0, 200)}`,
+          );
+        }
+
+        const data = await res.json();
+        const reply =
+          data.choices?.[0]?.message?.content ?? "پاسخی دریافت نشد.";
+        await (saveAssistantMessageMutation as any)({
+          chatId: selectedChatId,
+          content: reply,
+        });
+      } catch (apiErr) {
+        const errMsg =
+          apiErr instanceof Error
+            ? apiErr.message
+            : "خطا در ارتباط با هوش مصنوعی";
+        await (saveAssistantMessageMutation as any)({
+          chatId: selectedChatId,
+          content: `⚠️ ${errMsg}`,
+        });
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -225,14 +298,27 @@ export default function AIPanel() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch("https://api.gapgpt.app/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model: "gapgpt-qwen-3.5", messages: [{ role: "user", content: "سلام" }], max_tokens: 50 }),
-      });
+      const res = await fetch(
+        "https://api.gapgpt.app/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            model: "gapgpt-qwen-3.5",
+            messages: [{ role: "user", content: "سلام" }],
+            max_tokens: 50,
+          }),
+        },
+      );
       if (!res.ok) {
         const t = await res.text().catch(() => "");
-        setTestResult({ ok: false, msg: `خطای ${res.status}: ${t.slice(0, 150)}` });
+        setTestResult({
+          ok: false,
+          msg: `خطای ${res.status}: ${t.slice(0, 150)}`,
+        });
       } else {
         const data = await res.json();
         const reply = data.choices?.[0]?.message?.content ?? "";

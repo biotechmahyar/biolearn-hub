@@ -96,8 +96,11 @@ export const deleteChat = mutation({
   },
 });
 
-/** Save user message, call GapGPT API, save assistant reply — all in one mutation */
-export const sendMessage = mutation({
+/**
+ * Save a user message and update the chat title.
+ * The API call is made from the frontend (Convex mutations cannot do fetch).
+ */
+export const saveUserMessage = mutation({
   args: {
     chatId: v.id("aiChats"),
     content: v.string(),
@@ -107,7 +110,6 @@ export const sendMessage = mutation({
     if (!userId) throw new Error("ورود لازم است.");
     const now = Date.now();
 
-    // 1) Save user message
     await ctx.db.insert("aiMessages", {
       chatId: args.chatId,
       userId: userId as any,
@@ -116,7 +118,7 @@ export const sendMessage = mutation({
       createdAt: now,
     });
 
-    // Update chat title
+    // Update chat title on first message
     const chat = await ctx.db.get(args.chatId);
     if (chat) {
       await ctx.db.patch(args.chatId, {
@@ -127,85 +129,30 @@ export const sendMessage = mutation({
             : (chat as any).title,
       });
     }
+  },
+});
 
-    // 2) Get API key
-    const keyRow = await ctx.db
-      .query("aiSettings")
-      .withIndex("by_key", (q) => q.eq("key", "apiKey"))
-      .first();
-    const apiKey = keyRow?.value || process.env.GAPGPT_API_KEY || "";
+/**
+ * Save an assistant message after the frontend receives it from the API.
+ */
+export const saveAssistantMessage = mutation({
+  args: {
+    chatId: v.id("aiChats"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = (await ctx.auth.getUserIdentity())?.subject;
+    if (!userId) throw new Error("ورود لازم است.");
+    const now = Date.now();
 
-    if (!apiKey) {
-      const errNow = Date.now();
-      await ctx.db.insert("aiMessages", {
-        chatId: args.chatId,
-        userId: userId as any,
-        role: "assistant",
-        content: "⚠️ کلید API تنظیم نشده است. از بخش تنظیمات کلید خود را وارد کنید.",
-        createdAt: errNow,
-      });
-      await ctx.db.patch(args.chatId, { updatedAt: errNow });
-      return;
-    }
+    await ctx.db.insert("aiMessages", {
+      chatId: args.chatId,
+      userId: userId as any,
+      role: "assistant",
+      content: args.content,
+      createdAt: now,
+    });
 
-    // 3) Get history
-    const allMsgs = await ctx.db
-      .query("aiMessages")
-      .withIndex("by_chat_created", (q) => q.eq("chatId", args.chatId))
-      .order("asc")
-      .collect();
-
-    const history = allMsgs.map((m) => ({
-      role: (m as any).role as "user" | "assistant" | "system",
-      content: (m as any).content as string,
-    }));
-
-    // 4) Call API
-    try {
-      const response = await fetch("https://api.gapgpt.app/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gapgpt-qwen-3.5",
-          messages: [
-            { role: "system", content: "تو دستیار هوش مصنوعی Genova هستی — پلتفرم تخصصی آموزش علوم زیستی. به فارسی پاسخ بده." },
-            ...history,
-          ],
-          max_tokens: 4096,
-          temperature: 0.7,
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text().catch(() => "");
-        throw new Error(`خطای API (${response.status}): ${errText.slice(0, 200)}`);
-      }
-
-      const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content ?? "پاسخی دریافت نشد.";
-      const respNow = Date.now();
-      await ctx.db.insert("aiMessages", {
-        chatId: args.chatId,
-        userId: userId as any,
-        role: "assistant",
-        content: reply,
-        createdAt: respNow,
-      });
-      await ctx.db.patch(args.chatId, { updatedAt: respNow });
-    } catch (e) {
-      const errMsg = e instanceof Error ? e.message : "خطا در ارتباط با هوش مصنوعی";
-      const errNow = Date.now();
-      await ctx.db.insert("aiMessages", {
-        chatId: args.chatId,
-        userId: userId as any,
-        role: "assistant",
-        content: `⚠️ ${errMsg}`,
-        createdAt: errNow,
-      });
-      await ctx.db.patch(args.chatId, { updatedAt: errNow });
-    }
+    await ctx.db.patch(args.chatId, { updatedAt: now });
   },
 });
