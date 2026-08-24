@@ -1,6 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
+import { useViewOnly } from "@/hooks/use-view-only";
 import { useMutation, useQuery } from "convex/react";
 import {
   BookOpenText,
@@ -51,6 +52,7 @@ const KIND_STYLE: Record<DraftItem["kind"], string> = {
 
 export default function ContentPanel() {
   const { user } = useAuth();
+  const viewOnly = useViewOnly();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("drafts");
 
@@ -299,6 +301,7 @@ function DraftQueue() {
 
 // ── Article editor ──────────────────────────────────────────────────────────
 function ArticleEditor() {
+  const viewOnly = useViewOnly();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("عمومی");
   const [excerpt, setExcerpt] = useState("");
@@ -436,7 +439,7 @@ function ArticleEditor() {
             </div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] text-slate-500">{body.length} کاراکتر</span>
-              <Button onClick={handleSave} disabled={busy}>
+              <Button onClick={handleSave} disabled={busy || viewOnly}>
                 <Send className="size-4" />
                 {publish ? "انتشار مقاله" : "ذخیرهٔ پیش‌نویس"}
               </Button>

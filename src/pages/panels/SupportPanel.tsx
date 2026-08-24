@@ -1,6 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
+import { useViewOnly } from "@/hooks/use-view-only";
 import { useMutation, useQuery } from "convex/react";
 import {
   CheckCircle2,
@@ -32,6 +33,7 @@ const STATUS_LABEL: Record<Status, string> = {
 
 export default function SupportPanel() {
   const { user } = useAuth();
+  const viewOnly = useViewOnly();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Status | "all">("all");
   const [view, setView] = useState<"tickets" | "profile">("tickets");

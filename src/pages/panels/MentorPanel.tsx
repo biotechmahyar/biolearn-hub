@@ -1,6 +1,7 @@
 import { api } from "@/convex/_generated/api";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
+import { useViewOnly } from "@/hooks/use-view-only";
 import { useMutation, useQuery } from "convex/react";
 import {
   CalendarClock,
@@ -41,6 +42,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass; hint: string }[] = [
 
 export default function MentorPanel() {
   const { user } = useAuth();
+  const viewOnly = useViewOnly();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("questions");
 
@@ -124,6 +126,7 @@ export default function MentorPanel() {
 
 // ── Q&A ─────────────────────────────────────────────────────────────────────
 function QuestionsView() {
+  const viewOnly = useViewOnly();
   const [text, setText] = useState("");
   const [topic, setTopic] = useState("عمومی");
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -190,7 +193,7 @@ function QuestionsView() {
               <SelectItem value="مسیر شغلی">مسیر شغلی</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={handleAsk}>
+          <Button size="sm" onClick={handleAsk} disabled={viewOnly}>
             <Send className="size-4" />
             پرسیدن
           </Button>
@@ -230,7 +233,7 @@ function QuestionsView() {
                       onChange={(e) => setAnswers((a) => ({ ...a, [q._id]: e.target.value }))}
                       className="flex-1 border-amber-400/30 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
                     />
-                    <Button size="sm" onClick={() => handleAnswer(q)}>
+                    <Button size="sm" onClick={() => handleAnswer(q)} disabled={viewOnly}>
                       <Send className="size-3.5" />
                       ارسال
                     </Button>
@@ -294,6 +297,7 @@ function QuestionsView() {
 
 // ── Mentoring groups ────────────────────────────────────────────────────────
 function GroupsView() {
+  const viewOnly = useViewOnly();
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -328,7 +332,7 @@ function GroupsView() {
         </div>
         <Button
           className="border-amber-400/30 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
-          onClick={() => setShowCreate((s) => !s)}
+          onClick={() => setShowCreate((s) => !s)} disabled={viewOnly}
         >
           <Plus className="size-4" />
           گروه جدید
@@ -381,7 +385,7 @@ function GroupsView() {
               />
             </div>
             <div className="flex justify-end">
-              <Button onClick={handleCreate}>ایجاد گروه</Button>
+              <Button onClick={handleCreate} disabled={viewOnly}>ایجاد گروه</Button>
             </div>
           </CardContent>
         </Card>

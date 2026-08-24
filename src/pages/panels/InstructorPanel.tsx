@@ -3,6 +3,7 @@ import { CategoryField } from "@/components/site/CategoryField";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
+import { useViewOnly } from "@/hooks/use-view-only";
 import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { useMutation, useQuery } from "convex/react";
@@ -214,6 +215,7 @@ function RoomsView({
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [description, setDescription] = useState("");
+  const viewOnly = useViewOnly();
   const createRoom = useMutation(api.collab.createRoom);
   const deleteRoom = useMutation(api.collab.deleteRoom);
 
@@ -280,7 +282,7 @@ function RoomsView({
               <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>
                 انصراف
               </Button>
-              <Button size="sm" onClick={handleCreate}>
+              <Button size="sm" onClick={handleCreate} disabled={viewOnly}>
                 <Radio className="size-4" />
                 شروع کلاس
               </Button>
@@ -388,6 +390,7 @@ function RoomView({
   onClose: () => void;
   rooms: RoomRow[];
 }) {
+  const viewOnly = useViewOnly();
   const { user } = useAuth();
   const room = rooms.find((r) => r._id === roomId);
   const detail = useQuery(api.collab.getRoom, { roomId: roomId as any });
@@ -814,7 +817,7 @@ function RoomView({
                 {recording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
               </button>
             </div>
-            <Button size="sm" onClick={handleSend} disabled={sending || uploading}>
+            <Button size="sm" onClick={handleSend} disabled={sending || uploading || viewOnly}>
               <Send className="size-4" />
               ارسال
             </Button>
@@ -856,6 +859,7 @@ function LiveSection({
   }) => void;
   clearStrokes: (args: { roomId: any; layer: "board" | "screen" }) => void;
 }) {
+  const viewOnly = useViewOnly();
   const [annoTool, setAnnoTool] = useState<WbTool>("pen");
   const [annoColor, setAnnoColor] = useState("#ef4444");
 
@@ -892,7 +896,7 @@ function LiveSection({
                 <Button
                   size="sm"
                   onClick={() => void broadcast.start(false)}
-                  disabled={broadcast.status === "starting"}
+                  disabled={broadcast.status === "starting" || viewOnly}
                 >
                   {broadcast.status === "starting" ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -906,7 +910,7 @@ function LiveSection({
                   variant="outline"
                   className="border-cyan-400/30 text-cyan-200 hover:bg-cyan-400/10"
                   onClick={() => void broadcast.start(true)}
-                  disabled={broadcast.status === "starting"}
+                  disabled={broadcast.status === "starting" || viewOnly}
                 >
                   <Camera className="size-3.5" />
                   صدا + دوربین
@@ -919,7 +923,7 @@ function LiveSection({
                     setScreenShare(true);
                     void broadcast.start(true, "screen");
                   }}
-                  disabled={broadcast.status === "starting"}
+                  disabled={broadcast.status === "starting" || viewOnly}
                 >
                   <MonitorPlay className="size-3.5" />
                   اشتراک صفحه
@@ -1040,6 +1044,7 @@ function BoardSection({
   clearStrokes: (args: { roomId: any; layer: "board" | "screen" }) => void;
   setBoardBg: (args: { roomId: any; bg: string }) => void;
 }) {
+  const viewOnly = useViewOnly();
   const [penTool, setPenTool] = useState<WbTool>("pen");
   const [penColor, setPenColor] = useState("#ffffff");
 
@@ -1087,7 +1092,7 @@ function BoardSection({
               </button>
               <span className="mx-1 h-4 w-px bg-white/10" />
               <button
-                onClick={() => void clearStrokes({ roomId: roomId as any, layer: "board" })}
+                onClick={() => void clearStrokes({ roomId: roomId as any, layer: "board" })} disabled={viewOnly}
                 title="پاک کردن تخته"
                 className="flex size-8 items-center justify-center rounded-md text-red-300 transition-colors hover:bg-red-400/15"
               >
@@ -1198,6 +1203,7 @@ const STUDIO_STATUS: Record<string, { label: string; cls: string }> = {
 };
 
 function CourseStudioView() {
+  const viewOnly = useViewOnly();
   const courses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
   const create = useMutation(api.courseStudio.createDraftCourse);
   const update = useMutation(api.courseStudio.updateDraftCourse);
@@ -1278,7 +1284,7 @@ function CourseStudioView() {
             دوره را طراحی کنید و برای تأیید به مدیر سایت بفرستید؛ پس از تأیید، در سایت منتشر می‌شود.
           </p>
         </div>
-        <Button className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={openCreate}>
+        <Button className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={openCreate} disabled={viewOnly}>
           <Plus className="size-4" />
           دورهٔ جدید
         </Button>
@@ -1312,7 +1318,7 @@ function CourseStudioView() {
                     {editable && (
                       <Button
                         size="sm"
-                        disabled={submittingId === c._id}
+                        disabled={submittingId === c._id || viewOnly}
                         className="bg-cyan-500 text-white hover:bg-cyan-400"
                         onClick={() => handleSubmit(c._id)}
                       >
@@ -1389,7 +1395,7 @@ function CourseStudioView() {
               </Select>
             </div>
             {err && <p className="text-sm text-red-400">{err}</p>}
-            <Button onClick={handleSave} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
+            <Button onClick={handleSave} disabled={busy || viewOnly} className="bg-cyan-500 text-white hover:bg-cyan-400">
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
               {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "ذخیره به‌عنوان پیش‌نویس"}
             </Button>
@@ -1512,6 +1518,7 @@ function ProfileView() {
 
 // ── Announcements to my students ────────────────────────────────────────────
 function AnnouncementsView({ instructorName }: { instructorName: string | null }) {
+  const viewOnly = useViewOnly();
   const courses = useQuery(api.content.listCourses, {}) ?? [];
   const mine = courses.filter((c) => c.instructor?.name === instructorName);
   const myAnns = useQuery(api.notifications.listMyAnnouncements) ?? [];
@@ -1619,7 +1626,7 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
             className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
           />
           {err && <p className="text-sm text-red-400">{err}</p>}
-          <Button onClick={handleCreate} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
+          <Button onClick={handleCreate} disabled={busy || viewOnly} className="bg-cyan-500 text-white hover:bg-cyan-400">
             {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
             ارسال اطلاعیه
           </Button>
