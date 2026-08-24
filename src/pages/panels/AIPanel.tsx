@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useSettings, ACCENT_SWATCHES, FONT_OPTIONS } from "@/lib/settings";
 import { cn } from "@/lib/utils";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useState, useRef, useEffect } from "react";
 import {
   Home,
@@ -27,6 +27,8 @@ import {
   Bot,
   Thermometer,
   Cpu,
+  Key,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,7 +55,7 @@ const DEFAULT_AI_SETTINGS: AISettings = {
   model: "gapgpt-qwen-3.5",
   temperature: 0.7,
   systemPrompt:
-    "تو یک دستیار هوش مصنوعی برای پلتفرم Genova هستی — پلتفرم تخصصی آموزش علوم زیستی. به سؤالات کاربران در حوزه میکروبیولوژی، بیوتکنولوژی، و علوم زیستی پاسخ بده.",
+    "تو یک دستیار هوش مصنوعی برای پلتفرم Genova هستی — پلتفرم تخصصی آموزش علوم زیستی.",
 };
 
 function readAISettings(): AISettings {
@@ -81,6 +83,9 @@ export default function AIPanel() {
   const createChat = useMutation(api.ai.createChat);
   const deleteChatMutation = useMutation(api.ai.deleteChat);
   const sendMessageMutation = useMutation(api.ai.sendMessage);
+  const saveApiKeyMutation = useMutation(api.ai.saveApiKey);
+  const testApiKeyAction = useAction(api.ai.testApiKey);
+  const currentApiKey: string = useQuery(api.ai.getApiKey) ?? "";
 
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,6 +107,13 @@ export default function AIPanel() {
   // Settings dialog
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiSettings, setAiSettings] = useState<AISettings>(readAISettings);
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [apiKeySaved, setApiKeySaved] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    msg: string;
+  } | null>(null);
+  const [testing, setTesting] = useState(false);
 
   // Auto-scroll
   useEffect(() => {
@@ -130,7 +142,6 @@ export default function AIPanel() {
     );
   }
 
-  // Access check
   if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -193,6 +204,41 @@ export default function AIPanel() {
     const file = e.target.files?.[0];
     if (file) setPendingFile({ name: file.name, type: file.type });
     e.target.value = "";
+  };
+
+  const openSettings = () => {
+    setApiKeyInput(currentApiKey || "");
+    setApiKeySaved(false);
+    setTestResult(null);
+    setSettingsOpen(true);
+  };
+
+  const handleSaveApiKey = async () => {
+    if (!apiKeyInput.trim()) return;
+    await saveApiKeyMutation({ apiKey: apiKeyInput.trim() });
+    setApiKeySaved(true);
+    setTestResult(null);
+  };
+
+  const handleTestApiKey = async () => {
+    const key = apiKeyInput.trim() || currentApiKey;
+    if (!key) {
+      setTestResult({ ok: false, msg: "کلید API خالی است." });
+      return;
+    }
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await testApiKeyAction({ apiKey: key }) as any;
+      setTestResult({ ok: res.ok, msg: res.ok ? (res.reply ?? "") : (res.error ?? "خطا") });
+    } catch (e) {
+      setTestResult({
+        ok: false,
+        msg: e instanceof Error ? e.message : "خطا",
+      });
+    } finally {
+      setTesting(false);
+    }
   };
 
   const handleSaveAISettings = () => {
@@ -329,7 +375,7 @@ export default function AIPanel() {
             variant="ghost"
             size="icon"
             className="size-7"
-            onClick={() => setSettingsOpen(true)}
+            onClick={openSettings}
             title="تنظیمات"
           >
             <Settings2 className="size-4" />
@@ -494,12 +540,82 @@ export default function AIPanel() {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* AI Settings */}
+            {/* ── AI Settings ── */}
             <div className="space-y-4 rounded-xl border border-border/70 bg-muted/30 p-4">
               <p className="flex items-center gap-1.5 text-xs font-bold text-primary">
                 <Bot className="size-3.5" /> تنظیمات هوش مصنوعی
               </p>
 
+              {/* API Key */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5 text-xs">
+                  <Key className="size-3" /> کلید API
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={apiKeyInput}
+                    onChange={(e) => {
+                      setApiKeyInput(e.target.value);
+                      setTestResult(null);
+                      setApiKeySaved(false);
+                    }}
+                    placeholder="sk-..."
+                    dir="ltr"
+                    className="font-mono text-xs flex-1"
+                    type="password"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSaveApiKey}
+                    disabled={!apiKeyInput.trim()}
+                    className="shrink-0 text-xs"
+                  >
+                    ذخیره
+                  </Button>
+                </div>
+                {apiKeySaved && (
+                  <p className="text-[11px] text-emerald-500">
+                    ✓ کلید ذخیره شد
+                  </p>
+                )}
+                {!apiKeyInput && currentApiKey && (
+                  <p className="text-[11px] text-muted-foreground">
+                    کلید فعلی: {currentApiKey.slice(0, 8)}...
+                    {currentApiKey.slice(-4)}
+                  </p>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs gap-1.5"
+                  onClick={handleTestApiKey}
+                  disabled={testing}
+                >
+                  {testing ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Zap className="size-3" />
+                  )}
+                  تست اتصال
+                </Button>
+                {testResult && (
+                  <div
+                    className={cn(
+                      "rounded-lg p-2 text-xs",
+                      testResult.ok
+                        ? "bg-emerald-500/10 text-emerald-500"
+                        : "bg-destructive/10 text-destructive",
+                    )}
+                  >
+                    {testResult.ok
+                      ? `✓ متصل: ${testResult.msg}`
+                      : `✗ ${testResult.msg}`}
+                  </div>
+                )}
+              </div>
+
+              {/* Model */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5 text-xs">
                   <Cpu className="size-3" /> مدل
@@ -514,6 +630,7 @@ export default function AIPanel() {
                 />
               </div>
 
+              {/* Temperature */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5 text-xs">
                   <Thermometer className="size-3" /> دما (Temperature):{" "}
@@ -535,6 +652,7 @@ export default function AIPanel() {
                 />
               </div>
 
+              {/* System Prompt */}
               <div className="space-y-2">
                 <Label className="text-xs">پرامپت سیستم</Label>
                 <Textarea
@@ -551,7 +669,7 @@ export default function AIPanel() {
               </div>
             </div>
 
-            {/* Appearance Settings */}
+            {/* ── Appearance Settings ── */}
             <div className="space-y-4 rounded-xl border border-border/70 bg-muted/30 p-4">
               <p className="flex items-center gap-1.5 text-xs font-bold text-primary">
                 <Paintbrush className="size-3.5" /> تنظیمات ظاهر
@@ -565,8 +683,16 @@ export default function AIPanel() {
                 <div className="grid grid-cols-2 gap-2">
                   {(
                     [
-                      { key: "dark" as const, label: "تیره", icon: <Moon className="size-4" /> },
-                      { key: "light" as const, label: "روشن", icon: <Sun className="size-4" /> },
+                      {
+                        key: "dark" as const,
+                        label: "تیره",
+                        icon: <Moon className="size-4" />,
+                      },
+                      {
+                        key: "light" as const,
+                        label: "روشن",
+                        icon: <Sun className="size-4" />,
+                      },
                     ]
                   ).map((t) => (
                     <button
@@ -605,7 +731,10 @@ export default function AIPanel() {
                       )}
                     >
                       {settings.accent === a.key && (
-                        <Check className="size-3.5 text-white" strokeWidth={3} />
+                        <Check
+                          className="size-3.5 text-white"
+                          strokeWidth={3}
+                        />
                       )}
                     </button>
                   ))}
@@ -640,10 +769,7 @@ export default function AIPanel() {
               </div>
             </div>
 
-            <Button
-              className="w-full"
-              onClick={handleSaveAISettings}
-            >
+            <Button className="w-full" onClick={handleSaveAISettings}>
               ذخیره تنظیمات
             </Button>
           </div>

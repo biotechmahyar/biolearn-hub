@@ -90,7 +90,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   return (
     <SettingsContext.Provider value={value}>
       {children}
-      <SettingsButton />
     </SettingsContext.Provider>
   );
 }
