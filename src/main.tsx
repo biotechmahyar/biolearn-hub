@@ -24,7 +24,6 @@ const InstructorPanel = lazy(() => import("./pages/panels/InstructorPanel.tsx"))
 const MentorPanel = lazy(() => import("./pages/panels/MentorPanel.tsx"));
 const SupportPanel = lazy(() => import("./pages/panels/SupportPanel.tsx"));
 const ContentPanel = lazy(() => import("./pages/panels/ContentPanel.tsx"));
-const AIPanel = lazy(() => import("./pages/panels/AIPanel.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Public catalog pages
@@ -166,14 +165,6 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RoleGate allowed={["content_manager", "admin", "site_admin"]} title="content studio">
                     <ContentPanel />
-                  </RoleGate>
-                }
-              />
-              <Route
-                path="/panel/ai"
-                element={
-                  <RoleGate allowed={["admin", "site_admin"]} title="AI assistant">
-                    <AIPanel />
                   </RoleGate>
                 }
               />

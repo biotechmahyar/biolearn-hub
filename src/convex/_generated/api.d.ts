@@ -9,8 +9,6 @@
  */
 
 import type * as admin from "../admin.js";
-import type * as ai from "../ai.js";
-import type * as aiActions from "../aiActions.js";
 import type * as auth from "../auth.js";
 import type * as classEnroll from "../classEnroll.js";
 import type * as collab from "../collab.js";
@@ -40,8 +38,6 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
-  ai: typeof ai;
-  aiActions: typeof aiActions;
   auth: typeof auth;
   classEnroll: typeof classEnroll;
   collab: typeof collab;
