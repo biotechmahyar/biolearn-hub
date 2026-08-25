@@ -1,35 +1,28 @@
-"use node";
-
 import { v } from "convex/values";
-import { query, mutation, action } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
-// ── Admin Authorization ──────────────────────────────────────────────
-// Server-side role check — never trust the frontend.
-// Only "admin" (system admin) and "site_admin" can manage AI config.
+// ── Server-side admin authorization ────────────────────────────────────
+// Reads the user's role from the trusted DB record, never from the client.
 
 async function requireAdmin(ctx: {
   auth: { getUserIdentity: () => Promise<{ subject: string } | null> };
-  db: { get: (id: any) => Promise<any> };
+  db: { get: (id: Id<"users">) => Promise<Record<string, unknown> | null> };
 }) {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("ورود لازم است.");
   const user = await ctx.db.get(identity.subject as Id<"users">);
   if (!user) throw new Error("کاربر یافت نشد.");
-  const role = (user as any).role as string | undefined;
+  const role = user.role as string | undefined;
   if (role !== "admin" && role !== "site_admin") {
     throw new Error("فقط مدیر سامانه یا مدیر سایت اجازه دسترسی دارد.");
   }
-  return { userId: identity.subject as Id<"users">, role };
+  return { userId: identity.subject as Id<"users"> };
 }
 
-function maskKey(key: string): string {
-  if (key.length <= 8) return "••••••••";
-  return key.slice(0, 4) + "•".repeat(Math.max(0, key.length - 8)) + key.slice(-4);
-}
+// ── AI Config: admin-only queries ─────────────────────────────────────
 
-// ── AI Config Queries (admin-only) ───────────────────────────────────
-
+/** Returns masked key + provider info. Never returns the plaintext key. */
 export const getConfigMeta = query({
   args: {},
   handler: async (ctx) => {
@@ -39,13 +32,36 @@ export const getConfigMeta = query({
     return {
       provider: row.provider,
       maskedKey: row.maskedKey,
-      model: row.model,
+      model: row.model ?? "gapgpt-qwen-3.5",
       updatedAt: row.updatedAt,
     };
   },
 });
 
-// ── AI Config Mutations (admin-only) ─────────────────────────────────
+/** Returns full config for use by actions (server-side only). */
+export const getConfigForAction = query({
+  args: {},
+  handler: async (ctx) => {
+    const row = await ctx.db.query("aiConfig").first();
+    if (!row) return null;
+    return {
+      apiKey: row.apiKey,
+      provider: row.provider,
+      model: row.model ?? "gapgpt-qwen-3.5",
+    };
+  },
+});
+
+// ── AI Config: admin-only mutations ───────────────────────────────────
+
+function maskKey(key: string): string {
+  if (key.length <= 8) return "••••••••";
+  return (
+    key.slice(0, 4) +
+    "•".repeat(Math.min(key.length - 8, 16)) +
+    key.slice(-4)
+  );
+}
 
 export const saveConfig = mutation({
   args: {
@@ -55,27 +71,23 @@ export const saveConfig = mutation({
   },
   handler: async (ctx, args) => {
     const { userId } = await requireAdmin(ctx);
-    const provider = args.provider || "gapgpt";
-    const model = args.model || "gapgpt-qwen-3.5";
     const now = Date.now();
-    const masked = maskKey(args.apiKey);
-
     const existing = await ctx.db.query("aiConfig").first();
     if (existing) {
       await ctx.db.patch(existing._id, {
-        provider,
+        provider: args.provider ?? "gapgpt",
         apiKey: args.apiKey,
-        maskedKey: masked,
-        model,
+        maskedKey: maskKey(args.apiKey),
+        model: args.model ?? "gapgpt-qwen-3.5",
         savedBy: userId,
         updatedAt: now,
       });
     } else {
       await ctx.db.insert("aiConfig", {
-        provider,
+        provider: args.provider ?? "gapgpt",
         apiKey: args.apiKey,
-        maskedKey: masked,
-        model,
+        maskedKey: maskKey(args.apiKey),
+        model: args.model ?? "gapgpt-qwen-3.5",
         savedBy: userId,
         updatedAt: now,
       });
@@ -92,19 +104,20 @@ export const deleteConfig = mutation({
   },
 });
 
-// ── Chat Queries (any authenticated user) ────────────────────────────
+// ── Chat: queries (any authenticated user, scoped to self) ────────────
 
 export const listChats = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    const chats = await ctx.db
+    return await ctx.db
       .query("aiChats")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject as Id<"users">))
+      .withIndex("by_user", (q) =>
+        q.eq("userId", identity.subject as Id<"users">),
+      )
       .order("desc")
       .collect();
-    return chats;
   },
 });
 
@@ -113,19 +126,17 @@ export const getMessages = query({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
-    // Verify the chat belongs to this user
     const chat = await ctx.db.get(args.chatId);
-    if (!chat || (chat as any).userId !== identity.subject) return [];
-    const messages = await ctx.db
+    if (!chat || chat.userId !== (identity.subject as Id<"users">)) return [];
+    return await ctx.db
       .query("aiMessages")
       .withIndex("by_chat_created", (q) => q.eq("chatId", args.chatId))
       .order("asc")
       .collect();
-    return messages;
   },
 });
 
-// ── Chat Mutations ───────────────────────────────────────────────────
+// ── Chat: mutations ───────────────────────────────────────────────────
 
 export const createChat = mutation({
   args: { title: v.optional(v.string()) },
@@ -148,9 +159,8 @@ export const deleteChat = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("ورود لازم است.");
     const chat = await ctx.db.get(args.chatId);
-    if (!chat || (chat as any).userId !== identity.subject) {
+    if (!chat || chat.userId !== (identity.subject as Id<"users">))
       throw new Error("دسترسی غیرمجاز.");
-    }
     const msgs = await ctx.db
       .query("aiMessages")
       .withIndex("by_chat", (q) => q.eq("chatId", args.chatId))
@@ -161,17 +171,13 @@ export const deleteChat = mutation({
 });
 
 export const saveUserMessage = mutation({
-  args: {
-    chatId: v.id("aiChats"),
-    content: v.string(),
-  },
+  args: { chatId: v.id("aiChats"), content: v.string() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("ورود لازم است.");
     const chat = await ctx.db.get(args.chatId);
-    if (!chat || (chat as any).userId !== identity.subject) {
+    if (!chat || chat.userId !== (identity.subject as Id<"users">))
       throw new Error("دسترسی غیرمجاز.");
-    }
     const now = Date.now();
     await ctx.db.insert("aiMessages", {
       chatId: args.chatId,
@@ -180,73 +186,29 @@ export const saveUserMessage = mutation({
       content: args.content,
       createdAt: now,
     });
-    // Auto-title: use first user message as chat title
-    await ctx.db.patch(args.chatId, {
-      updatedAt: now,
-      title:
-        (chat as any).title === "چت جدید"
-          ? args.content.slice(0, 50)
-          : (chat as any).title,
-    });
+    if (chat.title === "چت جدید") {
+      await ctx.db.patch(args.chatId, {
+        title: args.content.slice(0, 50),
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.patch(args.chatId, { updatedAt: now });
+    }
   },
 });
 
 export const saveAssistantMessage = mutation({
-  args: {
-    chatId: v.id("aiChats"),
-    content: v.string(),
-  },
+  args: { chatId: v.id("aiChats"), content: v.string() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("ورود لازم است.");
-    const now = Date.now();
     await ctx.db.insert("aiMessages", {
       chatId: args.chatId,
       userId: identity.subject as Id<"users">,
       role: "assistant",
       content: args.content,
-      createdAt: now,
+      createdAt: Date.now(),
     });
-    await ctx.db.patch(args.chatId, { updatedAt: now });
-  },
-});
-
-// ── AI Action: Call provider API (runs server-side, key never exposed) ─
-
-export const chatCompletion = action({
-  args: {
-    messages: v.array(
-      v.object({
-        role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
-        content: v.string(),
-      }),
-    ),
-    model: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    // Read config from DB (server-side only)
-    const config: any = await ctx.runQuery(
-      // We cannot import local queries from actions.
-      // Instead, read directly via db.
-      undefined as any,
-    );
-
-    // Actually, actions cannot call local query functions.
-    // We need to read the API key differently.
-    // Let's use a workaround: call the query via api module.
-    // But that causes circular deps. Instead, read from internal.
-    throw new Error("Use sendChatMessage mutation + frontend fetch instead.");
-  },
-});
-
-// ── Test Connection Action ────────────────────────────────────────────
-
-export const testConnection = action({
-  args: {},
-  handler: async (ctx) => {
-    // We need the API key but actions can't read local queries.
-    // The simplest secure approach: admin passes the key from the frontend,
-    // and we test it server-side. The key is transmitted over HTTPS only.
-    throw new Error("Use frontend-based test instead.");
+    await ctx.db.patch(args.chatId, { updatedAt: Date.now() });
   },
 });
