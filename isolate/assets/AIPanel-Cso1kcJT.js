@@ -1,0 +1,1 @@
+import{j as e}from"./radix-ui-Bfip-6yk.js";import"./react-vendor-CIHsJp53.js";function n(){return e.jsx("div",{className:"flex h-screen items-center justify-center text-muted-foreground",children:"Loading AI..."})}export{n as default};
