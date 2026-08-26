@@ -48,6 +48,7 @@ import {
   Compass,
   CreditCard,
   DollarSign,
+  Download,
   Eye,
   EyeOff,
   FileText,
@@ -76,10 +77,12 @@ import {
   UserCheck,
   Users,
   Video,
+  Wifi,
+  WifiOff,
   X,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   DropdownMenu,
@@ -118,7 +121,8 @@ type Section =
   | "inbox"
   | "examReports"
   | "offlinePayments"
-  | "myprofile";
+  | "myprofile"
+  | "online";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -126,6 +130,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
     items: [
       { key: "overview", label: "نمای کلی", icon: Activity },
       { key: "users", label: "کاربران و دسترسی‌ها", icon: Users },
+      { key: "online", label: "آنلاین‌ها", icon: Wifi },
       { key: "profiles", label: "تأیید پروفایل‌ها", icon: UserCheck },
       { key: "inbox", label: "صندوق ورودی", icon: Inbox },
       { key: "examReports", label: "گزارش‌های خطای آزمون", icon: Flag },
@@ -305,10 +310,20 @@ export default function Admin() {
   const [section, setSection] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navigate = useNavigate();
+  const notifCounts = useQuery(api.admin.getSectionNotifications);
   // System admins (full power) vs site admins (lower-tier team managers).
   const isSystemAdmin = user?.role === "admin";
   // Both system and site admins can jump between the team panels.
   const canRoleSwitch = user?.role === "admin" || user?.role === "site_admin";
+
+  // Map section keys to notification count keys
+  const NOTIF_MAP: Record<string, string> = {
+    support: "support",
+    examReports: "examReports",
+    profiles: "profiles",
+    courses: "courses",
+    offlinePayments: "offlinePayments",
+  };
 
   // Staff panels the admin can jump into (every role except student).
   const ROLE_JUMP: { label: string; icon: typeof ShieldCheck; to: string }[] = [
@@ -375,22 +390,31 @@ export default function Admin() {
                   {g.title}
                 </p>
                 <div className="space-y-0.5">
-                  {g.items.map((s) => (
-                    <button
-                      key={s.key}
-                      type="button"
-                      onClick={() => setSection(s.key)}
-                      className={cn(
-                        "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
-                        section === s.key
-                          ? "bg-primary/15 text-primary"
-                          : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                      )}
-                    >
-                      <s.icon className="size-4" />
-                      {s.label}
-                    </button>
-                  ))}
+                  {g.items.map((s) => {
+                    const notifKey = NOTIF_MAP[s.key];
+                    const count = notifCounts && notifKey ? (notifCounts as Record<string, number>)[notifKey] ?? 0 : 0;
+                    return (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setSection(s.key)}
+                        className={cn(
+                          "relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                          section === s.key
+                            ? "bg-primary/15 text-primary"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        <s.icon className="size-4" />
+                        {s.label}
+                        {count > 0 && (
+                          <span className="absolute left-2 top-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white animate-pulse">
+                            {count > 9 ? "!" : count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -450,25 +474,34 @@ export default function Admin() {
                           {g.title}
                         </p>
                         <div className="space-y-0.5">
-                          {g.items.map((s) => (
-                            <button
-                              key={s.key}
-                              type="button"
-                              onClick={() => {
-                                setSection(s.key);
-                                setMobileNavOpen(false);
-                              }}
-                              className={cn(
-                                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
-                                section === s.key
-                                  ? "bg-primary/15 text-primary"
-                                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                              )}
-                            >
-                              <s.icon className="size-4" />
-                              {s.label}
-                            </button>
-                          ))}
+                          {g.items.map((s) => {
+                            const notifKey = NOTIF_MAP[s.key];
+                            const count = notifCounts && notifKey ? (notifCounts as Record<string, number>)[notifKey] ?? 0 : 0;
+                            return (
+                              <button
+                                key={s.key}
+                                type="button"
+                                onClick={() => {
+                                  setSection(s.key);
+                                  setMobileNavOpen(false);
+                                }}
+                                className={cn(
+                                  "relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
+                                  section === s.key
+                                    ? "bg-primary/15 text-primary"
+                                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                                )}
+                              >
+                                <s.icon className="size-4" />
+                                {s.label}
+                                {count > 0 && (
+                                  <span className="absolute left-2 top-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white animate-pulse">
+                                    {count > 9 ? "!" : count}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -545,6 +578,7 @@ export default function Admin() {
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+            {section === "online" && <AdminOnline />}
             {section === "overview" && <AdminOverview />}
             {section === "courses" && <AdminCourses />}
             {section === "questions" && <AdminQuestions />}
@@ -2464,11 +2498,52 @@ function AdminAnnouncements() {
   );
 }
 
+// ── Online users list ───────────────────────────────────────────────────────
+function AdminOnline() {
+  const users = useQuery(api.collab.listAllUsersWithPresence);
+  const fmt = (ts: number | null) => {
+    if (!ts) return "هرگز";
+    const d = Date.now() - ts;
+    if (d < 60_000) return "الآن";
+    if (d < 3_600_000) return `${Math.floor(d / 60_000)} دقیقه پیش`;
+    if (d < 86_400_000) return `${Math.floor(d / 3_600_000)} ساعت پیش`;
+    return `${Math.floor(d / 86_400_000)} روز پیش`;
+  };
+  const on = users?.filter((u) => u.isOnline).length ?? 0;
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div><p className="font-mono text-[11px] uppercase tracking-widest text-primary/80">presence / online users</p><h1 className="mt-1 text-2xl font-extrabold tracking-tight">آنلاین‌ها</h1></div>
+        <div className="flex gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 font-mono text-xs text-emerald-500"><Wifi className="size-3.5" /> {faNum(on)} آنلاین</span>
+          <span className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-xs text-muted-foreground">{faNum(users?.length ?? 0)} کاربر</span>
+        </div>
+      </div>
+      <Card className="border-border/70 shadow-sm"><CardContent className="p-0">
+        <Table><TableHeader><TableRow><TableHead>وضعیت</TableHead><TableHead>نام</TableHead><TableHead>ایمیل</TableHead><TableHead>نقش</TableHead><TableHead>آخرین فعالیت</TableHead></TableRow></TableHeader>
+        <TableBody>
+          {(users ?? []).map((u) => (
+            <TableRow key={u._id} className={u.isOnline ? "" : "opacity-60"}>
+              <TableCell>{u.isOnline ? <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-emerald-500 animate-pulse" /><span className="text-xs font-bold text-emerald-500">آنلاین</span></span> : <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-muted-foreground/40" /><span className="text-xs text-muted-foreground">آفلاین</span></span>}</TableCell>
+              <TableCell className="font-medium">{u.name}</TableCell>
+              <TableCell className="text-muted-foreground" dir="ltr">{u.email ?? "—"}</TableCell>
+              <TableCell><Badge variant="outline" className="rounded-full text-[10px]">{ROLE_LABELS[u.role] ?? u.role}</Badge></TableCell>
+              <TableCell className="text-xs text-muted-foreground">{u.isOnline ? "الآن فعال" : fmt(u.lastSeen)}</TableCell>
+            </TableRow>
+          ))}
+          {(!users || users.length === 0) && <TableRow><TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground">بارگذاری...</TableCell></TableRow>}
+        </TableBody></Table>
+      </CardContent></Card>
+    </div>
+  );
+}
+
 // ── Profile approvals: members edit their profile, admin approves ──────────
 function AdminProfiles() {
   const pending = useQuery(api.profiles.listPendingProfiles) ?? [];
   const approve = useMutation(api.profiles.approveProfile);
   const reject = useMutation(api.profiles.rejectProfile);
+  const [viewPhoto, setViewPhoto] = useState<{ url: string; name: string } | null>(null);
 
   return (
     <div className="space-y-5">
@@ -2518,6 +2593,12 @@ function AdminProfiles() {
                       ? `${p.current.firstName ?? ""} ${p.current.lastName ?? ""}`.trim()
                       : (p.name ?? "—")}
                   </p>
+                  {p.current.avatarUrl && (
+                    <div className="mt-2">
+                      <img src={p.current.avatarUrl} alt="عکس فعلی" className="size-16 rounded-lg border border-border object-cover" />
+                      <a href={p.current.avatarUrl} download target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><Download className="size-3" /> دانلود عکس</a>
+                    </div>
+                  )}
                   {p.current.about && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{p.current.about}</p>}
                 </div>
                 <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
@@ -2527,6 +2608,15 @@ function AdminProfiles() {
                       ? `${p.pending.firstName ?? ""} ${p.pending.lastName ?? ""}`.trim()
                       : (p.name ?? "—")}
                   </p>
+                  {p.pending.avatarUrl && (
+                    <div className="mt-2">
+                      <img src={p.pending.avatarUrl} alt="عکس جدید" className="size-16 rounded-lg border border-primary/30 object-cover" />
+                      <div className="mt-1.5 flex gap-2">
+                        <button onClick={() => setViewPhoto({ url: p.pending.avatarUrl!, name: p.name ?? "کاربر" })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><Eye className="size-3" /> مشاهده بزرگ</button>
+                        <a href={p.pending.avatarUrl} download target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"><Download className="size-3" /> دانلود</a>
+                      </div>
+                    </div>
+                  )}
                   {p.pending.about && <p className="mt-1.5 text-xs leading-5 text-muted-foreground">{p.pending.about}</p>}
                 </div>
               </div>
@@ -2544,6 +2634,22 @@ function AdminProfiles() {
           </Card>
         )}
       </div>
+
+      {/* Photo viewer dialog */}
+      <Dialog open={viewPhoto !== null} onOpenChange={(o) => { if (!o) setViewPhoto(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>عکس پروفایل — {viewPhoto?.name}</DialogTitle></DialogHeader>
+          {viewPhoto?.url && (
+            <div className="space-y-3">
+              <img src={viewPhoto.url} alt="عکس بزرگ" className="w-full rounded-lg border border-border object-cover" />
+              <div className="flex justify-end gap-2">
+                <a href={viewPhoto.url} download target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium hover:bg-accent"><Download className="size-3.5" /> دانلود</a>
+                <Button size="sm" variant="outline" onClick={() => setViewPhoto(null)}>بستن</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

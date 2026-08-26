@@ -1156,3 +1156,45 @@ export const adminUpdateWorkshop = mutation({
     return { ok: true };
   },
 });
+
+// ── Section notification counts (red dots) ─────────────────────────────────
+export const getSectionNotifications = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return {};
+
+    // Count open tickets
+    const openTickets = await ctx.db
+      .query("tickets")
+      .withIndex("by_status", (q) => q.eq("status", "open"))
+      .collect();
+
+    // Count open exam reports
+    const openReports = await ctx.db
+      .query("examReports")
+      .withIndex("by_status", (q) => q.eq("status", "open"))
+      .collect();
+
+    // Count pending profiles
+    const allUsers = await ctx.db.query("users").collect();
+    const pendingProfiles = allUsers.filter((u) => !!u.pendingProfile).length;
+
+    // Count pending courses (instructor-designed)
+    const allCourses = await ctx.db.query("courses").collect();
+    const pendingCourses = allCourses.filter((c) => c.status === "pending").length;
+
+    // Count pending offline payments
+    const pendingPayments = await ctx.db
+      .query("offlinePayments")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+
+    return {
+      support: openTickets.length,
+      examReports: openReports.length,
+      profiles: pendingProfiles,
+      courses: pendingCourses,
+      offlinePayments: pendingPayments.length,
+    };
+  },
+});

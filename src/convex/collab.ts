@@ -59,6 +59,81 @@ export const listOnline = query({
   },
 });
 
+// All users with their presence status — for admin panel online/offline list
+export const listAllUsersWithPresence = query({
+  args: {},
+  handler: async (ctx) => {
+    const caller = await getCurrentUser(ctx);
+    if (!caller) return [];
+    const r = caller.role ?? "user";
+    if (r !== "admin" && r !== "site_admin") return [];
+
+    const users = await ctx.db.query("users").collect();
+    const presences = await ctx.db.query("presence").collect();
+    const presenceMap = new Map(presences.map((p) => [String(p.userId), p]));
+    const now = Date.now();
+
+    return users
+      .filter((u) => u.role !== "admin" || r === "admin")
+      .map((u) => {
+        const pres = presenceMap.get(String(u._id));
+        const isOnline = pres ? now - pres.lastSeen < PRESENCE_WINDOW : false;
+        return {
+          _id: u._id,
+          name: u.name ?? "—",
+          email: u.email ?? null,
+          role: u.role ?? "user",
+          isOnline,
+          lastSeen: pres?.lastSeen ?? null,
+          location: pres?.location ?? null,
+        };
+      })
+      .sort((a, b) => {
+        if (a.isOnline && !b.isOnline) return -1;
+        if (!a.isOnline && b.isOnline) return 1;
+        return (b.lastSeen ?? 0) - (a.lastSeen ?? 0);
+      });
+  },
+});
+
+// ── Raise hand (students) ───────────────────────────────────────────────────
+export const toggleRaiseHand = mutation({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    if (room.status !== "live") throw new Error("کلاس در حال حاضر فعال نیست.");
+
+    const existing = await ctx.db
+      .query("roomMessages")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .collect();
+    const handUp = existing.find(
+      (m) => m.type === "message" && m.text === `__hand__${user._id}` && !m.answer,
+    );
+
+    if (handUp) {
+      // Lower hand
+      await ctx.db.patch(handUp._id, { answer: "lowered" });
+      return { handUp: false };
+    } else {
+      // Raise hand
+      await ctx.db.insert("roomMessages", {
+        roomId: room._id,
+        userId: user._id,
+        name: user.name ?? "دانشجو",
+        role: user.role ?? "user",
+        type: "message",
+        text: `__hand__${user._id}`,
+        createdAt: Date.now(),
+      });
+      return { handUp: true };
+    }
+  },
+});
+
 // ── Live rooms ──────────────────────────────────────────────────────────────
 export const createRoom = mutation({
   args: { title: v.string(), topic: v.string(), description: v.string() },
@@ -136,10 +211,12 @@ export const listRooms = query({
           .withIndex("by_room", (q) => q.eq("roomId", r._id))
           .collect();
         const openQuestions = messages.filter((m) => m.type === "question" && !m.answer).length;
+        const handsUp = messages.filter((m) => m.type === "message" && m.text.startsWith("__hand__") && !m.answer).length;
         return {
           ...r,
           messageCount: messages.length,
           openQuestions,
+          handsUp,
         };
       }),
     );
