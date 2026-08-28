@@ -18,6 +18,7 @@ import {
   Zap,
   Home,
   X,
+  Check,
 } from "lucide-react";
 import { BrandMark } from "@/components/site/BrandLogo";
 import { motion } from "framer-motion";
@@ -31,29 +32,17 @@ export default function AIChat() {
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Sidebar hidden by default
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Track which message's delete button is visible (for mobile tap)
-  const [activeMsgId, setActiveMsgId] = useState<string | null>(null);
 
-  // Redirect to auth if not logged in
+  // Delete mode state
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate("/auth?returnTo=/ai-chat");
     }
   }, [isAuthenticated, authLoading, navigate]);
-
-  // Close message delete on outside click
-  useEffect(() => {
-    if (!activeMsgId) return;
-    const handler = () => setActiveMsgId(null);
-    // Delay to avoid immediate close from the same click
-    const t = setTimeout(() => document.addEventListener("click", handler), 100);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener("click", handler);
-    };
-  }, [activeMsgId]);
 
   const conversations = useQuery(
     api.aiChat.listMyConversations,
@@ -71,7 +60,6 @@ export default function AIChat() {
   const createConvo = useMutation(api.aiChat.createConversation);
   const sendMessageMut = useMutation(api.aiChat.sendMessage);
   const deleteConvo = useMutation(api.aiChat.deleteConversation);
-  const deleteMessageMut = useMutation(api.aiChat.deleteMessage);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -106,9 +94,21 @@ export default function AIChat() {
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm("این چت حذف شود؟")) {
+  // Toggle a conversation in the selection set
+  const toggleSelect = (id: string) => {
+    setSelectedForDelete((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // Confirm and delete selected conversations
+  const confirmDelete = async () => {
+    if (selectedForDelete.size === 0) return;
+    if (!confirm(`${selectedForDelete.size} چت حذف شود؟`)) return;
+    for (const id of selectedForDelete) {
       try {
         await deleteConvo({ conversationId: id as any });
         if (selectedConvo === id) setSelectedConvo(null);
@@ -116,16 +116,14 @@ export default function AIChat() {
         console.error("Delete failed:", e);
       }
     }
+    setSelectedForDelete(new Set());
+    setDeleteMode(false);
   };
 
-  const handleDeleteMessage = async (messageId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await deleteMessageMut({ messageId: messageId as any });
-      setActiveMsgId(null);
-    } catch (e) {
-      console.error("Delete message failed:", e);
-    }
+  // Exit delete mode
+  const exitDeleteMode = () => {
+    setDeleteMode(false);
+    setSelectedForDelete(new Set());
   };
 
   // Loading state
@@ -161,9 +159,11 @@ export default function AIChat() {
             : "translate-x-full fixed inset-y-0 right-0 z-50 lg:relative lg:translate-x-0"
         )}
       >
-        {/* Close sidebar header */}
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-border p-3">
-          <span className="text-sm font-bold">سابقه چت‌ها</span>
+          <span className="text-sm font-bold">
+            {deleteMode ? `${selectedForDelete.size} انتخاب شده` : "سابقه چت‌ها"}
+          </span>
           <button
             onClick={() => setSidebarOpen(false)}
             className="rounded-lg p-1.5 hover:bg-accent lg:hidden"
@@ -172,17 +172,19 @@ export default function AIChat() {
           </button>
         </div>
 
-        {/* New Chat Button */}
-        <div className="p-3">
-          <Button
-            onClick={handleNewChat}
-            variant="outline"
-            className="w-full gap-2"
-          >
-            <Plus className="size-4" />
-            چت جدید
-          </Button>
-        </div>
+        {/* New Chat Button (hidden in delete mode) */}
+        {!deleteMode && (
+          <div className="p-3">
+            <Button
+              onClick={handleNewChat}
+              variant="outline"
+              className="w-full gap-2"
+            >
+              <Plus className="size-4" />
+              چت جدید
+            </Button>
+          </div>
+        )}
 
         {/* Conversation List */}
         <ScrollArea className="flex-1 px-2">
@@ -192,30 +194,48 @@ export default function AIChat() {
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               </div>
             )}
-            {conversations?.map((c) => (
-              <button
-                key={c._id}
-                onClick={() => {
-                  setSelectedConvo(c._id);
-                  setSidebarOpen(false);
-                }}
-                className={cn(
-                  "group flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-right text-sm transition-colors",
-                  selectedConvo === c._id
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                )}
-              >
-                <MessageSquare className="size-4 shrink-0" />
-                <span className="flex-1 truncate">{c.title}</span>
+            {conversations?.map((c) => {
+              const isSelected = selectedForDelete.has(c._id);
+              return (
                 <button
-                  onClick={(e) => handleDelete(c._id, e)}
-                  className="hidden shrink-0 text-muted-foreground hover:text-destructive group-hover:block"
+                  key={c._id}
+                  onClick={() => {
+                    if (deleteMode) {
+                      toggleSelect(c._id);
+                    } else {
+                      setSelectedConvo(c._id);
+                      setSidebarOpen(false);
+                    }
+                  }}
+                  className={cn(
+                    "group flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-right text-sm transition-colors",
+                    deleteMode
+                      ? isSelected
+                        ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30"
+                        : "text-muted-foreground hover:bg-accent/50"
+                      : selectedConvo === c._id
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  )}
                 >
-                  <Trash2 className="size-3.5" />
+                  {deleteMode ? (
+                    <div
+                      className={cn(
+                        "flex size-5 shrink-0 items-center justify-center rounded border transition-colors",
+                        isSelected
+                          ? "border-destructive bg-destructive text-white"
+                          : "border-border bg-background"
+                      )}
+                    >
+                      {isSelected && <Check className="size-3" />}
+                    </div>
+                  ) : (
+                    <MessageSquare className="size-4 shrink-0" />
+                  )}
+                  <span className="flex-1 truncate">{c.title}</span>
                 </button>
-              </button>
-            ))}
+              );
+            })}
             {conversations?.length === 0 && (
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                 هنوز چتی ندارید
@@ -224,38 +244,66 @@ export default function AIChat() {
           </div>
         </ScrollArea>
 
-        {/* Usage Bar */}
-        {usage && (
-          <div className="border-t border-border p-3">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <Zap className="size-3 text-amber-500" />
-                پیام‌های امروز
-              </span>
-              <span className="font-mono">
-                {messagesSent}/{dailyLimit}
-              </span>
-            </div>
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all",
-                  hasReachedLimit
-                    ? "bg-destructive"
-                    : remaining <= 1
-                      ? "bg-amber-500"
-                      : "bg-primary"
-                )}
-                style={{
-                  width: `${Math.min(100, (messagesSent / Math.max(dailyLimit, 1)) * 100)}%`,
-                }}
-              />
-            </div>
+        {/* Delete mode bar OR Usage bar */}
+        {deleteMode ? (
+          <div className="flex gap-2 border-t border-border p-3">
+            <Button
+              variant="destructive"
+              size="sm"
+              className="flex-1 gap-1.5"
+              disabled={selectedForDelete.size === 0}
+              onClick={confirmDelete}
+            >
+              <Trash2 className="size-3.5" />
+              حذف ({selectedForDelete.size})
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={exitDeleteMode}>
+              لغو
+            </Button>
           </div>
+        ) : (
+          usage && (
+            <div className="border-t border-border p-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Zap className="size-3 text-amber-500" />
+                  پیام‌های امروز
+                </span>
+                <span className="font-mono">
+                  {messagesSent}/{dailyLimit}
+                </span>
+              </div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    hasReachedLimit
+                      ? "bg-destructive"
+                      : remaining <= 1
+                        ? "bg-amber-500"
+                        : "bg-primary"
+                  )}
+                  style={{
+                    width: `${Math.min(100, (messagesSent / Math.max(dailyLimit, 1)) * 100)}%`,
+                  }}
+                />
+              </div>
+              {/* Delete history button */}
+              {conversations && conversations.length > 0 && (
+                <button
+                  onClick={() => setDeleteMode(true)}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-3" />
+                  حذف سوابق
+                </button>
+              )}
+            </div>
+          )
         )}
       </div>
 
-      {/* Mobile overlay — lower z-index than sidebar */}
+      {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
@@ -354,70 +402,42 @@ export default function AIChat() {
                     <Loader2 className="size-5 animate-spin text-muted-foreground" />
                   </div>
                 )}
-                {messages?.map((m) => {
-                  const isActive = activeMsgId === m._id;
-                  return (
-                    <motion.div
-                      key={m._id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
+                {messages?.map((m) => (
+                  <motion.div
+                    key={m._id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn(
+                      "flex gap-3",
+                      m.role === "user" ? "flex-row-reverse" : ""
+                    )}
+                  >
+                    <div
                       className={cn(
-                        "group/msg relative flex gap-3",
-                        m.role === "user" ? "flex-row-reverse" : ""
+                        "flex size-8 shrink-0 items-center justify-center rounded-full",
+                        m.role === "user"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                       )}
-                      onClick={(e) => {
-                        // Toggle delete visibility on tap (mobile)
-                        e.stopPropagation();
-                        setActiveMsgId(isActive ? null : m._id);
-                      }}
                     >
-                      <div
-                        className={cn(
-                          "flex size-8 shrink-0 items-center justify-center rounded-full",
-                          m.role === "user"
-                            ? "bg-primary/10 text-primary"
-                            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        )}
-                      >
-                        {m.role === "user" ? (
-                          <User className="size-4" />
-                        ) : (
-                          <Bot className="size-4" />
-                        )}
-                      </div>
-                      <div className="max-w-[80%] space-y-1">
-                        <div
-                          className={cn(
-                            "rounded-2xl px-4 py-3 text-sm leading-7",
-                            m.role === "user"
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted"
-                          )}
-                        >
-                          <p className="whitespace-pre-wrap">{m.content}</p>
-                        </div>
-                        {/* Delete button — hover on desktop, tap on mobile */}
-                        <div
-                          className={cn(
-                            "flex transition-opacity",
-                            m.role === "user" ? "justify-start" : "justify-end",
-                            // Desktop: show on group hover; Mobile: show when active
-                            "opacity-0 group-hover/msg:opacity-100",
-                            isActive && "!opacity-100"
-                          )}
-                        >
-                          <button
-                            onClick={(e) => handleDeleteMessage(m._id, e)}
-                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                          >
-                            <Trash2 className="size-3" />
-                            حذف
-                          </button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+                      {m.role === "user" ? (
+                        <User className="size-4" />
+                      ) : (
+                        <Bot className="size-4" />
+                      )}
+                    </div>
+                    <div
+                      className={cn(
+                        "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-7",
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      )}
+                    >
+                      <p className="whitespace-pre-wrap">{m.content}</p>
+                    </div>
+                  </motion.div>
+                ))}
                 {(isSending || isWaitingForAI) && (
                   <div className="flex gap-3">
                     <div className="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
