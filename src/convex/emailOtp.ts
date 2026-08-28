@@ -76,7 +76,7 @@ const _emailOtp = Email({
       <p style="color:#94a3b8;font-size:12px;margin-top:16px;">اگر شما این درخواست را ارسال نکرده‌اید، این ایمیل را نادیده بگیرید.</p>
     </div>
     <div style="background:#f8fafc;padding:16px;text-align:center;border-top:1px solid #e2e8f0;">
-      <p style="color:#94a3b8;font-size:11px;margin:0;">© ${new Date().getFullYear()} Genova — genova.team</p>
+      <p style="color:#94a3b8;font-size:11px;margin:0;">© ${new Date().getFullYear()} Genova — genova.ir</p>
     </div>
   </div>
 </body>
@@ -89,7 +89,7 @@ const _emailOtp = Email({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Genova <noreply@genova.team>",
+        from: "Genova <noreply@genova.ir>",
         to: [email],
         subject: "کد تأیید Genova",
         html,
