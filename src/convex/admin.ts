@@ -959,6 +959,64 @@ export const adminGetQuestions = query({
   },
 });
 
+// Grouped questions: categories with their question counts
+export const adminGetQuestionGroups = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isContentStaff(ctx))) return [];
+    const categories = await ctx.db.query("categories").collect();
+    const questions = await ctx.db.query("questions").collect();
+    return categories.map((cat) => {
+      const catQuestions = questions.filter((q) => q.topicId === cat._id);
+      return {
+        categoryId: cat._id,
+        categoryName: cat.name,
+        categorySlug: cat.slug,
+        questionCount: catQuestions.length,
+        questions: catQuestions,
+      };
+    });
+  },
+});
+
+// Delete a category and all its questions
+export const adminDeleteCategory = mutation({
+  args: { categoryId: v.id("categories") },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    // Delete all questions in this category
+    const questions = await ctx.db
+      .query("questions")
+      .withIndex("by_topic", (q) => q.eq("topicId", args.categoryId))
+      .collect();
+    for (const q of questions) {
+      // Also remove from any exams
+      const exams = await ctx.db.query("exams").collect();
+      for (const exam of exams) {
+        if (exam.questionIds.includes(q._id)) {
+          await ctx.db.patch(exam._id, {
+            questionIds: exam.questionIds.filter((qid) => qid !== q._id),
+          });
+        }
+      }
+      await ctx.db.delete(q._id);
+    }
+    // Delete the category itself
+    await ctx.db.delete(args.categoryId);
+    return { ok: true, deleted: questions.length };
+  },
+});
+
+// Update a category name
+export const adminUpdateCategory = mutation({
+  args: { categoryId: v.id("categories"), name: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    await ctx.db.patch(args.categoryId, { name: args.name.trim() });
+    return { ok: true };
+  },
+});
+
 export const adminCreateQuestion = mutation({
   args: {
     text: v.string(),
@@ -999,6 +1057,30 @@ export const adminDeleteQuestion = mutation({
       }
     }
     await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+export const adminUpdateQuestion = mutation({
+  args: {
+    id: v.id("questions"),
+    text: v.string(),
+    options: v.array(v.string()),
+    correctIndex: v.number(),
+    explanation: v.string(),
+    difficulty: v.number(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    const question = await ctx.db.get(args.id);
+    if (!question) throw new Error("سؤال یافت نشد.");
+    await ctx.db.patch(args.id, {
+      text: args.text.trim(),
+      options: args.options,
+      correctIndex: args.correctIndex,
+      explanation: args.explanation.trim(),
+      difficulty: args.difficulty,
+    });
     return { ok: true };
   },
 });

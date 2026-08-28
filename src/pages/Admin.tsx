@@ -979,16 +979,32 @@ function AdminCourses() {
 
 // ── Questions ───────────────────────────────────────────────────────────────
 function AdminQuestions() {
-  const questions = useQuery(api.admin.adminGetQuestions);
+  const groups = useQuery(api.admin.adminGetQuestionGroups);
   const create = useMutation(api.admin.adminCreateQuestion);
-  const remove = useMutation(api.admin.adminDeleteQuestion);
+  const updateQuestion = useMutation(api.admin.adminUpdateQuestion);
+  const removeQuestion = useMutation(api.admin.adminDeleteQuestion);
+  const removeCategory = useMutation(api.admin.adminDeleteCategory);
+  const updateCategory = useMutation(api.admin.adminUpdateCategory);
   const saveGenerated = useMutation(api.admin.saveGeneratedQuestions);
   const generateAction = useAction(api.aiActions.generateQuestions);
   const [err, setErr] = useState<string | null>(null);
 
-  const empty = { text: "", options: ["", "", "", ""], correctIndex: "0", explanation: "", topicId: "", difficulty: "1" };
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(empty);
+  // Expanded group
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+
+  // Add question form
+  const empty = { text: "", options: ["", "", "", ""], correctIndex: "0", explanation: "", difficulty: "1" };
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState(empty);
+  const [addTopicId, setAddTopicId] = useState("");
+
+  // Edit question form
+  const [editQ, setEditQ] = useState<any>(null);
+  const [editForm, setEditForm] = useState(empty);
+
+  // Edit category name
+  const [editCatId, setEditCatId] = useState<string | null>(null);
+  const [editCatName, setEditCatName] = useState("");
 
   // AI generation state
   const [aiOpen, setAiOpen] = useState(false);
@@ -1010,160 +1026,186 @@ function AdminQuestions() {
     setAiPreview([]);
     setAiSaved(false);
     try {
-      const result = await generateAction({
-        prompt: aiPrompt.trim(),
-        count: Number(aiCount) || 10,
-        difficulty: Number(aiDifficulty) || 1,
-      });
+      const result = await generateAction({ prompt: aiPrompt.trim(), count: Number(aiCount) || 10, difficulty: Number(aiDifficulty) || 1 });
       setAiPreview(result.questions);
-    } catch (e: any) {
-      setAiError(e?.message ?? "خطا در تولید سؤالات");
-    } finally {
-      setAiGenerating(false);
-    }
+    } catch (e: any) { setAiError(e?.message ?? "خطا در تولید"); } finally { setAiGenerating(false); }
   };
 
   const handleSaveGenerated = async () => {
     if (aiPreview.length === 0 || !aiTopicId) return;
     setAiSaving(true);
     try {
-      const result = await saveGenerated({
-        questions: aiPreview.map((q) => ({
-          text: q.text,
-          options: q.options,
-          correctIndex: q.correctIndex,
-          explanation: q.explanation,
-          difficulty: q.difficulty ?? Number(aiDifficulty),
-        })),
-        topicId: aiTopicId as any,
-      });
+      await saveGenerated({ questions: aiPreview.map((q) => ({ text: q.text, options: q.options, correctIndex: q.correctIndex, explanation: q.explanation, difficulty: q.difficulty ?? Number(aiDifficulty) })), topicId: aiTopicId as any });
       setAiSaved(true);
-      setErr(null);
-    } catch (e: any) {
-      setAiError(e?.message ?? "خطا در ذخیره");
-    } finally {
-      setAiSaving(false);
-    }
+    } catch (e: any) { setAiError(e?.message ?? "خطا"); } finally { setAiSaving(false); }
   };
 
-  const handleCreate = async () => {
+  const handleAddQuestion = async () => {
+    if (!addTopicId) { setErr("موضوع را انتخاب کنید"); return; }
     try {
-      await create({
-        text: form.text,
-        options: form.options.filter((o) => o.trim()),
-        correctIndex: Number(form.correctIndex),
-        explanation: form.explanation,
-        topicId: form.topicId as any,
-        difficulty: Number(form.difficulty),
-      });
-      setOpen(false);
-      setForm(empty);
-    } catch (e) {
-      console.error(e);
-    }
+      await create({ text: addForm.text, options: addForm.options.filter((o) => o.trim()), correctIndex: Number(addForm.correctIndex), explanation: addForm.explanation, topicId: addTopicId as any, difficulty: Number(addForm.difficulty) });
+      setAddOpen(false);
+      setAddForm(empty);
+      setAddTopicId("");
+    } catch (e) { setErr(e instanceof Error ? e.message : "خطا"); }
   };
+
+  const handleUpdateQuestion = async () => {
+    if (!editQ) return;
+    try {
+      await updateQuestion({ id: editQ._id, text: editForm.text, options: editForm.options.filter((o) => o.trim()), correctIndex: Number(editForm.correctIndex), explanation: editForm.explanation, difficulty: Number(editForm.difficulty) });
+      setEditQ(null);
+    } catch (e) { setErr(e instanceof Error ? e.message : "خطا"); }
+  };
+
+  const handleDeleteCategory = async (catId: string, name: string, count: number) => {
+    if (!confirm(`گروه «${name}» و ${count} سؤال آن حذف شود؟`)) return;
+    try { await removeCategory({ categoryId: catId as any }); } catch (e) { setErr(e instanceof Error ? e.message : "خطا"); }
+  };
+
+  const totalQuestions = groups?.reduce((sum, g) => sum + g.questionCount, 0) ?? 0;
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <SectionHeader title="بانک سؤال" subtitle="content / question bank" count={questions?.length} />
+        <SectionHeader title="بانک سؤال" subtitle="content / question bank" count={totalQuestions} />
         <div className="flex gap-2">
           <Button variant="outline" className="rounded-lg" onClick={() => setAiOpen(true)}>
             <Sparkles className="ml-1.5 size-4" />
             تولید با هوش مصنوعی
           </Button>
-          <Button className="rounded-lg" onClick={() => setOpen(true)}>
+          <Button className="rounded-lg" onClick={() => setAddOpen(true)}>
             <Plus className="ml-1.5 size-4" />
             سؤال جدید
           </Button>
         </div>
       </div>
 
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>سؤال</TableHead>
-                <TableHead>موضوع</TableHead>
-                <TableHead>سختی</TableHead>
-                <TableHead className="text-left">عملیات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(questions ?? []).map((q) => (
-                <TableRow key={q._id}>
-                  <TableCell className="max-w-md truncate">{q.text}</TableCell>
-                  <TableCell className="text-muted-foreground">{q.topic}</TableCell>
-                  <TableCell>
-                    {q.difficulty === 1 ? "آسان" : q.difficulty === 2 ? "متوسط" : "سخت"}
-                  </TableCell>
-                  <TableCell className="text-left">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
-                      title="حذف سؤال"
-                      onClick={async () => {
-                        try {
-                          await remove({ id: q._id });
-                          setErr(null);
-                        } catch (e) {
-                          setErr(e instanceof Error ? e.message : "خطا در حذف");
-                        }
-                      }}
-                    >
-                      <Trash2 className="size-3.5" />
+      {/* Groups list */}
+      <div className="space-y-3">
+        {groups === undefined && (
+          <div className="flex justify-center py-8"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+        )}
+        {groups?.map((g) => {
+          const isExpanded = expandedGroup === g.categoryId;
+          return (
+            <Card key={g.categoryId} className="border-border/70 shadow-sm overflow-hidden">
+              {/* Group header */}
+              <button
+                onClick={() => setExpandedGroup(isExpanded ? null : g.categoryId)}
+                className="flex w-full items-center justify-between p-4 text-right transition-colors hover:bg-accent/30"
+              >
+                <div className="flex items-center gap-3">
+                  <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
+                  <div>
+                    <p className="font-bold text-sm">{g.categoryName}</p>
+                    <p className="text-xs text-muted-foreground">{g.questionCount} سؤال</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  {/* Edit category name */}
+                  {editCatId === g.categoryId ? (
+                    <div className="flex items-center gap-1">
+                      <Input value={editCatName} onChange={(e) => setEditCatName(e.target.value)} className="h-7 w-40 text-xs" autoFocus onKeyDown={(e) => { if (e.key === "Enter") { updateCategory({ categoryId: g.categoryId as any, name: editCatName }); setEditCatId(null); } }} />
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { updateCategory({ categoryId: g.categoryId as any, name: editCatName }); setEditCatId(null); }}>✓</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditCatId(null)}>✗</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditCatId(g.categoryId); setEditCatName(g.categoryName); }}>
+                      <Pencil className="size-3" />
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  )}
+                  <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => handleDeleteCategory(g.categoryId, g.categoryName, g.questionCount)}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              </button>
+              {/* Expanded questions */}
+              {isExpanded && (
+                <div className="border-t border-border bg-muted/30 p-3 space-y-2">
+                  {g.questions.length === 0 && <p className="py-4 text-center text-xs text-muted-foreground">هنوز سؤالی نیست</p>}
+                  {g.questions.map((q: any) => (
+                    <div key={q._id} className="flex items-start gap-3 rounded-lg border border-border/50 bg-card p-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium leading-6">{q.text}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {q.options.map((opt: string, oi: number) => (
+                            <span key={oi} className={cn("inline-block rounded-md px-2 py-0.5 text-[11px]", oi === q.correctIndex ? "bg-emerald-500/10 font-bold text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                              {oi === q.correctIndex ? "✓ " : ""}{opt}
+                            </span>
+                          ))}
+                        </div>
+                        {q.explanation && <p className="mt-1.5 text-[11px] text-muted-foreground">💡 {q.explanation}</p>}
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {q.difficulty === 1 ? "آسان" : q.difficulty === 2 ? "متوسط" : "سخت"}
+                        </Badge>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditQ(q); setEditForm({ text: q.text, options: [...q.options], correctIndex: String(q.correctIndex), explanation: q.explanation, difficulty: String(q.difficulty) }); }}>
+                          <Pencil className="size-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={async () => { if (confirm("حذف شود؟")) { try { await removeQuestion({ id: q._id }); } catch (e) { setErr(e instanceof Error ? e.message : "خطا"); } } }}>
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
       {err && <p className="text-sm text-destructive">{err}</p>}
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* ── Add Question Dialog ──────────────────────────────── */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>سؤال تستی جدید</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>سؤال تستی جدید</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <Textarea placeholder="متن سؤال" rows={2} value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} />
-            {form.options.map((opt, i) => (
-              <Input
-                key={i}
-                placeholder={`گزینهٔ ${i + 1}${i === Number(form.correctIndex) ? " (صحیح)" : ""}`}
-                value={opt}
-                onChange={(e) => setForm({ ...form, options: form.options.map((o, oi) => (oi === i ? e.target.value : o)) })}
-              />
+            <CategoryField value={addTopicId || undefined} onValueChange={(v) => setAddTopicId(v)} placeholder="انتخاب موضوع…" />
+            <Textarea placeholder="متن سؤال" rows={2} value={addForm.text} onChange={(e) => setAddForm({ ...addForm, text: e.target.value })} />
+            {addForm.options.map((opt, i) => (
+              <Input key={i} placeholder={`گزینهٔ ${i + 1}${i === Number(addForm.correctIndex) ? " (صحیح)" : ""}`} value={opt} onChange={(e) => setAddForm({ ...addForm, options: addForm.options.map((o, oi) => (oi === i ? e.target.value : o)) })} />
             ))}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Select value={form.correctIndex} onValueChange={(v) => setForm({ ...form, correctIndex: v })}>
+            <div className="grid grid-cols-2 gap-3">
+              <Select value={addForm.correctIndex} onValueChange={(v) => setAddForm({ ...addForm, correctIndex: v })}>
                 <SelectTrigger><SelectValue placeholder="گزینهٔ صحیح" /></SelectTrigger>
-                <SelectContent>
-                  {[0, 1, 2, 3].map((i) => (
-                    <SelectItem key={i} value={String(i)}>گزینهٔ {i + 1}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{[0, 1, 2, 3].map((i) => <SelectItem key={i} value={String(i)}>گزینهٔ {i + 1}</SelectItem>)}</SelectContent>
               </Select>
-              <CategoryField
-                value={form.topicId || undefined}
-                onValueChange={(v) => setForm({ ...form, topicId: v })}
-                placeholder="انتخاب موضوع یا ساخت موضوع جدید…"
-              />
-              <Select value={form.difficulty} onValueChange={(v) => setForm({ ...form, difficulty: v })}>
+              <Select value={addForm.difficulty} onValueChange={(v) => setAddForm({ ...addForm, difficulty: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">آسان</SelectItem>
-                  <SelectItem value="2">متوسط</SelectItem>
-                  <SelectItem value="3">سخت</SelectItem>
-                </SelectContent>
+                <SelectContent><SelectItem value="1">آسان</SelectItem><SelectItem value="2">متوسط</SelectItem><SelectItem value="3">سخت</SelectItem></SelectContent>
               </Select>
             </div>
-            <Textarea placeholder="پاسخ تشریحی" rows={2} value={form.explanation} onChange={(e) => setForm({ ...form, explanation: e.target.value })} />
-            <Button className="w-full" onClick={handleCreate}>ذخیرهٔ سؤال</Button>
+            <Textarea placeholder="پاسخ تشریحی" rows={2} value={addForm.explanation} onChange={(e) => setAddForm({ ...addForm, explanation: e.target.value })} />
+            <Button className="w-full" onClick={handleAddQuestion}>ذخیرهٔ سؤال</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Edit Question Dialog ──────────────────────────────── */}
+      <Dialog open={!!editQ} onOpenChange={(v) => { if (!v) setEditQ(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>ویرایش سؤال</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Textarea placeholder="متن سؤال" rows={2} value={editForm.text} onChange={(e) => setEditForm({ ...editForm, text: e.target.value })} />
+            {editForm.options.map((opt, i) => (
+              <Input key={i} placeholder={`گزینهٔ ${i + 1}${i === Number(editForm.correctIndex) ? " (صحیح)" : ""}`} value={opt} onChange={(e) => setEditForm({ ...editForm, options: editForm.options.map((o, oi) => (oi === i ? e.target.value : o)) })} />
+            ))}
+            <div className="grid grid-cols-2 gap-3">
+              <Select value={editForm.correctIndex} onValueChange={(v) => setEditForm({ ...editForm, correctIndex: v })}>
+                <SelectTrigger><SelectValue placeholder="گزینهٔ صحیح" /></SelectTrigger>
+                <SelectContent>{[0, 1, 2, 3].map((i) => <SelectItem key={i} value={String(i)}>گزینهٔ {i + 1}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={editForm.difficulty} onValueChange={(v) => setEditForm({ ...editForm, difficulty: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="1">آسان</SelectItem><SelectItem value="2">متوسط</SelectItem><SelectItem value="3">سخت</SelectItem></SelectContent>
+              </Select>
+            </div>
+            <Textarea placeholder="پاسخ تشریحی" rows={2} value={editForm.explanation} onChange={(e) => setEditForm({ ...editForm, explanation: e.target.value })} />
+            <Button className="w-full" onClick={handleUpdateQuestion}>ذخیره تغییرات</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1172,78 +1214,34 @@ function AdminQuestions() {
       <Dialog open={aiOpen} onOpenChange={(v) => { setAiOpen(v); if (!v) { setAiPreview([]); setAiError(null); setAiSaved(false); } }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="size-5 text-primary" />
-              تولید سؤال با هوش مصنوعی
-            </DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Sparkles className="size-5 text-primary" />تولید سؤال با هوش مصنوعی</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Prompt */}
-            <Textarea
-              placeholder="مثلاً: ده تا سؤال تستی درباره باکتری‌شناسی پایه با تمرکز بر رنگ‌آمیزی گرم و ساختمان سلولی بنویس"
-              rows={3}
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              className="text-sm"
-            />
-            {/* Settings */}
+            <Textarea placeholder="مثلاً: ده سؤال تستی درباره رنگ‌آمیزی گرم بنویس" rows={3} value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} className="text-sm" />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium">تعداد سؤال</label>
-                <Input type="number" min="1" max="30" value={aiCount} onChange={(e) => setAiCount(e.target.value)} className="h-9 text-sm" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">سطح دشواری</label>
-                <Select value={aiDifficulty} onValueChange={setAiDifficulty}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">آسان</SelectItem>
-                    <SelectItem value="2">متوسط</SelectItem>
-                    <SelectItem value="3">سخت</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">موضوع</label>
-                <CategoryField
-                  value={aiTopicId || undefined}
-                  onValueChange={(v) => setAiTopicId(v)}
-                  placeholder="انتخاب موضوع…"
-                />
-              </div>
+              <div className="space-y-1"><label className="text-xs font-medium">تعداد</label><Input type="number" min="1" max="30" value={aiCount} onChange={(e) => setAiCount(e.target.value)} className="h-9 text-sm" /></div>
+              <div className="space-y-1"><label className="text-xs font-medium">سطح</label><Select value={aiDifficulty} onValueChange={setAiDifficulty}><SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">آسان</SelectItem><SelectItem value="2">متوسط</SelectItem><SelectItem value="3">سخت</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1"><label className="text-xs font-medium">موضوع</label><CategoryField value={aiTopicId || undefined} onValueChange={(v) => setAiTopicId(v)} placeholder="انتخاب موضوع…" /></div>
             </div>
-            {/* Generate button */}
             <Button onClick={handleGenerate} disabled={aiGenerating || !aiPrompt.trim() || !aiTopicId} className="w-full gap-2">
-              {aiGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-              {aiGenerating ? "در حال تولید..." : "تولید سؤالات"}
+              {aiGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{aiGenerating ? "در حال تولید..." : "تولید سؤالات"}
             </Button>
-            {/* Error */}
-            {aiError && (
-              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {aiError}
-              </div>
-            )}
-            {/* Preview */}
+            {aiError && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{aiError}</div>}
             {aiPreview.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold">پیش‌نمایش ({aiPreview.length} سؤال)</h4>
                   <Button size="sm" onClick={handleSaveGenerated} disabled={aiSaving || aiSaved}>
-                    {aiSaving ? <Loader2 className="ml-1.5 size-3.5 animate-spin" /> : <Save className="ml-1.5 size-3.5" />}
-                    {aiSaved ? "ذخیره شد ✓" : "ذخیره در بانک سؤال"}
+                    {aiSaving ? <Loader2 className="ml-1.5 size-3.5 animate-spin" /> : <Save className="ml-1.5 size-3.5" />}{aiSaved ? "ذخیره شد ✓" : "ذخیره در بانک"}
                   </Button>
                 </div>
                 <div className="space-y-3 max-h-80 overflow-y-auto rounded-lg border border-border p-3">
                   {aiPreview.map((q, i) => (
                     <div key={i} className="rounded-lg border border-border/50 p-3 text-sm">
                       <p className="font-medium">سؤال {i + 1}: {q.text}</p>
-                      <div className="mt-2 space-y-1">
-                        {q.options.map((opt: string, oi: number) => (
-                          <p key={oi} className={cn("text-xs", oi === q.correctIndex ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
-                            {oi === q.correctIndex ? "✓" : "○"} {opt}
-                          </p>
-                        ))}
-                      </div>
+                      <div className="mt-2 space-y-1">{q.options.map((opt: string, oi: number) => (
+                        <p key={oi} className={cn("text-xs", oi === q.correctIndex ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>{oi === q.correctIndex ? "✓" : "○"} {opt}</p>
+                      ))}</div>
                       <p className="mt-2 text-xs text-muted-foreground">💡 {q.explanation}</p>
                     </div>
                   ))}
