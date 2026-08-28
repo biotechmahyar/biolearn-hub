@@ -374,3 +374,242 @@ export const getAllTableCounts = query({
     return counts;
   },
 });
+
+// ── User Detail with Password ───────────────────────────────────────────────
+
+export const getUserDetail = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    if (!(await requireActiveSession(ctx))) return null;
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+    // Get auth accounts
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .filter((q: any) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    const passwordAccount = accounts.find((a: any) => a.provider === "password");
+    // Get enrollments
+    const enrollments = await ctx.db
+      .query("enrollments")
+      .filter((q: any) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    // Get exam attempts
+    const attempts = await ctx.db
+      .query("examAttempts")
+      .filter((q: any) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    // Get AI usage
+    const aiUsage = await ctx.db
+      .query("aiUsage")
+      .filter((q: any) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    // Get AI conversations count
+    const aiConvos = await ctx.db
+      .query("aiConversations")
+      .withIndex("by_user", (q: any) => q.eq("userId", args.userId))
+      .collect();
+    return {
+      ...user,
+      passwordHash: passwordAccount?.secret ?? null,
+      providers: accounts.map((a: any) => a.provider),
+      enrollmentCount: enrollments.length,
+      examAttempts: attempts.length,
+      avgScore: attempts.length > 0 ? attempts.reduce((s: number, a: any) => s + (a.percent ?? 0), 0) / attempts.length : 0,
+      aiUsageDays: aiUsage.length,
+      aiConversations: aiConvos.length,
+    };
+  },
+});
+
+// ── Data Editor ─────────────────────────────────────────────────────────────
+
+export const getTableData = query({
+  args: { table: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await requireActiveSession(ctx))) return [];
+    try {
+      const data = await ctx.db.query(args.table as any).collect();
+      return data;
+    } catch {
+      return [];
+    }
+  },
+});
+
+export const updateDocument = mutation({
+  args: {
+    table: v.string(),
+    documentId: v.string(),
+    field: v.string(),
+    value: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await requireActiveSession(ctx))) throw new Error("دسترسی منقضی شده.");
+    try {
+      await ctx.db.patch(args.documentId as any, { [args.field]: args.value } as any);
+      return { success: true };
+    } catch (e: any) {
+      throw new Error("خطا در ویرایش: " + e.message);
+    }
+  },
+});
+
+export const deleteDocument = mutation({
+  args: {
+    table: v.string(),
+    documentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await requireActiveSession(ctx))) throw new Error("دسترسی منقضی شده.");
+    try {
+      await ctx.db.delete(args.documentId as any);
+      return { success: true };
+    } catch (e: any) {
+      throw new Error("خطا در حذف: " + e.message);
+    }
+  },
+});
+
+// ── Audit Log ───────────────────────────────────────────────────────────────
+
+export const getAuditLog = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await requireActiveSession(ctx))) return [];
+    try {
+      return await (ctx.db.query("auditLog" as any) as any).order("desc").take(100);
+    } catch {
+      return [];
+    }
+  },
+});
+
+export const addAuditLog = mutation({
+  args: {
+    action: v.string(),
+    details: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return;
+    const user = await ctx.db.get(userId);
+    try {
+      await (ctx.db.insert as any)("auditLog", {
+        userId,
+        userName: (user as any)?.name ?? (user as any)?.email ?? "ناشناس",
+        action: args.action,
+        details: args.details,
+        timestamp: Date.now(),
+      });
+    } catch {
+      // Table might not exist yet — ignore
+    }
+  },
+});
+
+// ── Email Broadcast ─────────────────────────────────────────────────────────
+
+export const sendBroadcast = mutation({
+  args: {
+    subject: v.string(),
+    body: v.string(),
+    targetRole: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await requireActiveSession(ctx))) throw new Error("دسترسی منقضی شده.");
+    const userId = await getAuthUserId(ctx);
+    // Create announcements for target users
+    let users = await ctx.db.query("users").collect();
+    if (args.targetRole) {
+      users = users.filter((u) => (u as any).role === args.targetRole);
+    }
+    let count = 0;
+    for (const u of users) {
+      try {
+        await ctx.db.insert("announcements", {
+          title: args.subject,
+          body: args.body,
+          createdBy: userId!,
+          targetUserId: u._id,
+          createdAt: Date.now(),
+          read: false,
+        } as any);
+        count++;
+      } catch {
+        // Skip if schema mismatch
+      }
+    }
+    return { success: true, sent: count };
+  },
+});
+
+// ── System Health ───────────────────────────────────────────────────────────
+
+export const getSystemHealth = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await requireActiveSession(ctx))) return null;
+    const now = Date.now();
+    // Count active sessions (last 24h)
+    const allUsers = await ctx.db.query("users").collect();
+    const recentUsers = allUsers.filter((u: any) => {
+      const created = u._creationTime;
+      return now - created < 24 * 60 * 60 * 1000;
+    });
+    // Count orders today
+    const allOrders = await ctx.db.query("orders").collect();
+    const todayOrders = allOrders.filter((o: any) => {
+      const created = o._creationTime;
+      return now - created < 24 * 60 * 60 * 1000;
+    });
+    // AI config status
+    const aiConfig = await ctx.db.query("aiConfig").first();
+    return {
+      totalUsers: allUsers.length,
+      newUsersToday: recentUsers.length,
+      totalOrders: allOrders.length,
+      ordersToday: todayOrders.length,
+      aiConfigured: !!aiConfig,
+      aiProvider: aiConfig?.provider ?? null,
+      serverTime: new Date().toISOString(),
+    };
+  },
+});
+
+// ── User Sessions ───────────────────────────────────────────────────────────
+
+export const getUserSessions = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    if (!(await requireActiveSession(ctx))) return [];
+    try {
+      const sessions = await ctx.db
+        .query("authSessions")
+        .filter((q: any) => q.eq(q.field("userId"), args.userId))
+        .collect();
+      return sessions;
+    } catch {
+      return [];
+    }
+  },
+});
+
+export const revokeAllSessions = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    if (!(await requireActiveSession(ctx))) throw new Error("دسترسی منقضی شده.");
+    try {
+      const sessions = await ctx.db
+        .query("authSessions")
+        .filter((q: any) => q.eq(q.field("userId"), args.userId))
+        .collect();
+      for (const s of sessions) {
+        await ctx.db.delete(s._id);
+      }
+      return { success: true, revoked: sessions.length };
+    } catch {
+      return { success: true, revoked: 0 };
+    }
+  },
+});
