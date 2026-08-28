@@ -34,8 +34,7 @@ function checkRateLimit(email: string): { allowed: boolean; waitMs?: number } {
   return { allowed: true };
 }
 
-export const emailOtp = Email({
-  id: "email-otp",
+const _emailOtp = Email({
   maxAge: 60 * 5, // 5 minutes
 
   async generateVerificationToken() {
@@ -104,3 +103,9 @@ export const emailOtp = Email({
     }
   },
 });
+
+// The Email() provider hardcodes id: "email". Override it to "email-otp"
+// so signIn("email-otp", formData) in the frontend matches this provider.
+_emailOtp.id = "email-otp" as any;
+
+export const emailOtp = _emailOtp;
