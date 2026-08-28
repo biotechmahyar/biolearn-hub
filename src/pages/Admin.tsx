@@ -336,7 +336,8 @@ export default function Admin() {
     { label: "استودیوی محتوا", icon: FileText, to: "/panel/content" },
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
     { label: "مدیریت هوش مصنوعی", icon: Bot, to: "/panel/ai-management" },
-    { label: "پنل مدیر سامانه", icon: Shield, to: "/panel/super-admin" },
+    // Only system admin (role === "admin") can see the super admin panel
+    ...(user?.role === "admin" ? [{ label: "پنل مدیر سامانه", icon: Shield, to: "/panel/super-admin" }] : []),
   ];
 
   if (isAdmin === undefined) {
