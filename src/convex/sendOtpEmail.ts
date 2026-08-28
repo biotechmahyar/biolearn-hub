@@ -34,7 +34,7 @@ export const sendOtpEmail = action({
       <p style="color:#94a3b8;font-size:12px;margin-top:16px;">اگر شما این درخواست را ارسال نکرده‌اید، این ایمیل را نادیده بگیرید.</p>
     </div>
     <div style="background:#f8fafc;padding:16px;text-align:center;border-top:1px solid #e2e8f0;">
-      <p style="color:#94a3b8;font-size:11px;margin:0;">© ${new Date().getFullYear()} Genova — genova.ir</p>
+      <p style="color:#94a3b8;font-size:11px;margin:0;">© ${new Date().getFullYear()} Genova — nibrc.ir</p>
     </div>
   </div>
 </body>
@@ -47,7 +47,7 @@ export const sendOtpEmail = action({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Genova <noreply@genova.ir>",
+        from: "Genova <noreply@nibrc.ir>",
         to: [args.email],
         subject: "کد تأیید Genova",
         html,
