@@ -23,15 +23,6 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
   Settings,
   Key,
   FileText,
@@ -39,13 +30,13 @@ import {
   BarChart3,
   Save,
   Trash2,
-  Plus,
   Loader2,
   Eye,
   EyeOff,
   CheckCircle2,
   Zap,
   MessageSquare,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -75,7 +66,6 @@ export default function AIManagementPanel() {
   const prompts = useQuery(api.aiManagement.listPrompts);
   const conversations = useQuery(api.aiManagement.listConversations);
   const usage = useQuery(api.aiManagement.getUserUsage, {});
-  const allUsage = useQuery(api.aiManagement.getAllUsageHistory);
   const quotas = useQuery(api.aiManagement.listTokenQuotas);
 
   const saveConfig = useMutation(api.aiManagement.saveConfig);
@@ -88,7 +78,6 @@ export default function AIManagementPanel() {
   const revokeTokens = useMutation(api.aiManagement.revokeTokens);
   const resetAllUsage = useMutation(api.aiManagement.resetAllUsage);
 
-  // Config form state
   const [provider, setProvider] = useState(config?.provider ?? "openai");
   const [model, setModel] = useState(config?.model ?? "gpt-4o");
   const [baseUrl, setBaseUrl] = useState(config?.baseUrl ?? "https://api.openai.com/v1");
@@ -99,19 +88,17 @@ export default function AIManagementPanel() {
   const [systemPrompt, setSystemPrompt] = useState(config?.systemPrompt ?? "");
   const [savingConfig, setSavingConfig] = useState(false);
 
-  // Prompt form state
   const [promptName, setPromptName] = useState("");
   const [promptContent, setPromptContent] = useState("");
   const [promptCategory, setPromptCategory] = useState("general");
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
 
-  // Quota form state
   const [quotaUserId, setQuotaUserId] = useState("");
   const [quotaLimit, setQuotaLimit] = useState("10");
 
   if (user?.role !== "admin" && user?.role !== "site_admin") {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center px-4">
         <p className="text-muted-foreground">دسترسی غیرمجاز</p>
       </div>
     );
@@ -144,20 +131,11 @@ export default function AIManagementPanel() {
     }
     try {
       if (editingPromptId) {
-        await updatePrompt({
-          promptId: editingPromptId as any,
-          name: promptName,
-          content: promptContent,
-          category: promptCategory,
-        });
+        await updatePrompt({ promptId: editingPromptId as any, name: promptName, content: promptContent, category: promptCategory });
         toast.success("پرامپت به‌روزرسانی شد");
         setEditingPromptId(null);
       } else {
-        await createPrompt({
-          name: promptName,
-          content: promptContent,
-          category: promptCategory,
-        });
+        await createPrompt({ name: promptName, content: promptContent, category: promptCategory });
         toast.success("پرامپت جدید اضافه شد");
       }
       setPromptName("");
@@ -168,195 +146,139 @@ export default function AIManagementPanel() {
   };
 
   const handleGrantTokens = async () => {
-    if (!quotaUserId) {
-      toast.error("کاربر را انتخاب کنید");
-      return;
-    }
+    if (!quotaUserId) { toast.error("کاربر را انتخاب کنید"); return; }
     try {
-      await grantTokens({
-        userId: quotaUserId as any,
-        dailyLimit: Number(quotaLimit),
-      });
+      await grantTokens({ userId: quotaUserId as any, dailyLimit: Number(quotaLimit) });
       toast.success("سقف پیام به‌روزرسانی شد");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "خطا");
-    }
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 lg:p-6">
-      <div className="mx-auto max-w-6xl space-y-6">
+    <div className="min-h-screen bg-background">
+      <div className="mx-auto max-w-5xl space-y-4 p-4 sm:p-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold">مدیریت هوش مصنوعی</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              پیکربندی API، پرامپت‌ها، محدودیت پیام و نظارت بر استفاده
+            <h1 className="text-xl font-bold sm:text-2xl">مدیریت هوش مصنوعی</h1>
+            <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+              پیکربندی API، پرامپت‌ها و نظارت بر استفاده
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate("/admin")}>
-            بازگشت به پنل مدیریت
+          <Button variant="outline" size="sm" onClick={() => navigate("/admin")}>
+            <ArrowLeft className="ml-1 size-4" />
+            بازگشت
           </Button>
         </div>
 
         <Tabs defaultValue="config" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="config" className="gap-2">
-              <Settings className="size-4" />
-              تنظیمات API
-            </TabsTrigger>
-            <TabsTrigger value="prompts" className="gap-2">
-              <FileText className="size-4" />
-              پرامپت‌ها
-            </TabsTrigger>
-            <TabsTrigger value="usage" className="gap-2">
-              <BarChart3 className="size-4" />
-              آمار استفاده
-            </TabsTrigger>
-            <TabsTrigger value="quotas" className="gap-2">
-              <Users className="size-4" />
-              مدیریت سقف پیام
-            </TabsTrigger>
-          </TabsList>
+          {/* Scrollable tabs on mobile */}
+          <div className="overflow-x-auto">
+            <TabsList className="inline-flex w-auto min-w-full">
+              <TabsTrigger value="config" className="gap-1.5 text-xs sm:text-sm">
+                <Settings className="size-3.5" />
+                <span className="hidden sm:inline">تنظیمات</span>
+                <span className="sm:hidden">API</span>
+              </TabsTrigger>
+              <TabsTrigger value="prompts" className="gap-1.5 text-xs sm:text-sm">
+                <FileText className="size-3.5" />
+                پرامپت‌ها
+              </TabsTrigger>
+              <TabsTrigger value="usage" className="gap-1.5 text-xs sm:text-sm">
+                <BarChart3 className="size-3.5" />
+                <span className="hidden sm:inline">آمار استفاده</span>
+                <span className="sm:hidden">آمار</span>
+              </TabsTrigger>
+              <TabsTrigger value="quotas" className="gap-1.5 text-xs sm:text-sm">
+                <Users className="size-3.5" />
+                <span className="hidden sm:inline">سقف پیام</span>
+                <span className="sm:hidden">سقف</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-          {/* ── API Config ──────────────────────────────────────────── */}
+          {/* ── API Config ──────────────────────────────── */}
           <TabsContent value="config">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <Key className="size-5" />
                   پیکربندی هوش مصنوعی
                 </CardTitle>
-                <CardDescription>
-                  API key هرگز به کاربران نمایش داده نمی‌شود — فقط در سرور ذخیره می‌شود.
+                <CardDescription className="text-xs">
+                  API key فقط در سرور ذخیره می‌شود.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">سرویس‌دهنده</label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">سرویس‌دهنده</label>
                     <Select value={provider} onValueChange={(v) => {
                       setProvider(v);
                       const p = PROVIDERS.find((p) => p.id === v);
                       if (p?.baseUrl) setBaseUrl(p.baseUrl);
                     }}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {PROVIDERS.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
+                        {PROVIDERS.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">مدل</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">مدل</label>
                     <Select value={model} onValueChange={setModel}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {AI_MODELS.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                        ))}
+                        {AI_MODELS.map((m) => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">آدرس API (Base URL)</label>
-                  <Input
-                    dir="ltr"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                  />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">آدرس API</label>
+                  <Input dir="ltr" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} className="h-9 text-sm" />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">کلید API</label>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">کلید API</label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
-                      <Input
-                        dir="ltr"
-                        type={showApiKey ? "text" : "password"}
-                        value={apiKey}
-                        onChange={(e) => setApiKey(e.target.value)}
-                        placeholder={config?.apiKeyMasked ?? "sk-..."}
-                        className="pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                      >
+                      <Input dir="ltr" type={showApiKey ? "text" : "password"} value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={config?.apiKeyMasked ?? "sk-..."} className="h-9 pr-10 text-sm" />
+                      <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground">
                         {showApiKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                       </button>
                     </div>
                   </div>
-                  {config?.hasApiKey && (
-                    <p className="text-xs text-muted-foreground">
-                      کلید فعلی: {config.apiKeyMasked}
-                    </p>
-                  )}
+                  {config?.hasApiKey && <p className="text-[11px] text-muted-foreground">کلید فعلی: {config.apiKeyMasked}</p>}
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">حداکثر توکن در هر درخواست</label>
-                    <Input
-                      type="number"
-                      value={maxTokens}
-                      onChange={(e) => setMaxTokens(e.target.value)}
-                    />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">حداکثر توکن</label>
+                    <Input type="number" value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} className="h-9 text-sm" />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">دما (Temperature)</label>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="2"
-                      value={temperature}
-                      onChange={(e) => setTemperature(e.target.value)}
-                    />
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">دما</label>
+                    <Input type="number" step="0.1" min="0" max="2" value={temperature} onChange={(e) => setTemperature(e.target.value)} className="h-9 text-sm" />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">System Prompt (پرامپت پیش‌فرض)</label>
-                  <Textarea
-                    rows={4}
-                    value={systemPrompt}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                    placeholder="شما یک دستیار تخصصی علوم زیستی هستید..."
-                  />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">System Prompt</label>
+                  <Textarea rows={3} value={systemPrompt} onChange={(e) => setSystemPrompt(e.target.value)} className="text-sm" placeholder="شما یک دستیار تخصصی علوم زیستی هستید..." />
                 </div>
 
-                <div className="flex gap-2">
-                  <Button onClick={handleSaveConfig} disabled={savingConfig}>
-                    {savingConfig ? (
-                      <Loader2 className="ml-2 size-4 animate-spin" />
-                    ) : (
-                      <Save className="ml-2 size-4" />
-                    )}
-                    ذخیره تنظیمات
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={handleSaveConfig} disabled={savingConfig} size="sm">
+                    {savingConfig ? <Loader2 className="ml-1.5 size-3.5 animate-spin" /> : <Save className="ml-1.5 size-3.5" />}
+                    ذخیره
                   </Button>
                   {config && (
-                    <Button
-                      variant="destructive"
-                      onClick={async () => {
-                        if (confirm("تنظیمات هوش مصنوعی حذف شود؟")) {
-                          await deleteConfig();
-                          toast.success("تنظیمات حذف شد");
-                        }
-                      }}
-                    >
-                      <Trash2 className="ml-2 size-4" />
-                      حذف تنظیمات
+                    <Button variant="destructive" size="sm" onClick={async () => {
+                      if (confirm("حذف شود؟")) { await deleteConfig(); toast.success("حذف شد"); }
+                    }}>
+                      <Trash2 className="ml-1.5 size-3.5" />
+                      حذف
                     </Button>
                   )}
                 </div>
@@ -364,26 +286,18 @@ export default function AIManagementPanel() {
             </Card>
           </TabsContent>
 
-          {/* ── Prompts ────────────────────────────────────────────── */}
+          {/* ── Prompts ──────────────────────────────────── */}
           <TabsContent value="prompts">
-            <div className="space-y-4">
+            <div className="space-y-3">
               <Card>
-                <CardHeader>
-                  <CardTitle>
-                    {editingPromptId ? "ویرایش پرامپت" : "افزودن پرامپت جدید"}
-                  </CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{editingPromptId ? "ویرایش پرامپت" : "پرامپت جدید"}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Input
-                      placeholder="نام پرامپت"
-                      value={promptName}
-                      onChange={(e) => setPromptName(e.target.value)}
-                    />
+                    <Input placeholder="نام پرامپت" value={promptName} onChange={(e) => setPromptName(e.target.value)} className="h-9 text-sm" />
                     <Select value={promptCategory} onValueChange={setPromptCategory}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="دسته‌بندی" />
-                      </SelectTrigger>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="دسته‌بندی" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="general">عمومی</SelectItem>
                         <SelectItem value="biology">زیست‌شناسی</SelectItem>
@@ -394,287 +308,117 @@ export default function AIManagementPanel() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Textarea
-                    rows={4}
-                    placeholder="محتوای پرامپت..."
-                    value={promptContent}
-                    onChange={(e) => setPromptContent(e.target.value)}
-                  />
+                  <Textarea rows={3} placeholder="محتوای پرامپت..." value={promptContent} onChange={(e) => setPromptContent(e.target.value)} className="text-sm" />
                   <div className="flex gap-2">
-                    <Button onClick={handleSavePrompt}>
-                      <Save className="ml-2 size-4" />
-                      {editingPromptId ? "ذخیره تغییرات" : "افزودن"}
+                    <Button size="sm" onClick={handleSavePrompt}>
+                      <Save className="ml-1.5 size-3.5" />{editingPromptId ? "ذخیره" : "افزودن"}
                     </Button>
-                    {editingPromptId && (
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingPromptId(null);
-                          setPromptName("");
-                          setPromptContent("");
-                        }}
-                      >
-                        لغو
-                      </Button>
-                    )}
+                    {editingPromptId && <Button size="sm" variant="ghost" onClick={() => { setEditingPromptId(null); setPromptName(""); setPromptContent(""); }}>لغو</Button>}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>نام</TableHead>
-                        <TableHead>دسته‌بندی</TableHead>
-                        <TableHead>محتوا</TableHead>
-                        <TableHead>پیش‌فرض</TableHead>
-                        <TableHead className="text-left">عملیات</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {prompts?.map((p) => (
-                        <TableRow key={p._id}>
-                          <TableCell className="font-medium">{p.name}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{p.category}</Badge>
-                          </TableCell>
-                          <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
-                            {p.content}
-                          </TableCell>
-                          <TableCell>
-                            {p.isDefault ? (
-                              <Badge variant="default">پیش‌فرض</Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => setDefaultPrompt({ promptId: p._id as any })}
-                              >
-                                پیش‌فرض کردن
-                              </Button>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-left">
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setEditingPromptId(p._id);
-                                  setPromptName(p.name);
-                                  setPromptContent(p.content);
-                                  setPromptCategory(p.category);
-                                }}
-                              >
-                                ویرایش
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => deletePrompt({ promptId: p._id as any })}
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {prompts?.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
-                            هنوز پرامپتی اضافه نشده است
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+              {/* Prompt list - card-based for mobile */}
+              {prompts?.map((p) => (
+                <Card key={p._id}>
+                  <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{p.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{p.content}</p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        <Badge variant="secondary" className="text-[10px]">{p.category}</Badge>
+                        {p.isDefault && <Badge className="text-[10px]">پیش‌فرض</Badge>}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      {!p.isDefault && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDefaultPrompt({ promptId: p._id as any })}>پیش‌فرض</Button>}
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditingPromptId(p._id); setPromptName(p.name); setPromptContent(p.content); setPromptCategory(p.category); }}>ویرایش</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => deletePrompt({ promptId: p._id as any })}><Trash2 className="size-3" /></Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {prompts?.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">هنوز پرامپتی نیست</p>}
             </div>
           </TabsContent>
 
-          {/* ── Usage Stats ─────────────────────────────────────────── */}
+          {/* ── Usage Stats ───────────────────────────────── */}
           <TabsContent value="usage">
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold">آمار استفاده امروز</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    if (confirm("آمار امروز ریست شود؟")) {
-                      await resetAllUsage();
-                      toast.success("آمار امروز ریست شد");
-                    }
-                  }}
-                >
-                  ریست آمار امروز
-                </Button>
+                <h3 className="text-sm font-bold">آمار امروز</h3>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                  if (confirm("ریست شود؟")) { await resetAllUsage(); toast.success("ریست شد"); }
+                }}>ریست</Button>
               </div>
 
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>تاریخ</TableHead>
-                        <TableHead>پیام ارسالی</TableHead>
-                        <TableHead>توکن مصرفی</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {usage?.map((u) => (
-                        <TableRow key={u._id}>
-                          <TableCell className="font-mono">{u.date}</TableCell>
-                          <TableCell>
-                            <span className="flex items-center gap-1.5">
-                              <MessageSquare className="size-3.5" />
-                              {u.messagesSent}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="flex items-center gap-1.5">
-                              <Zap className="size-3.5" />
-                              {u.tokensUsed}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {usage?.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
-                            هنوز استفاده‌ای ثبت نشده
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+              {usage?.map((u) => (
+                <Card key={u._id}>
+                  <CardContent className="flex items-center justify-between py-3">
+                    <div className="flex items-center gap-4">
+                      <span className="flex items-center gap-1.5 text-sm"><MessageSquare className="size-3.5" />{u.messagesSent} پیام</span>
+                      <span className="flex items-center gap-1.5 text-sm"><Zap className="size-3.5" />{u.tokensUsed} توکن</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground font-mono">{u.date}</span>
+                  </CardContent>
+                </Card>
+              ))}
+              {usage?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">هنوز استفاده‌ای نیست</p>}
 
-              <h3 className="mt-6 text-lg font-bold">گفتگوهای فعال</h3>
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>عنوان</TableHead>
-                        <TableHead>کاربر</TableHead>
-                        <TableHead>نقش</TableHead>
-                        <TableHead>آخرین فعالیت</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {conversations?.map((c) => (
-                        <TableRow key={c._id}>
-                          <TableCell className="font-medium max-w-xs truncate">{c.title}</TableCell>
-                          <TableCell className="text-sm">{c.userName}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{c.userRole}</Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {new Date(c.updatedAt).toLocaleDateString("fa-IR")}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {conversations?.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                            هنوز گفتگویی وجود ندارد
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+              <h3 className="mt-4 text-sm font-bold">گفتگوها</h3>
+              {conversations?.map((c) => (
+                <Card key={c._id}>
+                  <CardContent className="flex items-center justify-between py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{c.title}</p>
+                      <p className="text-xs text-muted-foreground">{c.userName}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">{c.userRole}</Badge>
+                      <span className="text-[10px] text-muted-foreground">{new Date(c.updatedAt).toLocaleDateString("fa-IR")}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {conversations?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">هنوز گفتگویی نیست</p>}
             </div>
           </TabsContent>
 
-          {/* ── Token Quotas ────────────────────────────────────────── */}
+          {/* ── Token Quotas ──────────────────────────────── */}
           <TabsContent value="quotas">
-            <div className="space-y-4">
+            <div className="space-y-3">
               <Card>
-                <CardHeader>
-                  <CardTitle>تخصیص سقف پیام روزانه</CardTitle>
-                  <CardDescription>
-                    سقف پیام روزانه پیش‌فرض: دانشجو ۳ پیام، مدرس ۱۰ پیام. می‌توانید برای کاربر خاصی سقف را تغییر دهید.
-                  </CardDescription>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">سقف پیام روزانه</CardTitle>
+                  <CardDescription className="text-xs">پیش‌فرض: دانشجو ۳، مدرس ۱۰. برای کاربر خاص تغییر دهید.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <Input
-                      placeholder="شناسه کاربر (ID)"
-                      value={quotaUserId}
-                      onChange={(e) => setQuotaUserId(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="سقف جدید (مثلاً 20)"
-                      value={quotaLimit}
-                      onChange={(e) => setQuotaLimit(e.target.value)}
-                    />
+                    <Input placeholder="شناسه کاربر" value={quotaUserId} onChange={(e) => setQuotaUserId(e.target.value)} className="h-9 text-sm" />
+                    <Input type="number" placeholder="سقف جدید" value={quotaLimit} onChange={(e) => setQuotaLimit(e.target.value)} className="h-9 text-sm" />
                   </div>
-                  <Button onClick={handleGrantTokens}>
-                    <CheckCircle2 className="ml-2 size-4" />
-                    اعمال سقف جدید
+                  <Button size="sm" onClick={handleGrantTokens}>
+                    <CheckCircle2 className="ml-1.5 size-3.5" />اعمال
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>کاربر</TableHead>
-                        <TableHead>نقش</TableHead>
-                        <TableHead>سقف روزانه</TableHead>
-                        <TableHead>تاریخ تخصیص</TableHead>
-                        <TableHead>یادداشت</TableHead>
-                        <TableHead className="text-left">عملیات</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {quotas?.map((q) => (
-                        <TableRow key={q._id}>
-                          <TableCell className="font-medium">{q.userName}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">{q.userRole}</Badge>
-                          </TableCell>
-                          <TableCell className="font-mono">{q.dailyLimit}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {new Date(q.grantedAt).toLocaleDateString("fa-IR")}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {q.note ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-left">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive"
-                              onClick={() => revokeTokens({ userId: q.userId as any })}
-                            >
-                              لغو
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {quotas?.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
-                            هنوز سقف خاصی تخصیص داده نشده
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+              {quotas?.map((q) => (
+                <Card key={q._id}>
+                  <CardContent className="flex items-center justify-between py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{q.userName}</p>
+                      <p className="text-[11px] text-muted-foreground">{q.note ?? "—"}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px]">{q.userRole}</Badge>
+                      <span className="font-mono text-sm font-bold">{q.dailyLimit}</span>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => revokeTokens({ userId: q.userId as any })}>لغو</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {quotas?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">هنوز سقفی تخصیص نشده</p>}
             </div>
           </TabsContent>
         </Tabs>

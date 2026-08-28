@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "convex/react";
 import {
   BookOpen,
+  Bot,
   ChevronDown,
   FlaskConical,
   GraduationCap,
@@ -37,6 +38,7 @@ const NAV = [
   { to: "/workshops", label: "کارگاه‌ها" },
   { to: "/instructors", label: "اساتید" },
   { to: "/dictionary", label: "دیکشنری" },
+  { to: "/ai-chat", label: "چت هوشمند" },
 ];
 
 export function SiteHeader() {
@@ -196,4 +198,5 @@ export const NAV_ICONS: Record<string, typeof BookOpen> = {
   "/workshops": Users,
   "/instructors": Users,
   "/dictionary": BookOpen,
+  "/ai-chat": Bot,
 };
