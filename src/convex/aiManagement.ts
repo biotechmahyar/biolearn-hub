@@ -1,12 +1,13 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getCurrentUser } from "./users";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ── Helper: require admin or site_admin ────────────────────────────────────
 async function requireAdmin(ctx: any) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("ورود لازم است.");
-  const user = (await ctx.db.get(identity.subject as any)) as any;
-  if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
+  const user = await getCurrentUser(ctx);
+  if (!user) throw new Error("ورود لازم است.");
+  if (user.role !== "admin" && user.role !== "site_admin") {
     throw new Error("فقط مدیران به این بخش دسترسی دارند.");
   }
   return user;
@@ -51,10 +52,9 @@ export const getConfig = query({
 export const getFullConfig = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    const user = (await ctx.db.get(identity.subject as any)) as any;
-    if (!user || (user.role !== "admin" && user.role !== "site_admin")) return null;
+    const user = await getCurrentUser(ctx);
+    if (!user) return null;
+    if (user.role !== "admin" && user.role !== "site_admin") return null;
     const config = await ctx.db.query("aiConfig").first();
     if (!config) return null;
     return {
@@ -85,10 +85,9 @@ export const listPrompts = query({
 export const listConversations = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const user = (await ctx.db.get(identity.subject as any)) as any;
-    if (!user || (user.role !== "admin" && user.role !== "site_admin")) return [];
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    if (user.role !== "admin" && user.role !== "site_admin") return [];
     // Admin sees all conversations with user info
     const convos = await ctx.db.query("aiConversations").collect();
     const results = [];
@@ -97,7 +96,7 @@ export const listConversations = query({
       results.push({
         ...c,
         userName: u?.name ?? u?.email ?? "ناشناس",
-        userRole: u?.role ?? "user",
+        userRole: (u as any)?.role ?? "user",
       });
     }
     return results;
@@ -107,10 +106,9 @@ export const listConversations = query({
 export const getUserUsage = query({
   args: { date: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const identity2 = await ctx.auth.getUserIdentity();
-    if (!identity2) return [];
-    const user2 = (await ctx.db.get(identity2.subject as any)) as any;
-    if (!user2 || (user2.role !== "admin" && user2.role !== "site_admin")) return [];
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    if (user.role !== "admin" && user.role !== "site_admin") return [];
     const today = args.date ?? new Date().toISOString().split("T")[0];
     const usage = await ctx.db
       .query("aiUsage")
@@ -124,10 +122,9 @@ export const getUserUsage = query({
 export const getAllUsageHistory = query({
   args: {},
   handler: async (ctx) => {
-    const identity3 = await ctx.auth.getUserIdentity();
-    if (!identity3) return [];
-    const user3 = (await ctx.db.get(identity3.subject as any)) as any;
-    if (!user3 || (user3.role !== "admin" && user3.role !== "site_admin")) return [];
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    if (user.role !== "admin" && user.role !== "site_admin") return [];
     return await ctx.db.query("aiUsage").collect();
   },
 });
@@ -135,10 +132,9 @@ export const getAllUsageHistory = query({
 export const listTokenQuotas = query({
   args: {},
   handler: async (ctx) => {
-    const identity4 = await ctx.auth.getUserIdentity();
-    if (!identity4) return [];
-    const user4 = (await ctx.db.get(identity4.subject as any)) as any;
-    if (!user4 || (user4.role !== "admin" && user4.role !== "site_admin")) return [];
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    if (user.role !== "admin" && user.role !== "site_admin") return [];
     const quotas = await ctx.db.query("aiTokenQuotas").collect();
     const results = [];
     for (const q of quotas) {
@@ -146,7 +142,7 @@ export const listTokenQuotas = query({
       results.push({
         ...q,
         userName: u?.name ?? u?.email ?? "ناشناس",
-        userRole: u?.role ?? "user",
+        userRole: (u as any)?.role ?? "user",
       });
     }
     return results;
@@ -157,26 +153,27 @@ export const listTokenQuotas = query({
 export const getMyUsage = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    const user = (await ctx.db.get(identity.subject as any)) as any;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const user = await ctx.db.get(userId);
     if (!user) return null;
 
     const today = new Date().toISOString().split("T")[0];
     const usage = await ctx.db
       .query("aiUsage")
       .withIndex("by_user_date", (q) =>
-        q.eq("userId", user._id).eq("date", today)
+        q.eq("userId", userId).eq("date", today)
       )
       .first();
 
     // Check for custom quota
     const quota = await ctx.db
       .query("aiTokenQuotas")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
-    const roleLimit = FREE_LIMITS[user.role ?? "user"] ?? 3;
+    const roleLimit = FREE_LIMITS[(user as any).role ?? "user"] ?? 3;
     const dailyLimit = quota?.dailyLimit ?? roleLimit;
 
     return {
@@ -228,7 +225,7 @@ export const saveConfig = mutation({
 export const deleteConfig = mutation({
   args: {},
   handler: async (ctx) => {
-    const user = await requireAdmin(ctx);
+    await requireAdmin(ctx);
     const existing = await ctx.db.query("aiConfig").first();
     if (existing) {
       await ctx.db.delete(existing._id);

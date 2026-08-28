@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ── Free tier limits ────────────────────────────────────────────────────────
 const FREE_LIMITS: Record<string, number> = {
@@ -18,11 +19,11 @@ const FREE_LIMITS: Record<string, number> = {
 export const listMyConversations = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
     return await ctx.db
       .query("aiConversations")
-      .withIndex("by_user", (q) => q.eq("userId", identity.subject as any))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
   },
@@ -31,11 +32,11 @@ export const listMyConversations = query({
 export const getConversationMessages = query({
   args: { conversationId: v.id("aiConversations") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
     // Verify ownership
     const convo = await ctx.db.get(args.conversationId);
-    if (!convo || convo.userId !== (identity.subject as any)) return [];
+    if (!convo || convo.userId !== userId) return [];
     return await ctx.db
       .query("aiMessages")
       .withIndex("by_conversation", (q) =>
@@ -49,26 +50,27 @@ export const getConversationMessages = query({
 export const getMyUsage = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return null;
-    const user = await ctx.db.get(identity.subject as any) as any;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const user = await ctx.db.get(userId);
     if (!user) return null;
 
     const today = new Date().toISOString().split("T")[0];
     const usage = await ctx.db
       .query("aiUsage")
       .withIndex("by_user_date", (q) =>
-        q.eq("userId", user._id).eq("date", today)
+        q.eq("userId", userId).eq("date", today)
       )
       .first();
 
     // Check for custom quota override
     const quota = await ctx.db
       .query("aiTokenQuotas")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
-    const roleLimit = FREE_LIMITS[user.role ?? "user"] ?? 3;
+    const roleLimit = FREE_LIMITS[(user as any).role ?? "user"] ?? 3;
     const dailyLimit = quota?.dailyLimit ?? roleLimit;
 
     return {
@@ -76,7 +78,7 @@ export const getMyUsage = query({
       tokensUsed: usage?.tokensUsed ?? 0,
       dailyLimit,
       remaining: Math.max(0, dailyLimit - (usage?.messagesSent ?? 0)),
-      role: user.role ?? "user",
+      role: (user as any).role ?? "user",
     };
   },
 });
@@ -86,11 +88,11 @@ export const getMyUsage = query({
 export const createConversation = mutation({
   args: { title: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
     const now = Date.now();
     return await ctx.db.insert("aiConversations", {
-      userId: identity.subject as any,
+      userId,
       title: args.title ?? "چت جدید",
       createdAt: now,
       updatedAt: now,
@@ -104,15 +106,17 @@ export const sendMessage = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
 
-    const user = await ctx.db.get(identity.subject as any) as any;
+    const user = await ctx.db.get(userId);
     if (!user) throw new Error("کاربر یافت نشد.");
+
+    const userRole = (user as any).role ?? "user";
 
     // Verify ownership
     const convo = await ctx.db.get(args.conversationId);
-    if (!convo || convo.userId !== user._id) {
+    if (!convo || convo.userId !== userId) {
       throw new Error("دسترسی غیرمجاز.");
     }
 
@@ -121,17 +125,17 @@ export const sendMessage = mutation({
     let usage = await ctx.db
       .query("aiUsage")
       .withIndex("by_user_date", (q) =>
-        q.eq("userId", user._id).eq("date", today)
+        q.eq("userId", userId).eq("date", today)
       )
       .first();
 
     // Check for custom quota
     const quota = await ctx.db
       .query("aiTokenQuotas")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .first();
 
-    const roleLimit = FREE_LIMITS[user.role ?? "user"] ?? 3;
+    const roleLimit = FREE_LIMITS[userRole] ?? 3;
     const dailyLimit = quota?.dailyLimit ?? roleLimit;
     const currentMessages = usage?.messagesSent ?? 0;
 
@@ -166,7 +170,7 @@ export const sendMessage = mutation({
       });
     } else {
       await ctx.db.insert("aiUsage", {
-        userId: user._id,
+        userId,
         date: today,
         messagesSent: 1,
         tokensUsed: 0,
@@ -225,10 +229,10 @@ export const sendMessage = mutation({
 export const deleteConversation = mutation({
   args: { conversationId: v.id("aiConversations") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
     const convo = await ctx.db.get(args.conversationId);
-    if (!convo || convo.userId !== (identity.subject as any)) {
+    if (!convo || convo.userId !== userId) {
       throw new Error("دسترسی غیرمجاز.");
     }
     // Delete all messages
@@ -249,10 +253,10 @@ export const deleteConversation = mutation({
 export const renameConversation = mutation({
   args: { conversationId: v.id("aiConversations"), title: v.string() },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
     const convo = await ctx.db.get(args.conversationId);
-    if (!convo || convo.userId !== (identity.subject as any)) {
+    if (!convo || convo.userId !== userId) {
       throw new Error("دسترسی غیرمجاز.");
     }
     await ctx.db.patch(args.conversationId, { title: args.title });

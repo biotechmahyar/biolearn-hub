@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -59,7 +59,7 @@ const PROVIDERS = [
 ];
 
 export default function AIManagementPanel() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const config = useQuery(api.aiManagement.getFullConfig);
@@ -78,14 +78,14 @@ export default function AIManagementPanel() {
   const revokeTokens = useMutation(api.aiManagement.revokeTokens);
   const resetAllUsage = useMutation(api.aiManagement.resetAllUsage);
 
-  const [provider, setProvider] = useState(config?.provider ?? "openai");
-  const [model, setModel] = useState(config?.model ?? "gpt-4o");
-  const [baseUrl, setBaseUrl] = useState(config?.baseUrl ?? "https://api.openai.com/v1");
+  const [provider, setProvider] = useState("openai");
+  const [model, setModel] = useState("gpt-4o");
+  const [baseUrl, setBaseUrl] = useState("https://api.openai.com/v1");
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
-  const [maxTokens, setMaxTokens] = useState(String(config?.maxTokensPerRequest ?? 2048));
-  const [temperature, setTemperature] = useState(String(config?.temperature ?? 0.7));
-  const [systemPrompt, setSystemPrompt] = useState(config?.systemPrompt ?? "");
+  const [maxTokens, setMaxTokens] = useState("2048");
+  const [temperature, setTemperature] = useState("0.7");
+  const [systemPrompt, setSystemPrompt] = useState("");
   const [savingConfig, setSavingConfig] = useState(false);
 
   const [promptName, setPromptName] = useState("");
@@ -96,7 +96,32 @@ export default function AIManagementPanel() {
   const [quotaUserId, setQuotaUserId] = useState("");
   const [quotaLimit, setQuotaLimit] = useState("10");
 
-  if (user?.role !== "admin" && user?.role !== "site_admin") {
+  // Sync form state when config loads (only if config changes from undefined to a value)
+  useEffect(() => {
+    if (config) {
+      setProvider(config.provider ?? "openai");
+      setModel(config.model ?? "gpt-4o");
+      setBaseUrl(config.baseUrl ?? "https://api.openai.com/v1");
+      setMaxTokens(String(config.maxTokensPerRequest ?? 2048));
+      setTemperature(String(config.temperature ?? 0.7));
+      setSystemPrompt(config.systemPrompt ?? "");
+    }
+  }, [config]);
+
+  // Loading state
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">در حال بارگذاری...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Access check — safe because we already handled loading above
+  if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <p className="text-muted-foreground">دسترسی غیرمجاز</p>
@@ -319,6 +344,11 @@ export default function AIManagementPanel() {
               </Card>
 
               {/* Prompt list - card-based for mobile */}
+              {prompts === undefined && (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
               {prompts?.map((p) => (
                 <Card key={p._id}>
                   <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -352,6 +382,11 @@ export default function AIManagementPanel() {
                 }}>ریست</Button>
               </div>
 
+              {usage === undefined && (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
               {usage?.map((u) => (
                 <Card key={u._id}>
                   <CardContent className="flex items-center justify-between py-3">
@@ -366,6 +401,11 @@ export default function AIManagementPanel() {
               {usage?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">هنوز استفاده‌ای نیست</p>}
 
               <h3 className="mt-4 text-sm font-bold">گفتگوها</h3>
+              {conversations === undefined && (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
               {conversations?.map((c) => (
                 <Card key={c._id}>
                   <CardContent className="flex items-center justify-between py-3">
@@ -403,6 +443,11 @@ export default function AIManagementPanel() {
                 </CardContent>
               </Card>
 
+              {quotas === undefined && (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                </div>
+              )}
               {quotas?.map((q) => (
                 <Card key={q._id}>
                   <CardContent className="flex items-center justify-between py-3">

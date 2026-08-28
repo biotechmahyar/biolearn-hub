@@ -18,24 +18,25 @@ import {
   Zap,
 } from "lucide-react";
 import { BrandMark } from "@/components/site/BrandLogo";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export default function AIChat() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const navigate = useNavigate();
   const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Redirect to auth if not logged in
+  // Redirect to auth if not logged in (only after auth loading is complete)
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       navigate("/auth?returnTo=/ai-chat");
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, authLoading, navigate]);
 
   const conversations = useQuery(
     api.aiChat.listMyConversations,
@@ -53,19 +54,20 @@ export default function AIChat() {
   const createConvo = useMutation(api.aiChat.createConversation);
   const sendMessageMut = useMutation(api.aiChat.sendMessage);
   const deleteConvo = useMutation(api.aiChat.deleteConversation);
-  const renameConvo = useMutation(api.aiChat.renameConversation);
-
-  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleNewChat = async () => {
-    const id = await createConvo({ title: "چت جدید" });
-    setSelectedConvo(id as string);
-    setSidebarOpen(false);
-    inputRef.current?.focus();
+    try {
+      const id = await createConvo({ title: "چت جدید" });
+      setSelectedConvo(id as string);
+      setSidebarOpen(false);
+      inputRef.current?.focus();
+    } catch (e) {
+      console.error("Failed to create conversation:", e);
+    }
   };
 
   const handleSend = async () => {
@@ -79,8 +81,7 @@ export default function AIChat() {
         content,
       });
     } catch (e: any) {
-      // Handle rate limit
-      console.error(e);
+      console.error("Send failed:", e);
     } finally {
       setIsSending(false);
       inputRef.current?.focus();
@@ -90,14 +91,34 @@ export default function AIChat() {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm("این چت حذف شود؟")) {
-      await deleteConvo({ conversationId: id as any });
-      if (selectedConvo === id) setSelectedConvo(null);
+      try {
+        await deleteConvo({ conversationId: id as any });
+        if (selectedConvo === id) setSelectedConvo(null);
+      } catch (e) {
+        console.error("Delete failed:", e);
+      }
     }
   };
 
+  // Loading state
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="size-6 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">در حال بارگذاری...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) return null;
 
-  const hasReachedLimit = !!(usage && usage.remaining <= 0);
+  // Safe access: usage might be null/undefined while loading
+  const dailyLimit = usage?.dailyLimit ?? 0;
+  const messagesSent = usage?.messagesSent ?? 0;
+  const remaining = usage?.remaining ?? 0;
+  const hasReachedLimit = dailyLimit > 0 && remaining <= 0;
 
   return (
     <div className="flex h-screen bg-background">
@@ -123,6 +144,11 @@ export default function AIChat() {
         {/* Conversation List */}
         <ScrollArea className="flex-1 px-2">
           <div className="space-y-1 py-1">
+            {conversations === undefined && (
+              <div className="flex justify-center py-6">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
             {conversations?.map((c) => (
               <button
                 key={c._id}
@@ -164,21 +190,21 @@ export default function AIChat() {
                 پیام‌های امروز
               </span>
               <span className="font-mono">
-                {usage.messagesSent}/{usage.dailyLimit}
+                {messagesSent}/{dailyLimit}
               </span>
             </div>
             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
               <div
                 className={cn(
                   "h-full rounded-full transition-all",
-                  usage.remaining <= 0
+                  hasReachedLimit
                     ? "bg-destructive"
-                    : usage.remaining <= 1
+                    : remaining <= 1
                       ? "bg-amber-500"
                       : "bg-primary"
                 )}
                 style={{
-                  width: `${Math.min(100, (usage.messagesSent / Math.max(usage.dailyLimit, 1)) * 100)}%`,
+                  width: `${Math.min(100, (messagesSent / Math.max(dailyLimit, 1)) * 100)}%`,
                 }}
               />
             </div>
@@ -210,7 +236,7 @@ export default function AIChat() {
           {usage && (
             <div className="flex items-center gap-1.5 rounded-full bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
               <Zap className="size-3 text-amber-500" />
-              {usage.remaining} پیام باقی‌مانده
+              {remaining} پیام باقی‌مانده
             </div>
           )}
         </header>
@@ -245,16 +271,24 @@ export default function AIChat() {
                     <button
                       key={q}
                       onClick={async () => {
-                        const id = await createConvo({ title: q });
-                        setSelectedConvo(id as string);
-                        setSidebarOpen(false);
-                        // Auto-send
-                        setTimeout(async () => {
-                          await sendMessageMut({
-                            conversationId: id as any,
-                            content: q,
-                          });
-                        }, 500);
+                        try {
+                          const id = await createConvo({ title: q });
+                          setSelectedConvo(id as string);
+                          setSidebarOpen(false);
+                          // Auto-send
+                          setTimeout(async () => {
+                            try {
+                              await sendMessageMut({
+                                conversationId: id as any,
+                                content: q,
+                              });
+                            } catch (e) {
+                              console.error("Auto-send failed:", e);
+                            }
+                          }, 500);
+                        } catch (e) {
+                          console.error("Quick chat failed:", e);
+                        }
                       }}
                       className="rounded-xl border border-border bg-card p-3 text-right text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
                     >
@@ -266,6 +300,11 @@ export default function AIChat() {
             ) : (
               /* Messages list */
               <div className="space-y-6">
+                {messages === undefined && (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                  </div>
+                )}
                 {messages?.map((m) => (
                   <motion.div
                     key={m._id}
