@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useNavigate } from "react-router";
@@ -37,6 +37,8 @@ import {
   Zap,
   MessageSquare,
   ArrowLeft,
+  Wifi,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -77,6 +79,9 @@ export default function AIManagementPanel() {
   const grantTokens = useMutation(api.aiManagement.grantTokens);
   const revokeTokens = useMutation(api.aiManagement.revokeTokens);
   const resetAllUsage = useMutation(api.aiManagement.resetAllUsage);
+  const testConnectionAction = useAction(api.aiActions.testConnection);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ connected: boolean; message: string; provider?: string | null; model?: string | null; testedAt?: string } | null>(null);
 
   const [provider, setProvider] = useState("openai");
   const [model, setModel] = useState("gpt-4o");
@@ -298,6 +303,32 @@ export default function AIManagementPanel() {
                     {savingConfig ? <Loader2 className="ml-1.5 size-3.5 animate-spin" /> : <Save className="ml-1.5 size-3.5" />}
                     ذخیره
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={testing}
+                    onClick={async () => {
+                      setTesting(true);
+                      setTestResult(null);
+                      try {
+                        const result = await testConnectionAction();
+                        setTestResult(result);
+                        if (result.connected) {
+                          toast.success(`✓ ${result.message} — ${result.provider}/${result.model}`);
+                        } else {
+                          toast.error(`✕ ${result.message}`);
+                        }
+                      } catch (e) {
+                        setTestResult({ connected: false, message: e instanceof Error ? e.message : "خطا" });
+                        toast.error("خطا در تست اتصال");
+                      } finally {
+                        setTesting(false);
+                      }
+                    }}
+                  >
+                    {testing ? <Loader2 className="ml-1.5 size-3.5 animate-spin" /> : <Wifi className="ml-1.5 size-3.5" />}
+                    تست اتصال
+                  </Button>
                   {config && (
                     <Button variant="destructive" size="sm" onClick={async () => {
                       if (confirm("حذف شود؟")) { await deleteConfig(); toast.success("حذف شد"); }
@@ -307,6 +338,14 @@ export default function AIManagementPanel() {
                     </Button>
                   )}
                 </div>
+                {testResult && (
+                  <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${testResult.connected ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 text-destructive"}`}>
+                    {testResult.connected ? <CheckCircle2 className="size-3.5" /> : <AlertTriangle className="size-3.5" />}
+                    <span>{testResult.message}</span>
+                    {testResult.provider && <Badge variant="secondary" className="text-[10px]">{testResult.provider}/{testResult.model}</Badge>}
+                    {testResult.testedAt && <span className="mr-auto text-[10px] text-muted-foreground">{new Date(testResult.testedAt).toLocaleTimeString("fa-IR")}</span>}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -120,6 +120,10 @@ export default function AIChat() {
   const remaining = usage?.remaining ?? 0;
   const hasReachedLimit = dailyLimit > 0 && remaining <= 0;
 
+  // Detect if AI is still processing: last message is from user = waiting for response
+  const lastMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
+  const isWaitingForAI = !!lastMessage && lastMessage.role === "user";
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -341,14 +345,17 @@ export default function AIChat() {
                     </div>
                   </motion.div>
                 ))}
-                {isSending && (
+                {(isSending || isWaitingForAI) && (
                   <div className="flex gap-3">
                     <div className="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                       <Bot className="size-4" />
                     </div>
                     <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-                      <Loader2 className="size-4 animate-spin" />
-                      در حال پردازش...
+                      <span className="flex gap-1">
+                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:0ms]" />
+                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:150ms]" />
+                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:300ms]" />
+                      </span>
                     </div>
                   </div>
                 )}

@@ -1,6 +1,7 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { api, internal } from "./_generated/api";
 
 // ── Free tier limits ────────────────────────────────────────────────────────
 const FREE_LIMITS: Record<string, number> = {
@@ -16,6 +17,46 @@ const FREE_LIMITS: Record<string, number> = {
 
 // Max conversations to keep per user (regular users only)
 const MAX_CONVERSATIONS = 10;
+
+// ── Internal queries (only callable from server-side actions) ────────────────
+
+/**
+ * Returns the raw AI config including the API key.
+ * ONLY callable from server-side actions via ctx.runQuery.
+ * Never exposed to the browser.
+ */
+export const getAIConfigRaw = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const config = await ctx.db.query("aiConfig").first();
+    if (!config) return null;
+    return {
+      apiKey: config.apiKeyEncrypted,
+      baseUrl: config.baseUrl,
+      model: config.model,
+      provider: config.provider,
+      temperature: config.temperature,
+      maxTokensPerRequest: config.maxTokensPerRequest,
+      systemPrompt: config.systemPrompt,
+    };
+  },
+});
+
+/**
+ * Internal query: get messages for a conversation (callable from actions only).
+ */
+export const getConversationMessagesInternal = internalQuery({
+  args: { conversationId: v.id("aiConversations") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("aiMessages")
+      .withIndex("by_conversation", (q) =>
+        q.eq("conversationId", args.conversationId)
+      )
+      .order("asc")
+      .collect();
+  },
+});
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -211,50 +252,13 @@ export const sendMessage = mutation({
       });
     }
 
-    // Get AI config
-    const config = await ctx.db.query("aiConfig").first();
-    if (!config || !config.apiKeyEncrypted) {
-      // No AI configured yet — return a placeholder response
-      const aiMsg = await ctx.db.insert("aiMessages", {
-        conversationId: args.conversationId,
-        role: "assistant",
-        content:
-          "هوش مصنوعی هنوز توسط مدیر سایت پیکربندی نشده است. لطفاً منتظر بمانید تا کلید API تنظیم شود.",
-        tokensUsed: 0,
-        createdAt: Date.now(),
-      });
-      return {
-        aiMessageId: aiMsg,
-        remaining: Math.max(0, dailyLimit - currentMessages - 1),
-      };
-    }
-
-    // Build message history for context
-    const messages = await ctx.db
-      .query("aiMessages")
-      .withIndex("by_conversation", (q) =>
-        q.eq("conversationId", args.conversationId)
-      )
-      .order("asc")
-      .collect();
-
-    const chatMessages = [
-      { role: "system", content: config.systemPrompt },
-      ...messages.map((m) => ({ role: m.role, content: m.content })),
-    ];
-
-    // Call AI provider via action
-    // For now, return a placeholder since the actual AI call needs to happen server-side
-    const aiMsg = await ctx.db.insert("aiMessages", {
+    // Trigger AI response asynchronously via action
+    // The action will read the config and messages, call the API, and save the response
+    await ctx.scheduler.runAfter(0, api.aiActions.callAI, {
       conversationId: args.conversationId,
-      role: "assistant",
-      content: `[پاسخ هوش مصنوعی — اتصال به ${config.provider}/${config.model} در حال راه‌اندازی]\n\nپیام شما دریافت شد. به زودی هوش مصنوعی فعال خواهد شد.`,
-      tokensUsed: 0,
-      createdAt: Date.now(),
     });
 
     return {
-      aiMessageId: aiMsg,
       remaining: Math.max(0, dailyLimit - currentMessages - 1),
     };
   },
@@ -295,5 +299,27 @@ export const renameConversation = mutation({
     }
     await ctx.db.patch(args.conversationId, { title: args.title });
     return { success: true };
+  },
+});
+
+// ── Internal mutation to save AI messages (called from actions) ──────────────
+
+export const saveAIMessage = internalMutation({
+  args: {
+    conversationId: v.id("aiConversations"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("aiMessages", {
+      conversationId: args.conversationId,
+      role: "assistant",
+      content: args.content,
+      tokensUsed: 0,
+      createdAt: Date.now(),
+    });
+    // Update conversation timestamp
+    await ctx.db.patch(args.conversationId, {
+      updatedAt: Date.now(),
+    });
   },
 });
