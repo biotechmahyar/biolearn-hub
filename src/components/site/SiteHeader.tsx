@@ -21,7 +21,9 @@ import {
   LogOut,
   Menu,
   Microscope,
+  Moon,
   ShieldCheck,
+  Sun,
   Users,
 } from "lucide-react";
 import { useState } from "react";
@@ -29,6 +31,7 @@ import { Link, NavLink, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 import { panelForRole, ROLE_LABEL } from "@/components/RoleGate";
 import { BrandLogo } from "./BrandLogo";
+import { useSettings } from "@/lib/settings";
 
 const NAV = [
   { to: "/courses", label: "دوره‌ها" },
@@ -51,6 +54,9 @@ export function SiteHeader() {
   const isStaff = !!role && role !== "user" && role !== "member";
   const myPanel = panelForRole(role);
   const myPanelLabel = isStaff ? (ROLE_LABEL[role] ?? "پنل من") : null;
+
+  const { settings, setTheme } = useSettings();
+  const isDark = settings.theme === "dark";
 
   const handleSignOut = async () => {
     await signOut();
@@ -83,6 +89,14 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* Theme toggle */}
+          <button
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            title={isDark ? "حالت روشن" : "حالت تیره"}
+          >
+            {isDark ? <Sun className="size-5" /> : <Moon className="size-5" />}
+          </button>
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
