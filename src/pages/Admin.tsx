@@ -729,6 +729,7 @@ function AdminCourses() {
   const [form, setForm] = useState(empty);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
   const [activeTab, setActiveTab] = useState("basic");
 
   const openCreate = () => { setForm(empty); setErr(null); setActiveTab("basic"); setDialog({ mode: "create" }); };
@@ -1392,11 +1393,23 @@ function AdminArticles() {
   const update = useMutation(api.admin.adminUpdateArticle);
   const toggle = useMutation(api.admin.adminTogglePublish);
   const remove = useMutation(api.admin.adminDeleteArticle);
+  const saveGenerated = useMutation(api.admin.adminSaveGeneratedArticles);
+  const generateArticleAction = useAction(api.aiActions.generateArticles);
 
   const empty = { title: "", category: "", excerpt: "", body: "", authorName: "", published: false };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; article: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
+
+  // AI generation state
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiCount, setAiCount] = useState(3);
+  const [aiCategory, setAiCategory] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResults, setAiResults] = useState<{ title: string; category: string; excerpt: string; body: string }[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSaving, setAiSaving] = useState(false);
 
   const openCreate = () => { setForm(empty); setDialog({ mode: "create" }); };
   const openEdit = (a: any) => {
@@ -1432,14 +1445,58 @@ function AdminArticles() {
     }
   };
 
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiGenerating(true);
+    setAiError(null);
+    setAiResults([]);
+    try {
+      const result = await generateArticleAction({
+        prompt: aiPrompt,
+        count: aiCount,
+        category: aiCategory,
+      });
+      setAiResults(result.articles);
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "خطا در تولید مقالات");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleAISave = async () => {
+    if (aiResults.length === 0) return;
+    setAiSaving(true);
+    try {
+      await saveGenerated({
+        articles: aiResults,
+        authorName: "تیم Genova",
+        published: false,
+      });
+      setAiResults([]);
+      setAiDialogOpen(false);
+      setAiPrompt("");
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : "خطا در ذخیره");
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <SectionHeader title="مقالات رایگان" subtitle="content / articles" count={articles?.length} />
-        <Button className="rounded-lg" onClick={openCreate}>
-          <Plus className="ml-1.5 size-4" />
-          مطلب جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="rounded-lg" onClick={() => { setAiDialogOpen(true); setAiResults([]); setAiError(null); }}>
+            <Sparkles className="ml-1.5 size-4" />
+            تولید با هوش مصنوعی
+          </Button>
+          <Button className="rounded-lg" onClick={openCreate}>
+            <Plus className="ml-1.5 size-4" />
+            مطلب جدید
+          </Button>
+        </div>
       </div>
 
       <Card className="border-border/70 shadow-sm">
@@ -1497,6 +1554,73 @@ function AdminArticles() {
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "ذخیرهٔ مطلب"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Generation Dialog */}
+      <Dialog open={aiDialogOpen} onOpenChange={(o) => { if (!o) { setAiDialogOpen(false); setAiResults([]); } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              تولید مقاله با هوش مصنوعی
+            </DialogTitle>
+            <DialogDescription>
+              پرامپت و تنظیمات را وارد کنید و مقالات را تولید کنید.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Textarea
+              placeholder="پرامپت (مثلاً مقاله‌ای درباره رنگ‌آمیزی باکتری‌ها بنویس)"
+              rows={3}
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">تعداد مقالات</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={aiCount}
+                  onChange={(e) => setAiCount(Number(e.target.value) || 3)}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-muted-foreground">دسته‌بندی (اختیاری)</label>
+                <Input
+                  placeholder="مثلاً میکروبیولوژی"
+                  value={aiCategory}
+                  onChange={(e) => setAiCategory(e.target.value)}
+                />
+              </div>
+            </div>
+            <Button onClick={handleAIGenerate} disabled={aiGenerating || !aiPrompt.trim()} className="w-full">
+              {aiGenerating ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Sparkles className="ml-1.5 size-4" />}
+              {aiGenerating ? "در حال تولید..." : "تولید مقالات"}
+            </Button>
+            {aiError && <p className="text-sm text-destructive">{aiError}</p>}
+            {aiResults.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">{aiResults.length} مقاله تولید شد:</p>
+                {aiResults.map((art, i) => (
+                  <Card key={i} className="border-border/70">
+                    <CardContent className="space-y-2 p-4">
+                      <h4 className="font-bold">{art.title}</h4>
+                      <p className="text-xs text-muted-foreground">دسته: {art.category}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{art.excerpt}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-4 whitespace-pre-wrap">{art.body}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+                <Button onClick={handleAISave} disabled={aiSaving} className="w-full">
+                  {aiSaving ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                  {aiSaving ? "در حال ذخیره..." : `ذخیره ${aiResults.length} مقاله در سایت`}
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

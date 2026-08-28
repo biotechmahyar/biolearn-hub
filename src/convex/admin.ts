@@ -1153,6 +1153,40 @@ export const adminUpdateArticle = mutation({
   },
 });
 
+export const adminSaveGeneratedArticles = mutation({
+  args: {
+    articles: v.array(
+      v.object({
+        title: v.string(),
+        category: v.string(),
+        excerpt: v.string(),
+        body: v.string(),
+      })
+    ),
+    authorName: v.string(),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    for (const art of args.articles) {
+      await ctx.db.insert("articles", {
+        title: art.title.trim(),
+        slug: art.title.trim().replace(/\s+/g, "-"),
+        category: art.category.trim() || args.articles[0]?.category || "عمومی",
+        excerpt: art.excerpt.trim(),
+        body: art.body,
+        authorName: args.authorName.trim() || "تیم Genova",
+        accent: "teal",
+        readTime: Math.max(1, Math.round(art.body.split(/\s+/).length / 250)),
+        published: args.published,
+        featured: false,
+        createdAt: Date.now(),
+      });
+    }
+    return { ok: true, count: args.articles.length };
+  },
+});
+
 // ── Workshops ───────────────────────────────────────────────────────────────
 export const adminListWorkshops = query({
   args: {},

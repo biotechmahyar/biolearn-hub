@@ -395,3 +395,143 @@ export const generateQuestions = action({
     }
   },
 });
+
+// ── AI Article Generation ──────────────────────────────────────────────────
+
+export interface GeneratedArticle {
+  title: string;
+  category: string;
+  excerpt: string;
+  body: string;
+}
+
+/**
+ * Generate free articles using AI based on a prompt.
+ * Returns structured articles for admin preview before saving.
+ */
+export const generateArticles = action({
+  args: {
+    prompt: v.string(),
+    count: v.number(),
+    category: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ articles: GeneratedArticle[]; raw: string }> => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw);
+
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی پیکربندی نشده است. ابتدا API key را تنظیم کنید.");
+    }
+
+    const { apiKey, baseUrl, model, provider, temperature } = rawConfig;
+
+    const systemPrompt = `شما یک متخصص تولید محتوای آموزشی در حوزه علوم زیستی هستید.
+
+قوانین:
+- مقالات باید علمی، دقیق و قابل فهم برای دانشجویان باشند.
+- هر مقاله باید عنوان جذاب، خلاصه کوتاه و متن کامل داشته باشد.
+- از اصطلاحات تخصصی صحیح استفاده کنید.
+- مقالات باید آموزشی و مفید باشند.
+
+پاسخ را دقیقاً به این فرمت JSON برگردانید (بدون متن اضافی):
+[
+  {
+    "title": "عنوان مقاله",
+    "category": "دسته‌بندی",
+    "excerpt": "خلاصه کوتاه برای کارت مقاله",
+    "body": "متن کامل مقاله با پاراگراف‌ها جدا شده با خط خالی"
+  }
+]
+
+فقط آرایه JSON برگردانید، هیچ متن دیگری اضافه نکنید.`;
+
+    const userPrompt = `${args.prompt}\n\nتعداد مقالات مورد نیاز: ${args.count}\nدسته‌بندی: ${args.category || 'عمومی'}`;
+
+    let responseText = "";
+
+    try {
+      if (provider === "anthropic") {
+        const resp = await fetch(`${baseUrl}/v1/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 4096,
+            temperature: temperature ?? 0.7,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+          }),
+        });
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.content?.[0]?.text ?? "";
+      } else if (provider === "google") {
+        const resp = await fetch(
+          `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+              generationConfig: { temperature: temperature ?? 0.7, maxOutputTokens: 4096 },
+            }),
+          }
+        );
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      } else {
+        // OpenAI-compatible
+        const resp = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: temperature ?? 0.7,
+            max_tokens: 4096,
+          }),
+        });
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.choices?.[0]?.message?.content ?? "";
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "خطای ناشناخته";
+      throw new Error(`خطا در فراخوانی هوش مصنوعی: ${msg}`);
+    }
+
+    try {
+      let jsonStr = responseText.trim();
+      const jsonMatch = jsonStr.match(/\[\s\S*\]/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+      const articles: GeneratedArticle[] = JSON.parse(jsonStr);
+
+      const validated = articles.filter((a) => {
+        return a.title && a.excerpt && a.body && a.body.length > 50;
+      });
+
+      if (validated.length === 0) {
+        throw new Error("هوش مصنوعی مقاله معتبری تولید نکرد. لطفاً دوباره تلاش کنید.");
+      }
+
+      return { articles: validated, raw: responseText };
+    } catch (parseError) {
+      if (parseError instanceof SyntaxError) {
+        throw new Error("پاسخ هوش مصنوعی قابل پردازش نیست. لطفاً دوباره تلاش کنید.");
+      }
+      throw parseError;
+    }
+  },
+});

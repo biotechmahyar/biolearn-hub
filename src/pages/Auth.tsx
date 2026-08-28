@@ -454,6 +454,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                         onChange={setOtp}
                         maxLength={6}
                         disabled={isLoading}
+                        dir="ltr"
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && otp.length === 6 && !isLoading) {
                             const form = (e.target as HTMLElement).closest("form");
@@ -461,9 +462,9 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
                           }
                         }}
                       >
-                        <InputOTPGroup>
+                        <InputOTPGroup className="gap-2" dir="ltr">
                           {Array.from({ length: 6 }).map((_, index) => (
-                            <InputOTPSlot key={index} index={index} />
+                            <InputOTPSlot key={index} index={index} className="!w-11 !h-12 !text-lg !font-bold !border-emerald-400 dark:!border-emerald-500 !rounded-lg" />
                           ))}
                         </InputOTPGroup>
                       </InputOTP>
