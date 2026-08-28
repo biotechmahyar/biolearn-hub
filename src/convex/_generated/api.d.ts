@@ -30,6 +30,7 @@ import type * as offlinePayments from "../offlinePayments.js";
 import type * as profiles from "../profiles.js";
 import type * as seed from "../seed.js";
 import type * as seedBioDiagnostic from "../seedBioDiagnostic.js";
+import type * as superAdmin from "../superAdmin.js";
 import type * as tests from "../tests.js";
 import type * as tickets from "../tickets.js";
 import type * as upload from "../upload.js";
@@ -64,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   profiles: typeof profiles;
   seed: typeof seed;
   seedBioDiagnostic: typeof seedBioDiagnostic;
+  superAdmin: typeof superAdmin;
   tests: typeof tests;
   tickets: typeof tickets;
   upload: typeof upload;

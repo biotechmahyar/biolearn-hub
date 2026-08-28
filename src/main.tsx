@@ -45,6 +45,7 @@ const ArticleDetail = lazy(() => import("./pages/ArticleDetail.tsx"));
 const Dictionary = lazy(() => import("./pages/Dictionary.tsx"));
 const AIChat = lazy(() => import("./pages/AIChat.tsx"));
 const AIManagementPanel = lazy(() => import("./pages/panels/AIManagementPanel.tsx"));
+const SuperAdminPanel = lazy(() => import("./pages/panels/SuperAdminPanel.tsx"));
 const Rules = lazy(() => import("./pages/Rules.tsx"));
 
 // Simple loading fallback for route transitions
@@ -155,6 +156,16 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RoleGate allowed={["admin", "site_admin"]} title="ai management">
                     <AIManagementPanel />
+                  </RoleGate>
+                }
+              />
+
+              {/* Super Admin Panel — admin only with password gate */}
+              <Route
+                path="/panel/super-admin"
+                element={
+                  <RoleGate allowed={["admin"]} title="super admin">
+                    <SuperAdminPanel />
                   </RoleGate>
                 }
               />

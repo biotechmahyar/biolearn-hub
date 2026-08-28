@@ -697,6 +697,30 @@ const schema = defineSchema(
     })
       .index("by_user", ["userId"]),
 
+    // ── Super Admin access sessions ──────────────────────────────────────
+    superAdminSessions: defineTable({
+      userId: v.id("users"),
+      createdAt: v.number(),
+      expiresAt: v.number(),
+    }).index("by_user", ["userId"]),
+
+    // ── Site content / custom pages ──────────────────────────────────────
+    sitePages: defineTable({
+      slug: v.string(),
+      title: v.string(),
+      htmlContent: v.string(),
+      createdBy: v.id("users"),
+      updatedAt: v.number(),
+    }).index("by_slug", ["slug"]),
+
+    // ── Site text overrides ──────────────────────────────────────────────
+    siteTexts: defineTable({
+      key: v.string(),
+      value: v.string(),
+      updatedBy: v.id("users"),
+      updatedAt: v.number(),
+    }).index("by_key", ["key"]),
+
   },
   {
     schemaValidation: false,
