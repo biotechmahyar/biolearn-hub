@@ -1198,3 +1198,39 @@ export const getSectionNotifications = query({
     };
   },
 });
+
+// ── AI-generated questions ──────────────────────────────────────────────────
+
+export const saveGeneratedQuestions = mutation({
+  args: {
+    questions: v.array(
+      v.object({
+        text: v.string(),
+        options: v.array(v.string()),
+        correctIndex: v.number(),
+        explanation: v.string(),
+        difficulty: v.number(),
+      })
+    ),
+    topicId: v.id("categories"),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    if (args.questions.length === 0) throw new Error("سوالی برای ذخیره وجود ندارد.");
+    let saved = 0;
+    for (const q of args.questions) {
+      if (q.options.length < 2) continue;
+      if (q.correctIndex < 0 || q.correctIndex >= q.options.length) continue;
+      await ctx.db.insert("questions", {
+        text: q.text.trim(),
+        options: q.options,
+        correctIndex: q.correctIndex,
+        explanation: q.explanation.trim(),
+        topicId: args.topicId,
+        difficulty: q.difficulty,
+      });
+      saved++;
+    }
+    return { ok: true, saved };
+  },
+});

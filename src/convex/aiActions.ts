@@ -241,3 +241,157 @@ export const testConnection = action({
     }
   },
 });
+
+// ── AI Question Generation ─────────────────────────────────────────────────
+
+export interface GeneratedQuestion {
+  text: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+  difficulty: number;
+}
+
+/**
+ * Generate exam questions using AI based on a prompt.
+ * Returns structured questions for admin preview before saving.
+ */
+export const generateQuestions = action({
+  args: {
+    prompt: v.string(),
+    count: v.number(),
+    difficulty: v.number(),
+  },
+  handler: async (ctx, args): Promise<{ questions: GeneratedQuestion[]; raw: string }> => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw);
+
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی پیکربندی نشده است. ابتدا API key را تنظیم کنید.");
+    }
+
+    const { apiKey, baseUrl, model, provider, temperature } = rawConfig;
+
+    const systemPrompt = `شما یک متخصص طراحی سؤال امتحانی در حوزه علوم زیستی هستید.
+
+قوانین:
+- سؤالات باید دقیق، علمی و بدون ابهام باشند.
+- هر سؤال باید ۴ گزینه داشته باشد.
+- فقط یک گزینه صحیح باشد.
+- توضیح باید علمی و دقیق باشد.
+- از اصطلاحات تخصصی صحیح استفاده کنید.
+
+پاسخ را دقیقاً به این فرمت JSON برگردانید (بدون متن اضافی):
+[
+  {
+    "text": "متن سؤال",
+    "options": ["گزینه ۱", "گزینه ۲", "گزینه ۳", "گزینه ۴"],
+    "correctIndex": 0,
+    "explanation": "توضیح علمی صحیح بودن پاسخ و چرا بقیه غلط هستند",
+    "difficulty": ${args.difficulty}
+  }
+]
+
+فقط آرایه JSON برگردانید، هیچ متن دیگری اضافه نکنید.`;
+
+    const userPrompt = `${args.prompt}\n\nتعداد سؤالات مورد نیاز: ${args.count}\nسطح دشواری: ${args.difficulty} (۱=آسان، ۲=متوسط، ۳=سخت)`;
+
+    let responseText = "";
+
+    try {
+      if (provider === "anthropic") {
+        const resp = await fetch(`${baseUrl}/v1/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 4096,
+            temperature: temperature ?? 0.7,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+          }),
+        });
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.content?.[0]?.text ?? "";
+      } else if (provider === "google") {
+        const resp = await fetch(
+          `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+              generationConfig: { temperature: temperature ?? 0.7, maxOutputTokens: 4096 },
+            }),
+          }
+        );
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      } else {
+        // OpenAI-compatible
+        const resp = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: temperature ?? 0.7,
+            max_tokens: 4096,
+          }),
+        });
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.choices?.[0]?.message?.content ?? "";
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "خطای ناشناخته";
+      throw new Error(`خطا در فراخوانی هوش مصنوعی: ${msg}`);
+    }
+
+    // Parse JSON response
+    try {
+      // Extract JSON array from response (may be wrapped in markdown code block)
+      let jsonStr = responseText.trim();
+      const jsonMatch = jsonStr.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+      const questions: GeneratedQuestion[] = JSON.parse(jsonStr);
+
+      // Validate each question
+      const validated = questions.filter((q) => {
+        return (
+          q.text &&
+          Array.isArray(q.options) &&
+          q.options.length >= 2 &&
+          typeof q.correctIndex === "number" &&
+          q.correctIndex >= 0 &&
+          q.correctIndex < q.options.length &&
+          q.explanation
+        );
+      });
+
+      if (validated.length === 0) {
+        throw new Error("هوش مصنوعی سؤالات معتبری تولید نکرد. لطفاً دوباره تلاش کنید.");
+      }
+
+      return { questions: validated, raw: responseText };
+    } catch (parseError) {
+      if (parseError instanceof SyntaxError) {
+        throw new Error("پاسخ هوش مصنوعی قابل پردازش نیست. لطفاً دوباره تلاش کنید.");
+      }
+      throw parseError;
+    }
+  },
+});

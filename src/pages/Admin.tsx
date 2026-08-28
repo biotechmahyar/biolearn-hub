@@ -35,7 +35,7 @@ import { faNum, formatDateTime, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Activity,
   BarChart3,
@@ -54,6 +54,7 @@ import {
   EyeOff,
   FileText,
   Flag,
+  Sparkles,
   Headset,
   HelpCircle,
   Home,
@@ -68,6 +69,7 @@ import {
   Plus,
   Receipt,
   Repeat,
+  Save,
   Send,
   ShieldCheck,
   Terminal,
@@ -980,11 +982,69 @@ function AdminQuestions() {
   const questions = useQuery(api.admin.adminGetQuestions);
   const create = useMutation(api.admin.adminCreateQuestion);
   const remove = useMutation(api.admin.adminDeleteQuestion);
+  const saveGenerated = useMutation(api.admin.saveGeneratedQuestions);
+  const generateAction = useAction(api.aiActions.generateQuestions);
   const [err, setErr] = useState<string | null>(null);
 
   const empty = { text: "", options: ["", "", "", ""], correctIndex: "0", explanation: "", topicId: "", difficulty: "1" };
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
+
+  // AI generation state
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiCount, setAiCount] = useState("10");
+  const [aiDifficulty, setAiDifficulty] = useState("1");
+  const [aiTopicId, setAiTopicId] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiPreview, setAiPreview] = useState<any[]>([]);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiSaved, setAiSaved] = useState(false);
+
+  const handleGenerate = async () => {
+    if (!aiPrompt.trim()) { setAiError("پرامپت را وارد کنید"); return; }
+    if (!aiTopicId) { setAiError("موضوع را انتخاب کنید"); return; }
+    setAiGenerating(true);
+    setAiError(null);
+    setAiPreview([]);
+    setAiSaved(false);
+    try {
+      const result = await generateAction({
+        prompt: aiPrompt.trim(),
+        count: Number(aiCount) || 10,
+        difficulty: Number(aiDifficulty) || 1,
+      });
+      setAiPreview(result.questions);
+    } catch (e: any) {
+      setAiError(e?.message ?? "خطا در تولید سؤالات");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleSaveGenerated = async () => {
+    if (aiPreview.length === 0 || !aiTopicId) return;
+    setAiSaving(true);
+    try {
+      const result = await saveGenerated({
+        questions: aiPreview.map((q) => ({
+          text: q.text,
+          options: q.options,
+          correctIndex: q.correctIndex,
+          explanation: q.explanation,
+          difficulty: q.difficulty ?? Number(aiDifficulty),
+        })),
+        topicId: aiTopicId as any,
+      });
+      setAiSaved(true);
+      setErr(null);
+    } catch (e: any) {
+      setAiError(e?.message ?? "خطا در ذخیره");
+    } finally {
+      setAiSaving(false);
+    }
+  };
 
   const handleCreate = async () => {
     try {
@@ -1007,10 +1067,16 @@ function AdminQuestions() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <SectionHeader title="بانک سؤال" subtitle="content / question bank" count={questions?.length} />
-        <Button className="rounded-lg" onClick={() => setOpen(true)}>
-          <Plus className="ml-1.5 size-4" />
-          سؤال جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="rounded-lg" onClick={() => setAiOpen(true)}>
+            <Sparkles className="ml-1.5 size-4" />
+            تولید با هوش مصنوعی
+          </Button>
+          <Button className="rounded-lg" onClick={() => setOpen(true)}>
+            <Plus className="ml-1.5 size-4" />
+            سؤال جدید
+          </Button>
+        </div>
       </div>
 
       <Card className="border-border/70 shadow-sm">
@@ -1098,6 +1164,92 @@ function AdminQuestions() {
             </div>
             <Textarea placeholder="پاسخ تشریحی" rows={2} value={form.explanation} onChange={(e) => setForm({ ...form, explanation: e.target.value })} />
             <Button className="w-full" onClick={handleCreate}>ذخیرهٔ سؤال</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── AI Generation Dialog ──────────────────────────────── */}
+      <Dialog open={aiOpen} onOpenChange={(v) => { setAiOpen(v); if (!v) { setAiPreview([]); setAiError(null); setAiSaved(false); } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              تولید سؤال با هوش مصنوعی
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Prompt */}
+            <Textarea
+              placeholder="مثلاً: ده تا سؤال تستی درباره باکتری‌شناسی پایه با تمرکز بر رنگ‌آمیزی گرم و ساختمان سلولی بنویس"
+              rows={3}
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              className="text-sm"
+            />
+            {/* Settings */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium">تعداد سؤال</label>
+                <Input type="number" min="1" max="30" value={aiCount} onChange={(e) => setAiCount(e.target.value)} className="h-9 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">سطح دشواری</label>
+                <Select value={aiDifficulty} onValueChange={setAiDifficulty}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">آسان</SelectItem>
+                    <SelectItem value="2">متوسط</SelectItem>
+                    <SelectItem value="3">سخت</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">موضوع</label>
+                <CategoryField
+                  value={aiTopicId || undefined}
+                  onValueChange={(v) => setAiTopicId(v)}
+                  placeholder="انتخاب موضوع…"
+                />
+              </div>
+            </div>
+            {/* Generate button */}
+            <Button onClick={handleGenerate} disabled={aiGenerating || !aiPrompt.trim() || !aiTopicId} className="w-full gap-2">
+              {aiGenerating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+              {aiGenerating ? "در حال تولید..." : "تولید سؤالات"}
+            </Button>
+            {/* Error */}
+            {aiError && (
+              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {aiError}
+              </div>
+            )}
+            {/* Preview */}
+            {aiPreview.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold">پیش‌نمایش ({aiPreview.length} سؤال)</h4>
+                  <Button size="sm" onClick={handleSaveGenerated} disabled={aiSaving || aiSaved}>
+                    {aiSaving ? <Loader2 className="ml-1.5 size-3.5 animate-spin" /> : <Save className="ml-1.5 size-3.5" />}
+                    {aiSaved ? "ذخیره شد ✓" : "ذخیره در بانک سؤال"}
+                  </Button>
+                </div>
+                <div className="space-y-3 max-h-80 overflow-y-auto rounded-lg border border-border p-3">
+                  {aiPreview.map((q, i) => (
+                    <div key={i} className="rounded-lg border border-border/50 p-3 text-sm">
+                      <p className="font-medium">سؤال {i + 1}: {q.text}</p>
+                      <div className="mt-2 space-y-1">
+                        {q.options.map((opt: string, oi: number) => (
+                          <p key={oi} className={cn("text-xs", oi === q.correctIndex ? "font-bold text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                            {oi === q.correctIndex ? "✓" : "○"} {opt}
+                          </p>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">💡 {q.explanation}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
