@@ -24,6 +24,7 @@ const InstructorPanel = lazy(() => import("./pages/panels/InstructorPanel.tsx"))
 const MentorPanel = lazy(() => import("./pages/panels/MentorPanel.tsx"));
 const SupportPanel = lazy(() => import("./pages/panels/SupportPanel.tsx"));
 const ContentPanel = lazy(() => import("./pages/panels/ContentPanel.tsx"));
+const ProfileCompletion = lazy(() => import("./pages/ProfileCompletion.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 // Public catalog pages
@@ -123,6 +124,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RequireAuth>
                     <Dashboard />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/complete-profile"
+                element={
+                  <RequireAuth>
+                    <ProfileCompletion />
                   </RequireAuth>
                 }
               />
