@@ -71,14 +71,6 @@ export default function AIManagementPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  if (user?.role !== "admin" && user?.role !== "site_admin") {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">دسترسی غیرمجاز</p>
-      </div>
-    );
-  }
-
   const config = useQuery(api.aiManagement.getFullConfig);
   const prompts = useQuery(api.aiManagement.listPrompts);
   const conversations = useQuery(api.aiManagement.listConversations);
@@ -116,6 +108,14 @@ export default function AIManagementPanel() {
   // Quota form state
   const [quotaUserId, setQuotaUserId] = useState("");
   const [quotaLimit, setQuotaLimit] = useState("10");
+
+  if (user?.role !== "admin" && user?.role !== "site_admin") {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-muted-foreground">دسترسی غیرمجاز</p>
+      </div>
+    );
+  }
 
   const handleSaveConfig = async () => {
     setSavingConfig(true);

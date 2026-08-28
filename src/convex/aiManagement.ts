@@ -51,7 +51,10 @@ export const getConfig = query({
 export const getFullConfig = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireAdmin(ctx);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+    const user = (await ctx.db.get(identity.subject as any)) as any;
+    if (!user || (user.role !== "admin" && user.role !== "site_admin")) return null;
     const config = await ctx.db.query("aiConfig").first();
     if (!config) return null;
     return {
@@ -82,7 +85,10 @@ export const listPrompts = query({
 export const listConversations = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireAdmin(ctx);
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return [];
+    const user = (await ctx.db.get(identity.subject as any)) as any;
+    if (!user || (user.role !== "admin" && user.role !== "site_admin")) return [];
     // Admin sees all conversations with user info
     const convos = await ctx.db.query("aiConversations").collect();
     const results = [];
@@ -101,7 +107,10 @@ export const listConversations = query({
 export const getUserUsage = query({
   args: { date: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const user = await requireAdmin(ctx);
+    const identity2 = await ctx.auth.getUserIdentity();
+    if (!identity2) return [];
+    const user2 = (await ctx.db.get(identity2.subject as any)) as any;
+    if (!user2 || (user2.role !== "admin" && user2.role !== "site_admin")) return [];
     const today = args.date ?? new Date().toISOString().split("T")[0];
     const usage = await ctx.db
       .query("aiUsage")
@@ -115,7 +124,10 @@ export const getUserUsage = query({
 export const getAllUsageHistory = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireAdmin(ctx);
+    const identity3 = await ctx.auth.getUserIdentity();
+    if (!identity3) return [];
+    const user3 = (await ctx.db.get(identity3.subject as any)) as any;
+    if (!user3 || (user3.role !== "admin" && user3.role !== "site_admin")) return [];
     return await ctx.db.query("aiUsage").collect();
   },
 });
@@ -123,7 +135,10 @@ export const getAllUsageHistory = query({
 export const listTokenQuotas = query({
   args: {},
   handler: async (ctx) => {
-    const user = await requireAdmin(ctx);
+    const identity4 = await ctx.auth.getUserIdentity();
+    if (!identity4) return [];
+    const user4 = (await ctx.db.get(identity4.subject as any)) as any;
+    if (!user4 || (user4.role !== "admin" && user4.role !== "site_admin")) return [];
     const quotas = await ctx.db.query("aiTokenQuotas").collect();
     const results = [];
     for (const q of quotas) {
