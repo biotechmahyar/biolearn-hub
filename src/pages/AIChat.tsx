@@ -16,20 +16,23 @@ import {
   User,
   AlertTriangle,
   Zap,
+  Home,
+  X,
 } from "lucide-react";
 import { BrandMark } from "@/components/site/BrandLogo";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export default function AIChat() {
-  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  // Sidebar hidden by default
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Redirect to auth if not logged in (only after auth loading is complete)
   useEffect(() => {
@@ -54,6 +57,7 @@ export default function AIChat() {
   const createConvo = useMutation(api.aiChat.createConversation);
   const sendMessageMut = useMutation(api.aiChat.sendMessage);
   const deleteConvo = useMutation(api.aiChat.deleteConversation);
+  const deleteMessageMut = useMutation(api.aiChat.deleteMessage);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -100,6 +104,14 @@ export default function AIChat() {
     }
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    try {
+      await deleteMessageMut({ messageId: messageId as any });
+    } catch (e) {
+      console.error("Delete message failed:", e);
+    }
+  };
+
   // Loading state
   if (authLoading) {
     return (
@@ -114,7 +126,7 @@ export default function AIChat() {
 
   if (!isAuthenticated) return null;
 
-  // Safe access: usage might be null/undefined while loading
+  // Safe access
   const dailyLimit = usage?.dailyLimit ?? 0;
   const messagesSent = usage?.messagesSent ?? 0;
   const remaining = usage?.remaining ?? 0;
@@ -130,9 +142,22 @@ export default function AIChat() {
       <div
         className={cn(
           "flex w-72 flex-col border-l border-border bg-card transition-all duration-300",
-          sidebarOpen ? "translate-x-0" : "translate-x-full fixed inset-y-0 right-0 z-40 lg:relative lg:translate-x-0"
+          sidebarOpen
+            ? "translate-x-0"
+            : "translate-x-full fixed inset-y-0 right-0 z-40 lg:relative lg:translate-x-0"
         )}
       >
+        {/* Close sidebar on mobile */}
+        <div className="flex items-center justify-between p-3 border-b border-border">
+          <span className="text-sm font-bold">سابقه چت‌ها</span>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="rounded-lg p-1.5 hover:bg-accent lg:hidden"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
         {/* New Chat Button */}
         <div className="p-3">
           <Button
@@ -229,6 +254,13 @@ export default function AIChat() {
         {/* Top Bar */}
         <header className="flex h-14 items-center gap-3 border-b border-border px-4">
           <button
+            onClick={() => navigate("/")}
+            className="rounded-lg p-2 hover:bg-accent"
+            title="بازگشت به خانه"
+          >
+            <Home className="size-5" />
+          </button>
+          <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="rounded-lg p-2 hover:bg-accent lg:hidden"
           >
@@ -249,7 +281,7 @@ export default function AIChat() {
         <ScrollArea className="flex-1">
           <div className="mx-auto max-w-3xl px-4 py-6">
             {!selectedConvo ? (
-              /* Empty state */
+              /* Empty state — always shown when no conversation is selected */
               <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
                 <div className="flex size-20 items-center justify-center rounded-2xl bg-primary/10">
                   <Bot className="size-10 text-primary" />
@@ -279,7 +311,6 @@ export default function AIChat() {
                           const id = await createConvo({ title: q });
                           setSelectedConvo(id as string);
                           setSidebarOpen(false);
-                          // Auto-send
                           setTimeout(async () => {
                             try {
                               await sendMessageMut({
@@ -315,7 +346,7 @@ export default function AIChat() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={cn(
-                      "flex gap-3",
+                      "group/msg flex gap-3",
                       m.role === "user" ? "flex-row-reverse" : ""
                     )}
                   >
@@ -333,15 +364,28 @@ export default function AIChat() {
                         <Bot className="size-4" />
                       )}
                     </div>
-                    <div
-                      className={cn(
-                        "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-7",
-                        m.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
-                      )}
-                    >
-                      <p className="whitespace-pre-wrap">{m.content}</p>
+                    <div className="max-w-[80%] space-y-1">
+                      <div
+                        className={cn(
+                          "rounded-2xl px-4 py-3 text-sm leading-7",
+                          m.role === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted"
+                        )}
+                      >
+                        <p className="whitespace-pre-wrap">{m.content}</p>
+                      </div>
+                      {/* Delete button — visible on hover */}
+                      <button
+                        onClick={() => handleDeleteMessage(m._id)}
+                        className={cn(
+                          "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/msg:opacity-100",
+                          m.role === "user" ? "mr-auto" : "ml-auto"
+                        )}
+                      >
+                        <Trash2 className="size-3" />
+                        حذف
+                      </button>
                     </div>
                   </motion.div>
                 ))}

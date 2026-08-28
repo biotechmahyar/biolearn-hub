@@ -302,6 +302,23 @@ export const renameConversation = mutation({
   },
 });
 
+export const deleteMessage = mutation({
+  args: { messageId: v.id("aiMessages") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
+    const msg = await ctx.db.get(args.messageId);
+    if (!msg) throw new Error("پیام یافت نشد.");
+    // Verify ownership via conversation
+    const convo = await ctx.db.get(msg.conversationId);
+    if (!convo || convo.userId !== userId) {
+      throw new Error("دسترسی غیرمجاز.");
+    }
+    await ctx.db.delete(args.messageId);
+    return { success: true };
+  },
+});
+
 // ── Internal mutation to save AI messages (called from actions) ──────────────
 
 export const saveAIMessage = internalMutation({
