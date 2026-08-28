@@ -632,6 +632,70 @@ const schema = defineSchema(
       .index("by_user", ["userId"])
       .index("by_created", ["createdAt"]),
 
+    // ── AI Chat system ─────────────────────────────────────────────────
+    // Singleton row storing global AI config (API key, model, provider, base URL).
+    aiConfig: defineTable({
+      provider: v.string(),            // e.g. "openai", "gapgpt", "anthropic"
+      model: v.string(),               // e.g. "gpt-4o", "gapgpt-qwen-3.5"
+      baseUrl: v.string(),             // API base URL
+      apiKeyEncrypted: v.string(),     // Encrypted API key (server-side only)
+      maxTokensPerRequest: v.number(),
+      temperature: v.number(),
+      systemPrompt: v.string(),        // Default system prompt
+      updatedAt: v.number(),
+      updatedBy: v.id("users"),
+    }),
+
+    // Admin-managed prompt templates
+    aiPrompts: defineTable({
+      name: v.string(),
+      content: v.string(),
+      category: v.string(),           // e.g. "general", "biology", "exam"
+      isDefault: v.boolean(),
+      createdBy: v.id("users"),
+      createdAt: v.number(),
+    })
+      .index("by_category", ["category"]),
+
+    // AI conversations per user
+    aiConversations: defineTable({
+      userId: v.id("users"),
+      title: v.string(),
+      promptId: v.optional(v.id("aiPrompts")),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_user", ["userId"]),
+
+    // Individual messages in a conversation
+    aiMessages: defineTable({
+      conversationId: v.id("aiConversations"),
+      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
+      content: v.string(),
+      tokensUsed: v.number(),
+      createdAt: v.number(),
+    })
+      .index("by_conversation", ["conversationId"]),
+
+    // Daily usage tracking per user (resets each day)
+    aiUsage: defineTable({
+      userId: v.id("users"),
+      date: v.string(),               // "YYYY-MM-DD"
+      messagesSent: v.number(),
+      tokensUsed: v.number(),
+    })
+      .index("by_user_date", ["userId", "date"]),
+
+    // Per-user token quota overrides (admin can charge more tokens)
+    aiTokenQuotas: defineTable({
+      userId: v.id("users"),
+      dailyLimit: v.number(),          // Override daily message limit
+      extraTokens: v.number(),         // Bonus tokens beyond free quota
+      grantedAt: v.number(),
+      grantedBy: v.id("users"),
+      note: v.optional(v.string()),
+    })
+      .index("by_user", ["userId"]),
 
   },
   {

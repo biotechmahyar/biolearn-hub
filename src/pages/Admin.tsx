@@ -39,6 +39,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   Activity,
   BarChart3,
+  Bot,
   BellRing,
   BookOpen,
   BookUser,
@@ -331,6 +332,7 @@ export default function Admin() {
     { label: "میز منتور", icon: Compass, to: "/panel/mentor" },
     { label: "استودیوی محتوا", icon: FileText, to: "/panel/content" },
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
+    { label: "مدیریت هوش مصنوعی", icon: Bot, to: "/panel/ai-management" },
   ];
 
   if (isAdmin === undefined) {

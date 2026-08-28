@@ -43,6 +43,8 @@ const InstructorDetail = lazy(() => import("./pages/InstructorDetail.tsx"));
 const FreeContent = lazy(() => import("./pages/FreeContent.tsx"));
 const ArticleDetail = lazy(() => import("./pages/ArticleDetail.tsx"));
 const Dictionary = lazy(() => import("./pages/Dictionary.tsx"));
+const AIChat = lazy(() => import("./pages/AIChat.tsx"));
+const AIManagementPanel = lazy(() => import("./pages/panels/AIManagementPanel.tsx"));
 const Rules = lazy(() => import("./pages/Rules.tsx"));
 
 // Simple loading fallback for route transitions
@@ -118,6 +120,9 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/dictionary" element={<Dictionary />} />
               <Route path="/rules" element={<Rules />} />
 
+              {/* AI Chat — requires auth, redirects to /auth if not logged in */}
+              <Route path="/ai-chat" element={<AIChat />} />
+
               {/* Authenticated */}
               <Route
                 path="/dashboard"
@@ -141,6 +146,16 @@ createRoot(document.getElementById("root")!).render(
                   <RequireAuth>
                     <Admin />
                   </RequireAuth>
+                }
+              />
+
+              {/* AI Management Panel — admin/site_admin only */}
+              <Route
+                path="/panel/ai-management"
+                element={
+                  <RoleGate allowed={["admin", "site_admin"]} title="ai management">
+                    <AIManagementPanel />
+                  </RoleGate>
                 }
               />
 
