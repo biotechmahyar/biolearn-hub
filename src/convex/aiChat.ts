@@ -26,8 +26,24 @@ const MAX_CONVERSATIONS = 10;
  * Never exposed to the browser.
  */
 export const getAIConfigRaw = internalQuery({
-  args: {},
-  handler: async (ctx) => {
+  args: { modelId: v.optional(v.id("aiModels")) },
+  handler: async (ctx, args) => {
+    // If modelId is provided, use that specific model
+    if (args.modelId) {
+      const model = await ctx.db.get(args.modelId);
+      if (model && model.active) {
+        return {
+          apiKey: model.apiKey,
+          baseUrl: model.baseUrl,
+          model: model.model,
+          provider: model.provider,
+          temperature: model.temperature,
+          maxTokensPerRequest: model.maxTokens,
+          systemPrompt: model.systemPrompt ?? "شما یک دستیار تخصصی علوم زیستی هستید.",
+        };
+      }
+    }
+    // Fallback to legacy single config
     const config = await ctx.db.query("aiConfig").first();
     if (!config) return null;
     return {
@@ -38,6 +54,52 @@ export const getAIConfigRaw = internalQuery({
       temperature: config.temperature,
       maxTokensPerRequest: config.maxTokensPerRequest,
       systemPrompt: config.systemPrompt,
+    };
+  },
+});
+
+// ── Model queries ──────────────────────────────────────────────────────────
+
+/**
+ * List all active AI models for users to choose from.
+ */
+export const listActiveModels = query({
+  args: {},
+  handler: async (ctx) => {
+    const models = await ctx.db.query("aiModels").collect();
+    return models
+      .filter((m) => m.active)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((m) => ({
+        _id: m._id,
+        name: m.name,
+        provider: m.provider,
+        model: m.model,
+        isFree: m.isFree,
+        dailyLimit: m.dailyLimit,
+        pricePerMessage: m.pricePerMessage,
+        description: m.description,
+        active: m.active,
+      }));
+  },
+});
+
+/**
+ * Get a specific model's raw config (server-side only).
+ */
+export const getModelConfigRaw = internalQuery({
+  args: { modelId: v.id("aiModels") },
+  handler: async (ctx, args) => {
+    const model = await ctx.db.get(args.modelId);
+    if (!model || !model.active) return null;
+    return {
+      apiKey: model.apiKey,
+      baseUrl: model.baseUrl,
+      model: model.model,
+      provider: model.provider,
+      temperature: model.temperature,
+      maxTokens: model.maxTokens,
+      systemPrompt: model.systemPrompt ?? "",
     };
   },
 });
@@ -130,7 +192,7 @@ export const getMyUsage = query({
 // ── Mutations ──────────────────────────────────────────────────────────────
 
 export const createConversation = mutation({
-  args: { title: v.optional(v.string()) },
+  args: { title: v.optional(v.string()), modelId: v.optional(v.id("aiModels")) },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("ورود لازم است.");
@@ -169,6 +231,7 @@ export const createConversation = mutation({
     return await ctx.db.insert("aiConversations", {
       userId,
       title: args.title ?? "چت جدید",
+      modelId: args.modelId ?? undefined,
       createdAt: now,
       updatedAt: now,
     });
@@ -254,8 +317,11 @@ export const sendMessage = mutation({
 
     // Trigger AI response asynchronously via action
     // The action will read the config and messages, call the API, and save the response
+    // Look up modelId from the conversation to pass to the action
+    const convoModel = convo.modelId ? await ctx.db.get(convo.modelId) : null;
     await ctx.scheduler.runAfter(0, api.aiActions.callAI, {
       conversationId: args.conversationId,
+      modelId: convo.modelId ?? undefined,
     });
 
     return {

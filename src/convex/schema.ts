@@ -646,6 +646,26 @@ const schema = defineSchema(
       updatedBy: v.id("users"),
     }),
 
+    // ── Multi-model AI configuration ────────────────────────────────────
+    aiModels: defineTable({
+      name: v.string(),                // Display name e.g. "GPT-4o Mini"
+      provider: v.string(),            // "openai" | "anthropic" | "google" | "custom"
+      model: v.string(),               // Model ID e.g. "gpt-4o-mini"
+      baseUrl: v.string(),             // API base URL
+      apiKey: v.string(),              // API key (server-side only)
+      isFree: v.boolean(),             // Free or paid?
+      dailyLimit: v.number(),          // Daily message limit per user
+      pricePerMessage: v.number(),     // Cost per message (0 = free)
+      description: v.string(),         // Description of what this model is good for
+      systemPrompt: v.optional(v.string()), // Custom system prompt
+      maxTokens: v.number(),           // Max tokens per request
+      temperature: v.number(),         // Temperature
+      active: v.boolean(),             // Enabled/disabled
+      sortOrder: v.number(),           // Display order
+      createdBy: v.id("users"),
+      createdAt: v.number(),
+    }),
+
     // Admin-managed prompt templates
     aiPrompts: defineTable({
       name: v.string(),
@@ -662,6 +682,7 @@ const schema = defineSchema(
       userId: v.id("users"),
       title: v.string(),
       promptId: v.optional(v.id("aiPrompts")),
+      modelId: v.optional(v.id("aiModels")),
       createdAt: v.number(),
       updatedAt: v.number(),
     })

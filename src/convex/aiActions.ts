@@ -13,10 +13,11 @@ import { internal } from "./_generated/api";
 export const callAI = action({
   args: {
     conversationId: v.id("aiConversations"),
+    modelId: v.optional(v.id("aiModels")),
   },
   handler: async (ctx, args) => {
     // Read AI config via internal query (API key stays server-side)
-    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw);
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
 
     if (!rawConfig || !rawConfig.apiKey) {
       // No AI configured — save a helpful message
@@ -143,9 +144,10 @@ export const callAI = action({
  * Returns safe metadata only — never exposes the API key.
  */
 export const testConnection = action({
-  args: {},
+  args: { modelId: v.optional(v.id("aiModels")), apiKey: v.optional(v.string()), baseUrl: v.optional(v.string()), provider: v.optional(v.string()), model: v.optional(v.string()) },
   handler: async (
-    ctx
+    ctx,
+    args
   ): Promise<{
     connected: boolean;
     message: string;
@@ -153,21 +155,29 @@ export const testConnection = action({
     model: string | null;
     testedAt?: string;
   }> => {
-    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw);
-
-    if (!rawConfig || !rawConfig.apiKey) {
+    let apiKey = args.apiKey;
+    let baseUrl = args.baseUrl;
+    let provider = args.provider;
+    let model = args.model;
+    
+    if (!apiKey) {
+      const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
+      if (rawConfig) {
+        apiKey = rawConfig.apiKey;
+        baseUrl = rawConfig.baseUrl;
+        provider = rawConfig.provider;
+        model = rawConfig.model;
+      }
+    }
+    
+    if (!apiKey || !baseUrl || !model || !provider) {
       return {
         connected: false,
         message: "کلید API تنظیم نشده است.",
-        provider: null,
-        model: null,
+        provider: provider ?? null,
+        model: model ?? null,
       };
     }
-
-    const apiKey: string = rawConfig.apiKey;
-    const baseUrl: string = rawConfig.baseUrl;
-    const model: string = rawConfig.model;
-    const provider: string = rawConfig.provider;
     const testedAt = new Date().toISOString();
 
     try {
@@ -261,9 +271,10 @@ export const generateQuestions = action({
     prompt: v.string(),
     count: v.number(),
     difficulty: v.number(),
+    modelId: v.optional(v.id("aiModels")),
   },
   handler: async (ctx, args): Promise<{ questions: GeneratedQuestion[]; raw: string }> => {
-    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw);
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
 
     if (!rawConfig || !rawConfig.apiKey) {
       throw new Error("هوش مصنوعی پیکربندی نشده است. ابتدا API key را تنظیم کنید.");
@@ -414,9 +425,10 @@ export const generateArticles = action({
     prompt: v.string(),
     count: v.number(),
     category: v.string(),
+    modelId: v.optional(v.id("aiModels")),
   },
   handler: async (ctx, args): Promise<{ articles: GeneratedArticle[]; raw: string }> => {
-    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw);
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
 
     if (!rawConfig || !rawConfig.apiKey) {
       throw new Error("هوش مصنوعی پیکربندی نشده است. ابتدا API key را تنظیم کنید.");

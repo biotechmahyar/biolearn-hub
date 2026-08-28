@@ -33,6 +33,7 @@ export default function AIChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState<any>(null);
 
   // Delete mode state
   const [deleteMode, setDeleteMode] = useState(false);
@@ -46,6 +47,10 @@ export default function AIChat() {
 
   const conversations = useQuery(
     api.aiChat.listMyConversations,
+    isAuthenticated ? {} : "skip"
+  );
+  const activeModels = useQuery(
+    api.aiChat.listActiveModels,
     isAuthenticated ? {} : "skip"
   );
   const usage = useQuery(
@@ -67,7 +72,7 @@ export default function AIChat() {
 
   const handleNewChat = async () => {
     try {
-      const id = await createConvo({ title: "چت جدید" });
+      const id = await createConvo({ title: "چت جدید", modelId: selectedModelId ?? undefined });
       setSelectedConvo(id as string);
       setSidebarOpen(false);
       inputRef.current?.focus();
@@ -355,6 +360,25 @@ export default function AIChat() {
                     و موضوعات مرتبط سؤال بپرسید.
                   </p>
                 </div>
+                {(activeModels ?? []).length > 1 && (
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <span className="text-xs text-muted-foreground">مدل:</span>
+                    {(activeModels ?? []).map((m: any) => (
+                      <button
+                        key={m._id}
+                        onClick={() => setSelectedModelId(m._id)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          selectedModelId === m._id
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {m.name}
+                        {m.isFree && <span className="mr-1 text-[10px] opacity-70">رایگان</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <Button onClick={handleNewChat} size="lg" className="gap-2">
                   <Plus className="size-4" />
                   شروع چت جدید
@@ -370,7 +394,7 @@ export default function AIChat() {
                       key={q}
                       onClick={async () => {
                         try {
-                          const id = await createConvo({ title: q });
+                          const id = await createConvo({ title: q, modelId: selectedModelId ?? undefined });
                           setSelectedConvo(id as string);
                           setSidebarOpen(false);
                           setTimeout(async () => {
@@ -462,6 +486,24 @@ export default function AIChat() {
         {selectedConvo && (
           <div className="border-t border-border bg-card p-4">
             <div className="mx-auto max-w-3xl">
+              {(activeModels ?? []).length > 1 && (
+                <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground">مدل:</span>
+                  {(activeModels ?? []).map((m: any) => (
+                    <button
+                      key={m._id}
+                      onClick={() => setSelectedModelId(m._id)}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                        selectedModelId === m._id
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               {hasReachedLimit && (
                 <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400">
                   <AlertTriangle className="size-4" />

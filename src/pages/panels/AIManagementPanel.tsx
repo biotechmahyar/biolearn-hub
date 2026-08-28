@@ -8,6 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -39,6 +45,12 @@ import {
   ArrowLeft,
   Wifi,
   AlertTriangle,
+  Bot,
+  Plus,
+  Pencil,
+  ToggleLeft,
+  ToggleRight,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -223,6 +235,11 @@ export default function AIManagementPanel() {
                 <span className="hidden sm:inline">سقف پیام</span>
                 <span className="sm:hidden">سقف</span>
               </TabsTrigger>
+              <TabsTrigger value="models" className="gap-1.5 text-xs sm:text-sm">
+                <Bot className="size-3.5" />
+                <span className="hidden sm:inline">مدل‌ها</span>
+                <span className="sm:hidden">AI</span>
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -311,7 +328,7 @@ export default function AIManagementPanel() {
                       setTesting(true);
                       setTestResult(null);
                       try {
-                        const result = await testConnectionAction();
+                        const result = await testConnectionAction({});
                         setTestResult(result);
                         if (result.connected) {
                           toast.success(`✓ ${result.message} — ${result.provider}/${result.model}`);
@@ -505,8 +522,178 @@ export default function AIManagementPanel() {
               {quotas?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">هنوز سقفی تخصیص نشده</p>}
             </div>
           </TabsContent>
+
+          {/* ── Models Management ────────────────────────── */}
+          <TabsContent value="models">
+            <ModelsManagement />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
   );
 }
+
+// ── Models Management Component ────────────────────────────────────────────
+function ModelsManagement() {
+  const models = useQuery(api.aiManagement.listModels);
+  const createModel = useMutation(api.aiManagement.createModel);
+  const updateModel = useMutation(api.aiManagement.updateModel);
+  const deleteModel = useMutation(api.aiManagement.deleteModel);
+  const toggleActive = useMutation(api.aiManagement.toggleModelActive);
+  const testConnection = useAction(api.aiActions.testConnection);
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingModel, setEditingModel] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const emptyForm = {
+    name: "", provider: "openai", model: "gpt-4o-mini",
+    baseUrl: "https://api.openai.com/v1", apiKey: "",
+    isFree: true, dailyLimit: 10, pricePerMessage: 0,
+    description: "", systemPrompt: "", maxTokens: 4096,
+    temperature: 0.7, active: true, sortOrder: 0,
+  };
+  const [form, setForm] = useState(emptyForm);
+
+  const openCreate = () => { setForm(emptyForm); setEditingModel(null); setDialogOpen(true); setTestResult(null); };
+  const openEdit = (m: any) => {
+    setForm({
+      name: m.name, provider: m.provider, model: m.model,
+      baseUrl: m.baseUrl, apiKey: "",
+      isFree: m.isFree, dailyLimit: m.dailyLimit, pricePerMessage: m.pricePerMessage,
+      description: m.description, systemPrompt: m.systemPrompt ?? "",
+      maxTokens: m.maxTokens, temperature: m.temperature,
+      active: m.active, sortOrder: m.sortOrder,
+    });
+    setEditingModel(m); setDialogOpen(true); setTestResult(null);
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim() || !form.apiKey.trim()) return;
+    setBusy(true);
+    try {
+      if (editingModel) {
+        await updateModel({ modelId: editingModel._id, ...form });
+        toast.success("مدل بروزرسانی شد.");
+      } else {
+        await createModel({ ...form });
+        toast.success("مدل جدید اضافه شد.");
+      }
+      setDialogOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTestResult(null);
+    try {
+      const r = await testConnection({ apiKey: form.apiKey, baseUrl: form.baseUrl, provider: form.provider, model: form.model });
+      setTestResult({ ok: r.connected, msg: r.message });
+    } catch (e) {
+      setTestResult({ ok: false, msg: e instanceof Error ? e.message : "خطا" });
+    }
+  };
+
+  return (
+    <Card className="border-border/70">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2"><Bot className="size-5" />مدل‌های هوش مصنوعی</CardTitle>
+            <CardDescription>مدل‌های متعدد AI را مدیریت کنید. کاربران می‌توانند مدل مورد نظرشان را انتخاب کنند.</CardDescription>
+          </div>
+          <Button onClick={openCreate}><Plus className="ml-1.5 size-4" />مدل جدید</Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {(models ?? []).length === 0 && (
+          <p className="text-center py-8 text-muted-foreground">هنوز مدلی تعریف نشده است.</p>
+        )}
+        {(models ?? []).sort((a: any, b: any) => a.sortOrder - b.sortOrder).map((m: any) => (
+          <div key={m._id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-4 ${m.active ? "border-border/70" : "border-border/30 opacity-60"}`}>
+            <div className="space-y-1 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold">{m.name}</span>
+                <Badge variant={m.isFree ? "default" : "secondary"}>{m.isFree ? "رایگان" : "پولی"}</Badge>
+                {!m.active && <Badge variant="outline">غیرفعال</Badge>}
+                <Badge variant="outline">{m.provider}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground truncate">{m.description}</p>
+              <div className="flex gap-3 text-xs text-muted-foreground">
+                <span>مدل: <span className="font-mono">{m.model}</span></span>
+                <span>سقف: {m.dailyLimit}/روز</span>
+                {m.pricePerMessage > 0 && <span>هزینه: {m.pricePerMessage} پیام</span>}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" variant="ghost" onClick={() => toggleActive({ modelId: m._id })}>
+                {m.active ? <ToggleRight className="size-5 text-green-500" /> : <ToggleLeft className="size-5 text-muted-foreground" />}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => openEdit(m)}><Pencil className="size-4" /></Button>
+              <Button size="sm" variant="ghost" onClick={async () => { if (confirm("حذف شود؟")) { await deleteModel({ modelId: m._id }); toast.success("حذف شد."); } }}><Trash2 className="size-4 text-destructive" /></Button>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+
+      <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) setDialogOpen(false); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingModel ? "ویرایش مدل" : "مدل جدید"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="نام نمایشی (مثلاً GPT-4o Mini)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">ارائه‌دهنده</label>
+                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })}>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                  <option value="google">Google</option>
+                  <option value="custom">سفارشی</option>
+                </select>
+              </div>
+              <Input placeholder="شناسه مدل (gpt-4o-mini)" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+            </div>
+            <Input placeholder="آدرس API (baseUrl)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} />
+            <Input type="password" placeholder="کلید API" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">نوع</label>
+                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={form.isFree ? "free" : "paid"} onChange={(e) => setForm({ ...form, isFree: e.target.value === "free" })}>
+                  <option value="free">رایگان</option>
+                  <option value="paid">پولی</option>
+                </select>
+              </div>
+              <Input type="number" placeholder="سقف روزانه" value={form.dailyLimit} onChange={(e) => setForm({ ...form, dailyLimit: Number(e.target.value) || 10 })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input type="number" placeholder="توکن‌های حداکثر" value={form.maxTokens} onChange={(e) => setForm({ ...form, maxTokens: Number(e.target.value) || 4096 })} />
+              <Input type="number" step="0.1" placeholder="دما (temperature)" value={form.temperature} onChange={(e) => setForm({ ...form, temperature: Number(e.target.value) || 0.7 })} />
+            </div>
+            <Input type="number" placeholder="ترتیب نمایش" value={form.sortOrder} onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) || 0 })} />
+            <Textarea placeholder="توضیحات: برای چه کاری مناسب است" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <Textarea placeholder="پرامپت سیستم (اختیاری)" rows={2} value={form.systemPrompt} onChange={(e) => setForm({ ...form, systemPrompt: e.target.value })} />
+            {testResult && (
+              <p className={`text-sm ${testResult.ok ? "text-green-500" : "text-destructive"}`}>
+                {testResult.ok ? "✓ " : "✕ "}{testResult.msg}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleTest} disabled={!form.apiKey.trim()}><Wifi className="ml-1.5 size-4" />تست اتصال</Button>
+              <Button className="flex-1" onClick={handleSave} disabled={busy || !form.name.trim()}>
+                {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
+                {editingModel ? "ذخیره" : "افزودن"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+

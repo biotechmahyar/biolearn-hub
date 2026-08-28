@@ -359,3 +359,124 @@ export const resetAllUsage = mutation({
     return { success: true };
   },
 });
+
+
+// ── AI Models CRUD ─────────────────────────────────────────────────────────
+
+export const listModels = query({
+  args: {},
+  handler: async (ctx) => {
+    const models = await ctx.db.query("aiModels").collect();
+    return models.sort((a, b) => a.sortOrder - b.sortOrder);
+  },
+});
+
+export const listActiveModelsPublic = query({
+  args: {},
+  handler: async (ctx) => {
+    const models = await ctx.db.query("aiModels").collect();
+    return models
+      .filter((m) => m.active)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((m) => ({
+        _id: m._id,
+        name: m.name,
+        provider: m.provider,
+        model: m.model,
+        isFree: m.isFree,
+        dailyLimit: m.dailyLimit,
+        pricePerMessage: m.pricePerMessage,
+        description: m.description,
+        active: m.active,
+      }));
+  },
+});
+
+export const createModel = mutation({
+  args: {
+    name: v.string(),
+    provider: v.string(),
+    model: v.string(),
+    baseUrl: v.string(),
+    apiKey: v.string(),
+    isFree: v.boolean(),
+    dailyLimit: v.number(),
+    pricePerMessage: v.number(),
+    description: v.string(),
+    systemPrompt: v.optional(v.string()),
+    maxTokens: v.number(),
+    temperature: v.number(),
+    active: v.boolean(),
+    sortOrder: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireAdmin(ctx);
+    return await ctx.db.insert("aiModels", {
+      ...args,
+      createdBy: user._id,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const updateModel = mutation({
+  args: {
+    modelId: v.id("aiModels"),
+    name: v.string(),
+    provider: v.string(),
+    model: v.string(),
+    baseUrl: v.string(),
+    apiKey: v.string(),
+    isFree: v.boolean(),
+    dailyLimit: v.number(),
+    pricePerMessage: v.number(),
+    description: v.string(),
+    systemPrompt: v.optional(v.string()),
+    maxTokens: v.number(),
+    temperature: v.number(),
+    active: v.boolean(),
+    sortOrder: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const { modelId, ...data } = args;
+    await ctx.db.patch(modelId, data);
+    return { success: true };
+  },
+});
+
+export const deleteModel = mutation({
+  args: { modelId: v.id("aiModels") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    await ctx.db.delete(args.modelId);
+    return { success: true };
+  },
+});
+
+export const toggleModelActive = mutation({
+  args: { modelId: v.id("aiModels") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const model = await ctx.db.get(args.modelId);
+    if (!model) throw new Error("مدل یافت نشد.");
+    await ctx.db.patch(args.modelId, { active: !model.active });
+    return { success: true };
+  },
+});
+
+export const getModelDetail = query({
+  args: { modelId: v.id("aiModels") },
+  handler: async (ctx, args) => {
+    const model = await ctx.db.get(args.modelId);
+    if (!model) return null;
+    // Return masked API key
+    return {
+      ...model,
+      apiKeyMasked: model.apiKey.length > 4
+        ? "••••••" + model.apiKey.slice(-4)
+        : "••••",
+      hasApiKey: model.apiKey.length > 0,
+    };
+  },
+});
