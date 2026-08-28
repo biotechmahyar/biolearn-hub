@@ -73,9 +73,18 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       await signIn("email-otp", formData);
       setStep({ email: formData.get("email") as string });
       setIsLoading(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Email sign-in error:", error);
-      setError("ارسال کد ناموفق بود. لطفاً دوباره تلاش کنید.");
+      const msg = error?.message || "";
+      if (msg.includes("RESEND_API_KEY")) {
+        setError("سرویس ایمیل تنظیم نشده است. با مدیر سایت تماس بگیرید.");
+      } else if (msg.includes("زیاد است") || msg.includes("ثانیه صبر")) {
+        setError(msg);
+      } else if (msg.includes("ایمیل")) {
+        setError("خطا در ارسال ایمیل. لطفاً ایمیل را بررسی کنید.");
+      } else {
+        setError("ارسال کد ناموفق بود. لطفاً دوباره تلاش کنید.");
+      }
       setIsLoading(false);
     }
   };
