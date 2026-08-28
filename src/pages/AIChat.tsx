@@ -33,13 +33,27 @@ export default function AIChat() {
   const inputRef = useRef<HTMLInputElement>(null);
   // Sidebar hidden by default
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Track which message's delete button is visible (for mobile tap)
+  const [activeMsgId, setActiveMsgId] = useState<string | null>(null);
 
-  // Redirect to auth if not logged in (only after auth loading is complete)
+  // Redirect to auth if not logged in
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       navigate("/auth?returnTo=/ai-chat");
     }
   }, [isAuthenticated, authLoading, navigate]);
+
+  // Close message delete on outside click
+  useEffect(() => {
+    if (!activeMsgId) return;
+    const handler = () => setActiveMsgId(null);
+    // Delay to avoid immediate close from the same click
+    const t = setTimeout(() => document.addEventListener("click", handler), 100);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("click", handler);
+    };
+  }, [activeMsgId]);
 
   const conversations = useQuery(
     api.aiChat.listMyConversations,
@@ -104,9 +118,11 @@ export default function AIChat() {
     }
   };
 
-  const handleDeleteMessage = async (messageId: string) => {
+  const handleDeleteMessage = async (messageId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await deleteMessageMut({ messageId: messageId as any });
+      setActiveMsgId(null);
     } catch (e) {
       console.error("Delete message failed:", e);
     }
@@ -126,13 +142,11 @@ export default function AIChat() {
 
   if (!isAuthenticated) return null;
 
-  // Safe access
   const dailyLimit = usage?.dailyLimit ?? 0;
   const messagesSent = usage?.messagesSent ?? 0;
   const remaining = usage?.remaining ?? 0;
   const hasReachedLimit = dailyLimit > 0 && remaining <= 0;
 
-  // Detect if AI is still processing: last message is from user = waiting for response
   const lastMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
   const isWaitingForAI = !!lastMessage && lastMessage.role === "user";
 
@@ -144,11 +158,11 @@ export default function AIChat() {
           "flex w-72 flex-col border-l border-border bg-card transition-all duration-300",
           sidebarOpen
             ? "translate-x-0"
-            : "translate-x-full fixed inset-y-0 right-0 z-40 lg:relative lg:translate-x-0"
+            : "translate-x-full fixed inset-y-0 right-0 z-50 lg:relative lg:translate-x-0"
         )}
       >
-        {/* Close sidebar on mobile */}
-        <div className="flex items-center justify-between p-3 border-b border-border">
+        {/* Close sidebar header */}
+        <div className="flex items-center justify-between border-b border-border p-3">
           <span className="text-sm font-bold">سابقه چت‌ها</span>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -241,10 +255,10 @@ export default function AIChat() {
         )}
       </div>
 
-      {/* Mobile overlay */}
+      {/* Mobile overlay — lower z-index than sidebar */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -281,7 +295,7 @@ export default function AIChat() {
         <ScrollArea className="flex-1">
           <div className="mx-auto max-w-3xl px-4 py-6">
             {!selectedConvo ? (
-              /* Empty state — always shown when no conversation is selected */
+              /* Empty state */
               <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
                 <div className="flex size-20 items-center justify-center rounded-2xl bg-primary/10">
                   <Bot className="size-10 text-primary" />
@@ -340,55 +354,70 @@ export default function AIChat() {
                     <Loader2 className="size-5 animate-spin text-muted-foreground" />
                   </div>
                 )}
-                {messages?.map((m) => (
-                  <motion.div
-                    key={m._id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                      "group/msg flex gap-3",
-                      m.role === "user" ? "flex-row-reverse" : ""
-                    )}
-                  >
-                    <div
+                {messages?.map((m) => {
+                  const isActive = activeMsgId === m._id;
+                  return (
+                    <motion.div
+                      key={m._id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
                       className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full",
-                        m.role === "user"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        "group/msg relative flex gap-3",
+                        m.role === "user" ? "flex-row-reverse" : ""
                       )}
+                      onClick={(e) => {
+                        // Toggle delete visibility on tap (mobile)
+                        e.stopPropagation();
+                        setActiveMsgId(isActive ? null : m._id);
+                      }}
                     >
-                      {m.role === "user" ? (
-                        <User className="size-4" />
-                      ) : (
-                        <Bot className="size-4" />
-                      )}
-                    </div>
-                    <div className="max-w-[80%] space-y-1">
                       <div
                         className={cn(
-                          "rounded-2xl px-4 py-3 text-sm leading-7",
+                          "flex size-8 shrink-0 items-center justify-center rounded-full",
                           m.role === "user"
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                         )}
                       >
-                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        {m.role === "user" ? (
+                          <User className="size-4" />
+                        ) : (
+                          <Bot className="size-4" />
+                        )}
                       </div>
-                      {/* Delete button — visible on hover */}
-                      <button
-                        onClick={() => handleDeleteMessage(m._id)}
-                        className={cn(
-                          "flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/msg:opacity-100",
-                          m.role === "user" ? "mr-auto" : "ml-auto"
-                        )}
-                      >
-                        <Trash2 className="size-3" />
-                        حذف
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
+                      <div className="max-w-[80%] space-y-1">
+                        <div
+                          className={cn(
+                            "rounded-2xl px-4 py-3 text-sm leading-7",
+                            m.role === "user"
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted"
+                          )}
+                        >
+                          <p className="whitespace-pre-wrap">{m.content}</p>
+                        </div>
+                        {/* Delete button — hover on desktop, tap on mobile */}
+                        <div
+                          className={cn(
+                            "flex transition-opacity",
+                            m.role === "user" ? "justify-start" : "justify-end",
+                            // Desktop: show on group hover; Mobile: show when active
+                            "opacity-0 group-hover/msg:opacity-100",
+                            isActive && "!opacity-100"
+                          )}
+                        >
+                          <button
+                            onClick={(e) => handleDeleteMessage(m._id, e)}
+                            className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="size-3" />
+                            حذف
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
                 {(isSending || isWaitingForAI) && (
                   <div className="flex gap-3">
                     <div className="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
