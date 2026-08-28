@@ -62,6 +62,13 @@ export default function AIChat() {
     selectedConvo ? { conversationId: selectedConvo as any } : "skip"
   );
 
+  // Auto-select if only 1 model
+  useEffect(() => {
+    if (!selectedModelId && activeModels && activeModels.length === 1) {
+      setSelectedModelId(activeModels[0]._id);
+    }
+  }, [activeModels, selectedModelId]);
+
   const createConvo = useMutation(api.aiChat.createConversation);
   const sendMessageMut = useMutation(api.aiChat.sendMessage);
   const deleteConvo = useMutation(api.aiChat.deleteConversation);
@@ -360,7 +367,7 @@ export default function AIChat() {
                     و موضوعات مرتبط سؤال بپرسید.
                   </p>
                 </div>
-                {(activeModels ?? []).length > 1 && (
+                {(activeModels ?? []).length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap justify-center">
                     <span className="text-xs text-muted-foreground">مدل:</span>
                     {(activeModels ?? []).map((m: any) => (
@@ -486,7 +493,7 @@ export default function AIChat() {
         {selectedConvo && (
           <div className="border-t border-border bg-card p-4">
             <div className="mx-auto max-w-3xl">
-              {(activeModels ?? []).length > 1 && (
+              {(activeModels ?? []).length > 0 && (
                 <div className="mb-2 flex items-center gap-1.5 flex-wrap">
                   <span className="text-[10px] text-muted-foreground">مدل:</span>
                   {(activeModels ?? []).map((m: any) => (
