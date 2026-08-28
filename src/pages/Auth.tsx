@@ -140,10 +140,11 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     }
   }, [verifyGoogle, signIn, navigate, redirect]);
 
+  const GOOGLE_CLIENT_ID = "249113399223-scvp6ehrm1l4cam42rnh7ohq4hipnn9t.apps.googleusercontent.com";
+
   const handleGoogleClick = useCallback(() => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    const clientId = GOOGLE_CLIENT_ID;
     if (!clientId) {
-      // Fallback: just open a popup to accounts.google.com
       setError("Google sign-in is not configured. Ask the admin for the Client ID.");
       return;
     }

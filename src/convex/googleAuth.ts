@@ -11,7 +11,7 @@ import { v } from "convex/values";
 export const verifyGoogleToken = action({
   args: { idToken: v.string() },
   handler: async (_ctx, args) => {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientId = process.env.GOOGLE_CLIENT_ID ?? "249113399223-scvp6ehrm1l4cam42rnh7ohq4hipnn9t.apps.googleusercontent.com";
     if (!clientId) {
       throw new Error("GOOGLE_CLIENT_ID is not configured on the server.");
     }
