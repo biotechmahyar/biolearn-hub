@@ -21,8 +21,8 @@ const FREE_LIMITS: Record<string, number> = {
   mentor: 10,
   content_manager: 10,
   support: 10,
-  admin: 9999,
-  site_admin: 9999,
+  admin: 100,
+  site_admin: 100,
 };
 
 // ── Queries ─────────────────────────────────────────────────────────────────

@@ -10,9 +10,12 @@ const FREE_LIMITS: Record<string, number> = {
   mentor: 10,
   content_manager: 10,
   support: 10,
-  admin: 9999,
-  site_admin: 9999,
+  admin: 100,
+  site_admin: 100,
 };
+
+// Max conversations to keep per user (regular users only)
+const MAX_CONVERSATIONS = 10;
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
@@ -90,6 +93,37 @@ export const createConversation = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("ورود لازم است.");
+
+    // Get user role to check if we need to enforce conversation limit
+    const user = await ctx.db.get(userId);
+    const userRole = (user as any)?.role ?? "user";
+    const isRegular = userRole === "user" || userRole === "member";
+
+    // Auto-cleanup: keep only MAX_CONVERSATIONS for regular users
+    if (isRegular) {
+      const existing = await ctx.db
+        .query("aiConversations")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .order("desc")
+        .collect();
+
+      if (existing.length >= MAX_CONVERSATIONS) {
+        // Delete oldest conversations to make room
+        const toDelete = existing.slice(MAX_CONVERSATIONS - 1);
+        for (const c of toDelete) {
+          // Delete all messages in the conversation first
+          const msgs = await ctx.db
+            .query("aiMessages")
+            .withIndex("by_conversation", (q) => q.eq("conversationId", c._id))
+            .collect();
+          for (const m of msgs) {
+            await ctx.db.delete(m._id);
+          }
+          await ctx.db.delete(c._id);
+        }
+      }
+    }
+
     const now = Date.now();
     return await ctx.db.insert("aiConversations", {
       userId,
