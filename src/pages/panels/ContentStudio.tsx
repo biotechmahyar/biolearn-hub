@@ -42,6 +42,9 @@ import {
   Undo,
   Redo,
   RemoveFormatting,
+  Type,
+  Highlighter,
+  Languages,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -61,6 +64,28 @@ function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: strin
 }
 
 // ── Tiny Rich Text Editor (contentEditable) ─────────────────────────────
+const FONT_FAMILIES = [
+  { label: "پیش‌فرض", value: "" },
+  { label: "Vazirmatn", value: "Vazirmatn, sans-serif" },
+  { label: "IRANSans", value: "IRANSans, sans-serif" },
+  { label: "system-ui", value: "system-ui, sans-serif" },
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Courier New", value: "'Courier New', monospace" },
+  { label: "Tahoma", value: "Tahoma, sans-serif" },
+  { label: "Times New Roman", value: "'Times New Roman', serif" },
+];
+
+const FONT_SIZES = [
+  { label: "۱۰", value: "1", px: "10px" },
+  { label: "۱۲", value: "2", px: "12px" },
+  { label: "۱۴", value: "3", px: "14px" },
+  { label: "۱۶", value: "4", px: "16px" },
+  { label: "۲۰", value: "5", px: "20px" },
+  { label: "۲۴", value: "6", px: "24px" },
+  { label: "۳۲", value: "7", px: "32px" },
+];
+
 function Editor({
   html,
   onChange,
@@ -69,6 +94,11 @@ function Editor({
   onChange: (html: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [dir, setDir] = useState<"rtl" | "ltr">("rtl");
+  const [activeFont, setActiveFont] = useState("");
+  const [activeColor, setActiveColor] = useState("#ffffff");
+  const [activeHighlight, setActiveHighlight] = useState("#facc15");
+
   // Sync external HTML → DOM only when html prop changes from outside
   useEffect(() => {
     if (!ref.current) return;
@@ -85,9 +115,117 @@ function Editor({
     [],
   );
 
+  // Trigger onChange after every exec command
+  const execAndNotify = useCallback(
+    (cmd: string, val?: string) => {
+      exec(cmd, val);
+      // Small delay to let browser apply the command before reading innerHTML
+      requestAnimationFrame(() => {
+        if (ref.current) onChange(ref.current.innerHTML);
+      });
+    },
+    [exec, onChange],
+  );
+
   return (
     <div className="rounded-lg border border-white/10 bg-white/[0.02]">
-      {/* Toolbar */}
+      {/* Row 1: Appearance toolbar */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-white/10 px-2 py-1.5">
+        {/* RTL/LTR toggle */}
+        <button
+          type="button"
+          title={dir === "rtl" ? "RTL (راست به چپ)" : "LTR (چپ به راست)"}
+          className="rounded px-2 py-1 text-[10px] font-bold text-cyan-300 transition-colors hover:bg-white/10"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            const next = dir === "rtl" ? "ltr" : "rtl";
+            setDir(next);
+            if (ref.current) ref.current.dir = next;
+          }}
+        >
+          <Languages className="h-3.5 w-3.5" />
+        </button>
+        <span className="mx-0.5 h-4 w-px bg-white/10" />
+
+        {/* Font Family */}
+        <select
+          title="فونت"
+          className="h-7 cursor-pointer rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 focus:outline-none"
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const val = e.target.value;
+            setActiveFont(val);
+            if (val) {
+              execAndNotify("fontName", val);
+            } else {
+              execAndNotify("removeFormat");
+            }
+          }}
+          value={activeFont}
+        >
+          {FONT_FAMILIES.map((f) => (
+            <option key={f.value} value={f.value} style={{ fontFamily: f.value || "inherit" }}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+
+        {/* Font Size */}
+        <select
+          title="اندازه فونت"
+          className="h-7 w-14 cursor-pointer rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 focus:outline-none"
+          onMouseDown={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            execAndNotify("fontSize", e.target.value);
+          }}
+        >
+          <option value="">سایز</option>
+          {FONT_SIZES.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label} ({s.px})
+            </option>
+          ))}
+        </select>
+        <span className="mx-0.5 h-4 w-px bg-white/10" />
+
+        {/* Text Color */}
+        <label
+          title="رنگ متن"
+          className="flex h-7 cursor-pointer items-center gap-1 rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 hover:bg-white/5"
+        >
+          <Type className="h-3 w-3" />
+          <input
+            type="color"
+            value={activeColor}
+            onChange={(e) => {
+              setActiveColor(e.target.value);
+              execAndNotify("foreColor", e.target.value);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="h-4 w-4 cursor-pointer border-0 bg-transparent p-0"
+          />
+        </label>
+
+        {/* Highlight Color */}
+        <label
+          title="هایلایت"
+          className="flex h-7 cursor-pointer items-center gap-1 rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 hover:bg-white/5"
+        >
+          <Highlighter className="h-3 w-3" />
+          <input
+            type="color"
+            value={activeHighlight}
+            onChange={(e) => {
+              setActiveHighlight(e.target.value);
+              execAndNotify("hiliteColor", e.target.value);
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="h-4 w-4 cursor-pointer border-0 bg-transparent p-0"
+          />
+        </label>
+      </div>
+
+      {/* Row 2: Formatting toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 px-2 py-1">
         {/* Inline formatting */}
         <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" exec={() => exec("bold")} />
@@ -123,17 +261,16 @@ function Editor({
         <ToolbarBtn icon={<Redo className="h-3.5 w-3.5" />} title="Redo" exec={() => exec("redo")} />
         <ToolbarBtn icon={<RemoveFormatting className="h-3.5 w-3.5" />} title="Clear Formatting" exec={() => exec("removeFormat")} />
       </div>
-      {/* Content */}
-      <div
-        ref={(el) => {
-          (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
-          if (el && el.innerHTML !== html) {
-            el.innerHTML = html;
-          }
-        }}
-        contentEditable
-        dir="rtl"
-        suppressContentEditableWarning
+      {/* Content */}        <div
+          ref={(el) => {
+            (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+            if (el && el.innerHTML !== html) {
+              el.innerHTML = html;
+            }
+          }}
+          contentEditable
+          dir={dir}
+          suppressContentEditableWarning
         className="min-h-[250px] px-4 py-3 text-sm leading-7 text-slate-200 focus:outline-none prose prose-invert max-w-none"
         onInput={() => {
           if (!ref.current) return;
