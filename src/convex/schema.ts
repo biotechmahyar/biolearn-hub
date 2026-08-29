@@ -765,6 +765,8 @@ const schema = defineSchema(
       startMessage: v.string(),         // Welcome message for /start
       lastTestedAt: v.optional(v.number()),
       lastTestResult: v.optional(v.string()), // "success" or error message
+      commands: v.optional(v.array(v.object({ command: v.string(), description: v.string() }))),
+      commandsSyncedAt: v.optional(v.number()),
       updatedBy: v.id("users"),
       updatedAt: v.number(),
       createdAt: v.number(),

@@ -57,6 +57,7 @@ export default function TelegramBotPanel() {
   const toggleActive = useMutation(api.telegramBot.toggleBotActive);
   const updateStartMsg = useMutation(api.telegramBot.updateStartMessage);
 
+  const saveCommandsToDb = useMutation(api.telegramBot.saveCommands);
   const testConn = useAction(api.telegramBotActions.testConnection);
   const disconnectBot = useAction(api.telegramBotActions.disconnectBot);
   const getCommands = useAction(api.telegramBotActions.getBotCommands);
@@ -73,11 +74,8 @@ export default function TelegramBotPanel() {
   const [webhookInput, setWebhookInput] = useState("");
   const [webhookDialogOpen, setWebhookDialogOpen] = useState(false);
   const [cmdDialogOpen, setCmdDialogOpen] = useState(false);
-  const [cmdList, setCmdList] = useState<{ command: string; description: string }[]>([
-    { command: "start", description: "شروع ربات و پیام خوش‌آمدگویی" },
-    { command: "help", description: "راهنمای دستورات" },
-    { command: "courses", description: "لیست دوره‌ها" },
-  ]);
+  const [cmdList, setCmdList] = useState<{ command: string; description: string }[]>([]);
+  const [cmdSyncStatus, setCmdSyncStatus] = useState<"synced" | "failed" | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [webhookInfo, setWebhookInfo] = useState<any>(null);
   const [webhookInfoLoading, setWebhookInfoLoading] = useState(false);
@@ -85,6 +83,11 @@ export default function TelegramBotPanel() {
   useEffect(() => {
     if (botConfig?.startMessage) setWelcomeMsg(botConfig.startMessage);
   }, [botConfig?.startMessage]);
+
+  // Load commands from DB on mount
+  useEffect(() => {
+    if (botConfig?.commands) setCmdList(botConfig.commands);
+  }, [botConfig?.commands]);
 
   const handleSaveToken = async () => {
     if (!tokenInput.trim()) return;
@@ -179,12 +182,31 @@ export default function TelegramBotPanel() {
   };
   const handleSaveCommands = async () => {
     setLoading("commands");
+    setCmdSyncStatus(null);
     try {
-      const r = await setCommands({ commands: cmdList });
-      if (r.success) toast.success("دستورات ذخیره شدند."); else toast.error(r.error || "خطا");
+      // Filter out empty commands
+      const validCmds = cmdList.filter(c => c.command.trim() && c.description.trim());
+      if (validCmds.length === 0) {
+        toast.error("حداقل یک دستور معتبر وارد کنید.");
+        setLoading(null);
+        return;
+      }
+      // 1. Sync to Telegram API
+      const r = await setCommands({ commands: validCmds });
+      if (r.success) {
+        // 2. Save to DB
+        await saveCommandsToDb({ commands: validCmds });
+        setCmdSyncStatus("synced");
+        toast.success("دستورات در تلگرام و سیستم ذخیره شدند.");
+      } else {
+        setCmdSyncStatus("failed");
+        toast.error(`خطا در همگام‌سازی با تلگرام: ${r.error || "نامشخص"}`);
+      }
       setCmdDialogOpen(false);
-    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا"); }
-    finally { setLoading(null); }
+    } catch (e: unknown) {
+      setCmdSyncStatus("failed");
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally { setLoading(null); }
   };
 
   const handleLoadCommands = async () => {
@@ -411,14 +433,31 @@ export default function TelegramBotPanel() {
         <Card className="border-border/50 sm:col-span-2">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <Command className="size-4 text-emerald-500" /> دستورات بات
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <Command className="size-4 text-emerald-500" /> دستورات بات
+                </CardTitle>
+                {cmdSyncStatus === "synced" && (
+                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] gap-1">
+                    <Check className="size-3" /> همگام شده
+                  </Badge>
+                )}
+                {cmdSyncStatus === "failed" && (
+                  <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] gap-1">
+                    <XCircle className="size-3" /> ناموفق
+                  </Badge>
+                )}
+                {botConfig?.commandsSyncedAt && !cmdSyncStatus && (
+                  <Badge variant="outline" className="text-[10px] gap-1">
+                    آخرین همگام‌سازی: {new Date(botConfig.commandsSyncedAt).toLocaleString("fa-IR")}
+                  </Badge>
+                )}
+              </div>
               {hasToken && (
                 <div className="flex gap-1">
                   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleLoadCommands} disabled={loading === "loadCmds"}>
                     {loading === "loadCmds" ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-                    بارگذاری
+                    بارگذاری از تلگرام
                   </Button>
                   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setCmdDialogOpen(true)}>ویرایش</Button>
                 </div>
@@ -436,7 +475,7 @@ export default function TelegramBotPanel() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">هیچ دستوری تنظیم نشده است.</p>
+              <p className="text-sm text-muted-foreground">هیچ دستوری تنظیم نشده است. روی «ویرایش» کلیک کنید تا دستورات را اضافه کنید.</p>
             )}
           </CardContent>
         </Card>

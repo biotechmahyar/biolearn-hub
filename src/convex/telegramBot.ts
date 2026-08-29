@@ -73,6 +73,8 @@ export const getBotConfig = query({
       lastTestResult: bot.lastTestResult ?? null,
       maskedToken: maskToken(deobfuscateToken(bot.tokenEncrypted)),
       hasToken: bot.tokenEncrypted.length > 0,
+      commands: bot.commands ?? [],
+      commandsSyncedAt: bot.commandsSyncedAt ?? null,
       updatedAt: bot.updatedAt,
     };
   },
@@ -169,6 +171,26 @@ export const updateStartMessage = mutation({
     if (!bot) throw new Error("بات تنظیم نشده است.");
     await ctx.db.patch(bot._id, {
       startMessage: args.message,
+      updatedBy: userId,
+      updatedAt: Date.now(),
+    });
+    return { success: true };
+  },
+});
+
+/** Save commands to DB (called after successful Telegram sync) */
+export const saveCommands = mutation({
+  args: {
+    commands: v.array(v.object({ command: v.string(), description: v.string() })),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdmin(ctx);
+    const bots = await ctx.db.query("telegramBot").collect();
+    const bot = bots[0];
+    if (!bot) throw new Error("بات تنظیم نشده است.");
+    await ctx.db.patch(bot._id, {
+      commands: args.commands,
+      commandsSyncedAt: Date.now(),
       updatedBy: userId,
       updatedAt: Date.now(),
     });
