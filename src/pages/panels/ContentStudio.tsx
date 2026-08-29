@@ -53,6 +53,13 @@ import {
   Unlink,
   Video,
   X,
+  Table,
+  Minus,
+  FlaskConical,
+  AlertTriangle,
+  Info,
+  Lightbulb,
+  Calculator,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -103,6 +110,8 @@ function Editor({
   onEmbed,
   onEmbedHtml,
   editorRef,
+  onTable,
+  onSciBlock,
 }: {
   html: string;
   onChange: (html: string) => void;
@@ -112,6 +121,8 @@ function Editor({
   onEmbed?: () => void
   onEmbedHtml?: (html: string) => void
   editorRef?: React.RefObject<HTMLDivElement | null>
+  onTable?: () => void
+  onSciBlock?: (type: string) => void
 }) {
   const internalRef = useRef<HTMLDivElement>(null);
   const ref = editorRef || internalRef;
@@ -350,6 +361,49 @@ function Editor({
             if (onEmbed) onEmbed()
           }}
         />
+        {/* Table */}
+        <ToolbarBtn
+          icon={<Table className="h-3.5 w-3.5" />}
+          title="Insert Table"
+          exec={() => { if (onTable) onTable() }}
+        />
+        <span className="mx-1 h-4 w-px bg-white/10" />
+        {/* Scientific Elements */}
+        <ToolbarBtn
+          icon={<FlaskConical className="h-3.5 w-3.5" />}
+          title="Scientific Note"
+          exec={() => onSciBlock?.("note")}
+        />
+        <ToolbarBtn
+          icon={<AlertTriangle className="h-3.5 w-3.5" />}
+          title="Warning"
+          exec={() => onSciBlock?.("warning")}
+        />
+        <ToolbarBtn
+          icon={<Info className="h-3.5 w-3.5" />}
+          title="Important"
+          exec={() => onSciBlock?.("important")}
+        />
+        <ToolbarBtn
+          icon={<Lightbulb className="h-3.5 w-3.5" />}
+          title="Key Point"
+          exec={() => onSciBlock?.("keypoint")}
+        />
+        <ToolbarBtn
+          icon={<span className="text-[10px] font-bold">D</span>}
+          title="Definition"
+          exec={() => onSciBlock?.("definition")}
+        />
+        <ToolbarBtn
+          icon={<span className="text-[10px] font-bold">E</span>}
+          title="Example"
+          exec={() => onSciBlock?.("example")}
+        />
+        <ToolbarBtn
+          icon={<Calculator className="h-3.5 w-3.5" />}
+          title="Formula"
+          exec={() => onSciBlock?.("formula")}
+        />
         {/* Alignment */}
         <ToolbarBtn icon={<AlignRight className="h-3.5 w-3.5" />} title="Align Right" exec={() => exec("justifyRight")} />
         <ToolbarBtn icon={<AlignCenter className="h-3.5 w-3.5" />} title="Align Center" exec={() => exec("justifyCenter")} />
@@ -360,6 +414,100 @@ function Editor({
         <ToolbarBtn icon={<Undo className="h-3.5 w-3.5" />} title="Undo" exec={() => exec("undo")} />
         <ToolbarBtn icon={<Redo className="h-3.5 w-3.5" />} title="Redo" exec={() => exec("redo")} />
         <ToolbarBtn icon={<RemoveFormatting className="h-3.5 w-3.5" />} title="Clear Formatting" exec={() => exec("removeFormat")} />
+      </div>
+      {/* Row 3: Table operations */}
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 px-2 py-1">
+        <span className="text-[10px] font-bold text-slate-500">جدول:</span>
+        <button type="button" title="افزودن ردیف"
+          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (!ref.current) return;
+            const sel = window.getSelection(); if (!sel || !sel.anchorNode) return;
+            let td: HTMLElement | null = null;
+            let n: Node | null = sel.anchorNode;
+            while (n && n !== ref.current) { if (n.nodeType === 1 && (n as HTMLElement).tagName === "TD") { td = n as HTMLElement; break; } n = n.parentNode; }
+            if (!td) { toast.info("ابتدا روی سلول جدول کلیک کنید"); return; }
+            const tr = td.closest("tr");
+            const table = td.closest("table"); if (!tr || !table) return;
+            const newTr = document.createElement("tr");
+            for (let i = 0; i < tr.cells.length; i++) {
+              const newTd = document.createElement("td");
+              newTd.style.cssText = "border:1px solid rgba(255,255,255,0.15);padding:8px 12px;min-width:60px";
+              newTd.innerHTML = "<br>";
+              newTr.appendChild(newTd);
+            }
+            tr.parentNode?.insertBefore(newTr, tr.nextSibling);
+            requestAnimationFrame(() => { if (ref.current) onChange(ref.current.innerHTML); });
+          }}>
+          <Plus className="h-3 w-3" /> ردیف
+        </button>
+        <button type="button" title="حذف ردیف"
+          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-300"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (!ref.current) return;
+            const sel = window.getSelection(); if (!sel || !sel.anchorNode) return;
+            let td: HTMLElement | null = null;
+            let n: Node | null = sel.anchorNode;
+            while (n && n !== ref.current) { if (n.nodeType === 1 && (n as HTMLElement).tagName === "TD") { td = n as HTMLElement; break; } n = n.parentNode; }
+            if (!td) { toast.info("ابتدا روی سلول جدول کلیک کنید"); return; }
+            const tr = td.closest("tr"); const table = td.closest("table"); if (!tr || !table) return;
+            if (table.querySelectorAll("tr").length <= 1) { toast.error("حداقل یک ردیف باید باقی بماند"); return; }
+            tr.remove();
+            requestAnimationFrame(() => { if (ref.current) onChange(ref.current.innerHTML); });
+          }}>
+          <Minus className="h-3 w-3" /> ردیف
+        </button>
+        <span className="mx-0.5 h-4 w-px bg-white/10" />
+        <button type="button" title="افزودن ستون"
+          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (!ref.current) return;
+            const sel = window.getSelection(); if (!sel || !sel.anchorNode) return;
+            let td: HTMLElement | null = null;
+            let n: Node | null = sel.anchorNode;
+            while (n && n !== ref.current) { if (n.nodeType === 1 && (n as HTMLElement).tagName === "TD") { td = n as HTMLElement; break; } n = n.parentNode; }
+            if (!td) { toast.info("ابتدا روی سلول جدول کلیک کنید"); return; }
+            const table = td.closest("table"); if (!table) return;
+            const colIdx = Array.from(td.parentNode!.children).indexOf(td);
+            table.querySelectorAll("tr").forEach((row) => {
+              const newCell = document.createElement(row.children[colIdx]?.tagName === "TH" ? "th" : "td");
+              const isHeader = newCell.tagName === "TH";
+              newCell.style.cssText = isHeader
+                ? "border:1px solid rgba(255,255,255,0.15);padding:8px 12px;background:rgba(6,182,212,0.15);font-weight:bold;min-width:60px"
+                : "border:1px solid rgba(255,255,255,0.15);padding:8px 12px;min-width:60px";
+              newCell.innerHTML = "<br>";
+              const refCell = row.children[colIdx];
+              if (refCell) row.insertBefore(newCell, refCell.nextSibling);
+              else row.appendChild(newCell);
+            });
+            requestAnimationFrame(() => { if (ref.current) onChange(ref.current.innerHTML); });
+          }}>
+          <Plus className="h-3 w-3" /> ستون
+        </button>
+        <button type="button" title="حذف ستون"
+          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-300"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (!ref.current) return;
+            const sel = window.getSelection(); if (!sel || !sel.anchorNode) return;
+            let td: HTMLElement | null = null;
+            let n: Node | null = sel.anchorNode;
+            while (n && n !== ref.current) { if (n.nodeType === 1 && (n as HTMLElement).tagName === "TD") { td = n as HTMLElement; break; } n = n.parentNode; }
+            if (!td) { toast.info("ابتدا روی سلول جدول کلیک کنید"); return; }
+            const table = td.closest("table"); if (!table) return;
+            const colIdx = Array.from(td.parentNode!.children).indexOf(td);
+            if (table.querySelector("tr")!.children.length <= 1) { toast.error("حداقل یک ستون باید باقی بماند"); return; }
+            table.querySelectorAll("tr").forEach((row) => {
+              const cell = row.children[colIdx];
+              if (cell) cell.remove();
+            });
+            requestAnimationFrame(() => { if (ref.current) onChange(ref.current.innerHTML); });
+          }}>
+          <Minus className="h-3 w-3" /> ستون
+        </button>
       </div>
       {/* Content */}        <div
           ref={(el) => {
@@ -978,6 +1126,95 @@ function EmbedDialog({
   )
 }
 
+// ── Table Dialog ───────────────────────────────────────────────────────
+function TableDialog({
+  open,
+  onOpenChange,
+  onInsert,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onInsert: (html: string) => void
+}) {
+  const [rows, setRows] = useState(3)
+  const [cols, setCols] = useState(3)
+  const [hasHeader, setHasHeader] = useState(true)
+
+  const buildTable = (): string => {
+    const cellStyle = "border:1px solid rgba(255,255,255,0.15);padding:8px 12px;text-align:right;min-width:60px"
+    const headerStyle = "border:1px solid rgba(255,255,255,0.15);padding:8px 12px;text-align:right;background:rgba(6,182,212,0.15);font-weight:bold;min-width:60px"
+    let html = `<table style="width:100%;border-collapse:collapse;margin:16px 0;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)">`
+    if (hasHeader) {
+      html += `<tr>`
+      for (let c = 0; c < cols; c++) html += `<th style="${headerStyle}"><br></th>`
+      html += `</tr>`
+    }
+    const dataRows = hasHeader ? rows - 1 : rows
+    for (let r = 0; r < dataRows; r++) {
+      html += `<tr>`
+      for (let c = 0; c < cols; c++) html += `<td style="${cellStyle}"><br></td>`
+      html += `</tr>`
+    }
+    html += `</table><p><br></p>`
+    return html
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="border-white/10 bg-[#0c1a28] sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="text-right text-cyan-100">درج جدول</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">تعداد ردیف</label>
+              <div className="flex items-center gap-2">
+                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setRows((r) => Math.max(1, r - 1))}><Minus className="h-3 w-3" /></button>
+                <span className="w-8 text-center text-sm text-white">{rows}</span>
+                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setRows((r) => Math.min(20, r + 1))}><Plus className="h-3 w-3" /></button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">تعداد ستون</label>
+              <div className="flex items-center gap-2">
+                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setCols((c) => Math.max(1, c - 1))}><Minus className="h-3 w-3" /></button>
+                <span className="w-8 text-center text-sm text-white">{cols}</span>
+                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setCols((c) => Math.min(10, c + 1))}><Plus className="h-3 w-3" /></button>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="tableHeader" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} className="h-4 w-4 rounded border-white/10 bg-white/5" />
+            <label htmlFor="tableHeader" className="text-xs text-slate-400">سطر هدر (Header)</label>
+          </div>
+          {/* Preview */}
+          <div className="overflow-x-auto rounded border border-white/10 p-2">
+            <table className="w-full text-[10px]" style={{ borderCollapse: "collapse" }}>
+              {hasHeader && (
+                <tr>{Array.from({ length: cols }).map((_, i) => (
+                  <th key={i} style={{ border: "1px solid rgba(255,255,255,0.15)", padding: "4px 6px", background: "rgba(6,182,212,0.15)", color: "#67e8f9" }}>H{i + 1}</th>
+                ))}</tr>
+              )}
+              {Array.from({ length: hasHeader ? rows - 1 : rows }).map((_, r) => (
+                <tr key={r}>{Array.from({ length: cols }).map((_, c) => (
+                  <td key={c} style={{ border: "1px solid rgba(255,255,255,0.1)", padding: "4px 6px", color: "#94a3b8" }}>&nbsp;</td>
+                ))}</tr>
+              ))}
+            </table>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-slate-400">انصراف</Button>
+          <Button size="sm" className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={() => { onInsert(buildTable()); onOpenChange(false) }}>
+            <Table className="ml-1 h-3.5 w-3.5" /> درج جدول
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main ContentStudio ──────────────────────────────────────────────────
 export default function ContentStudio() {
   const { user } = useAuth();
@@ -1007,6 +1244,30 @@ export default function ContentStudio() {
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+
+  const insertSciBlock = (type: string) => {
+    const styles: Record<string, { label: string; bg: string; border: string; icon: string }> = {
+      note: { label: "📝 Scientific Note", bg: "rgba(6,182,212,0.08)", border: "rgba(6,182,212,0.3)", icon: "🧪" },
+      warning: { label: "⚠️ Warning", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.3)", icon: "⚠️" },
+      important: { label: "❗ Important", bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.3)", icon: "❗" },
+      keypoint: { label: "💡 Key Point", bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.3)", icon: "💡" },
+      definition: { label: "📖 Definition", bg: "rgba(139,92,246,0.08)", border: "rgba(139,92,246,0.3)", icon: "📖" },
+      example: { label: "📋 Example", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.3)", icon: "📋" },
+      formula: { label: "🔢 Formula", bg: "rgba(236,72,153,0.08)", border: "rgba(236,72,153,0.3)", icon: "🔢" },
+    };
+    const s = styles[type] || styles.note;
+    const html = `<div style="background:${s.bg};border-right:4px solid ${s.border};border-radius:8px;padding:16px 20px;margin:16px 0"><div style="font-size:11px;font-weight:bold;color:${s.border};margin-bottom:8px">${s.icon} ${s.label}</div><div style="color:#e2e8f0;font-size:14px;line-height:1.8"><p><br></p></div></div><p><br></p>`;
+    const editorEl = editorRef.current;
+    if (editorEl) {
+      editorEl.focus();
+      document.execCommand("insertHTML", false, html);
+      setForm((f) => ({ ...f, body: editorEl.innerHTML }));
+    } else {
+      setForm((f) => ({ ...f, body: f.body + html }));
+    }
+    toast.success(`${s.label} اضافه شد`);
+  };
 
   const openCreate = () => {
     setForm({
@@ -1296,6 +1557,8 @@ export default function ContentStudio() {
                   }}
                   onRemoveLink={() => toast.success("لینک حذف شد")}
                   onEmbed={() => setEmbedDialogOpen(true)}
+                  onTable={() => setTableDialogOpen(true)}
+                  onSciBlock={insertSciBlock}
                 />
               </div>
             </div>
@@ -1388,6 +1651,22 @@ export default function ContentStudio() {
         <EmbedDialog
           open={embedDialogOpen}
           onOpenChange={setEmbedDialogOpen}
+          onInsert={(html) => {
+            const editorEl = editorRef.current
+            if (editorEl) {
+              editorEl.focus()
+              document.execCommand("insertHTML", false, html)
+              setForm((f) => ({ ...f, body: editorEl.innerHTML }))
+            } else {
+              setForm((f) => ({ ...f, body: f.body + html }))
+            }
+          }}
+        />
+
+        {/* Table Dialog */}
+        <TableDialog
+          open={tableDialogOpen}
+          onOpenChange={setTableDialogOpen}
           onInsert={(html) => {
             const editorEl = editorRef.current
             if (editorEl) {
