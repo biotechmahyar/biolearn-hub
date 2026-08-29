@@ -69,10 +69,10 @@ export default function MentorPanel() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="border-amber-400/20 bg-amber-400/10 text-[11px] text-amber-200">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <Badge variant="outline" className="hidden border-amber-400/20 bg-amber-400/10 text-[11px] text-amber-200 sm:inline-flex">
               <HelpCircle className="size-3" />
-              {stats?.openQuestions ?? 0} سؤال در انتظار
+              {stats?.openQuestions ?? 0} سؤال
             </Badge>
             <Badge variant="outline" className="border-white/10 font-mono text-[10px] text-amber-100/70">
               {user?.name ?? "منتور"}
@@ -80,7 +80,7 @@ export default function MentorPanel() {
             <Button
               variant="ghost"
               size="sm"
-              className="text-amber-100/50"
+              className="h-8 w-8 p-0 text-amber-100/50"
               onClick={() => navigate(user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/")}
             >
               <X className="size-4" />
@@ -89,9 +89,9 @@ export default function MentorPanel() {
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[240px_1fr]">
+      <div className="mx-auto grid max-w-7xl gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-[240px_1fr]">
         <aside className="lg:sticky lg:top-20 lg:self-start">
-          <nav className="flex flex-row gap-1 overflow-x-auto lg:flex-col">
+          <nav className="flex flex-row gap-1 overflow-x-auto pb-2 lg:flex-col lg:pb-0">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -196,7 +196,7 @@ function MentorDashboard() {
       </Card>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Card className="border-amber-400/15 bg-[#201609]">
           <CardContent className="flex items-center gap-3 py-4">
             <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
@@ -253,8 +253,8 @@ function MentorDashboard() {
         </CardHeader>
         <CardContent>
           {nextSession ? (
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-bold text-amber-50">{nextSession.title}</p>
                 <p className="text-xs text-amber-100/50">
                   {nextSession.studentName} · {nextSession.date || "بدون تاریخ"} · {nextSession.time}
@@ -263,7 +263,7 @@ function MentorDashboard() {
                   <p className="mt-1 text-xs text-amber-100/40">{nextSession.notes}</p>
                 )}
               </div>
-              <Badge variant="outline" className="border-amber-400/30 text-amber-300">
+              <Badge variant="outline" className="shrink-0 border-amber-400/30 text-amber-300">
                 زمان‌بندی‌شده
               </Badge>
             </div>
@@ -335,7 +335,7 @@ function MentorDashboard() {
                   style={{ width: `${averageProgress}%` }}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-4 pt-2">
+              <div className="grid grid-cols-3 gap-2 pt-2 sm:gap-4">
                 <div className="text-center">
                   <p className="text-lg font-bold text-emerald-400">{completedCourses}</p>
                   <p className="text-xs text-amber-100/50">تکمیل‌شده</p>
@@ -630,7 +630,7 @@ function GroupsView() {
               onChange={(e) => setDescription(e.target.value)}
               className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
             />
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Select value={meetingDay} onValueChange={setMeetingDay}>
                 <SelectTrigger className="border-white/10 bg-white/5 text-amber-50">
                   <SelectValue />
@@ -782,7 +782,7 @@ function SessionsView() {
               onChange={(e) => setTitle(e.target.value)}
               className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
             />
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
                 type="date"
                 value={date}
@@ -839,11 +839,11 @@ function SessionsView() {
                 {s.status === "done" ? "انجام‌شده" : s.status === "cancelled" ? "لغوشده" : "زمان‌بندی‌شده"}
               </Badge>
               {s.status === "scheduled" && (
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setSessionStatus({ sessionId: s._id, status: "done" })}>
+                <div className="flex w-full shrink-0 gap-1 sm:w-auto">
+                  <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px] sm:flex-none" onClick={() => setSessionStatus({ sessionId: s._id, status: "done" })}>
                     انجام شد
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-[11px] text-red-300" onClick={() => setSessionStatus({ sessionId: s._id, status: "cancelled" })}>
+                  <Button size="sm" variant="ghost" className="h-7 flex-1 text-[11px] text-red-300 sm:flex-none" onClick={() => setSessionStatus({ sessionId: s._id, status: "cancelled" })}>
                     لغو
                   </Button>
                 </div>
