@@ -140,9 +140,6 @@ export default function ContentStudio() {
         });
         const body = (art as any).body ?? "";
         setEditorHtml(body);
-        if (editorRef.current) {
-          editorRef.current.innerHTML = body || "<p><br></p>";
-        }
       }
     },
     [articles],
@@ -184,6 +181,20 @@ export default function ContentStudio() {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => handleAutoSave(html), 3000);
   }, [handleAutoSave]);
+
+  // ── Sync editor content when article changes ────────────────────────
+  useEffect(() => {
+    if (!editorRef.current) return;
+    if (currentArticleId) {
+      const art = articles?.find((a) => a._id === currentArticleId);
+      const body = (art as any)?.body ?? "";
+      if (editorRef.current.innerHTML !== body) {
+        editorRef.current.innerHTML = body;
+      }
+    } else {
+      editorRef.current.innerHTML = "";
+    }
+  }, [currentArticleId, articles]);
 
   // Clean up timer
   useEffect(() => {
@@ -580,10 +591,9 @@ export default function ContentStudio() {
                   contentEditable
                   onInput={handleEditorInput}
                   dir="rtl"
-                  className="mt-4 min-h-[60vh] rounded-lg border border-white/5 bg-white/[0.02] px-6 py-4 text-base leading-8 text-slate-200 focus:outline-none prose prose-invert max-w-none"
+                  className="mt-4 min-h-[60vh] rounded-lg border border-white/5 bg-white/[0.02] px-6 py-4 text-base leading-8 text-slate-200 focus:outline-none max-w-none"
                   style={{ lineHeight: "2" }}
                   suppressContentEditableWarning
-                  dangerouslySetInnerHTML={{ __html: editorHtml || "" }}
                 />
               </div>
             ) : (
