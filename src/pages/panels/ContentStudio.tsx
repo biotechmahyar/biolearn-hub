@@ -1,7 +1,8 @@
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,6 +62,10 @@ import {
   Lightbulb,
   Calculator,
   Search,
+  ArrowRight,
+  Home,
+  User,
+  Filter,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -1227,6 +1232,7 @@ function TableDialog({
 // ── Main ContentStudio ──────────────────────────────────────────────────
 export default function ContentStudio() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const articles = useQuery(api.admin.adminListArticles);
   const createArticle = useMutation(api.admin.adminCreateArticle);
   const updateArticle = useMutation(api.admin.adminUpdateArticle);
@@ -1264,6 +1270,21 @@ export default function ContentStudio() {
   const rewriteText = useAction(api.aiActions.rewriteText);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [aiGenDialog, setAiGenDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [myArticlesOnly, setMyArticlesOnly] = useState(false);
+  const filteredArticles = useMemo(() => {
+    if (!articles) return [];
+    let list = articles;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((a: any) => (a.title || "").toLowerCase().includes(q) || (a.category || "").toLowerCase().includes(q) || (a.authorName || "").toLowerCase().includes(q) || (a.excerpt || "").toLowerCase().includes(q));
+    }
+    if (myArticlesOnly && user) {
+      const name = (user.name || "").toLowerCase();
+      list = list.filter((a: any) => (a.authorName || "").toLowerCase().includes(name));
+    }
+    return list;
+  }, [articles, searchQuery, myArticlesOnly, user]);
   const [aiGenPrompt, setAiGenPrompt] = useState("");
   const [aiGenLoading, setAiGenLoading] = useState(false);
   const [aiGenResult, setAiGenResult] = useState("");
@@ -1470,29 +1491,52 @@ export default function ContentStudio() {
     <div className="min-h-screen bg-[#070b1a] p-4 md:p-6" dir="rtl">
       <div className="mx-auto max-w-5xl space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-white">استودیوی محتوا</h1>
-          <Button
-            size="sm"
-            className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
-            onClick={openCreate}
-          >
-            <Plus className="ml-1 h-4 w-4" /> مقاله جدید
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-purple-400/30 text-purple-300 hover:bg-purple-500/10"
-            onClick={() => setAiGenDialog(true)}
-          >
-            <span className="ml-1 text-xs font-bold">AI</span> مقاله با هوش مصنوعی
-          </Button>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate("/")} className="rounded-lg border border-white/10 p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" title="Home">
+                <Home className="h-4 w-4" />
+              </button>
+              {(user?.role === "admin" || user?.role === "site_admin") && (
+                <button onClick={() => navigate("/panel")} className="rounded-lg border border-white/10 p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" title="Back to panels">
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
+              <h1 className="text-xl font-bold text-white">Content Studio</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={openCreate}>
+                <Plus className="ml-1 h-4 w-4" /> New Article
+              </Button>
+              <Button size="sm" variant="outline" className="border-purple-400/30 text-purple-300 hover:bg-purple-500/10" onClick={() => setAiGenDialog(true)}>
+                <span className="ml-1 text-xs font-bold">AI</span> Generate
+              </Button>
+            </div>
+          </div>
+          {/* User name + Search + Filter */}
+          <div className="flex flex-wrap items-center gap-3">
+            {user && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
+                <User className="h-3.5 w-3.5 text-cyan-400" />
+                <span className="text-[11px] font-medium text-slate-300">{user.name || user.email}</span>
+                <Badge variant="outline" className="text-[9px] text-slate-500">{user.role}</Badge>
+              </div>
+            )}
+            <div className="flex flex-1 items-center gap-2">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+                <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search articles..." className="h-8 w-full rounded-lg border border-white/10 bg-white/5 pl-8 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none" />
+              </div>
+              <button onClick={() => setMyArticlesOnly(!myArticlesOnly)} className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] transition-colors ${myArticlesOnly ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/10"}`}>
+                <Filter className="h-3 w-3" /> My Articles
+              </button>
+            </div>
+          </div>
         </div>
-
         {/* Articles Grid */}
-        {articles && articles.length > 0 ? (
+        {filteredArticles && filteredArticles.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {articles.map((article) => (
+            {filteredArticles.map((article) => (
               <Card
                 key={article._id}
                 className="border-white/5 bg-white/[0.02] transition-colors hover:bg-white/[0.04]"
