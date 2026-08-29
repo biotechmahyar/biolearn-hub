@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -30,12 +29,8 @@ import {
   Underline,
   Strikethrough,
   Highlighter,
-  Heading1,
-  Heading2,
-  Heading3,
   List,
   ListOrdered,
-  CheckSquare,
   Code,
   Quote,
   Link2,
@@ -47,25 +42,16 @@ import {
   Undo,
   Redo,
   Save,
-  Eye,
   Clock,
   FileText,
   Trash2,
   Plus,
-  ChevronDown,
-  ChevronUp,
   Search,
   Settings,
   Globe,
-  Hash,
-  Palette,
-  Type,
-  Minus,
   PanelLeftOpen,
   PanelRightOpen,
-  Loader2,
   PenTool,
-  LayoutTemplate,
 } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { StarterKit } from "@tiptap/starter-kit";
@@ -74,45 +60,59 @@ import { TextAlign } from "@tiptap/extension-text-align";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Image as ImageExt } from "@tiptap/extension-image";
 import { Link } from "@tiptap/extension-link";
-import { Table } from "@tiptap/extension-table";
-import { TableRow } from "@tiptap/extension-table-row";
-import { TableCell } from "@tiptap/extension-table-cell";
-import { TableHeader } from "@tiptap/extension-table-header";
 import { Placeholder } from "@tiptap/extension-placeholder";
 import { TaskList } from "@tiptap/extension-task-list";
 import { TaskItem } from "@tiptap/extension-task-item";
-import { Subscript as SubScript } from "@tiptap/extension-subscript";
-import { Superscript as SuperScript } from "@tiptap/extension-superscript";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { Color } from "@tiptap/extension-color";
-import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
-import { common, createLowlight } from "lowlight";
-
-const lowlight = createLowlight(common);
 
 // ── Scientific note blocks ──────────────────────────────────────────────
 const SCIENTIFIC_BLOCKS = [
-  { label: "یادداشت علمی", icon: "🔬", color: "border-cyan-400 bg-cyan-400/10", html: '<div class="sci-note" data-type="note"><p>یادداشت علمی</p></div>' },
-  { label: "نکته مهم", icon: "💡", color: "border-amber-400 bg-amber-400/10", html: '<div class="sci-note" data-type="important"><p>نکته مهم</p></div>' },
-  { label: "هشدار", icon: "⚠️", color: "border-red-400 bg-red-400/10", html: '<div class="sci-note" data-type="warning"><p>هشدار</p></div>' },
-  { label: "تعریف", icon: "📖", color: "border-violet-400 bg-violet-400/10", html: '<div class="sci-note" data-type="definition"><p>تعریف</p></div>' },
-  { label: "فرمول", icon: "🧮", color: "border-emerald-400 bg-emerald-400/10", html: '<div class="sci-note" data-type="formula"><p>فرمول</p></div>' },
-  { label: "خلاصه", icon: "📝", color: "border-sky-400 bg-sky-400/10", html: '<div class="sci-note" data-type="summary"><p>خلاصه</p></div>' },
-  { label: "منبع", icon: "📚", color: "border-orange-400 bg-orange-400/10", html: '<div class="sci-note" data-type="reference"><p>منبع</p></div>' },
+  { label: "یادداشت علمی", icon: "🔬", html: '<div class="sci-note" data-type="note"><p>یادداشت علمی</p></div>' },
+  { label: "نکته مهم", icon: "💡", html: '<div class="sci-note" data-type="important"><p>نکته مهم</p></div>' },
+  { label: "هشدار", icon: "⚠️", html: '<div class="sci-note" data-type="warning"><p>هشدار</p></div>' },
+  { label: "تعریف", icon: "📖", html: '<div class="sci-note" data-type="definition"><p>تعریف</p></div>' },
+  { label: "فرمول", icon: "🧮", html: '<div class="sci-note" data-type="formula"><p>فرمول</p></div>' },
+  { label: "خلاصه", icon: "📝", html: '<div class="sci-note" data-type="summary"><p>خلاصه</p></div>' },
+  { label: "منبع", icon: "📚", html: '<div class="sci-note" data-type="reference"><p>منبع</p></div>' },
 ];
 
-const FONTS = [
-  { name: "Vazirmatn", label: "وزیرمتن", family: "Vazirmatn, sans-serif" },
-  { name: "IBM Plex Sans Arabic", label: "IBM Plex", family: "'IBM Plex Sans Arabic', sans-serif" },
-  { name: "Noto Naskh Arabic", label: "نوتو نسخ", family: "'Noto Naskh Arabic', serif" },
-  { name: "Arial", label: "Arial", family: "Arial, sans-serif" },
-  { name: "Tahoma", label: "Tahoma", family: "Tahoma, sans-serif" },
-  { name: "monospace", label: "Monospace", family: "monospace" },
-];
+type SidePanel = "seo" | "settings" | "versions" | null;
 
-const FONT_SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px", "36px", "48px"];
+// ── Error Boundary Wrapper ─────────────────────────────────────────────
+class EditorErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback ?? (
+        <div className="flex flex-col items-center justify-center gap-4 py-20 text-slate-400">
+          <FileText className="h-12 w-12 text-slate-600" />
+          <p className="text-sm">خطا در بارگذاری ویرایشگر</p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-white/10 text-xs text-slate-300"
+            onClick={() => this.setState({ hasError: false })}
+          >
+            تلاش مجدد
+          </Button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
-type SidePanel = "seo" | "media" | "versions" | "settings" | null;
+
 
 // ── Main Component ──────────────────────────────────────────────────────
 export default function ContentStudio() {
@@ -130,7 +130,7 @@ export default function ContentStudio() {
     api.contentStudio.listVersions,
     currentArticleId ? { articleId: currentArticleId as any } : "skip",
   );
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [saving, setSaving] = useState<"saved" | "saving" | "unsaved">("saved");
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -153,39 +153,31 @@ export default function ContentStudio() {
     seoDescription: "",
     seoKeywords: [] as string[],
     seoKeywordInput: "",
-    seoCanonical: "",
     ogTitle: "",
     ogDescription: "",
-    ogImage: "",
   });
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const currentArticle = currentArticleId && articles
-    ? articles.find((a) => a._id === currentArticleId)
-    : null;
+  const currentArticle =
+    currentArticleId && articles
+      ? articles.find((a) => a._id === currentArticleId)
+      : null;
 
   // ── TipTap Editor ─────────────────────────────────────────────────────
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3, 4, 5, 6] } }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       UnderlineExt,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Highlight.configure({ multicolor: true }),
       ImageExt.configure({ inline: true }),
       Link.configure({ openOnClick: false }),
-      Table.configure({ resizable: true }),
-      TableRow,
-      TableCell,
-      TableHeader,
       Placeholder.configure({ placeholder: "شروع به نوشتن مقاله..." }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      SubScript,
-      SuperScript,
       TextStyle,
       Color,
-      CodeBlockLowlight.configure({ lowlight }),
     ],
     editorProps: {
       attributes: {
@@ -207,15 +199,11 @@ export default function ContentStudio() {
       editor.commands.clearContent();
       return;
     }
-    // We need the full article data, not just from the list query
-    // Use the article body from a separate source
-    // For now we store body in a ref
   }, [currentArticleId, editor]);
 
   const loadArticle = useCallback(
     (id: string) => {
       setCurrentArticleId(id);
-      // Find in list
       const art = articles?.find((a) => a._id === id);
       if (art) {
         setMeta({
@@ -232,14 +220,17 @@ export default function ContentStudio() {
           seoDescription: (art as any).seoDescription ?? "",
           seoKeywords: (art as any).seoKeywords ?? [],
           seoKeywordInput: "",
-          seoCanonical: (art as any).seoCanonical ?? "",
           ogTitle: (art as any).ogTitle ?? "",
           ogDescription: (art as any).ogDescription ?? "",
-          ogImage: (art as any).ogImage ?? "",
         });
+        // Load body into editor
+        const body = (art as any).body;
+        if (body && editor) {
+          editor.commands.setContent(body);
+        }
       }
     },
-    [articles],
+    [articles, editor],
   );
 
   // ── Autosave ──────────────────────────────────────────────────────────
@@ -290,7 +281,6 @@ export default function ContentStudio() {
     }
   }, [editor, currentArticleId, meta.title, saveVersionMutation]);
 
-  // ── Create new article ────────────────────────────────────────────────
   const handleCreateArticle = useCallback(async () => {
     if (!newTitle.trim()) {
       toast.error("عنوان مقاله را وارد کنید");
@@ -315,7 +305,6 @@ export default function ContentStudio() {
     }
   }, [newTitle, newCategory, createArticle, user?.name, loadArticle]);
 
-  // ── Publish ───────────────────────────────────────────────────────────
   const handlePublish = useCallback(async () => {
     if (!currentArticleId || !editor) return;
     await handleAutoSave(editor.getHTML());
@@ -330,7 +319,6 @@ export default function ContentStudio() {
     }
   }, [currentArticleId, editor, handleAutoSave, togglePublishMutation]);
 
-  // ── Delete ────────────────────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
     if (!currentArticleId) return;
     try {
@@ -342,7 +330,6 @@ export default function ContentStudio() {
     }
   }, [currentArticleId, deleteArticleMutation]);
 
-  // ── Insert scientific block ───────────────────────────────────────────
   const insertSciBlock = useCallback(
     (html: string) => {
       if (!editor) return;
@@ -366,11 +353,11 @@ export default function ContentStudio() {
     if (meta.title.length > 0) { score += 10; checks.push({ label: "عنوان تعریف شده", ok: true }); }
     else { checks.push({ label: "عنوان تعریف شده", ok: false }); }
     if (meta.title.length >= 30 && meta.title.length <= 60) { score += 15; checks.push({ label: "طول عنوان مناسب", ok: true }); }
-    else { checks.push({ label: "طول عنوان مناسب (۳۰-۶۰ کاراکتر)", ok: false }); }
+    else { checks.push({ label: "طول عنوان مناسب", ok: false }); }
     if (meta.seoDescription.length > 0) { score += 15; checks.push({ label: "توضیحات SEO", ok: true }); }
     else { checks.push({ label: "توضیحات SEO", ok: false }); }
     if (meta.seoDescription.length >= 120 && meta.seoDescription.length <= 160) { score += 10; checks.push({ label: "طول توضیحات مناسب", ok: true }); }
-    else { checks.push({ label: "طول توضیحات مناسب (۱۲۰-۱۶۰)", ok: false }); }
+    else { checks.push({ label: "طول توضیحات مناسب", ok: false }); }
     if (meta.seoKeywords.length > 0) { score += 10; checks.push({ label: "کلمات کلیدی", ok: true }); }
     else { checks.push({ label: "کلمات کلیدی", ok: false }); }
     if (meta.excerpt.length > 0) { score += 10; checks.push({ label: "خلاصه مقاله", ok: true }); }
@@ -485,52 +472,23 @@ export default function ContentStudio() {
           <div className="flex items-center gap-1.5">
             {currentArticleId && (
               <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs text-slate-400 hover:text-white"
-                  onClick={() => setSidePanel(sidePanel === "seo" ? null : "seo")}
-                >
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-400 hover:text-white"
+                  onClick={() => setSidePanel(sidePanel === "seo" ? null : "seo")}>
                   <Globe className="ml-1 h-3.5 w-3.5" /> SEO
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs text-slate-400 hover:text-white"
-                  onClick={() => setSidePanel(sidePanel === "media" ? null : "media")}
-                >
-                  <Image className="ml-1 h-3.5 w-3.5" /> رسانه
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs text-slate-400 hover:text-white"
-                  onClick={() => setSidePanel(sidePanel === "versions" ? null : "versions")}
-                >
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-400 hover:text-white"
+                  onClick={() => setSidePanel(sidePanel === "versions" ? null : "versions")}>
                   <Clock className="ml-1 h-3.5 w-3.5" /> نسخه‌ها
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs text-slate-400 hover:text-white"
-                  onClick={() => setSidePanel(sidePanel === "settings" ? null : "settings")}
-                >
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-400 hover:text-white"
+                  onClick={() => setSidePanel(sidePanel === "settings" ? null : "settings")}>
                   <Settings className="ml-1 h-3.5 w-3.5" /> تنظیمات
                 </Button>
                 <div className="mx-1 h-4 w-px bg-white/10" />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 text-xs text-slate-400 hover:text-white"
-                  onClick={handleSaveVersion}
-                >
+                <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-400 hover:text-white" onClick={handleSaveVersion}>
                   <Save className="ml-1 h-3.5 w-3.5" /> ذخیره نسخه
                 </Button>
-                <Button
-                  size="sm"
-                  className="h-7 bg-cyan-500/20 text-xs text-cyan-300 hover:bg-cyan-500/30"
-                  onClick={handlePublish}
-                >
+                <Button size="sm" className="h-7 bg-cyan-500/20 text-xs text-cyan-300 hover:bg-cyan-500/30" onClick={handlePublish}>
                   انتشار
                 </Button>
               </>
@@ -541,203 +499,95 @@ export default function ContentStudio() {
         {/* ── Toolbar ──────────────────────────────────────────────────── */}
         {editor && currentArticleId && (
           <div className="flex flex-wrap items-center gap-0.5 border-b border-white/5 bg-[#0c1a28] px-3 py-1.5">
-            {/* Text style */}
             <div className="flex items-center gap-0.5">
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("bold") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleBold().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("bold") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleBold().run()}>
                 <Bold className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("italic") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("italic") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleItalic().run()}>
                 <Italic className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("underline") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleUnderline().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("underline") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleUnderline().run()}>
                 <Underline className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("strike") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleStrike().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("strike") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleStrike().run()}>
                 <Strikethrough className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("highlight") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleHighlight().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("highlight") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleHighlight().run()}>
                 <Highlighter className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("subscript") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleSubscript().run()}
-              >
-                <span className="text-xs font-bold">x₂</span>
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("superscript") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleSuperscript().run()}
-              >
-                <span className="text-xs font-bold">x²</span>
-              </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
-
-            {/* Headings */}
             <div className="flex items-center gap-0.5">
               {[1, 2, 3].map((level) => (
-                <Button
-                  key={level}
-                  size="icon"
-                  variant="ghost"
+                <Button key={level} size="icon" variant="ghost"
                   className={`h-7 w-7 ${editor.isActive("heading", { level }) ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                  onClick={() => editor.chain().focus().toggleHeading({ level: level as any }).run()}
-                >
-                  {level === 1 ? <Heading1 className="h-3.5 w-3.5" /> : level === 2 ? <Heading2 className="h-3.5 w-3.5" /> : <Heading3 className="h-3.5 w-3.5" />}
+                  onClick={() => editor.chain().focus().toggleHeading({ level: level as any }).run()}>
+                  <span className="text-xs font-bold">H{level}</span>
                 </Button>
               ))}
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
-
-            {/* Lists */}
             <div className="flex items-center gap-0.5">
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("bulletList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleBulletList().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("bulletList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleBulletList().run()}>
                 <List className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("orderedList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("orderedList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}>
                 <ListOrdered className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("taskList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleTaskList().run()}
-              >
-                <CheckSquare className="h-3.5 w-3.5" />
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("taskList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleTaskList().run()}>
+                <span className="text-xs">☑</span>
               </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
-
-            {/* Block */}
             <div className="flex items-center gap-0.5">
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("blockquote") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("blockquote") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleBlockquote().run()}>
                 <Quote className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("codeBlock") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-              >
+              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("codeBlock") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+                onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
                 <Code className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-slate-400"
-                onClick={() => editor.chain().focus().setHorizontalRule().run()}
-              >
-                <Minus className="h-3.5 w-3.5" />
               </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
-
-            {/* Alignment */}
             <div className="flex items-center gap-0.5">
-              {[
-                { align: "right" as const, icon: AlignRight },
-                { align: "center" as const, icon: AlignCenter },
-                { align: "left" as const, icon: AlignLeft },
-                { align: "justify" as const, icon: AlignJustify },
-              ].map(({ align, icon: Icon }) => (
-                <Button
-                  key={align}
-                  size="icon"
-                  variant="ghost"
+              {(["left", "center", "right", "justify"] as const).map((align) => (
+                <Button key={align} size="icon" variant="ghost"
                   className={`h-7 w-7 ${editor.isActive({ textAlign: align }) ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                  onClick={() => editor.chain().focus().setTextAlign(align).run()}
-                >
-                  <Icon className="h-3.5 w-3.5" />
+                  onClick={() => editor.chain().focus().setTextAlign(align).run()}>
+                  {align === "left" && <AlignLeft className="h-3.5 w-3.5" />}
+                  {align === "center" && <AlignCenter className="h-3.5 w-3.5" />}
+                  {align === "right" && <AlignRight className="h-3.5 w-3.5" />}
+                  {align === "justify" && <AlignJustify className="h-3.5 w-3.5" />}
                 </Button>
               ))}
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
-
-            {/* Link & Image */}
             <div className="flex items-center gap-0.5">
-              <Button
-                size="icon"
-                variant="ghost"
-                className={`h-7 w-7 ${editor.isActive("link") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400"
                 onClick={() => {
                   const url = window.prompt("آدرس لینک:");
                   if (url) editor.chain().focus().setLink({ href: url }).run();
-                }}
-              >
+                }}>
                 <Link2 className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-slate-400"
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400"
                 onClick={() => {
                   const url = window.prompt("آدرس تصویر:");
                   if (url) editor.chain().focus().setImage({ src: url }).run();
-                }}
-              >
+                }}>
                 <Image className="h-3.5 w-3.5" />
               </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
-
-            {/* Table */}
-            <div className="flex items-center gap-0.5">
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-slate-400"
-                onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-              >
-                <LayoutTemplate className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <div className="mx-1 h-5 w-px bg-white/10" />
-
-            {/* Undo/Redo */}
             <div className="flex items-center gap-0.5">
               <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => editor.chain().focus().undo().run()}>
                 <Undo className="h-3.5 w-3.5" />
@@ -745,17 +595,12 @@ export default function ContentStudio() {
               <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => editor.chain().focus().redo().run()}>
                 <Redo className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-slate-400"
-                onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-              >
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400"
+                onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
-
-            {/* Scientific blocks dropdown */}
+            {/* Scientific blocks */}
             <div className="relative group">
               <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-400 hover:text-white">
                 <PenTool className="ml-1 h-3.5 w-3.5" /> عناصر علمی
@@ -803,10 +648,7 @@ export default function ContentStudio() {
               <div className="flex h-full flex-col items-center justify-center gap-4">
                 <FileText className="h-12 w-12 text-slate-700" />
                 <p className="text-sm text-slate-500">یک مقاله انتخاب کنید یا مقاله جدید بسازید</p>
-                <Button
-                  className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
-                  onClick={() => setShowNewDialog(true)}
-                >
+                <Button className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={() => setShowNewDialog(true)}>
                   <Plus className="ml-1 h-4 w-4" /> مقاله جدید
                 </Button>
               </div>
@@ -819,7 +661,6 @@ export default function ContentStudio() {
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-cyan-100">
                   {sidePanel === "seo" && "بهینه‌سازی SEO"}
-                  {sidePanel === "media" && "کتابخانه رسانه"}
                   {sidePanel === "versions" && "تاریخچه نسخه‌ها"}
                   {sidePanel === "settings" && "تنظیمات مقاله"}
                 </h3>
@@ -828,10 +669,8 @@ export default function ContentStudio() {
                 </Button>
               </div>
 
-              {/* SEO Panel */}
               {sidePanel === "seo" && (
                 <div className="space-y-4">
-                  {/* SEO Score */}
                   <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-300">امتیاز SEO</span>
@@ -848,41 +687,29 @@ export default function ContentStudio() {
                     <div className="space-y-1">
                       {seoScore.checks.map((c) => (
                         <div key={c.label} className="flex items-center gap-1.5 text-[10px]">
-                          <span className={c.ok ? "text-emerald-400" : "text-amber-400"}>
-                            {c.ok ? "✓" : "⚠"}
-                          </span>
+                          <span className={c.ok ? "text-emerald-400" : "text-amber-400"}>{c.ok ? "✓" : "⚠"}</span>
                           <span className={c.ok ? "text-slate-400" : "text-slate-500"}>{c.label}</span>
                         </div>
                       ))}
                     </div>
                   </div>
-
                   <div className="space-y-3">
                     <div>
                       <label className="mb-1 block text-[10px] font-bold text-slate-400">SEO Title</label>
-                      <Input
-                        value={meta.seoTitle}
-                        onChange={(e) => setMeta((m) => ({ ...m, seoTitle: e.target.value }))}
-                        placeholder="عنوان برای موتورهای جستجو"
-                        className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
-                      />
+                      <Input value={meta.seoTitle} onChange={(e) => setMeta((m) => ({ ...m, seoTitle: e.target.value }))}
+                        placeholder="عنوان برای موتورهای جستجو" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
                       <p className="mt-0.5 text-[9px] text-slate-600">{meta.seoTitle.length}/60</p>
                     </div>
                     <div>
                       <label className="mb-1 block text-[10px] font-bold text-slate-400">Meta Description</label>
-                      <Textarea
-                        value={meta.seoDescription}
-                        onChange={(e) => setMeta((m) => ({ ...m, seoDescription: e.target.value }))}
-                        placeholder="توضیحات برای موتورهای جستجو"
-                        className="min-h-[60px] border-white/10 bg-white/5 text-xs text-slate-200"
-                      />
+                      <Textarea value={meta.seoDescription} onChange={(e) => setMeta((m) => ({ ...m, seoDescription: e.target.value }))}
+                        placeholder="توضیحات برای موتورهای جستجو" className="min-h-[60px] border-white/10 bg-white/5 text-xs text-slate-200" />
                       <p className="mt-0.5 text-[9px] text-slate-600">{meta.seoDescription.length}/160</p>
                     </div>
                     <div>
                       <label className="mb-1 block text-[10px] font-bold text-slate-400">کلمات کلیدی</label>
                       <div className="flex gap-1">
-                        <Input
-                          value={meta.seoKeywordInput}
+                        <Input value={meta.seoKeywordInput}
                           onChange={(e) => setMeta((m) => ({ ...m, seoKeywordInput: e.target.value }))}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" && meta.seoKeywordInput.trim()) {
@@ -890,18 +717,13 @@ export default function ContentStudio() {
                               setMeta((m) => ({ ...m, seoKeywords: [...m.seoKeywords, m.seoKeywordInput.trim()], seoKeywordInput: "" }));
                             }
                           }}
-                          placeholder="Enter برای افزودن"
-                          className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-200"
-                        />
+                          placeholder="Enter برای افزودن" className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-200" />
                       </div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {meta.seoKeywords.map((kw, i) => (
-                          <Badge
-                            key={i}
-                            variant="outline"
+                          <Badge key={i} variant="outline"
                             className="h-5 cursor-pointer border-cyan-400/20 text-[9px] text-cyan-300 hover:bg-cyan-400/10"
-                            onClick={() => setMeta((m) => ({ ...m, seoKeywords: m.seoKeywords.filter((_, j) => j !== i) }))}
-                          >
+                            onClick={() => setMeta((m) => ({ ...m, seoKeywords: m.seoKeywords.filter((_, j) => j !== i) }))}>
                             {kw} ×
                           </Badge>
                         ))}
@@ -909,36 +731,24 @@ export default function ContentStudio() {
                     </div>
                     <div>
                       <label className="mb-1 block text-[10px] font-bold text-slate-400">OG Title</label>
-                      <Input
-                        value={meta.ogTitle}
-                        onChange={(e) => setMeta((m) => ({ ...m, ogTitle: e.target.value }))}
-                        placeholder="عنوان شبکه اجتماعی"
-                        className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
-                      />
+                      <Input value={meta.ogTitle} onChange={(e) => setMeta((m) => ({ ...m, ogTitle: e.target.value }))}
+                        placeholder="عنوان شبکه اجتماعی" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
                     </div>
                     <div>
                       <label className="mb-1 block text-[10px] font-bold text-slate-400">OG Description</label>
-                      <Textarea
-                        value={meta.ogDescription}
-                        onChange={(e) => setMeta((m) => ({ ...m, ogDescription: e.target.value }))}
-                        placeholder="توضیحات شبکه اجتماعی"
-                        className="min-h-[60px] border-white/10 bg-white/5 text-xs text-slate-200"
-                      />
+                      <Textarea value={meta.ogDescription} onChange={(e) => setMeta((m) => ({ ...m, ogDescription: e.target.value }))}
+                        placeholder="توضیحات شبکه اجتماعی" className="min-h-[60px] border-white/10 bg-white/5 text-xs text-slate-200" />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Settings Panel */}
               {sidePanel === "settings" && (
                 <div className="space-y-4">
                   <div>
                     <label className="mb-1 block text-[10px] font-bold text-slate-400">دسته‌بندی</label>
-                    <Input
-                      value={meta.category}
-                      onChange={(e) => setMeta((m) => ({ ...m, category: e.target.value }))}
-                      className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
-                    />
+                    <Input value={meta.category} onChange={(e) => setMeta((m) => ({ ...m, category: e.target.value }))}
+                      className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-bold text-slate-400">سطح</label>
@@ -955,35 +765,23 @@ export default function ContentStudio() {
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-bold text-slate-400">نویسنده</label>
-                    <Input
-                      value={meta.authorName}
-                      onChange={(e) => setMeta((m) => ({ ...m, authorName: e.target.value }))}
-                      className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
-                    />
+                    <Input value={meta.authorName} onChange={(e) => setMeta((m) => ({ ...m, authorName: e.target.value }))}
+                      className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-bold text-slate-400">خلاصه</label>
-                    <Textarea
-                      value={meta.excerpt}
-                      onChange={(e) => setMeta((m) => ({ ...m, excerpt: e.target.value }))}
-                      placeholder="خلاصه مقاله..."
-                      className="min-h-[80px] border-white/10 bg-white/5 text-xs text-slate-200"
-                    />
+                    <Textarea value={meta.excerpt} onChange={(e) => setMeta((m) => ({ ...m, excerpt: e.target.value }))}
+                      placeholder="خلاصه مقاله..." className="min-h-[80px] border-white/10 bg-white/5 text-xs text-slate-200" />
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-bold text-slate-400">تصویر شاخص</label>
-                    <Input
-                      value={meta.featuredImage}
-                      onChange={(e) => setMeta((m) => ({ ...m, featuredImage: e.target.value }))}
-                      placeholder="آدرس تصویر"
-                      className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
-                    />
+                    <Input value={meta.featuredImage} onChange={(e) => setMeta((m) => ({ ...m, featuredImage: e.target.value }))}
+                      placeholder="آدرس تصویر" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
                   </div>
                   <div>
                     <label className="mb-1 block text-[10px] font-bold text-slate-400">برچسب‌ها</label>
                     <div className="flex gap-1">
-                      <Input
-                        value={meta.tagInput}
+                      <Input value={meta.tagInput}
                         onChange={(e) => setMeta((m) => ({ ...m, tagInput: e.target.value }))}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && meta.tagInput.trim()) {
@@ -991,71 +789,46 @@ export default function ContentStudio() {
                             setMeta((m) => ({ ...m, tags: [...m.tags, m.tagInput.trim()], tagInput: "" }));
                           }
                         }}
-                        placeholder="Enter برای افزودن"
-                        className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-200"
-                      />
+                        placeholder="Enter برای افزودن" className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-200" />
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {meta.tags.map((tag, i) => (
-                        <Badge
-                          key={i}
-                          variant="outline"
+                        <Badge key={i} variant="outline"
                           className="h-5 cursor-pointer border-cyan-400/20 text-[9px] text-cyan-300"
-                          onClick={() => setMeta((m) => ({ ...m, tags: m.tags.filter((_, j) => j !== i) }))}
-                        >
+                          onClick={() => setMeta((m) => ({ ...m, tags: m.tags.filter((_, j) => j !== i) }))}>
                           {tag} ×
                         </Badge>
                       ))}
                     </div>
                   </div>
                   <div className="border-t border-white/5 pt-3">
-                    <Button
-                      variant="outline"
-                      className="w-full border-red-400/20 text-xs text-red-300 hover:bg-red-400/10"
-                      onClick={handleDelete}
-                    >
+                    <Button variant="outline" className="w-full border-red-400/20 text-xs text-red-300 hover:bg-red-400/10"
+                      onClick={handleDelete}>
                       <Trash2 className="ml-1 h-3.5 w-3.5" /> حذف مقاله
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* Versions Panel */}
               {sidePanel === "versions" && (
                 <div className="space-y-3">
-                  <p className="text-[10px] text-slate-500">
-                    هر ذخیره نسخه، یک snapshot از مقاله ایجاد می‌کند. می‌توانید نسخه قبلی را بازیابی کنید.
-                  </p>
+                  <p className="text-[10px] text-slate-500">هر ذخیره نسخه، یک snapshot از مقاله ایجاد می‌کند.</p>
                   {versions && versions.length > 0 ? (
                     versions.map((v) => (
-                      <div
-                        key={v._id}
-                        className="rounded-lg border border-white/5 bg-white/[0.02] p-3"
-                      >
+                      <div key={v._id} className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-slate-300">{v.title}</span>
-                          <span className="text-[9px] text-slate-600">
-                            {new Date(v.createdAt).toLocaleString("fa-IR")}
-                          </span>
+                          <span className="text-[9px] text-slate-600">{new Date(v.createdAt).toLocaleString("fa-IR")}</span>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
+                        <Button size="sm" variant="ghost"
                           className="mt-2 h-6 text-[10px] text-cyan-400 hover:text-cyan-300"
                           onClick={async () => {
                             try {
-                              await quickSaveMutation({
-                                id: currentArticleId as any,
-                                body: v.body,
-                                title: v.title,
-                              });
+                              await quickSaveMutation({ id: currentArticleId as any, body: v.body, title: v.title });
                               if (editor) editor.commands.setContent(v.body);
                               toast.success("نسخه بازیابی شد");
-                            } catch {
-                              toast.error("خطا در بازیابی");
-                            }
-                          }}
-                        >
+                            } catch { toast.error("خطا در بازیابی"); }
+                          }}>
                           بازیابی این نسخه
                         </Button>
                       </div>
@@ -1063,31 +836,6 @@ export default function ContentStudio() {
                   ) : (
                     <p className="py-6 text-center text-xs text-slate-500">هنوز نسخه‌ای ذخیره نشده</p>
                   )}
-                </div>
-              )}
-
-              {/* Media Panel */}
-              {sidePanel === "media" && (
-                <div className="space-y-3">
-                  <p className="text-[10px] text-slate-500">تصاویر را آپلود و مدیریت کنید.</p>
-                  <Button
-                    className="w-full border-cyan-400/20 bg-cyan-400/10 text-xs text-cyan-300 hover:bg-cyan-400/20"
-                    onClick={() => {
-                      const url = window.prompt("آدرس تصویر:");
-                      const name = window.prompt("نام تصویر:");
-                      if (url && name) {
-                        toast.success("تصویر اضافه شد (Media Library واقعی نیاز به Convex Storage دارد)");
-                      }
-                    }}
-                  >
-                    <Image className="ml-1 h-3.5 w-3.5" /> افزودن تصویر
-                  </Button>
-                  <div className="space-y-2">
-                    <p className="text-center text-[10px] text-slate-600 py-4">
-                      Media Library واقعی نیاز به Convex File Storage دارد.
-                      <br />فعلاً از آدرس URL مستقیم استفاده کنید.
-                    </p>
-                  </div>
                 </div>
               )}
             </aside>
@@ -1102,27 +850,14 @@ export default function ContentStudio() {
             <DialogTitle className="text-right text-cyan-100">مقاله جدید</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Input
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="عنوان مقاله"
-              className="border-white/10 bg-white/5 text-slate-200"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreateArticle();
-              }}
-            />
-            <Input
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              placeholder="دسته‌بندی"
-              className="border-white/10 bg-white/5 text-slate-200"
-            />
+            <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="عنوان مقاله"
+              className="border-white/10 bg-white/5 text-slate-200" autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") handleCreateArticle(); }} />
+            <Input value={newCategory} onChange={(e) => setNewCategory(e.target.value)} placeholder="دسته‌بندی"
+              className="border-white/10 bg-white/5 text-slate-200" />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowNewDialog(false)}>
-              انصراف
-            </Button>
+            <Button variant="ghost" onClick={() => setShowNewDialog(false)}>انصراف</Button>
             <Button className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleCreateArticle}>
               <Plus className="ml-1 h-4 w-4" /> ساخت
             </Button>
