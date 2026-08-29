@@ -1,6 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -113,6 +113,7 @@ function Editor({
   editorRef,
   onTable,
   onSciBlock,
+  onAIAssistant,
 }: {
   html: string;
   onChange: (html: string) => void;
@@ -124,6 +125,7 @@ function Editor({
   editorRef?: React.RefObject<HTMLDivElement | null>
   onTable?: () => void
   onSciBlock?: (type: string) => void
+  onAIAssistant?: () => void
 }) {
   const internalRef = useRef<HTMLDivElement>(null);
   const ref = editorRef || internalRef;
@@ -404,6 +406,12 @@ function Editor({
           icon={<Calculator className="h-3.5 w-3.5" />}
           title="Formula"
           exec={() => onSciBlock?.("formula")}
+        />
+        {/* AI Assistant */}
+        <ToolbarBtn
+          icon={<span className="text-[10px] font-bold text-cyan-300">AI</span>}
+          title="AI Writing Assistant"
+          exec={() => { if (onAIAssistant) onAIAssistant() }}
         />
         {/* Alignment */}
         <ToolbarBtn icon={<AlignRight className="h-3.5 w-3.5" />} title="Align Right" exec={() => exec("justifyRight")} />
@@ -1253,7 +1261,53 @@ export default function ContentStudio() {
   const editorRef = useRef<HTMLDivElement>(null);
   const savedRangeRef = useRef<Range | null>(null);
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const rewriteText = useAction(api.aiActions.rewriteText);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState("");
+  const [aiError, setAiError] = useState("");
+  const [selectedText, setSelectedText] = useState("");
 
+  const handleAIAction = async (prompt: string, withSelection: boolean) => {
+    setAiLoading(true);
+    setAiError("");
+    setAiResult("");
+    try {
+      const sel = window.getSelection()?.toString() || "";
+      const text = withSelection ? sel : "";
+      setSelectedText(text);
+      const res = await rewriteText({ prompt, selectedText: text || undefined });
+      if (res.ok && res.result) {
+        setAiResult(res.result);
+      } else {
+        setAiError(res.error || "پاسخی دریافت نشد.");
+      }
+    } catch (e: any) {
+      setAiError(e?.message || "خطا در ارتباط با هوش مصنوعی.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+  const applyAIResult = () => {
+    const editorEl = editorRef.current;
+    if (editorEl && aiResult) {
+      editorEl.focus();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && selectedText) {
+        // Replace selected text
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(aiResult));
+      } else {
+        document.execCommand("insertHTML", false, aiResult);
+      }
+      setForm((f) => ({ ...f, body: editorEl.innerHTML }));
+      setAiResult("");
+      setAiPanelOpen(false);
+      toast.success("متن اعمال شد.");
+    }
+  };
   const insertSciBlock = (type: string) => {
     const styles: Record<string, { label: string; bg: string; border: string; icon: string }> = {
       note: { label: "📝 Scientific Note", bg: "rgba(6,182,212,0.08)", border: "rgba(6,182,212,0.3)", icon: "🧪" },
@@ -1576,6 +1630,11 @@ export default function ContentStudio() {
                   onEmbed={() => setEmbedDialogOpen(true)}
                   onTable={() => setTableDialogOpen(true)}
                   onSciBlock={insertSciBlock}
+                  onAIAssistant={() => {
+                    const sel = window.getSelection()?.toString() || "";
+                    setSelectedText(sel);
+                    setAiPanelOpen(true);
+                  }}
                 />
               </div>
             </div>
@@ -1749,6 +1808,92 @@ export default function ContentStudio() {
             }
           }}
         />
+
+        {/* AI Writing Assistant Panel */}
+        {aiPanelOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="mx-4 w-full max-w-lg rounded-xl border border-white/10 bg-[#0c1a28] shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <h3 className="text-sm font-bold text-cyan-300">AI Writing Assistant</h3>
+                <button onClick={() => { setAiPanelOpen(false); setAiResult(""); setAiError("") }} className="text-slate-400 hover:text-white">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="space-y-3 p-4">
+                {selectedText && (
+                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
+                    <span className="text-[10px] font-bold text-slate-500">Selected text:</span>
+                    <p className="mt-1 line-clamp-3 text-xs text-slate-300">{selectedText}</p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: "Rewrite", prompt: "Rewrite the following text to be clearer and more professional" },
+                    { label: "Improve", prompt: "Improve the following text for better quality and flow" },
+                    { label: "Simplify", prompt: "Simplify the following text so it is easier to understand" },
+                    { label: "Expand", prompt: "Expand the following text with more detail and explanation" },
+                    { label: "Shorten", prompt: "Shorten the following text while keeping the meaning" },
+                    { label: "Grammar", prompt: "Fix grammar and spelling in the following text" },
+                    { label: "Translate", prompt: "Translate the following text to English" },
+                    { label: "Heading", prompt: "Generate a clear heading for the following content" },
+                    { label: "Summary", prompt: "Write a summary of the following text" },
+                    { label: "Meta Description", prompt: "Generate an SEO meta description for the following text" },
+                    { label: "Keywords", prompt: "Extract 5 relevant SEO keywords from the following text, comma-separated" },
+                    { label: "Continue", prompt: "Continue writing naturally from where the following text ends" },
+                  ].map((action) => (
+                    <button
+                      key={action.label}
+                      onClick={() => handleAIAction(action.prompt, true)}
+                      disabled={aiLoading}
+                      className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-slate-300 transition-colors hover:border-cyan-400/30 hover:text-cyan-300 disabled:opacity-50"
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-slate-400">Custom prompt</label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && aiPrompt.trim()) handleAIAction(aiPrompt, false) }}
+                      placeholder="Type your instruction..."
+                      className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-200"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => { if (aiPrompt.trim()) handleAIAction(aiPrompt, false) }}
+                      disabled={aiLoading || !aiPrompt.trim()}
+                      className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+                    >
+                      {aiLoading ? "..." : "AI"}
+                    </Button>
+                  </div>
+                </div>
+                {aiLoading && (
+                  <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                    <span className="text-xs text-slate-400">Processing...</span>
+                  </div>
+                )}
+                {aiError && (
+                  <div className="rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-xs text-red-300">{aiError}</div>
+                )}
+                {aiResult && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400">Result:</label>
+                    <div className="max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-200 whitespace-pre-wrap">{aiResult}</div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={applyAIResult} className="bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">Apply</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(aiResult); toast.success("Copied") }} className="text-slate-400">Copy</Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

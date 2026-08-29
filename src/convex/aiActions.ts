@@ -547,3 +547,101 @@ export const generateArticles = action({
     }
   },
 });
+
+// ── AI Writing Assistant (Content Studio) ─────────────────────────────────
+
+/**
+ * Single-turn AI text processing for the Content Studio editor.
+ * Used for: Rewrite, Improve, Simplify, Expand, Shorten, Grammar,
+ * Translate, Generate Heading, Generate Summary, etc.
+ *
+ * This action reads config server-side and returns the AI response.
+ * The API key never reaches the browser.
+ */
+export const rewriteText = action({
+  args: {
+    prompt: v.string(),
+    selectedText: v.optional(v.string()),
+    modelId: v.optional(v.id("aiModels")),
+  },
+  handler: async (ctx, args): Promise<{ ok: boolean; result?: string; error?: string }> => {
+    // Read AI config server-side
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, {
+      modelId: args.modelId ?? undefined,
+    });
+
+    if (!rawConfig || !rawConfig.apiKey) {
+      return { ok: false, error: "هوش مصنوعی هنوز پیکربندی نشده است." };
+    }
+
+    const { apiKey, baseUrl, model, provider, temperature } = rawConfig;
+
+    const systemPrompt = "You are a professional scientific writing assistant specializing in biology. Respond ONLY with the requested text transformation — no explanations, no markdown formatting, no code blocks, just the transformed text.";
+    
+    const userMessage = args.selectedText
+      ? `${args.prompt}\n\n---\nText:\n${args.selectedText}`
+      : args.prompt;
+
+    const chatMessages = [
+      { role: "system" as const, content: systemPrompt },
+      { role: "user" as const, content: userMessage },
+    ];
+
+    try {
+      let responseText = "";
+
+      if (provider === "anthropic") {
+        const resp = await fetch(`${baseUrl}/v1/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 2048,
+            temperature: temperature ?? 0.7,
+            messages: chatMessages.filter((m) => m.role !== "system"),
+            system: systemPrompt,
+          }),
+        });
+        const data = (await resp.json()) as any;
+        if (data.error) return { ok: false, error: data.error.message ?? "Anthropic API error" };
+        responseText = data.content?.[0]?.text ?? "";
+      } else if (provider === "google") {
+        const contents = chatMessages
+          .filter((m) => m.role !== "system")
+          .map((m) => ({ role: "user", parts: [{ text: m.content }] }));
+        const resp = await fetch(`${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents, generationConfig: { temperature: temperature ?? 0.7, maxOutputTokens: 2048 } }),
+        });
+        const data = (await resp.json()) as any;
+        if (data.error) return { ok: false, error: data.error.message ?? "Google AI error" };
+        responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      } else {
+        // OpenAI-compatible
+        const resp = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({ model, messages: chatMessages, temperature: temperature ?? 0.7, max_tokens: 2048 }),
+        });
+        const data = (await resp.json()) as any;
+        if (data.error) return { ok: false, error: data.error.message ?? "API error" };
+        responseText = data.choices?.[0]?.message?.content ?? "";
+      }
+
+      if (!responseText.trim()) {
+        return { ok: false, error: "پاسخ خالی از هوش مصنوعی دریافت شد." };
+      }
+
+      return { ok: true, result: responseText.trim() };
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "خطای ناشناخته";
+      console.error("AI rewriteText failed:", msg);
+      return { ok: false, error: `خطا در اتصال: ${msg}` };
+    }
+  },
+});
