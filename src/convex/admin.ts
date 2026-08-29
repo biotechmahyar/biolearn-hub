@@ -1107,26 +1107,41 @@ export const adminCreateArticle = mutation({
     authorName: v.string(),
     readTime: v.number(),
     published: v.boolean(),
+    seoTitle: v.optional(v.string()),
+    seoDescription: v.optional(v.string()),
+    seoKeywords: v.optional(v.array(v.string())),
+    seoCanonical: v.optional(v.string()),
+    ogTitle: v.optional(v.string()),
+    ogDescription: v.optional(v.string()),
+    ogImage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");      await ctx.db.insert("articles", {
-        title: args.title.trim(),
-        slug: args.slug.trim() || args.title.trim().replace(/\s+/g, "-"),
-        category: args.category.trim() || "عمومی",
-        excerpt: args.excerpt.trim(),
-        body: args.body,
-        authorName: args.authorName.trim() || "تیم Genova",
-        accent: "teal",
-        readTime: args.readTime || 5,
-        published: args.published,
-        featured: false,
-        status: args.published ? "published" : "draft",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      });
-      return { ok: true };
-    },
-  });
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
+    await ctx.db.insert("articles", {
+      title: args.title.trim(),
+      slug: args.slug.trim() || args.title.trim().replace(/\s+/g, "-"),
+      category: args.category.trim() || "عمومی",
+      excerpt: args.excerpt.trim(),
+      body: args.body,
+      authorName: args.authorName.trim() || "تیم Genova",
+      accent: "teal",
+      readTime: args.readTime || 5,
+      published: args.published,
+      featured: false,
+      status: args.published ? "published" : "draft",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...(args.seoTitle && { seoTitle: args.seoTitle }),
+      ...(args.seoDescription && { seoDescription: args.seoDescription }),
+      ...(args.seoKeywords && args.seoKeywords.length > 0 && { seoKeywords: args.seoKeywords }),
+      ...(args.seoCanonical && { seoCanonical: args.seoCanonical }),
+      ...(args.ogTitle && { ogTitle: args.ogTitle }),
+      ...(args.ogDescription && { ogDescription: args.ogDescription }),
+      ...(args.ogImage && { ogImage: args.ogImage }),
+    });
+    return { ok: true };
+  },
+});
 
 export const adminUpdateArticle = mutation({
   args: {
@@ -1138,10 +1153,17 @@ export const adminUpdateArticle = mutation({
     authorName: v.string(),
     readTime: v.number(),
     published: v.boolean(),
+    seoTitle: v.optional(v.string()),
+    seoDescription: v.optional(v.string()),
+    seoKeywords: v.optional(v.array(v.string())),
+    seoCanonical: v.optional(v.string()),
+    ogTitle: v.optional(v.string()),
+    ogDescription: v.optional(v.string()),
+    ogImage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
-    await ctx.db.patch(args.id, {
+    const patch: Record<string, any> = {
       title: args.title.trim(),
       category: args.category.trim() || "عمومی",
       excerpt: args.excerpt.trim(),
@@ -1149,7 +1171,15 @@ export const adminUpdateArticle = mutation({
       authorName: args.authorName.trim() || "تیم Genova",
       readTime: args.readTime || 5,
       published: args.published,
-    });
+    };
+    if (args.seoTitle !== undefined) patch.seoTitle = args.seoTitle || undefined;
+    if (args.seoDescription !== undefined) patch.seoDescription = args.seoDescription || undefined;
+    if (args.seoKeywords !== undefined) patch.seoKeywords = args.seoKeywords.length > 0 ? args.seoKeywords : undefined;
+    if (args.seoCanonical !== undefined) patch.seoCanonical = args.seoCanonical || undefined;
+    if (args.ogTitle !== undefined) patch.ogTitle = args.ogTitle || undefined;
+    if (args.ogDescription !== undefined) patch.ogDescription = args.ogDescription || undefined;
+    if (args.ogImage !== undefined) patch.ogImage = args.ogImage || undefined;
+    await ctx.db.patch(args.id, patch);
     return { ok: true };
   },
 });

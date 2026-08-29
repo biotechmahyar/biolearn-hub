@@ -60,6 +60,7 @@ import {
   Info,
   Lightbulb,
   Calculator,
+  Search,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -1234,6 +1235,13 @@ export default function ContentStudio() {
     body: "",
     authorName: "",
     published: false,
+    seoTitle: "",
+    seoDescription: "",
+    seoKeywords: "",
+    seoCanonical: "",
+    ogTitle: "",
+    ogDescription: "",
+    ogImage: "",
   });
   const [busy, setBusy] = useState(false);
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
@@ -1271,24 +1279,19 @@ export default function ContentStudio() {
 
   const openCreate = () => {
     setForm({
-      title: "",
-      category: "عمومی",
-      excerpt: "",
-      body: "<p></p>",
-      authorName: "",
-      published: false,
+      title: "", category: "عمومی", excerpt: "", body: "<p></p>", authorName: "", published: false,
+      seoTitle: "", seoDescription: "", seoKeywords: "", seoCanonical: "",
+      ogTitle: "", ogDescription: "", ogImage: "",
     });
     setDialog({ mode: "create" });
   };
 
   const openEdit = (a: any) => {
+    const kw = Array.isArray(a.seoKeywords) ? a.seoKeywords.join(", ") : "";
     setForm({
-      title: a.title ?? "",
-      category: a.category ?? "عمومی",
-      excerpt: a.excerpt ?? "",
-      body: a.body ?? "<p></p>",
-      authorName: a.authorName ?? "",
-      published: a.published ?? false,
+      title: a.title ?? "", category: a.category ?? "عمومی", excerpt: a.excerpt ?? "", body: a.body ?? "<p></p>", authorName: a.authorName ?? "", published: a.published ?? false,
+      seoTitle: a.seoTitle ?? "", seoDescription: a.seoDescription ?? "", seoKeywords: kw,
+      seoCanonical: a.seoCanonical ?? "", ogTitle: a.ogTitle ?? "", ogDescription: a.ogDescription ?? "", ogImage: a.ogImage ?? "",
     });
     setDialog({ mode: "edit", article: a });
   };
@@ -1316,6 +1319,13 @@ export default function ContentStudio() {
           authorName: form.authorName,
           readTime: Math.max(1, Math.round(plainText.split(/\s+/).length / 250)),
           published: form.published,
+          seoTitle: form.seoTitle || undefined,
+          seoDescription: form.seoDescription || undefined,
+          seoKeywords: form.seoKeywords ? form.seoKeywords.split(",").map((k: string) => k.trim()).filter(Boolean) : undefined,
+          seoCanonical: form.seoCanonical || undefined,
+          ogTitle: form.ogTitle || undefined,
+          ogDescription: form.ogDescription || undefined,
+          ogImage: form.ogImage || undefined,
         });
         toast.success("مقاله بروزرسانی شد");
       } else {
@@ -1328,6 +1338,13 @@ export default function ContentStudio() {
           authorName: form.authorName || "تیم Genova",
           readTime: Math.max(1, Math.round(plainText.split(/\s+/).length / 250)),
           published: false,
+          seoTitle: form.seoTitle || undefined,
+          seoDescription: form.seoDescription || undefined,
+          seoKeywords: form.seoKeywords ? form.seoKeywords.split(",").map((k: string) => k.trim()).filter(Boolean) : undefined,
+          seoCanonical: form.seoCanonical || undefined,
+          ogTitle: form.ogTitle || undefined,
+          ogDescription: form.ogDescription || undefined,
+          ogImage: form.ogImage || undefined,
         });
         toast.success("مقاله جدید ساخته شد");
       }
@@ -1562,6 +1579,60 @@ export default function ContentStudio() {
                 />
               </div>
             </div>
+
+              {/* SEO Panel */}
+              <div className="space-y-3 rounded-lg border border-white/10 p-4">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-cyan-300">
+                  SEO & Meta
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">SEO Title</label>
+                    <Input value={form.seoTitle} onChange={(e) => setForm((f) => ({ ...f, seoTitle: e.target.value }))} placeholder="Title tag for search engines" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    <span className={`text-[10px] ${form.seoTitle.length > 60 ? "text-amber-400" : form.seoTitle.length > 0 ? "text-emerald-400" : "text-slate-500"}`}>{form.seoTitle.length}/60</span>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Meta Description</label>
+                    <textarea value={form.seoDescription} onChange={(e) => setForm((f) => ({ ...f, seoDescription: e.target.value }))} placeholder="Meta description for search results" rows={2} className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none" />
+                    <span className={`text-[10px] ${form.seoDescription.length > 160 ? "text-amber-400" : form.seoDescription.length > 0 ? "text-emerald-400" : "text-slate-500"}`}>{form.seoDescription.length}/160</span>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">URL Slug</label>
+                    <Input value={form.seoTitle ? form.seoTitle.toLowerCase().replace(/[^a-z0-9u0600-u06FF\s-]/g, "").replace(/\s+/g, "-") : ""} readOnly className="h-8 border-white/10 bg-white/5 text-xs text-slate-500" dir="ltr" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Focus Keyword</label>
+                    <Input value={(form.seoKeywords.split(",")[0] || "").trim()} onChange={(e) => { const kw = form.seoKeywords.split(",").map((k) => k.trim()); kw[0] = e.target.value; setForm((f) => ({ ...f, seoKeywords: kw.join(", ") })); }} placeholder="Main keyword" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Secondary Keywords</label>
+                    <Input value={form.seoKeywords.split(",").slice(1).join(", ")} onChange={(e) => { const focus = (form.seoKeywords.split(",")[0] || "").trim(); const rest = e.target.value; setForm((f) => ({ ...f, seoKeywords: [focus, rest].filter(Boolean).join(", ") })); }} placeholder="keyword1, keyword2, ..." className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Canonical URL</label>
+                    <Input value={form.seoCanonical} onChange={(e) => setForm((f) => ({ ...f, seoCanonical: e.target.value }))} placeholder="https://genova.team/articles/..." className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" dir="ltr" />
+                  </div>
+                </div>
+                {/* Open Graph */}
+                <div className="border-t border-white/5 pt-3">
+                  <h4 className="mb-2 text-[10px] font-bold text-slate-500">Open Graph (Social)</h4>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-[10px] font-bold text-slate-400">OG Title</label>
+                      <Input value={form.ogTitle} onChange={(e) => setForm((f) => ({ ...f, ogTitle: e.target.value }))} placeholder="Title for social media" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-[10px] font-bold text-slate-400">OG Description</label>
+                      <Input value={form.ogDescription} onChange={(e) => setForm((f) => ({ ...f, ogDescription: e.target.value }))} placeholder="Description for social media" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-[10px] font-bold text-slate-400">Social Image URL</label>
+                      <Input value={form.ogImage} onChange={(e) => setForm((f) => ({ ...f, ogImage: e.target.value }))} placeholder="https://example.com/og-image.jpg" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" dir="ltr" />
+                      {form.ogImage && (() => { try { new URL(form.ogImage); return <img src={form.ogImage} alt="OG Preview" className="mt-2 max-h-32 rounded-lg border border-white/10 object-cover" />; } catch { return null; } })()}
+                    </div>
+                  </div>
+                </div>
+              </div>
             <DialogFooter>
               <Button
                 variant="ghost"
