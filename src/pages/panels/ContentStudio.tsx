@@ -732,63 +732,112 @@ function EmbedDialog({
   onOpenChange: (v: boolean) => void
   onInsert: (html: string) => void
 }) {
-  const [tab, setTab] = useState<"youtube" | "pdf">("youtube")
-  const [youtubeUrl, setYoutubeUrl] = useState("")
+  const [tab, setTab] = useState<"video" | "pdf" | "iframe">("video")
+  const [videoUrl, setVideoUrl] = useState("")
   const [pdfUrl, setPdfUrl] = useState("")
   const [pdfTitle, setPdfTitle] = useState("")
+  const [iframeUrl, setIframeUrl] = useState("")
+  const [iframeTitle, setIframeTitle] = useState("")
+  const [iframeHeight, setIframeHeight] = useState("500")
 
-  const getYouTubeEmbed = (url: string): string | null => {
-    const patterns = [
+  // ── Platform detection ─────────────────────────────────────────────────
+  type PlatformInfo = { name: string; icon: string; embedUrl: string | null };
+
+  const detectPlatform = (url: string): PlatformInfo => {
+    const u = url.trim();
+    // YouTube
+    const ytPatterns = [
       /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
       /youtu\.be\/([a-zA-Z0-9_-]{11})/,
       /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
-    ]
-    for (const p of patterns) {
-      const m = url.match(p)
-      if (m) return m[1]
+    ];
+    for (const p of ytPatterns) {
+      const m = u.match(p);
+      if (m) return { name: "YouTube", icon: "🎬", embedUrl: `https://www.youtube.com/embed/${m[1]}` };
     }
-    return null
-  }
+    // Aparat
+    const apPatterns = [
+      /aparat\.com\/embed\/([a-zA-Z0-9]+)/,
+      /aparat\.com\/v\/([a-zA-Z0-9]+)/,
+      /aparat\.com\/video\/([a-zA-Z0-9]+)/,
+      /aparat\.com\/([a-zA-Z0-9]+)$/,
+    ];
+    for (const p of apPatterns) {
+      const m = u.match(p);
+      if (m) return { name: "آپارات", icon: "📹", embedUrl: `https://www.aparat.com/embed/video${m[1]}` };
+    }
+    // Vimeo
+    const vmPatterns = [
+      /vimeo\.com\/(\d+)/,
+      /player\.vimeo\.com\/video\/(\d+)/,
+    ];
+    for (const p of vmPatterns) {
+      const m = u.match(p);
+      if (m) return { name: "Vimeo", icon: "🎞️", embedUrl: `https://player.vimeo.com/video/${m[1]}` };
+    }
+    // Generic: if it looks like a URL, allow iframe
+    try { new URL(u); return { name: "سایت دیگر", icon: "🌐", embedUrl: u }; } catch { /* not url */ }
+    return { name: "ناشناخته", icon: "❓", embedUrl: null };
+  };
 
-  const handleInsertYouTube = () => {
-    const id = getYouTubeEmbed(youtubeUrl.trim())
-    if (!id) {
-      toast.error("آدرس YouTube معتبر نیست")
-      return
+  const platform = videoUrl.trim() ? detectPlatform(videoUrl) : null;
+
+  const handleInsertVideo = () => {
+    if (!videoUrl.trim()) {
+      toast.error("آدرس ویدئو را وارد کنید");
+      return;
     }
-    const html = `<div class="embed-container" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:16px 0;border-radius:12px"><iframe src="https://www.youtube.com/embed/${id}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe></div><p><br></p>`
-    onInsert(html)
-    onOpenChange(false)
-    setYoutubeUrl("")
-  }
+    if (!platform?.embedUrl) {
+      toast.error("آدرس ویدئو معتبر نیست");
+      return;
+    }
+    const html = `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:16px 0;border-radius:12px;background:#000"><iframe src=\"${platform.embedUrl}\" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allowfullscreen loading="lazy" allow="autoplay;encrypted-media"></iframe></div><p><br></p>`;
+    onInsert(html);
+    onOpenChange(false);
+    setVideoUrl("");
+  };
 
   const handleInsertPDF = () => {
     if (!pdfUrl.trim()) {
-      toast.error("آدرس PDF را وارد کنید")
-      return
+      toast.error("آدرس PDF را وارد کنید");
+      return;
     }
-    try {
-      new URL(pdfUrl.trim())
-    } catch {
-      toast.error("آدرس PDF معتبر نیست")
-      return
+    try { new URL(pdfUrl.trim()); } catch {
+      toast.error("آدرس PDF معتبر نیست");
+      return;
     }
-    const html = `<div style="margin:16px 0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)"><div style="background:rgba(255,255,255,0.05);padding:8px 12px;display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-size:12px;color:#94a3b8">${pdfTitle || "PDF Document"}</span></div><iframe src="${pdfUrl.trim()}" style="width:100%;height:500px;border:0"></iframe></div><p><br></p>`
-    onInsert(html)
-    onOpenChange(false)
-    setPdfUrl("")
-    setPdfTitle("")
-  }
+    const html = `<div style="margin:16px 0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)"><div style="background:rgba(255,255,255,0.05);padding:8px 12px;display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-size:12px;color:#94a3b8">${pdfTitle || "PDF Document"}</span></div><iframe src=\"${pdfUrl.trim()}\" style="width:100%;height:500px;border:0"></iframe></div><p><br></p>`;
+    onInsert(html);
+    onOpenChange(false);
+    setPdfUrl("");
+    setPdfTitle("");
+  };
+
+  const handleInsertIframe = () => {
+    if (!iframeUrl.trim()) {
+      toast.error("آدرس iframe را وارد کنید");
+      return;
+    }
+    try { new URL(iframeUrl.trim()); } catch {
+      toast.error("آدرس معتبر نیست");
+      return;
+    }
+    const html = `<div style="margin:16px 0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)"><div style="background:rgba(255,255,255,0.05);padding:8px 12px;display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#94a3b8">${iframeTitle || "Embedded Content"}</span></div><iframe src=\"${iframeUrl.trim()}\" style="width:100%;height:${iframeHeight}px;border:0"></iframe></div><p><br></p>`;
+    onInsert(html);
+    onOpenChange(false);
+    setIframeUrl("");
+    setIframeTitle("");
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-white/10 bg-[#0c1a28] sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] overflow-y-auto border-white/10 bg-[#0c1a28] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-right text-cyan-100">جاسازی محتوا</DialogTitle>
         </DialogHeader>
         {/* Tabs */}
         <div className="flex gap-1 border-b border-white/10">
-          {(["youtube", "pdf"] as const).map((t) => (
+          {(["video", "pdf", "iframe"] as const).map((t) => (
             <button
               key={t}
               className={`px-3 py-1.5 text-xs transition-colors ${
@@ -796,37 +845,45 @@ function EmbedDialog({
               }`}
               onClick={() => setTab(t)}
             >
-              {t === "youtube" ? "YouTube" : "PDF"}
+              {t === "video" ? "🎬 ویدئو" : t === "pdf" ? "📄 PDF" : "🌐 iframe"}
             </button>
           ))}
         </div>
 
-        {tab === "youtube" && (
+        {tab === "video" && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس ویدئو YouTube</label>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس ویدئو</label>
               <Input
-                value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
+                value={videoUrl}
+                onChange={(e) => setVideoUrl(e.target.value)}
+                placeholder="YouTube, آپارات, Vimeo یا هر آدرس دیگر..."
                 className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
                 dir="ltr"
-                onKeyDown={(e) => { if (e.key === "Enter") handleInsertYouTube() }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleInsertVideo() }}
               />
-            </div>
-            {youtubeUrl && (() => {
-              const id = getYouTubeEmbed(youtubeUrl)
-              return id ? (
-                <div className="overflow-hidden rounded-lg border border-white/10">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${id}`}
-                    className="aspect-video w-full"
-                    allowFullScreen
-                  />
+              {platform && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[10px]">
+                  <span>{platform.icon}</span>
+                  <span className={platform.embedUrl ? "text-emerald-400" : "text-amber-400"}>
+                    {platform.embedUrl ? `${platform.name} — شناسایی شد ✓` : `ناشناخته — از iframe استفاده کنید`}
+                  </span>
                 </div>
-              ) : null
-            })()}
-            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertYouTube}>
+              )}
+            </div>
+            {/* Preview */}
+            {platform?.embedUrl && (
+              <div className="overflow-hidden rounded-lg border border-white/10">
+                <iframe
+                  src={platform.embedUrl}
+                  className="aspect-video w-full"
+                  allowFullScreen
+                  allow="autoplay;encrypted-media"
+                  loading="lazy"
+                />
+              </div>
+            )}
+            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertVideo}>
               <Video className="ml-1 h-3.5 w-3.5" /> جاسازی ویدئو
             </Button>
           </div>
@@ -855,6 +912,64 @@ function EmbedDialog({
             </div>
             <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertPDF}>
               <ExternalLink className="ml-1 h-3.5 w-3.5" /> جاسازی PDF
+            </Button>
+          </div>
+        )}
+
+        {tab === "iframe" && (
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس iframe</label>
+              <Input
+                value={iframeUrl}
+                onChange={(e) => setIframeUrl(e.target.value)}
+                placeholder="https://example.com/embed..."
+                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">عنوان (اختیاری)</label>
+              <Input
+                value={iframeTitle}
+                onChange={(e) => setIframeTitle(e.target.value)}
+                placeholder="نام محتوا"
+                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">ارتفاع (px)</label>
+              <Input
+                type="number"
+                value={iframeHeight}
+                onChange={(e) => setIframeHeight(e.target.value)}
+                placeholder="500"
+                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                min="200"
+                dir="ltr"
+              />
+            </div>
+            {/* Preview */}
+            {iframeUrl.trim() && (() => {
+              try {
+                new URL(iframeUrl.trim());
+                return (
+                  <div className="overflow-hidden rounded-lg border border-white/10">
+                    <iframe
+                      src={iframeUrl.trim()}
+                      className="w-full border-0"
+                      style={{ height: `${iframeHeight}px` }}
+                      allowFullScreen
+                      loading="lazy"
+                    />
+                  </div>
+                );
+              } catch {
+                return null;
+              }
+            })()}
+            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertIframe}>
+              <ExternalLink className="ml-1 h-3.5 w-3.5" /> جاسازی iframe
             </Button>
           </div>
         )}
