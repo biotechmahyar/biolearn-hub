@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 import { isAdmin } from "./admin";
+import { api } from "./_generated/api";
 
 // ── Role helpers ────────────────────────────────────────────────────────────
 const isMentor = async (ctx: any) => {
@@ -59,6 +60,19 @@ export const answerMentorQuestion = mutation({
       status: "answered",
       answeredAt: Date.now(),
     });
+
+    // Telegram notification to the student who asked
+    try {
+      await ctx.scheduler.runAfter(0, api.telegramNotifications.sendNotification, {
+        userId: q.studentId,
+        type: "mentor_reply",
+        key: `mentor-answer:${q._id}`,
+        title: `💬 پاسخ منتور به سؤال شما`,
+        message: `${user.name ?? "منتور"} به سؤال شما پاسخ داد:\n\n${args.answer.trim().slice(0, 300)}`,
+        linkLabel: "مشاهده در Genova",
+      });
+    } catch { /* notification failure should not break the answer */ }
+
     return await ctx.db.get(q._id);
   },
 });
@@ -88,6 +102,18 @@ export const planSession = mutation({
       status: "scheduled",
       createdAt: Date.now(),
     });
+
+    // Telegram notification to student
+    try {
+      await ctx.scheduler.runAfter(0, api.telegramNotifications.sendNotification, {
+        userId: args.studentId,
+        type: "meeting",
+        key: `session:${user!._id}:${args.studentId}:${Date.now()}`,
+        title: `📅 جلسه Mentoring جدید`,
+        message: `${user!.name ?? "منتور"} جلسه‌ای برنامه‌ریزی کرد:\n\nعنوان: ${args.title.trim()}\n🕐 زمان: ${args.date} — ${args.time}`,
+        linkLabel: "مشاهده جلسه",
+      });
+    } catch { /* notification failure should not break session creation */ }
   },
 });
 

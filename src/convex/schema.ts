@@ -109,6 +109,7 @@ const schema = defineSchema(
       telegramUsername: v.optional(v.string()),  // @username from Telegram
       telegramFirstName: v.optional(v.string()), // First name from Telegram
       telegramLinkedAt: v.optional(v.number()),  // When the account was linked
+      telegramNotificationsEnabled: v.optional(v.boolean()), // Master toggle
     }).index("email", ["email"]).index("by_telegramId", ["telegramId"]),
 
     // ── Catalog ──────────────────────────────────────────────────────────
@@ -788,6 +789,47 @@ const schema = defineSchema(
       telegramId: v.optional(v.number()), // Set after linking
 
     }).index("by_code", ["code"]).index("by_user", ["userId"]),
+
+
+    // Telegram notification preferences (per-user, per-category) ─────────
+
+    telegramNotifPrefs: defineTable({
+
+      userId: v.id("users"),
+
+      mentorReplies: v.boolean(),
+
+      tasks: v.boolean(),
+
+      deadlines: v.boolean(),
+
+      meetings: v.boolean(),
+
+      groupNotifs: v.boolean(),
+
+      articles: v.boolean(),
+
+      system: v.boolean(),
+
+    }).index("by_user", ["userId"]),
+
+
+    // Telegram notification log (duplicate prevention) ─────────────────────
+
+    telegramNotifLog: defineTable({
+
+      userId: v.id("users"),
+
+      type: v.string(),          // notification category
+
+      key: v.string(),           // unique event key for idempotency
+
+      sentAt: v.number(),
+
+      success: v.boolean(),
+
+    }).index("by_key", ["key"]).index("by_user_type", ["userId", "type"]),
+
 
     superAdminSessions: defineTable({
       userId: v.id("users"),

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { WhiteboardCanvas } from "@/components/site/WhiteboardCanvas";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import TelegramAccount from "@/components/site/TelegramAccount";
+import TelegramNotifications from "@/components/site/TelegramNotifications";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useStudentReceiver } from "@/hooks/use-live";
@@ -1563,6 +1564,7 @@ function StudentProfileTab() {
       </div>
       <MemberProfileEditor />
       <TelegramAccount />
+      <TelegramNotifications />
     </div>
   );
 }

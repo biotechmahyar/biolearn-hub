@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { api } from "./_generated/api";
 import { isAnyAdmin, isSiteAdmin, isSystemAdmin } from "./admin";
 
 const EXAM_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours to take a fresh exam
@@ -56,7 +57,7 @@ export const createAnnouncement = mutation({
       throw new Error("فقط مدیر سایت یا مدرس می‌تواند اطلاعیه عمومی بگذارد.");
     }
 
-    return await ctx.db.insert("announcements", {
+    const annId = await ctx.db.insert("announcements", {
       authorId: user._id,
       authorName: user.name ?? "تیم",
       authorRole: user.role ?? "user",
@@ -67,6 +68,26 @@ export const createAnnouncement = mutation({
       body: args.body.trim(),
       createdAt: Date.now(),
     });
+
+    // ── Send Telegram notification to relevant users ──
+    try {
+      const allUsers = await ctx.db.query("users").collect();
+      const tgUserIds = allUsers
+        .filter((u) => u.telegramId && u.telegramNotificationsEnabled)
+        .map((u) => u._id);
+      if (tgUserIds.length > 0) {
+        await ctx.scheduler.runAfter(0, api.telegramNotifications.broadcastNotification, {
+          userIds: tgUserIds,
+          type: "system",
+          key: `ann:${annId}`,
+          title: `📢 اطلاعیه جدید: ${args.title.trim()}`,
+          message: args.body.trim().slice(0, 500),
+          linkLabel: "مشاهده در Genova",
+        });
+      }
+    } catch { /* notification failure should not break announcement */ }
+
+    return annId;
   },
 });
 

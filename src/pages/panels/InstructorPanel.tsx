@@ -3,6 +3,7 @@ import { CategoryField } from "@/components/site/CategoryField";
 import { ClassTimer } from "@/components/site/ClassTimer";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import TelegramAccount from "@/components/site/TelegramAccount";
+import TelegramNotifications from "@/components/site/TelegramNotifications";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
@@ -1515,6 +1516,7 @@ function ProfileView() {
       <MemberProfileEditor />
 
       <TelegramAccount />
+      <TelegramNotifications />
 
       {/* Suggested courses */}
       <div className="space-y-3">
