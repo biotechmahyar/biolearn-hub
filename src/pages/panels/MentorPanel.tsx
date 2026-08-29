@@ -32,7 +32,10 @@ type QuestionRow = (typeof api.mentor.listMentorQuestions)["_returnType"][number
 type GroupRow = (typeof api.collab.listMentorGroups)["_returnType"][number];
 type SessionRow = (typeof api.mentor.listSessions)["_returnType"][number];
 
+type Tab = "dashboard" | "questions" | "groups" | "sessions" | "profile";
+
 const TABS: { id: Tab; label: string; icon: typeof Compass; hint: string }[] = [
+  { id: "dashboard", label: "داشبورد", icon: Compass, hint: "نمای کلی" },
   { id: "questions", label: "سؤالات دانشجویان", icon: MessageCircleQuestion, hint: "پاسخ به سؤالات" },
   { id: "groups", label: "گروه‌های منتورینگ", icon: Users, hint: "حلقه‌های مطالعه" },
   { id: "sessions", label: "جلسات انفرادی", icon: CalendarClock, hint: "برنامه‌ریزی ۱:۱" },
@@ -42,7 +45,7 @@ const TABS: { id: Tab; label: string; icon: typeof Compass; hint: string }[] = [
 export default function MentorPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("questions");
+  const [tab, setTab] = useState<Tab>("dashboard");
 
   const stats = useQuery(api.mentor.mentorStats);
   const touchPresence = useMutation(api.collab.touchPresence);
@@ -112,12 +115,288 @@ export default function MentorPanel() {
         </aside>
 
         <main className="min-w-0">
+          {tab === "dashboard" && <MentorDashboard />}
           {tab === "questions" && <QuestionsView />}
           {tab === "groups" && <GroupsView />}
           {tab === "sessions" && <SessionsView />}
           {tab === "profile" && <MentorProfileView />}
         </main>
       </div>
+    </div>
+  );
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+function MentorDashboard() {
+  const { user } = useAuth();
+  const stats = useQuery(api.mentor.mentorStats);
+  const groups = useQuery(api.collab.listMentorGroups) ?? [];
+  const sessions = useQuery(api.mentor.listSessions) ?? [];
+  const questions = useQuery(api.mentor.listMentorQuestions) ?? [];
+  const announcements = useQuery(api.notifications.listAnnouncements) ?? [];
+  const enrollments = useQuery(api.enroll.getMyEnrollments) ?? [];
+
+  const openQuestions = questions.filter((q) => q.status === "open");
+  const scheduledSessions = sessions.filter((s) => s.status === "scheduled");
+  const doneSessions = sessions.filter((s) => s.status === "done");
+  const activeGroups = groups.filter((g) => g.memberCount > 0);
+
+  // Find next session (closest scheduled date)
+  const nextSession = scheduledSessions.length > 0
+    ? scheduledSessions.reduce((closest, s) => {
+        if (!closest) return s;
+        const sDate = new Date(s.date);
+        const cDate = new Date(closest.date);
+        return sDate < cDate ? s : closest;
+      }, scheduledSessions[0])
+    : null;
+
+  // Course progress stats
+  const totalCourses = enrollments.length;
+  const completedCourses = enrollments.filter((e) => e.percent === 100).length;
+  const inProgressCourses = enrollments.filter((e) => e.percent > 0 && e.percent < 100).length;
+  const notStartedCourses = enrollments.filter((e) => e.percent === 0).length;
+  const averageProgress = totalCourses > 0
+    ? Math.round(enrollments.reduce((sum, e) => sum + e.percent, 0) / totalCourses)
+    : 0;
+
+  // Recent announcements
+  const recentAnnouncements = announcements.slice(0, 3);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-amber-50">داشبورد منتور</h2>
+        <p className="mt-1 text-sm text-amber-100/50">
+          نمای کلی فعالیت‌ها و وضعیت دانشجویان تحت نظر شما.
+        </p>
+      </div>
+
+      {/* Mentor Info Card */}
+      <Card className="border-amber-400/20 bg-gradient-to-br from-[#201609] to-[#17100a]">
+        <CardContent className="flex items-center gap-4 py-6">
+          <div className="flex size-16 items-center justify-center rounded-full bg-amber-400/20 text-2xl font-bold text-amber-300">
+            {(user?.name ?? "م").slice(0, 1)}
+          </div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-amber-50">{user?.name ?? "منتور"}</h3>
+            <p className="text-sm text-amber-100/60">{user?.email ?? ""}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant="outline" className="border-amber-400/30 text-amber-200">
+                <Compass className="size-3" />
+                منتور
+              </Badge>
+              <Badge variant="outline" className="border-amber-400/20 text-amber-300">
+                {groups.length} گروه فعال
+              </Badge>
+              <Badge variant="outline" className="border-amber-400/20 text-amber-300">
+                {doneSessions.length} جلسه انجام‌شده
+              </Badge>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats Grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-amber-400/15 bg-[#201609]">
+          <CardContent className="flex items-center gap-3 py-4">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
+              <MessageCircleQuestion className="size-5 text-amber-300" />
+            </span>
+            <div>
+              <p className="text-2xl font-bold text-amber-50">{openQuestions.length}</p>
+              <p className="text-xs text-amber-100/50">سؤال در انتظار پاسخ</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-400/15 bg-[#201609]">
+          <CardContent className="flex items-center gap-3 py-4">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
+              <Users className="size-5 text-amber-300" />
+            </span>
+            <div>
+              <p className="text-2xl font-bold text-amber-50">{groups.length}</p>
+              <p className="text-xs text-amber-100/50">گروه منتورینگ</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-400/15 bg-[#201609]">
+          <CardContent className="flex items-center gap-3 py-4">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
+              <CalendarClock className="size-5 text-amber-300" />
+            </span>
+            <div>
+              <p className="text-2xl font-bold text-amber-50">{scheduledSessions.length}</p>
+              <p className="text-xs text-amber-100/50">جلسه آینده</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-400/15 bg-[#201609]">
+          <CardContent className="flex items-center gap-3 py-4">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
+              <CheckCircle2 className="size-5 text-amber-300" />
+            </span>
+            <div>
+              <p className="text-2xl font-bold text-amber-50">{doneSessions.length}</p>
+              <p className="text-xs text-amber-100/50">جلسه انجام‌شده</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Next Session */}
+      <Card className="border-amber-400/20 bg-[#201609]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
+            <CalendarClock className="size-4" />
+            جلسه بعدی
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {nextSession ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-amber-50">{nextSession.title}</p>
+                <p className="text-xs text-amber-100/50">
+                  {nextSession.studentName} · {nextSession.date || "بدون تاریخ"} · {nextSession.time}
+                </p>
+                {nextSession.notes && (
+                  <p className="mt-1 text-xs text-amber-100/40">{nextSession.notes}</p>
+                )}
+              </div>
+              <Badge variant="outline" className="border-amber-400/30 text-amber-300">
+                زمان‌بندی‌شده
+              </Badge>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-amber-100/40">
+              <CalendarClock className="size-8 text-amber-100/20" />
+              <p className="text-sm">جلسه‌ای برنامه‌ریزی نشده است.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Active Groups */}
+      <Card className="border-amber-400/20 bg-[#201609]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
+            <Users className="size-4" />
+            گروه‌های فعال
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {activeGroups.length > 0 ? (
+            <div className="space-y-3">
+              {activeGroups.map((g) => (
+                <div key={g._id} className="flex items-center justify-between rounded-lg border border-amber-400/10 bg-white/5 p-3">
+                  <div className="flex items-center gap-3">
+                    <Users className="size-4 text-amber-300" />
+                    <div>
+                      <p className="text-sm font-bold text-amber-50">{g.title}</p>
+                      <p className="text-xs text-amber-100/50">
+                        {g.meetingDay} · {g.meetingTime}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-amber-50">{g.memberCount}/{g.capacity}</p>
+                    <p className="text-[10px] text-amber-100/40">عضو</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-amber-100/40">
+              <Users className="size-8 text-amber-100/20" />
+              <p className="text-sm">هنوز گروه منتورینگی فعال نیست.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Progress Path */}
+      <Card className="border-amber-400/20 bg-[#201609]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
+            <Sparkles className="size-4" />
+            مسیر پیشرفت
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {totalCourses > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-amber-100/70">میانگین پیشرفت دوره‌ها</span>
+                <span className="text-lg font-bold text-amber-50">{averageProgress}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-500"
+                  style={{ width: `${averageProgress}%` }}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-4 pt-2">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-emerald-400">{completedCourses}</p>
+                  <p className="text-xs text-amber-100/50">تکمیل‌شده</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-amber-300">{inProgressCourses}</p>
+                  <p className="text-xs text-amber-100/50">در حال انجام</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-amber-100/40">{notStartedCourses}</p>
+                  <p className="text-xs text-amber-100/50">شروع نشده</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-amber-100/40">
+              <Sparkles className="size-8 text-amber-100/20" />
+              <p className="text-sm">اطلاعات پیشرفتی موجود نیست.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Notifications */}
+      <Card className="border-amber-400/20 bg-[#201609]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
+            <HelpCircle className="size-4" />
+            اعلان‌های مهم
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentAnnouncements.length > 0 ? (
+            <div className="space-y-3">
+              {recentAnnouncements.map((a) => (
+                <div key={a._id} className="rounded-lg border border-amber-400/10 bg-white/5 p-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-bold text-amber-50">{a.title}</p>
+                    <span className="font-mono text-[10px] text-amber-100/30">
+                      {new Date(a.createdAt).toLocaleDateString("fa-IR")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-100/60 line-clamp-2">{a.body}</p>
+                  {a.targetTitle && (
+                    <Badge variant="outline" className="mt-2 border-amber-400/20 text-[10px] text-amber-300">
+                      {a.targetTitle}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 text-amber-100/40">
+              <HelpCircle className="size-8 text-amber-100/20" />
+              <p className="text-sm">اعلان جدیدی وجود ندارد.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
