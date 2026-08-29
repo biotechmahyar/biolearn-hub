@@ -17,12 +17,14 @@ async function requireAdmin(ctx: any) {
 
 function obfuscateToken(token: string): string {
   if (!token) return "";
-  return Buffer.from(token).toString("base64");
+  // btoa is available in Convex JS runtime (unlike Node.js Buffer)
+  return btoa(token);
 }
 
 function deobfuscateToken(encoded: string): string {
   if (!encoded) return "";
-  return Buffer.from(encoded, "base64").toString("utf-8");
+  // atob is available in Convex JS runtime
+  return atob(encoded);
 }
 
 function maskToken(token: string): string {
