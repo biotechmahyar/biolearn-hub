@@ -5,6 +5,7 @@ import {
   isJalaliLeapYear,
   todayJalali,
   toPersianDigits,
+  dayOfWeek,
 } from "@/lib/jalali";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
@@ -14,14 +15,6 @@ const JALALI_MONTHS = [
   "مرداد", "شهریور", "مهر", "آبان",
   "آذر", "دی", "بهمن", "اسفند",
 ];
-
-/** Day of week for a Gregorian date (0=Sat, 1=Sun, ..., 6=Fri — Persian week) */
-function dayOfWeek(gy: number, gm: number, gd: number): number {
-  // JS getDay(): 0=Sun,1=Mon,...,6=Sat
-  // Persian week: 0=Sat,1=Sun,...,6=Fri
-  const jsDay = new Date(gy, gm - 1, gd).getDay(); // 0=Sun
-  return (jsDay + 1) % 7; // 0=Sat
-}
 
 interface JalaliDatePickerProps {
   value: string;
@@ -75,7 +68,8 @@ export function JalaliDatePicker({
   const baseYear = todayJalali()[0];
   const years = Array.from({ length: 21 }, (_, i) => baseYear - 10 + i);
 
-  // First day of month offset
+  // First day of month: dayOfWeek returns 0=Sat,1=Sun,...,6=Fri
+  // Grid header: ش(Sat) ی(Sun) د(Mon) س(Tue) چ(Wed) پ(Thu) ج(Fri)
   const [fg, fm, fd] = jalaliToGregorian(selYear, selMonth, 1);
   const firstDayOffset = dayOfWeek(fg, fm, fd);
 
