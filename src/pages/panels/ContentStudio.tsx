@@ -28,7 +28,6 @@ import {
   Italic,
   Underline,
   Strikethrough,
-  Highlighter,
   List,
   ListOrdered,
   Code,
@@ -39,87 +38,38 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
-  Undo,
-  Redo,
   Save,
   Clock,
   FileText,
   Trash2,
   Plus,
-  Search,
   Settings,
   Globe,
   PanelLeftOpen,
   PanelRightOpen,
-  PenTool,
+  Heading1,
+  Heading2,
+  Heading3,
 } from "lucide-react";
-import { useEditor, EditorContent } from "@tiptap/react";
-import { StarterKit } from "@tiptap/starter-kit";
-import { Underline as UnderlineExt } from "@tiptap/extension-underline";
-import { TextAlign } from "@tiptap/extension-text-align";
-import { Highlight } from "@tiptap/extension-highlight";
-import { Image as ImageExt } from "@tiptap/extension-image";
-import { Link } from "@tiptap/extension-link";
-import { Placeholder } from "@tiptap/extension-placeholder";
-import { TaskList } from "@tiptap/extension-task-list";
-import { TaskItem } from "@tiptap/extension-task-item";
-import { TextStyle } from "@tiptap/extension-text-style";
-import { Color } from "@tiptap/extension-color";
 
 // ── Scientific note blocks ──────────────────────────────────────────────
 const SCIENTIFIC_BLOCKS = [
-  { label: "یادداشت علمی", icon: "🔬", html: '<div class="sci-note" data-type="note"><p>یادداشت علمی</p></div>' },
-  { label: "نکته مهم", icon: "💡", html: '<div class="sci-note" data-type="important"><p>نکته مهم</p></div>' },
-  { label: "هشدار", icon: "⚠️", html: '<div class="sci-note" data-type="warning"><p>هشدار</p></div>' },
-  { label: "تعریف", icon: "📖", html: '<div class="sci-note" data-type="definition"><p>تعریف</p></div>' },
-  { label: "فرمول", icon: "🧮", html: '<div class="sci-note" data-type="formula"><p>فرمول</p></div>' },
-  { label: "خلاصه", icon: "📝", html: '<div class="sci-note" data-type="summary"><p>خلاصه</p></div>' },
-  { label: "منبع", icon: "📚", html: '<div class="sci-note" data-type="reference"><p>منبع</p></div>' },
+  { label: "یادداشت علمی", icon: "🔬", tag: "note" },
+  { label: "نکته مهم", icon: "💡", tag: "important" },
+  { label: "هشدار", icon: "⚠️", tag: "warning" },
+  { label: "تعریف", icon: "📖", tag: "definition" },
+  { label: "فرمول", icon: "🧮", tag: "formula" },
+  { label: "خلاصه", icon: "📝", tag: "summary" },
+  { label: "منبع", icon: "📚", tag: "reference" },
 ];
 
 type SidePanel = "seo" | "settings" | "versions" | null;
-
-// ── Error Boundary Wrapper ─────────────────────────────────────────────
-class EditorErrorBoundary extends React.Component<
-  { children: React.ReactNode; fallback?: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode; fallback?: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback ?? (
-        <div className="flex flex-col items-center justify-center gap-4 py-20 text-slate-400">
-          <FileText className="h-12 w-12 text-slate-600" />
-          <p className="text-sm">خطا در بارگذاری ویرایشگر</p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-white/10 text-xs text-slate-300"
-            onClick={() => this.setState({ hasError: false })}
-          >
-            تلاش مجدد
-          </Button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-
 
 // ── Main Component ──────────────────────────────────────────────────────
 export default function ContentStudio() {
   const { user } = useAuth();
   const articles = useQuery(api.contentStudio.listArticles);
   const createArticle = useMutation(api.contentStudio.createArticle);
-  const updateArticle = useMutation(api.contentStudio.updateArticle);
   const quickSaveMutation = useMutation(api.contentStudio.quickSave);
   const deleteArticleMutation = useMutation(api.contentStudio.deleteArticle);
   const togglePublishMutation = useMutation(api.contentStudio.togglePublish);
@@ -137,6 +87,9 @@ export default function ContentStudio() {
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState("عمومی");
   const [searchQuery, setSearchQuery] = useState("");
+  const [editorHtml, setEditorHtml] = useState("");
+  const editorRef = useRef<HTMLDivElement>(null);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Article metadata
   const [meta, setMeta] = useState({
@@ -157,52 +110,12 @@ export default function ContentStudio() {
     ogDescription: "",
   });
 
-  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const handleAutoSaveRef = useRef<((body: string) => Promise<void>) | null>(null);
-
   const currentArticle =
     currentArticleId && articles
       ? articles.find((a) => a._id === currentArticleId)
       : null;
 
-  // ── TipTap Editor ─────────────────────────────────────────────────────
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      UnderlineExt,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Highlight.configure({ multicolor: true }),
-      ImageExt.configure({ inline: true }),
-      Link.configure({ openOnClick: false }),
-      Placeholder.configure({ placeholder: "شروع به نوشتن مقاله..." }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      TextStyle,
-      Color,
-    ],
-    editorProps: {
-      attributes: {
-        class: "prose prose-lg prose-invert max-w-none min-h-[60vh] focus:outline-none px-8 py-6",
-        dir: "rtl",
-      },
-    },
-    onUpdate: ({ editor: ed }) => {
-      setSaving("unsaved");
-      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-      autoSaveTimer.current = setTimeout(() => handleAutoSaveRef.current?.(ed.getHTML()), 3000);
-    },
-  });
-
-  // Load article into editor
-  useEffect(() => {
-    if (!editor) return;
-    if (!currentArticleId) {
-      editor.commands.clearContent();
-      return;
-    }
-  }, [currentArticleId, editor]);
-
+  // ── Load article into editor ──────────────────────────────────────────
   const loadArticle = useCallback(
     (id: string) => {
       setCurrentArticleId(id);
@@ -225,14 +138,14 @@ export default function ContentStudio() {
           ogTitle: (art as any).ogTitle ?? "",
           ogDescription: (art as any).ogDescription ?? "",
         });
-        // Load body into editor
-        const body = (art as any).body;
-        if (body && editor) {
-          editor.commands.setContent(body);
+        const body = (art as any).body ?? "";
+        setEditorHtml(body);
+        if (editorRef.current) {
+          editorRef.current.innerHTML = body || "<p><br></p>";
         }
       }
     },
-    [articles, editor],
+    [articles],
   );
 
   // ── Autosave ──────────────────────────────────────────────────────────
@@ -262,27 +175,43 @@ export default function ContentStudio() {
     },
     [currentArticleId, meta, quickSaveMutation],
   );
-  handleAutoSaveRef.current = handleAutoSave;
+
+  const handleEditorInput = useCallback(() => {
+    if (!editorRef.current) return;
+    const html = editorRef.current.innerHTML;
+    setEditorHtml(html);
+    setSaving("unsaved");
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => handleAutoSave(html), 3000);
+  }, [handleAutoSave]);
+
+  // Clean up timer
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, []);
 
   const handleManualSave = useCallback(async () => {
-    if (!editor || !currentArticleId) return;
-    await handleAutoSave(editor.getHTML());
+    if (!currentArticleId || !editorRef.current) return;
+    const html = editorRef.current.innerHTML;
+    await handleAutoSave(html);
     toast.success("مقاله ذخیره شد");
-  }, [editor, currentArticleId, handleAutoSave]);
+  }, [currentArticleId, handleAutoSave]);
 
   const handleSaveVersion = useCallback(async () => {
-    if (!editor || !currentArticleId) return;
+    if (!currentArticleId || !editorRef.current) return;
     try {
       await saveVersionMutation({
         articleId: currentArticleId as any,
-        body: editor.getHTML(),
+        body: editorRef.current.innerHTML,
         title: meta.title,
       });
       toast.success("نسخه جدید ذخیره شد");
     } catch (e: any) {
       toast.error(e.message || "خطا در ذخیره نسخه");
     }
-  }, [editor, currentArticleId, meta.title, saveVersionMutation]);
+  }, [currentArticleId, meta.title, saveVersionMutation]);
 
   const handleCreateArticle = useCallback(async () => {
     if (!newTitle.trim()) {
@@ -309,8 +238,8 @@ export default function ContentStudio() {
   }, [newTitle, newCategory, createArticle, user?.name, loadArticle]);
 
   const handlePublish = useCallback(async () => {
-    if (!currentArticleId || !editor) return;
-    await handleAutoSave(editor.getHTML());
+    if (!currentArticleId || !editorRef.current) return;
+    await handleAutoSave(editorRef.current.innerHTML);
     try {
       await togglePublishMutation({
         id: currentArticleId as any,
@@ -320,25 +249,44 @@ export default function ContentStudio() {
     } catch (e: any) {
       toast.error(e.message || "خطا در انتشار");
     }
-  }, [currentArticleId, editor, handleAutoSave, togglePublishMutation]);
+  }, [currentArticleId, handleAutoSave, togglePublishMutation]);
 
   const handleDelete = useCallback(async () => {
     if (!currentArticleId) return;
     try {
       await deleteArticleMutation({ id: currentArticleId as any });
       setCurrentArticleId(null);
+      setEditorHtml("");
+      if (editorRef.current) editorRef.current.innerHTML = "";
       toast.success("مقاله حذف شد");
     } catch (e: any) {
       toast.error(e.message || "خطا در حذف");
     }
   }, [currentArticleId, deleteArticleMutation]);
 
+  // ── Formatting commands ───────────────────────────────────────────────
+  const execFormat = useCallback((command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+  }, []);
+
   const insertSciBlock = useCallback(
-    (html: string) => {
-      if (!editor) return;
-      editor.chain().focus().insertContent(html).run();
+    (tag: string) => {
+      if (!editorRef.current) return;
+      const labels: Record<string, string> = {
+        note: "یادداشت علمی",
+        important: "نکته مهم",
+        warning: "هشدار",
+        definition: "تعریف",
+        formula: "فرمول",
+        summary: "خلاصه",
+        reference: "منبع",
+      };
+      const html = `<div class="sci-block sci-${tag}" contenteditable="false" style="margin:12px 0;padding:12px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(6,182,212,0.08);"><strong>${labels[tag] || tag}</strong><div contenteditable="true" style="margin-top:8px;min-height:24px;"></div></div><p><br></p>`;
+      execFormat("insertHTML", html);
+      handleEditorInput();
     },
-    [editor],
+    [execFormat, handleEditorInput],
   );
 
   // ── Filter articles ──────────────────────────────────────────────────
@@ -500,119 +448,101 @@ export default function ContentStudio() {
         </header>
 
         {/* ── Toolbar ──────────────────────────────────────────────────── */}
-        {editor && currentArticleId && (
+        {currentArticleId && (
           <div className="flex flex-wrap items-center gap-0.5 border-b border-white/5 bg-[#0c1a28] px-3 py-1.5">
             <div className="flex items-center gap-0.5">
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("bold") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleBold().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("bold")}>
                 <Bold className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("italic") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleItalic().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("italic")}>
                 <Italic className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("underline") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleUnderline().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("underline")}>
                 <Underline className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("strike") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleStrike().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("strikeThrough")}>
                 <Strikethrough className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("highlight") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleHighlight().run()}>
-                <Highlighter className="h-3.5 w-3.5" />
+            </div>
+            <div className="mx-1 h-5 w-px bg-white/10" />
+            <div className="flex items-center gap-0.5">
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("formatBlock", "h1")}>
+                <Heading1 className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("formatBlock", "h2")}>
+                <Heading2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("formatBlock", "h3")}>
+                <Heading3 className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("formatBlock", "p")}>
+                <span className="text-xs font-bold">P</span>
               </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
             <div className="flex items-center gap-0.5">
-              {[1, 2, 3].map((level) => (
-                <Button key={level} size="icon" variant="ghost"
-                  className={`h-7 w-7 ${editor.isActive("heading", { level }) ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                  onClick={() => editor.chain().focus().toggleHeading({ level: level as any }).run()}>
-                  <span className="text-xs font-bold">H{level}</span>
-                </Button>
-              ))}
-            </div>
-            <div className="mx-1 h-5 w-px bg-white/10" />
-            <div className="flex items-center gap-0.5">
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("bulletList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleBulletList().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("insertUnorderedList")}>
                 <List className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("orderedList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("insertOrderedList")}>
                 <ListOrdered className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("taskList") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleTaskList().run()}>
-                <span className="text-xs">☑</span>
               </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
             <div className="flex items-center gap-0.5">
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("blockquote") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("formatBlock", "blockquote")}>
                 <Quote className="h-3.5 w-3.5" />
               </Button>
-              <Button size="icon" variant="ghost" className={`h-7 w-7 ${editor.isActive("codeBlock") ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("formatBlock", "pre")}>
                 <Code className="h-3.5 w-3.5" />
               </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
             <div className="flex items-center gap-0.5">
-              {(["left", "center", "right", "justify"] as const).map((align) => (
-                <Button key={align} size="icon" variant="ghost"
-                  className={`h-7 w-7 ${editor.isActive({ textAlign: align }) ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400"}`}
-                  onClick={() => editor.chain().focus().setTextAlign(align).run()}>
-                  {align === "left" && <AlignLeft className="h-3.5 w-3.5" />}
-                  {align === "center" && <AlignCenter className="h-3.5 w-3.5" />}
-                  {align === "right" && <AlignRight className="h-3.5 w-3.5" />}
-                  {align === "justify" && <AlignJustify className="h-3.5 w-3.5" />}
-                </Button>
-              ))}
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("justifyRight")}>
+                <AlignRight className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("justifyCenter")}>
+                <AlignCenter className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("justifyLeft")}>
+                <AlignLeft className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("justifyFull")}>
+                <AlignJustify className="h-3.5 w-3.5" />
+              </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
             <div className="flex items-center gap-0.5">
               <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400"
                 onClick={() => {
                   const url = window.prompt("آدرس لینک:");
-                  if (url) editor.chain().focus().setLink({ href: url }).run();
+                  if (url) execFormat("createLink", url);
                 }}>
                 <Link2 className="h-3.5 w-3.5" />
               </Button>
               <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400"
                 onClick={() => {
                   const url = window.prompt("آدرس تصویر:");
-                  if (url) editor.chain().focus().setImage({ src: url }).run();
+                  if (url) execFormat("insertImage", url);
                 }}>
                 <Image className="h-3.5 w-3.5" />
               </Button>
             </div>
             <div className="mx-1 h-5 w-px bg-white/10" />
-            <div className="flex items-center gap-0.5">
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => editor.chain().focus().undo().run()}>
-                <Undo className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => editor.chain().focus().redo().run()}>
-                <Redo className="h-3.5 w-3.5" />
-              </Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400"
-                onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400" onClick={() => execFormat("removeFormat")}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
             {/* Scientific blocks */}
             <div className="relative group">
               <Button size="sm" variant="ghost" className="h-7 text-xs text-slate-400 hover:text-white">
-                <PenTool className="ml-1 h-3.5 w-3.5" /> عناصر علمی
+                ✨ عناصر علمی
               </Button>
               <div className="absolute top-full left-0 z-50 mt-1 hidden w-52 rounded-lg border border-white/10 bg-[#0c1a28] p-1.5 shadow-xl group-hover:block">
                 {SCIENTIFIC_BLOCKS.map((block) => (
                   <button
-                    key={block.label}
-                    onClick={() => insertSciBlock(block.html)}
+                    key={block.tag}
+                    onClick={() => insertSciBlock(block.tag)}
                     className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-right text-xs text-slate-300 hover:bg-white/5"
                   >
                     <span>{block.icon}</span>
@@ -627,8 +557,8 @@ export default function ContentStudio() {
         {/* ── Content Area ──────────────────────────────────────────────── */}
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto">
-            {currentArticleId && editor ? (
-              <div className="mx-auto max-w-4xl py-6">
+            {currentArticleId ? (
+              <div className="mx-auto max-w-4xl py-6 px-4">
                 <input
                   type="text"
                   value={meta.title}
@@ -645,7 +575,16 @@ export default function ContentStudio() {
                   className="mt-2 w-full bg-transparent text-lg text-slate-400 placeholder:text-slate-600 focus:outline-none"
                   dir="rtl"
                 />
-                <EditorContent editor={editor} />
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  onInput={handleEditorInput}
+                  dir="rtl"
+                  className="mt-4 min-h-[60vh] rounded-lg border border-white/5 bg-white/[0.02] px-6 py-4 text-base leading-8 text-slate-200 focus:outline-none prose prose-invert max-w-none"
+                  style={{ lineHeight: "2" }}
+                  suppressContentEditableWarning
+                  dangerouslySetInnerHTML={{ __html: editorHtml || "" }}
+                />
               </div>
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-4">
@@ -828,7 +767,8 @@ export default function ContentStudio() {
                           onClick={async () => {
                             try {
                               await quickSaveMutation({ id: currentArticleId as any, body: v.body, title: v.title });
-                              if (editor) editor.commands.setContent(v.body);
+                              setEditorHtml(v.body);
+                              if (editorRef.current) editorRef.current.innerHTML = v.body;
                               toast.success("نسخه بازیابی شد");
                             } catch { toast.error("خطا در بازیابی"); }
                           }}>
