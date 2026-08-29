@@ -333,7 +333,7 @@ export default function Admin() {
   const ROLE_JUMP: { label: string; icon: typeof ShieldCheck; to: string }[] = [
     { label: "استودیوی مدرس", icon: Video, to: "/panel/instructor" },
     { label: "میز منتور", icon: Compass, to: "/panel/mentor" },
-    { label: "استودیوی محتوا", icon: FileText, to: "/panel/content" },
+    { label: "استودیوی محتوا", icon: FileText, to: "/panel/content-studio" },
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
     { label: "مدیریت هوش مصنوعی", icon: Bot, to: "/panel/ai-management" },
     // Only system admin (role === "admin") can see the super admin panel

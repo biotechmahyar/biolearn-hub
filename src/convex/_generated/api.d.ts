@@ -17,6 +17,7 @@ import type * as classEnroll from "../classEnroll.js";
 import type * as collab from "../collab.js";
 import type * as comments from "../comments.js";
 import type * as content from "../content.js";
+import type * as contentStudio from "../contentStudio.js";
 import type * as courseStudio from "../courseStudio.js";
 import type * as emailOtp from "../emailOtp.js";
 import type * as enroll from "../enroll.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   collab: typeof collab;
   comments: typeof comments;
   content: typeof content;
+  contentStudio: typeof contentStudio;
   courseStudio: typeof courseStudio;
   emailOtp: typeof emailOtp;
   enroll: typeof enroll;

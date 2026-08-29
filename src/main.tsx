@@ -24,6 +24,7 @@ const InstructorPanel = lazy(() => import("./pages/panels/InstructorPanel.tsx"))
 const MentorPanel = lazy(() => import("./pages/panels/MentorPanel.tsx"));
 const SupportPanel = lazy(() => import("./pages/panels/SupportPanel.tsx"));
 const ContentPanel = lazy(() => import("./pages/panels/ContentPanel.tsx"));
+const ContentStudio = lazy(() => import("./pages/panels/ContentStudio.tsx"));
 const ProfileCompletion = lazy(() => import("./pages/ProfileCompletion.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -200,6 +201,16 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RoleGate allowed={["content_manager", "admin", "site_admin"]} title="content studio">
                     <ContentPanel />
+                  </RoleGate>
+                }
+              />
+
+              {/* CMS Content Studio — rich text editor with TipTap */}
+              <Route
+                path="/panel/content-studio"
+                element={
+                  <RoleGate allowed={["content_manager", "admin", "site_admin"]} title="content studio">
+                    <ContentStudio />
                   </RoleGate>
                 }
               />

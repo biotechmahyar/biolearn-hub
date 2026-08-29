@@ -223,16 +223,44 @@ const schema = defineSchema(
     articles: defineTable({
       title: v.string(),
       slug: v.string(),
+      subtitle: v.optional(v.string()),
       category: v.string(),
+      tags: v.optional(v.array(v.string())),
       excerpt: v.string(),
-      body: v.string(),
+      body: v.string(), // HTML from TipTap
       authorName: v.string(),
+      authorId: v.optional(v.id("users")),
+      featuredImage: v.optional(v.string()),
       accent: v.string(),
-      readTime: v.number(), // minutes
+      readTime: v.number(),
+      level: v.optional(v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced"))),
+      status: v.optional(v.union(v.literal("draft"), v.literal("in_review"), v.literal("scheduled"), v.literal("published"), v.literal("archived"))),
+      scheduledAt: v.optional(v.number()),
       published: v.boolean(),
       featured: v.boolean(),
+      // SEO fields
+      seoTitle: v.optional(v.string()),
+      seoDescription: v.optional(v.string()),
+      seoKeywords: v.optional(v.array(v.string())),
+      seoCanonical: v.optional(v.string()),
+      ogTitle: v.optional(v.string()),
+      ogDescription: v.optional(v.string()),
+      ogImage: v.optional(v.string()),
+      // References / citations
+      references: v.optional(v.array(v.object({
+        title: v.string(),
+        authors: v.string(),
+        journal: v.string(),
+        year: v.number(),
+        doi: v.optional(v.string()),
+        url: v.optional(v.string()),
+      }))),
       createdAt: v.number(),
-    }).index("by_slug", ["slug"]),
+      updatedAt: v.number(),
+    })
+      .index("by_slug", ["slug"])
+      .index("by_status", ["status"])
+      .index("by_author", ["authorId"]),
 
     dictionaryTerms: defineTable({
       term: v.string(),
@@ -741,6 +769,28 @@ const schema = defineSchema(
       updatedBy: v.id("users"),
       updatedAt: v.number(),
     }).index("by_key", ["key"]),
+
+    // ── CMS Media Library ────────────────────────────────────────────────
+    mediaItems: defineTable({
+      url: v.string(),
+      name: v.string(),
+      alt: v.optional(v.string()),
+      caption: v.optional(v.string()),
+      category: v.optional(v.string()),
+      size: v.number(),
+      mimeType: v.string(),
+      uploadedBy: v.id("users"),
+      createdAt: v.number(),
+    }).index("by_uploader", ["uploadedBy"]),
+
+    // ── Article Version History ──────────────────────────────────────────
+    articleVersions: defineTable({
+      articleId: v.id("articles"),
+      body: v.string(),
+      title: v.string(),
+      savedBy: v.id("users"),
+      createdAt: v.number(),
+    }).index("by_article", ["articleId"]),
 
   },
   {

@@ -1109,23 +1109,24 @@ export const adminCreateArticle = mutation({
     published: v.boolean(),
   },
   handler: async (ctx, args) => {
-    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
-    await ctx.db.insert("articles", {
-      title: args.title.trim(),
-      slug: args.slug.trim() || args.title.trim().replace(/\s+/g, "-"),
-      category: args.category.trim() || "عمومی",
-      excerpt: args.excerpt.trim(),
-      body: args.body,
-      authorName: args.authorName.trim() || "تیم Genova",
-      accent: "teal",
-      readTime: args.readTime || 5,
-      published: args.published,
-      featured: false,
-      createdAt: Date.now(),
-    });
-    return { ok: true };
-  },
-});
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");      await ctx.db.insert("articles", {
+        title: args.title.trim(),
+        slug: args.slug.trim() || args.title.trim().replace(/\s+/g, "-"),
+        category: args.category.trim() || "عمومی",
+        excerpt: args.excerpt.trim(),
+        body: args.body,
+        authorName: args.authorName.trim() || "تیم Genova",
+        accent: "teal",
+        readTime: args.readTime || 5,
+        published: args.published,
+        featured: false,
+        status: args.published ? "published" : "draft",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      return { ok: true };
+    },
+  });
 
 export const adminUpdateArticle = mutation({
   args: {
@@ -1180,7 +1181,9 @@ export const adminSaveGeneratedArticles = mutation({
         readTime: Math.max(1, Math.round(art.body.split(/\s+/).length / 250)),
         published: args.published,
         featured: false,
+        status: args.published ? "published" : "draft",
         createdAt: Date.now(),
+        updatedAt: Date.now(),
       });
     }
     return { ok: true, count: args.articles.length };
