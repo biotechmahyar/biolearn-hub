@@ -746,6 +746,23 @@ const schema = defineSchema(
     })
       .index("by_user", ["userId"]),
 
+    // ── Telegram Bot Configuration (admin-only) ─────────────────────────
+    telegramBot: defineTable({
+      tokenEncrypted: v.string(),       // Encrypted bot token (server-side only)
+      botId: v.optional(v.string()),    // Telegram bot numeric ID
+      botName: v.optional(v.string()),  // Bot display name from getMe
+      botUsername: v.optional(v.string()), // @username from getMe
+      webhookUrl: v.optional(v.string()),  // Configured webhook URL
+      connected: v.boolean(),           // Is bot connected?
+      active: v.boolean(),              // Enabled/disabled
+      startMessage: v.string(),         // Welcome message for /start
+      lastTestedAt: v.optional(v.number()),
+      lastTestResult: v.optional(v.string()), // "success" or error message
+      updatedBy: v.id("users"),
+      updatedAt: v.number(),
+      createdAt: v.number(),
+    }),
+
     // ── Super Admin access sessions ──────────────────────────────────────
     superAdminSessions: defineTable({
       userId: v.id("users"),

@@ -25,6 +25,7 @@ const MentorPanel = lazy(() => import("./pages/panels/MentorPanel.tsx"));
 const SupportPanel = lazy(() => import("./pages/panels/SupportPanel.tsx"));
 const ContentPanel = lazy(() => import("./pages/panels/ContentPanel.tsx"));
 const ContentStudio = lazy(() => import("./pages/panels/ContentStudio.tsx"));
+const TelegramBotPanel = lazy(() => import("./pages/panels/TelegramBotPanel.tsx"));
 const ProfileCompletion = lazy(() => import("./pages/ProfileCompletion.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -167,6 +168,16 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RoleGate allowed={["admin"]} title="super admin">
                     <SuperAdminPanel />
+                  </RoleGate>
+                }
+              />
+
+              {/* Telegram Bot Panel — admin/site_admin only */}
+              <Route
+                path="/panel/telegram-bot"
+                element={
+                  <RoleGate allowed={["admin", "site_admin"]} title="telegram bot">
+                    <TelegramBotPanel />
                   </RoleGate>
                 }
               />
