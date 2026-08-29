@@ -45,6 +45,10 @@ import {
   Type,
   Highlighter,
   Languages,
+  Image,
+  Upload,
+  Trash,
+  ExternalLink,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -89,9 +93,11 @@ const FONT_SIZES = [
 function Editor({
   html,
   onChange,
+  onImagePicker,
 }: {
   html: string;
   onChange: (html: string) => void;
+  onImagePicker?: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [dir, setDir] = useState<"rtl" | "ltr">("rtl");
@@ -250,6 +256,14 @@ function Editor({
         <ToolbarBtn icon={<Quote className="h-3.5 w-3.5" />} title="Quote" exec={() => exec("formatBlock", "<blockquote>")} />
         <ToolbarBtn icon={<Code className="h-3.5 w-3.5" />} title="Code Block" exec={() => exec("formatBlock", "<pre>")} />
         <span className="mx-1 h-4 w-px bg-white/10" />
+        {/* Image */}
+        <ToolbarBtn
+          icon={<Image className="h-3.5 w-3.5" />}
+          title="Insert Image"
+          exec={() => {
+            if (onImagePicker) onImagePicker()
+          }}
+        />
         {/* Alignment */}
         <ToolbarBtn icon={<AlignRight className="h-3.5 w-3.5" />} title="Align Right" exec={() => exec("justifyRight")} />
         <ToolbarBtn icon={<AlignCenter className="h-3.5 w-3.5" />} title="Align Center" exec={() => exec("justifyCenter")} />
@@ -297,6 +311,203 @@ function Editor({
   );
 }
 
+// ── Image Picker Dialog ─────────────────────────────────────────────────
+function ImagePickerDialog({
+  open,
+  onOpenChange,
+  onInsert,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onInsert: (img: { src: string; alt: string; width?: string; align?: string }) => void
+}) {
+  const [tab, setTab] = useState<"url" | "upload" | "library">("url")
+  const [url, setUrl] = useState("")
+  const [alt, setAlt] = useState("")
+  const [align, setAlign] = useState<string>("center")
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const mediaItems = useQuery(api.contentStudio.listMedia)
+  const addMedia = useMutation(api.contentStudio.addMedia)
+  const deleteMedia = useMutation(api.contentStudio.deleteMedia)
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast.error("فقط فایل تصویری مجاز است")
+      return
+    }
+    setUploading(true)
+    try {
+      const reader = new FileReader()
+      reader.onload = async () => {
+        const dataUrl = reader.result as string
+        try {
+          await addMedia({
+            url: dataUrl,
+            name: file.name,
+            size: file.size,
+            mimeType: file.type,
+          })
+        } catch { /* ignore - media table may not exist */ }
+        onInsert({ src: dataUrl, alt: alt || file.name, align })
+        onOpenChange(false)
+        setUrl("")
+        setAlt("")
+        setUploading(false)
+      }
+      reader.readAsDataURL(file)
+    } catch {
+      toast.error("خطا در بارگذاری فایل")
+      setUploading(false)
+    }
+    e.target.value = ""
+  }
+
+  const handleInsertUrl = () => {
+    if (!url.trim()) {
+      toast.error("آدرس تصویر را وارد کنید")
+      return
+    }
+    onInsert({ src: url.trim(), alt: alt || "", align })
+    onOpenChange(false)
+    setUrl("")
+    setAlt("")
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[80vh] overflow-y-auto border-white/10 bg-[#0c1a28] sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-right text-cyan-100">تصویر</DialogTitle>
+        </DialogHeader>
+
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-white/10">
+          {(["url", "upload", "library"] as const).map((t) => (
+            <button
+              key={t}
+              className={`px-3 py-1.5 text-xs transition-colors ${
+                tab === t ? "border-b-2 border-cyan-400 text-cyan-300" : "text-slate-400 hover:text-white"
+              }`}
+              onClick={() => setTab(t)}
+            >
+              {t === "url" ? "آدرس URL" : t === "upload" ? "بارگذاری" : "کتابخانه"}
+            </button>
+          ))}
+        </div>
+
+        {/* Alt + Align (always visible) */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-[10px] font-bold text-slate-400">Alt Text</label>
+            <Input
+              value={alt}
+              onChange={(e) => setAlt(e.target.value)}
+              placeholder="متن جایگزین"
+              className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-bold text-slate-400">تراز</label>
+            <select
+              value={align}
+              onChange={(e) => setAlign(e.target.value)}
+              className="h-8 w-full cursor-pointer rounded border border-white/10 bg-[#0c1a28] px-2 text-xs text-slate-300 focus:outline-none"
+            >
+              <option value="center">وسط</option>
+              <option value="left">چپ</option>
+              <option value="right">راست</option>
+              <option value="full">تمام عرض</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Tab: URL */}
+        {tab === "url" && (
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس تصویر</label>
+              <Input
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                onKeyDown={(e) => { if (e.key === "Enter") handleInsertUrl() }}
+              />
+            </div>
+            {url && (
+              <div className="rounded border border-white/10 p-2">
+                <img src={url} alt={alt} className="max-h-40 w-full rounded object-contain" />
+              </div>
+            )}
+            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertUrl}>
+              <ExternalLink className="ml-1 h-3.5 w-3.5" /> درج تصویر
+            </Button>
+          </div>
+        )}
+
+        {/* Tab: Upload */}
+        {tab === "upload" && (
+          <div className="space-y-3">
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-white/10 py-8 text-slate-400 transition-colors hover:border-cyan-400/30 hover:text-cyan-300"
+            >
+              <Upload className="h-8 w-8" />
+              <span className="text-xs">{uploading ? "در حال بارگذاری..." : "کلیک کنید یا تصویر را بکشید"}</span>
+              <span className="text-[10px] text-slate-500">JPG, PNG, GIF, WebP — حداکثر 5MB</span>
+            </button>
+          </div>
+        )}
+
+        {/* Tab: Library */}
+        {tab === "library" && (
+          <div className="space-y-3">
+            {mediaItems && mediaItems.length > 0 ? (
+              <div className="grid max-h-[300px] grid-cols-3 gap-2 overflow-y-auto">
+                {mediaItems.map((m) => (
+                  <div
+                    key={m._id}
+                    className="group relative cursor-pointer rounded border border-white/10 transition-colors hover:border-cyan-400/30"
+                    onClick={() => {
+                      onInsert({ src: m.url, alt: m.alt || m.name, align })
+                      onOpenChange(false)
+                    }}
+                  >
+                    <img src={m.url} alt={m.alt || m.name} className="aspect-square w-full rounded object-cover" />
+                    <div className="absolute inset-x-0 bottom-0 bg-black/60 px-1 py-0.5 text-center text-[9px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      {m.name}
+                    </div>
+                    <button
+                      type="button"
+                      className="absolute right-1 top-1 hidden rounded bg-red-500/80 p-0.5 group-hover:block"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        if (!window.confirm("حذف تصویر؟")) return
+                        try { await deleteMedia({ id: m._id }) } catch { /* ignore */ }
+                      }}
+                    >
+                      <Trash className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="py-8 text-center text-xs text-slate-500">هنوز تصویری بارگذاری نشده</p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main ContentStudio ──────────────────────────────────────────────────
 export default function ContentStudio() {
   const { user } = useAuth();
@@ -318,6 +529,7 @@ export default function ContentStudio() {
     published: false,
   });
   const [busy, setBusy] = useState(false);
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
 
   const openCreate = () => {
     setForm({
@@ -599,6 +811,7 @@ export default function ContentStudio() {
                   onChange={(html) =>
                     setForm((f) => ({ ...f, body: html }))
                   }
+                  onImagePicker={() => setImagePickerOpen(true)}
                 />
               </div>
             </div>
@@ -620,6 +833,18 @@ export default function ContentStudio() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Image Picker Dialog */}
+        <ImagePickerDialog
+          open={imagePickerOpen}
+          onOpenChange={setImagePickerOpen}
+          onInsert={(img) => {
+            // Insert image into editor content
+            const alignStyle = img.align === "full" ? "width:100%" : img.align === "left" ? "float:left" : img.align === "right" ? "float:right" : "display:block;margin:auto"
+            const html = `<div style="${alignStyle};margin:12px 0"><img src=\"${img.src}\" alt=\"${img.alt}\" style=\"max-width:100%;height:auto;border-radius:8px\" /></div><p><br></p>`
+            setForm((f) => ({ ...f, body: f.body + html }))
+          }}
+        />
       </div>
     </div>
   );
