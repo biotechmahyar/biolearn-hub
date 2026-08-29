@@ -5,7 +5,7 @@ import { api } from "./_generated/api";
 // This is a PUBLIC httpAction — Telegram sends POST requests here.
 // No auth required (Telegram doesn't send Convex auth tokens).
 
-const SITE_URL = "https://biolearn-hub.biotechmahyar.workers.dev";
+const SITE_URL = "https://nibrc.ir";
 
 async function sendMsg(token: string, chatId: number, text: string, replyMarkup?: any) {
   const body: any = { chat_id: chatId, text, parse_mode: "HTML" };

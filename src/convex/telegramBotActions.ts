@@ -268,7 +268,7 @@ export const setMenuButton = action({
     const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
-    const siteUrl = process.env.SITE_URL || "https://biolearn-hub.biotechmahyar.workers.dev";
+    const siteUrl = process.env.SITE_URL || "https://nibrc.ir";
 
     try {
       const data: any = await fetchJson(

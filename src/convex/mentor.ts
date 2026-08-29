@@ -5,7 +5,7 @@ import { isAdmin } from "./admin";
 import { api } from "./_generated/api";
 
 // ── Site URL for inline keyboard links ─────────────────────────────────────
-const SITE_URL = "https://biolearn-hub.biotechmahyar.workers.dev";
+const SITE_URL = "https://nibrc.ir";
 
 // ── Role helpers ────────────────────────────────────────────────────────────
 const isMentor = async (ctx: any) => {
