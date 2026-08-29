@@ -184,18 +184,24 @@ export default function TelegramBotPanel() {
     setLoading("commands");
     setCmdSyncStatus(null);
     try {
-      // Filter out empty commands
-      const validCmds = cmdList.filter(c => c.command.trim() && c.description.trim());
+      // Sanitize: strip "/", lowercase, trim, skip empty
+      const validCmds = cmdList
+        .filter(c => c.command.trim() && c.description.trim())
+        .map(c => ({
+          command: c.command.replace(/^[\/\s]+/, "").trim().toLowerCase(),
+          description: c.description.trim(),
+        }));
       if (validCmds.length === 0) {
         toast.error("حداقل یک دستور معتبر وارد کنید.");
         setLoading(null);
         return;
       }
-      // 1. Sync to Telegram API
+      // 1. Sync to Telegram API (backend validates too)
       const r = await setCommands({ commands: validCmds });
       if (r.success) {
-        // 2. Save to DB
+        // 2. Save sanitized commands to DB
         await saveCommandsToDb({ commands: validCmds });
+        setCmdList(validCmds);
         setCmdSyncStatus("synced");
         toast.success("دستورات در تلگرام و سیستم ذخیره شدند.");
       } else {
@@ -592,15 +598,25 @@ export default function TelegramBotPanel() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">نام دستور فقط شامل حروف انگلیسی کوچک، اعداد و _ باشد (مثلاً start، help، my_courses). Slash اضافه نکنید — خودکار اضافه می‌شود.</p>
             {cmdList.map((cmd, i) => (
               <div key={i} className="flex items-center gap-2">
-                <Input
-                  placeholder="/command"
-                  value={cmd.command}
-                  onChange={(e) => { const next = [...cmdList]; next[i] = { ...next[i], command: e.target.value }; setCmdList(next); }}
-                  className="w-32 font-mono text-sm"
-                  dir="ltr"
-                />
+                <div className="relative w-32">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm font-mono text-emerald-500">/</span>
+                  <Input
+                    placeholder="command"
+                    value={cmd.command}
+                    onChange={(e) => {
+                      // Strip leading / and non-allowed chars
+                      const clean = e.target.value.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase();
+                      const next = [...cmdList];
+                      next[i] = { ...next[i], command: clean };
+                      setCmdList(next);
+                    }}
+                    className="pl-2 pr-6 font-mono text-sm"
+                    dir="ltr"
+                  />
+                </div>
                 <Input
                   placeholder="توضیحات"
                   value={cmd.description}

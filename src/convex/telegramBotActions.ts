@@ -120,11 +120,31 @@ export const setBotCommands = action({
     const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
+    // Validate and sanitize commands for Telegram API
+    const telegramCmds: { command: string; description: string }[] = [];
+    for (const cmd of args.commands) {
+      // Strip leading / and whitespace, lowercase
+      const name = cmd.command.replace(/^[\/\s]+/, "").trim().toLowerCase();
+      const desc = cmd.description.trim();
+
+      if (!name || name.length === 0) continue; // skip empty
+      if (name.length > 32) throw new Error(`نام دستور /${name} بیش از ۳۲ کاراکتر است.`);
+      if (!/^[a-z0-9_]+$/.test(name)) {
+        throw new Error(`نام دستور /${name} نامعتبر است. فقط حروف انگلیسی کوچک، اعداد و _ مجاز است.`);
+      }
+      if (desc.length === 0) throw new Error(`توضیحات دستور /${name} خالی است.`);
+      if (desc.length > 325) throw new Error(`توضیحات دستور /${name} بیش از ۳۲۵ کاراکتر است.`);
+      telegramCmds.push({ command: name, description: desc });
+    }
+
+    if (telegramCmds.length === 0) throw new Error("هیچ دستور معتبری وجود ندارد.");
+    if (telegramCmds.length > 100) throw new Error("حداکثر ۱۰۰ دستور مجاز است.");
+
     try {
       const data: any = await fetchJson(`https://api.telegram.org/bot${tokenData.token}/setMyCommands`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commands: args.commands }),
+        body: JSON.stringify({ commands: telegramCmds }),
         signal: AbortSignal.timeout(10000),
       });
       return { success: data.ok as boolean, error: data.ok ? undefined : (data.description as string) };
