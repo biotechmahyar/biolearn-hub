@@ -49,6 +49,10 @@ import {
   Upload,
   Trash,
   ExternalLink,
+  Link2,
+  Unlink,
+  Video,
+  X,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -94,12 +98,23 @@ function Editor({
   html,
   onChange,
   onImagePicker,
+  onLink,
+  onRemoveLink,
+  onEmbed,
+  onEmbedHtml,
+  editorRef,
 }: {
   html: string;
   onChange: (html: string) => void;
   onImagePicker?: () => void
+  onLink?: (data: { url: string; text: string; newTab: boolean; isEditing: boolean }) => void
+  onRemoveLink?: () => void
+  onEmbed?: () => void
+  onEmbedHtml?: (html: string) => void
+  editorRef?: React.RefObject<HTMLDivElement | null>
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const internalRef = useRef<HTMLDivElement>(null);
+  const ref = editorRef || internalRef;
   const [dir, setDir] = useState<"rtl" | "ltr">("rtl");
   const [activeFont, setActiveFont] = useState("");
   const [activeColor, setActiveColor] = useState("#ffffff");
@@ -262,6 +277,77 @@ function Editor({
           title="Insert Image"
           exec={() => {
             if (onImagePicker) onImagePicker()
+          }}
+        />
+        {/* Link */}
+        <ToolbarBtn
+          icon={<Link2 className="h-3.5 w-3.5" />}
+          title="Add Link"
+          exec={() => {
+            if (!ref.current) return
+            const sel = window.getSelection()
+            if (!sel || sel.rangeCount === 0) return
+            const range = sel.getRangeAt(0)
+            // Check if selection is inside an anchor tag
+            let anchorEl: HTMLAnchorElement | null = null
+            let node: Node | null = sel.anchorNode
+            while (node && node !== ref.current) {
+              if (node.nodeType === 1 && (node as HTMLElement).tagName === "A") {
+                anchorEl = node as HTMLAnchorElement
+                break
+              }
+              node = node.parentNode
+            }
+            if (anchorEl && onLink) {
+              onLink({
+                url: anchorEl.href || "",
+                text: anchorEl.textContent || "",
+                newTab: anchorEl.target === "_blank",
+                isEditing: true,
+              })
+            } else if (onLink) {
+              const selectedText = sel.toString()
+              onLink({
+                url: "",
+                text: selectedText,
+                newTab: true,
+                isEditing: false,
+              })
+            }
+          }}
+        />
+        {/* Remove Link */}
+        <ToolbarBtn
+          icon={<Unlink className="h-3.5 w-3.5" />}
+          title="Remove Link"
+          exec={() => {
+            if (!ref.current) return
+            const sel = window.getSelection()
+            if (!sel || sel.rangeCount === 0) return
+            let node: Node | null = sel.anchorNode
+            while (node && node !== ref.current) {
+              if (node.nodeType === 1 && (node as HTMLElement).tagName === "A") {
+                const anchor = node as HTMLAnchorElement
+                const parent = anchor.parentNode
+                while (anchor.firstChild) parent?.insertBefore(anchor.firstChild, anchor)
+                parent?.removeChild(anchor)
+                if (onRemoveLink) onRemoveLink()
+                requestAnimationFrame(() => {
+                  if (ref.current) onChange(ref.current.innerHTML)
+                })
+                return
+              }
+              node = node.parentNode
+            }
+            toast.info("ابتدا روی لینک کلیک کنید")
+          }}
+        />
+        {/* Embed */}
+        <ToolbarBtn
+          icon={<Video className="h-3.5 w-3.5" />}
+          title="Embed (YouTube / PDF)"
+          exec={() => {
+            if (onEmbed) onEmbed()
           }}
         />
         {/* Alignment */}
@@ -510,6 +596,273 @@ function ImagePickerDialog({
   )
 }
 
+// ── Link Dialog ─────────────────────────────────────────────────────────
+function LinkDialog({
+  open,
+  onOpenChange,
+  onInsert,
+  onRemove,
+  initialUrl,
+  initialText,
+  initialNewTab,
+  isEditing,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onInsert: (link: { url: string; text: string; newTab: boolean }) => void
+  onRemove: () => void
+  initialUrl?: string
+  initialText?: string
+  initialNewTab?: boolean
+  isEditing?: boolean
+}) {
+  const [url, setUrl] = useState(initialUrl || "")
+  const [text, setText] = useState(initialText || "")
+  const [newTab, setNewTab] = useState(initialNewTab ?? true)
+
+  useEffect(() => {
+    if (open) {
+      setUrl(initialUrl || "")
+      setText(initialText || "")
+      setNewTab(initialNewTab ?? true)
+    }
+  }, [open, initialUrl, initialText, initialNewTab])
+
+  const isValidUrl = (s: string) => {
+    try {
+      const u = new URL(s)
+      return u.protocol === "http:" || u.protocol === "https:"
+    } catch {
+      return false
+    }
+  }
+
+  const handleInsert = () => {
+    if (!url.trim()) {
+      toast.error("آدرس لینک را وارد کنید")
+      return
+    }
+    if (!isValidUrl(url.trim())) {
+      toast.error("آدرس لینک معتبر نیست (http:// یا https:// لازم است)")
+      return
+    }
+    onInsert({ url: url.trim(), text: text.trim() || url.trim(), newTab })
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="border-white/10 bg-[#0c1a28] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-right text-cyan-100">
+            {isEditing ? "ویرایش لینک" : "افزودن لینک"}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس لینک</label>
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com"
+              className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+              dir="ltr"
+              onKeyDown={(e) => { if (e.key === "Enter") handleInsert() }}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[10px] font-bold text-slate-400">متن نمایشی</label>
+            <Input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="متن لینک"
+              className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="newTab"
+              checked={newTab}
+              onChange={(e) => setNewTab(e.target.checked)}
+              className="h-4 w-4 rounded border-white/10 bg-white/5"
+            />
+            <label htmlFor="newTab" className="text-xs text-slate-400">باز شدن در تب جدید</label>
+          </div>
+        </div>
+        <DialogFooter className="gap-2">
+          {isEditing && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-400 hover:text-red-300"
+              onClick={() => { onRemove(); onOpenChange(false) }}
+            >
+              <Unlink className="ml-1 h-3.5 w-3.5" /> حذف لینک
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            className="text-slate-400"
+          >
+            انصراف
+          </Button>
+          <Button
+            size="sm"
+            className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+            onClick={handleInsert}
+          >
+            {isEditing ? "بروزرسانی" : "افزودن"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Embed Dialog ───────────────────────────────────────────────────────
+function EmbedDialog({
+  open,
+  onOpenChange,
+  onInsert,
+}: {
+  open: boolean
+  onOpenChange: (v: boolean) => void
+  onInsert: (html: string) => void
+}) {
+  const [tab, setTab] = useState<"youtube" | "pdf">("youtube")
+  const [youtubeUrl, setYoutubeUrl] = useState("")
+  const [pdfUrl, setPdfUrl] = useState("")
+  const [pdfTitle, setPdfTitle] = useState("")
+
+  const getYouTubeEmbed = (url: string): string | null => {
+    const patterns = [
+      /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/,
+      /youtu\.be\/([a-zA-Z0-9_-]{11})/,
+      /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/,
+    ]
+    for (const p of patterns) {
+      const m = url.match(p)
+      if (m) return m[1]
+    }
+    return null
+  }
+
+  const handleInsertYouTube = () => {
+    const id = getYouTubeEmbed(youtubeUrl.trim())
+    if (!id) {
+      toast.error("آدرس YouTube معتبر نیست")
+      return
+    }
+    const html = `<div class="embed-container" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:16px 0;border-radius:12px"><iframe src="https://www.youtube.com/embed/${id}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allowfullscreen loading="lazy"></iframe></div><p><br></p>`
+    onInsert(html)
+    onOpenChange(false)
+    setYoutubeUrl("")
+  }
+
+  const handleInsertPDF = () => {
+    if (!pdfUrl.trim()) {
+      toast.error("آدرس PDF را وارد کنید")
+      return
+    }
+    try {
+      new URL(pdfUrl.trim())
+    } catch {
+      toast.error("آدرس PDF معتبر نیست")
+      return
+    }
+    const html = `<div style="margin:16px 0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)"><div style="background:rgba(255,255,255,0.05);padding:8px 12px;display:flex;align-items:center;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span style="font-size:12px;color:#94a3b8">${pdfTitle || "PDF Document"}</span></div><iframe src="${pdfUrl.trim()}" style="width:100%;height:500px;border:0"></iframe></div><p><br></p>`
+    onInsert(html)
+    onOpenChange(false)
+    setPdfUrl("")
+    setPdfTitle("")
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="border-white/10 bg-[#0c1a28] sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-right text-cyan-100">جاسازی محتوا</DialogTitle>
+        </DialogHeader>
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-white/10">
+          {(["youtube", "pdf"] as const).map((t) => (
+            <button
+              key={t}
+              className={`px-3 py-1.5 text-xs transition-colors ${
+                tab === t ? "border-b-2 border-cyan-400 text-cyan-300" : "text-slate-400 hover:text-white"
+              }`}
+              onClick={() => setTab(t)}
+            >
+              {t === "youtube" ? "YouTube" : "PDF"}
+            </button>
+          ))}
+        </div>
+
+        {tab === "youtube" && (
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس ویدئو YouTube</label>
+              <Input
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                dir="ltr"
+                onKeyDown={(e) => { if (e.key === "Enter") handleInsertYouTube() }}
+              />
+            </div>
+            {youtubeUrl && (() => {
+              const id = getYouTubeEmbed(youtubeUrl)
+              return id ? (
+                <div className="overflow-hidden rounded-lg border border-white/10">
+                  <iframe
+                    src={`https://www.youtube.com/embed/${id}`}
+                    className="aspect-video w-full"
+                    allowFullScreen
+                  />
+                </div>
+              ) : null
+            })()}
+            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertYouTube}>
+              <Video className="ml-1 h-3.5 w-3.5" /> جاسازی ویدئو
+            </Button>
+          </div>
+        )}
+
+        {tab === "pdf" && (
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس فایل PDF</label>
+              <Input
+                value={pdfUrl}
+                onChange={(e) => setPdfUrl(e.target.value)}
+                placeholder="https://example.com/document.pdf"
+                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-slate-400">عنوان (اختیاری)</label>
+              <Input
+                value={pdfTitle}
+                onChange={(e) => setPdfTitle(e.target.value)}
+                placeholder="نام سند"
+                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+              />
+            </div>
+            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertPDF}>
+              <ExternalLink className="ml-1 h-3.5 w-3.5" /> جاسازی PDF
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Main ContentStudio ──────────────────────────────────────────────────
 export default function ContentStudio() {
   const { user } = useAuth();
@@ -532,6 +885,13 @@ export default function ContentStudio() {
   });
   const [busy, setBusy] = useState(false);
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [linkData, setLinkData] = useState<{
+    url: string; text: string; newTab: boolean; isEditing: boolean
+  }>({ url: "", text: "", newTab: true, isEditing: false });
+  const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const savedRangeRef = useRef<Range | null>(null);
 
   const openCreate = () => {
     setForm({
@@ -810,10 +1170,17 @@ export default function ContentStudio() {
                 </label>
                 <Editor
                   html={form.body}
-                  onChange={(html) =>
-                    setForm((f) => ({ ...f, body: html }))
-                  }
+                  onChange={(html) => setForm((f) => ({ ...f, body: html }))}
+                  editorRef={editorRef}
                   onImagePicker={() => setImagePickerOpen(true)}
+                  onLink={(data) => {
+                    setLinkData(data)
+                    const sel = window.getSelection()
+                    if (sel && sel.rangeCount > 0) savedRangeRef.current = sel.getRangeAt(0).cloneRange()
+                    setLinkDialogOpen(true)
+                  }}
+                  onRemoveLink={() => toast.success("لینک حذف شد")}
+                  onEmbed={() => setEmbedDialogOpen(true)}
                 />
               </div>
             </div>
@@ -845,6 +1212,76 @@ export default function ContentStudio() {
             const alignStyle = img.align === "full" ? "width:100%" : img.align === "left" ? "float:left" : img.align === "right" ? "float:right" : "display:block;margin:auto"
             const html = `<div style="${alignStyle};margin:12px 0"><img src=\"${img.src}\" alt=\"${img.alt}\" style=\"max-width:100%;height:auto;border-radius:8px\" /></div><p><br></p>`
             setForm((f) => ({ ...f, body: f.body + html }))
+          }}
+        />
+
+        {/* Link Dialog */}
+        <LinkDialog
+          open={linkDialogOpen}
+          onOpenChange={setLinkDialogOpen}
+          initialUrl={linkData.url}
+          initialText={linkData.text}
+          initialNewTab={linkData.newTab}
+          isEditing={linkData.isEditing}
+          onInsert={(link) => {
+            const targetAttr = link.newTab ? ' target="_blank" rel="noopener noreferrer"' : ''
+            const html = `<a href=\"${link.url}\"${targetAttr}>${link.text}</a>`
+            const editorEl = editorRef.current
+            if (editorEl && savedRangeRef.current) {
+              editorEl.focus()
+              const sel = window.getSelection()
+              if (sel) {
+                sel.removeAllRanges()
+                sel.addRange(savedRangeRef.current)
+              }
+              document.execCommand("insertHTML", false, html)
+              savedRangeRef.current = null
+              setForm((f) => ({ ...f, body: editorEl.innerHTML }))
+            } else {
+              setForm((f) => ({ ...f, body: f.body + html }))
+            }
+          }}
+          onRemove={() => {
+            const editorEl = editorRef.current
+            if (editorEl) {
+              const anchors = editorEl.querySelectorAll("a")
+              anchors.forEach((a) => {
+                if (a.href === linkData.url || a.textContent === linkData.text) {
+                  const parent = a.parentNode
+                  while (a.firstChild) parent?.insertBefore(a.firstChild, a)
+                  parent?.removeChild(a)
+                }
+              })
+              setForm((f) => ({ ...f, body: editorEl.innerHTML }))
+            } else {
+              if (!linkData.url) return
+              setForm((f) => ({
+                ...f,
+                body: f.body.replace(
+                  new RegExp(
+                    `<a[^>]*href=["']${linkData.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>[^<]*<\/a>`,
+                    'g'
+                  ),
+                  linkData.text
+                ),
+              }))
+            }
+          }}
+        />
+
+        {/* Embed Dialog */}
+        <EmbedDialog
+          open={embedDialogOpen}
+          onOpenChange={setEmbedDialogOpen}
+          onInsert={(html) => {
+            const editorEl = editorRef.current
+            if (editorEl) {
+              editorEl.focus()
+              document.execCommand("insertHTML", false, html)
+              setForm((f) => ({ ...f, body: editorEl.innerHTML }))
+            } else {
+              setForm((f) => ({ ...f, body: f.body + html }))
+            }
           }}
         />
       </div>
