@@ -158,6 +158,7 @@ export default function ContentStudio() {
   });
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const handleAutoSaveRef = useRef<((body: string) => Promise<void>) | null>(null);
 
   const currentArticle =
     currentArticleId && articles
@@ -166,6 +167,7 @@ export default function ContentStudio() {
 
   // ── TipTap Editor ─────────────────────────────────────────────────────
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
       UnderlineExt,
@@ -188,7 +190,7 @@ export default function ContentStudio() {
     onUpdate: ({ editor: ed }) => {
       setSaving("unsaved");
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-      autoSaveTimer.current = setTimeout(() => handleAutoSave(ed.getHTML()), 3000);
+      autoSaveTimer.current = setTimeout(() => handleAutoSaveRef.current?.(ed.getHTML()), 3000);
     },
   });
 
@@ -260,6 +262,7 @@ export default function ContentStudio() {
     },
     [currentArticleId, meta, quickSaveMutation],
   );
+  handleAutoSaveRef.current = handleAutoSave;
 
   const handleManualSave = useCallback(async () => {
     if (!editor || !currentArticleId) return;
