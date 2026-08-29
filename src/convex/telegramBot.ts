@@ -202,3 +202,155 @@ export const _updateBotInfo = mutation({
     await ctx.db.patch(bot._id, update);
   },
 });
+
+// ── Telegram Account Linking ─────────────────────────────────────────────────
+
+/** Generate a one-time linking code for the current user */
+export const generateLinkingCode = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("لطفاً وارد شوید.");
+
+    // Invalidate any previous unused codes for this user
+    const existing = await ctx.db
+      .query("telegramLinkingCodes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    for (const code of existing) {
+      if (!code.usedAt) await ctx.db.delete(code._id);
+    }
+
+    // Generate a random 8-char code
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+
+    const now = Date.now();
+    await ctx.db.insert("telegramLinkingCodes", {
+      userId,
+      code,
+      createdAt: now,
+      expiresAt: now + 10 * 60 * 1000, // 10 minutes
+    });
+
+    return { code };
+  },
+});
+
+/** Get the current user's Telegram link status */
+export const getLinkingStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+
+    // Also return bot username for deep link
+    const bots = await ctx.db.query("telegramBot").collect();
+    const botUsername = bots[0]?.botUsername ?? null;
+
+    return {
+      linked: !!user.telegramId,
+      telegramId: user.telegramId ?? null,
+      telegramUsername: user.telegramUsername ?? null,
+      telegramFirstName: user.telegramFirstName ?? null,
+      linkedAt: user.telegramLinkedAt ?? null,
+      botUsername,
+    };
+  },
+});
+
+/** Disconnect Telegram from the current user's account */
+export const unlinkTelegram = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("لطفاً وارد شوید.");
+
+    await ctx.db.patch(userId, {
+      telegramId: undefined,
+      telegramUsername: undefined,
+      telegramFirstName: undefined,
+      telegramLinkedAt: undefined,
+    });
+
+    // Invalidate all unused linking codes
+    const codes = await ctx.db
+      .query("telegramLinkingCodes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    for (const c of codes) {
+      if (!c.usedAt) await ctx.db.delete(c._id);
+    }
+
+    return { success: true };
+  },
+});
+/** Internal: find user by Telegram ID — called from webhook handler */
+export const _findUserByTelegramId = query({
+  args: { telegramId: v.number() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_telegramId", (q) => q.eq("telegramId", args.telegramId))
+      .first();
+  },
+});
+
+
+/** Internal: look up a linking code — called from webhook handler */
+export const _findLinkingCode = query({
+  args: { code: v.string() },
+  handler: async (ctx, args) => {
+    const results = await ctx.db
+      .query("telegramLinkingCodes")
+      .withIndex("by_code", (q) => q.eq("code", args.code))
+      .collect();
+    return results[0] ?? null;
+  },
+});
+
+/** Internal: mark a linking code as used and link the Telegram account */
+export const _completeLinking = mutation({
+  args: {
+    codeId: v.id("telegramLinkingCodes"),
+    telegramId: v.number(),
+    telegramUsername: v.optional(v.string()),
+    telegramFirstName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const codeDoc = await ctx.db.get(args.codeId);
+    if (!codeDoc || codeDoc.usedAt) return { success: false as const, reason: "already_used" as const };
+
+    const now = Date.now();
+    if (now > codeDoc.expiresAt) return { success: false as const, reason: "expired" as const };
+
+    // Check if this telegramId is already linked to another user
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_telegramId", (q) => q.eq("telegramId", args.telegramId))
+      .first();
+    if (existingUser && existingUser._id !== codeDoc.userId) {
+      return { success: false as const, reason: "already_linked" as const };
+    }
+
+    // Mark code as used
+    await ctx.db.patch(args.codeId, {
+      usedAt: now,
+      telegramId: args.telegramId,
+    });
+
+    // Link the Telegram account to the Genova user
+    await ctx.db.patch(codeDoc.userId, {
+      telegramId: args.telegramId,
+      telegramUsername: args.telegramUsername,
+      telegramFirstName: args.telegramFirstName,
+      telegramLinkedAt: now,
+    });
+
+    return { success: true as const, userId: codeDoc.userId };
+  },
+});

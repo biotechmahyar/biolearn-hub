@@ -103,7 +103,13 @@ const schema = defineSchema(
           submittedAt: v.number(),
         }),
       ),
-    }).index("email", ["email"]),
+
+      // Telegram account linking
+      telegramId: v.optional(v.number()),       // Telegram user numeric ID
+      telegramUsername: v.optional(v.string()),  // @username from Telegram
+      telegramFirstName: v.optional(v.string()), // First name from Telegram
+      telegramLinkedAt: v.optional(v.number()),  // When the account was linked
+    }).index("email", ["email"]).index("by_telegramId", ["telegramId"]),
 
     // ── Catalog ──────────────────────────────────────────────────────────
     categories: defineTable({
@@ -764,6 +770,25 @@ const schema = defineSchema(
     }),
 
     // ── Super Admin access sessions ──────────────────────────────────────
+
+    // Telegram account linking codes (one-time use, expiring) ────────────
+
+    telegramLinkingCodes: defineTable({
+
+      userId: v.id("users"),
+
+      code: v.string(),             // Random linking code
+
+      createdAt: v.number(),
+
+      expiresAt: v.number(),        // 10 min expiry
+
+      usedAt: v.optional(v.number()), // null = unused
+
+      telegramId: v.optional(v.number()), // Set after linking
+
+    }).index("by_code", ["code"]).index("by_user", ["userId"]),
+
     superAdminSessions: defineTable({
       userId: v.id("users"),
       createdAt: v.number(),

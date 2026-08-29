@@ -2,6 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { CategoryField } from "@/components/site/CategoryField";
 import { ClassTimer } from "@/components/site/ClassTimer";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
+import TelegramAccount from "@/components/site/TelegramAccount";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
@@ -1512,6 +1513,8 @@ function ProfileView() {
       </div>
 
       <MemberProfileEditor />
+
+      <TelegramAccount />
 
       {/* Suggested courses */}
       <div className="space-y-3">
