@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { api } from "./_generated/api";
 
 const PRESENCE_WINDOW = 60_000; // treat as online if heartbeat within 60s
 
@@ -552,5 +553,209 @@ export const deleteMentorGroup = mutation({
     if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط منتور این گروه می‌تواند آن را حذف کند.");
     await ctx.db.delete(args.groupId);
     return { ok: true };
+  },
+});
+
+// ── Group membership ──────────────────────────────────────────────────────
+
+export const joinGroup = mutation({
+  args: { groupId: v.id("mentorGroups") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("گروه یافت نشد.");
+    // Check capacity
+    if (group.memberCount >= group.capacity) throw new Error("ظرفیت گروه تکمیل است.");
+    // Check duplicate
+    const existing = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group_user", (q) => q.eq("groupId", args.groupId).eq("userId", user._id))
+      .first();
+    if (existing) throw new Error("شما قبلاً عضو این گروه هستید.");
+
+    await ctx.db.insert("groupMembers", {
+      groupId: args.groupId,
+      userId: user._id,
+      userName: user.name ?? "کاربر",
+      joinedAt: Date.now(),
+    });
+    await ctx.db.patch(args.groupId, { memberCount: group.memberCount + 1 });
+    return { ok: true };
+  },
+});
+
+export const leaveGroup = mutation({
+  args: { groupId: v.id("mentorGroups") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const membership = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group_user", (q) => q.eq("groupId", args.groupId).eq("userId", user._id))
+      .first();
+    if (!membership) throw new Error("عضویت یافت نشد.");
+    await ctx.db.delete(membership._id);
+    const group = await ctx.db.get(args.groupId);
+    if (group && group.memberCount > 0) {
+      await ctx.db.patch(args.groupId, { memberCount: group.memberCount - 1 });
+    }
+    return { ok: true };
+  },
+});
+
+export const listGroupMembers = query({
+  args: { groupId: v.id("mentorGroups") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .collect();
+  },
+});
+
+export const isGroupMember = query({
+  args: { groupId: v.id("mentorGroups") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return false;
+    const membership = await ctx.db
+      .query("groupMembers")
+      .withIndex("by_group_user", (q) => q.eq("groupId", args.groupId).eq("userId", user._id))
+      .first();
+    return !!membership;
+  },
+});
+
+// ── Group announcements (with Telegram notification) ───────────────────────
+
+export const createGroupAnnouncement = mutation({
+  args: {
+    groupId: v.id("mentorGroups"),
+    title: v.string(),
+    message: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    if ((await getRole(ctx)) !== "mentor" && !(await isAdmin(ctx))) {
+      throw new Error("فقط منتور می‌تواند اعلان گروه ایجاد کند.");
+    }
+    const group = await ctx.db.get(args.groupId);
+    if (!group) throw new Error("گروه یافت نشد.");
+
+    const announcementId = await ctx.db.insert("groupAnnouncements", {
+      groupId: args.groupId,
+      mentorId: user._id,
+      mentorName: user.name ?? "منتور",
+      title: args.title.trim(),
+      message: args.message.trim(),
+      createdAt: Date.now(),
+    });
+
+    // Send Telegram notification to all group members
+    try {
+      const members = await ctx.db
+        .query("groupMembers")
+        .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+        .collect();
+
+      for (const member of members) {
+        await ctx.scheduler.runAfter(0, api.telegramNotifications.sendNotification, {
+          userId: member.userId,
+          type: "group",
+          key: `group-announce:${announcementId}:${member.userId}`,
+          title: `👥 اعلان گروه «${group.title}»`,
+          message: `${args.title.trim()}\n\n${args.message.trim().slice(0, 300)}`,
+          linkLabel: "مشاهده در Genova",
+        });
+      }
+    } catch { /* notification failure should not break announcement creation */ }
+
+    return { ok: true, id: announcementId };
+  },
+});
+
+export const listGroupAnnouncements = query({
+  args: { groupId: v.id("mentorGroups") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("groupAnnouncements")
+      .withIndex("by_group", (q) => q.eq("groupId", args.groupId))
+      .order("desc")
+      .take(50);
+  },
+});
+
+// ── Session reminders ─────────────────────────────────────────────────────
+// Triggered on-demand: checks upcoming sessions and sends reminders
+
+export const checkSessionReminders = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const upcoming = await ctx.db
+      .query("mentorSessions")
+      .withIndex("by_created", (q) => q.gte("createdAt", now - 7 * 24 * 60 * 60 * 1000))
+      .filter((q) => q.eq(q.field("status"), "scheduled"))
+      .collect();
+
+    let remindersSent = 0;
+
+    for (const session of upcoming) {
+      // Parse session date/time into a timestamp
+      // Session date format: YYYY-MM-DD, time format: HH:MM
+      const sessionTimestamp = new Date(`${session.date}T${session.time}`).getTime();
+      if (isNaN(sessionTimestamp) || sessionTimestamp < now) continue;
+
+      const diffMs = sessionTimestamp - now;
+      const hoursBefore = diffMs / (1000 * 60 * 60);
+
+      // 24-hour reminder
+      if (hoursBefore <= 24 && hoursBefore > 23) {
+        const key = `reminder-24h:${session._id}`;
+        const existing = await ctx.db
+          .query("telegramNotifLog")
+          .withIndex("by_key", (q: any) => q.eq("key", key))
+          .first();
+        if (!existing) {
+          try {
+            await ctx.scheduler.runAfter(0, api.telegramNotifications.sendNotification, {
+              userId: session.studentId,
+              type: "meeting",
+              key,
+              title: "⏰ یادآوری جلسه (۲۴ ساعت دیگر)",
+              message: `جلسه شما با ${session.mentorName} فردا در ساعت ${session.time} برگزار می‌شود.\n\nعنوان: ${session.title}`,
+              linkLabel: "مشاهده جلسه",
+            });
+            remindersSent++;
+          } catch { /* ignore */ }
+        }
+      }
+
+      // 1-hour reminder
+      if (hoursBefore <= 1 && hoursBefore > 0.9) {
+        const key = `reminder-1h:${session._id}`;
+        const existing = await ctx.db
+          .query("telegramNotifLog")
+          .withIndex("by_key", (q: any) => q.eq("key", key))
+          .first();
+        if (!existing) {
+          try {
+            await ctx.scheduler.runAfter(0, api.telegramNotifications.sendNotification, {
+              userId: session.studentId,
+              type: "meeting",
+              key,
+              title: "⏰ یادآوری جلسه (۱ ساعت دیگر)",
+              message: `جلسه شما با ${session.mentorName} در یک ساعت آینده برگزار می‌شود.\n\nعنوان: ${session.title}`,
+              linkLabel: "مشاهده جلسه",
+            });
+            remindersSent++;
+          } catch { /* ignore */ }
+        }
+      }
+    }
+
+    return { checked: upcoming.length, remindersSent };
   },
 });

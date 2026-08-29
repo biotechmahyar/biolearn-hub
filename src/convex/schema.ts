@@ -577,6 +577,28 @@ const schema = defineSchema(
       .index("by_student", ["studentId"])
       .index("by_created", ["createdAt"]),
 
+    // ── Mentor Group Members ───────────────────────────────────────────────
+    groupMembers: defineTable({
+      groupId: v.id("mentorGroups"),
+      userId: v.id("users"),
+      userName: v.string(),
+      joinedAt: v.number(),
+    })
+      .index("by_group", ["groupId"])
+      .index("by_user", ["userId"])
+      .index("by_group_user", ["groupId", "userId"]),
+
+    // ── Group Announcements ────────────────────────────────────────────────
+    groupAnnouncements: defineTable({
+      groupId: v.id("mentorGroups"),
+      mentorId: v.id("users"),
+      mentorName: v.string(),
+      title: v.string(),
+      message: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_group", ["groupId"]),
+
     // ── Support ───────────────────────────────────────────────────────────
     tickets: defineTable({
       userId: v.id("users"),

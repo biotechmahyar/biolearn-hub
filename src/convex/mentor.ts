@@ -4,6 +4,9 @@ import { getCurrentUser } from "./users";
 import { isAdmin } from "./admin";
 import { api } from "./_generated/api";
 
+// ── Site URL for inline keyboard links ─────────────────────────────────────
+const SITE_URL = "https://biolearn-hub.biotechmahyar.workers.dev";
+
 // ── Role helpers ────────────────────────────────────────────────────────────
 const isMentor = async (ctx: any) => {
   const user = await getCurrentUser(ctx);
@@ -151,7 +154,35 @@ export const setSessionStatus = mutation({
     }
     const session = await ctx.db.get(args.sessionId);
     if (!session) throw new Error("جلسه یافت نشد.");
+    const oldStatus = session.status;
     await ctx.db.patch(session._id, { status: args.status as any });
+
+    // Telegram notification for status changes
+    if (oldStatus !== args.status) {
+      try {
+        const student = await ctx.db.get(session.studentId);
+        if (args.status === "cancelled") {
+          await ctx.scheduler.runAfter(0, api.telegramNotifications.sendNotification, {
+            userId: session.studentId,
+            type: "meeting",
+            key: `session-cancel:${session._id}`,
+            title: "❌ جلسه لغو شد",
+            message: `جلسه «${session.title}» لغو شد.\n🕐 زمان: ${session.date} — ${session.time}`,
+            linkLabel: "مشاهده جلسه",
+          });
+        } else if (args.status === "done") {
+          await ctx.scheduler.runAfter(0, api.telegramNotifications.sendNotification, {
+            userId: session.studentId,
+            type: "meeting",
+            key: `session-done:${session._id}`,
+            title: "✅ جلسه به پایان رسید",
+            message: `جلسه «${session.title}» با ${session.mentorName} به پایان رسید.`,
+            linkLabel: "مشاهده جلسه",
+          });
+        }
+      } catch { /* notification failure should not break session update */ }
+    }
+
     return await ctx.db.get(session._id);
   },
 });
