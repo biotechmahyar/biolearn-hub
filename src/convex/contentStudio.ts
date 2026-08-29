@@ -1,11 +1,12 @@
 import { query, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ── Auth helpers ─────────────────────────────────────────────────────────
 async function isContentStaff(ctx: any) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) return false;
-  const user = await ctx.db.get(identity.subject);
+  const userId = await getAuthUserId(ctx);
+  if (!userId) return false;
+  const user = await ctx.db.get(userId);
   if (!user) return false;
   return ["admin", "site_admin", "content_manager"].includes(user.role ?? "");
 }
@@ -287,13 +288,13 @@ export const saveVersion = mutation({
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
     await ctx.db.insert("articleVersions", {
       articleId: args.articleId,
       body: args.body,
       title: args.title,
-      savedBy: identity.subject as any,
+      savedBy: userId,
       createdAt: Date.now(),
     });
     return { ok: true };
@@ -331,8 +332,13 @@ export const restoreVersion = mutation({
 export const listMedia = query({
   args: {},
   handler: async (ctx) => {
-    if (!(await isContentStaff(ctx))) return [];
-    return await ctx.db.query("mediaItems").order("desc").collect();
+    try {
+      if (!(await isContentStaff(ctx))) return [];
+      return await ctx.db.query("mediaItems").order("desc").collect();
+    } catch {
+      // Table may not exist yet in the deployment
+      return [];
+    }
   },
 });
 
@@ -348,11 +354,11 @@ export const addMedia = mutation({
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
     const id = await ctx.db.insert("mediaItems", {
       ...args,
-      uploadedBy: identity.subject as any,
+      uploadedBy: userId,
       createdAt: Date.now(),
     });
     return { ok: true, id };

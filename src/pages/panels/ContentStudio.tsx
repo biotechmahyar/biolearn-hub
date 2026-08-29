@@ -351,7 +351,9 @@ function ImagePickerDialog({
             size: file.size,
             mimeType: file.type,
           })
-        } catch { /* ignore - media table may not exist */ }
+        } catch {
+          // Media table may not exist yet — insert into editor anyway
+        }
         onInsert({ src: dataUrl, alt: alt || file.name, align })
         onOpenChange(false)
         setUrl("")
