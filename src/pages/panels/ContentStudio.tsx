@@ -24,12 +24,24 @@ import {
   Bold,
   Italic,
   Underline,
+  Strikethrough,
   Heading1,
   Heading2,
+  Heading3,
+  Heading4,
+  Heading5,
+  Heading6,
   List,
   ListOrdered,
   Quote,
   Code,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  Undo,
+  Redo,
+  RemoveFormatting,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -77,18 +89,39 @@ function Editor({
     <div className="rounded-lg border border-white/10 bg-white/[0.02]">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 px-2 py-1">
+        {/* Inline formatting */}
         <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" exec={() => exec("bold")} />
         <ToolbarBtn icon={<Italic className="h-3.5 w-3.5" />} title="Italic" exec={() => exec("italic")} />
         <ToolbarBtn icon={<Underline className="h-3.5 w-3.5" />} title="Underline" exec={() => exec("underline")} />
+        <ToolbarBtn icon={<Strikethrough className="h-3.5 w-3.5" />} title="Strikethrough" exec={() => exec("strikeThrough")} />
         <span className="mx-1 h-4 w-px bg-white/10" />
+        {/* Headings */}
         <ToolbarBtn icon={<Heading1 className="h-3.5 w-3.5" />} title="H1" exec={() => exec("formatBlock", "<h1>")} />
         <ToolbarBtn icon={<Heading2 className="h-3.5 w-3.5" />} title="H2" exec={() => exec("formatBlock", "<h2>")} />
+        <ToolbarBtn icon={<Heading3 className="h-3.5 w-3.5" />} title="H3" exec={() => exec("formatBlock", "<h3>")} />
+        <ToolbarBtn icon={<Heading4 className="h-3.5 w-3.5" />} title="H4" exec={() => exec("formatBlock", "<h4>")} />
+        <ToolbarBtn icon={<Heading5 className="h-3.5 w-3.5" />} title="H5" exec={() => exec("formatBlock", "<h5>")} />
+        <ToolbarBtn icon={<Heading6 className="h-3.5 w-3.5" />} title="H6" exec={() => exec("formatBlock", "<h6>")} />
+        <ToolbarBtn icon={<span className="text-[10px] font-bold">P</span>} title="Paragraph" exec={() => exec("formatBlock", "<p>")} />
         <span className="mx-1 h-4 w-px bg-white/10" />
-        <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="List" exec={() => exec("insertUnorderedList")} />
-        <ToolbarBtn icon={<ListOrdered className="h-3.5 w-3.5" />} title="Ordered List" exec={() => exec("insertOrderedList")} />
+        {/* Lists */}
+        <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="Bullet List" exec={() => exec("insertUnorderedList")} />
+        <ToolbarBtn icon={<ListOrdered className="h-3.5 w-3.5" />} title="Numbered List" exec={() => exec("insertOrderedList")} />
         <span className="mx-1 h-4 w-px bg-white/10" />
+        {/* Block formatting */}
         <ToolbarBtn icon={<Quote className="h-3.5 w-3.5" />} title="Quote" exec={() => exec("formatBlock", "<blockquote>")} />
-        <ToolbarBtn icon={<Code className="h-3.5 w-3.5" />} title="Code" exec={() => exec("formatBlock", "<pre>")} />
+        <ToolbarBtn icon={<Code className="h-3.5 w-3.5" />} title="Code Block" exec={() => exec("formatBlock", "<pre>")} />
+        <span className="mx-1 h-4 w-px bg-white/10" />
+        {/* Alignment */}
+        <ToolbarBtn icon={<AlignRight className="h-3.5 w-3.5" />} title="Align Right" exec={() => exec("justifyRight")} />
+        <ToolbarBtn icon={<AlignCenter className="h-3.5 w-3.5" />} title="Align Center" exec={() => exec("justifyCenter")} />
+        <ToolbarBtn icon={<AlignLeft className="h-3.5 w-3.5" />} title="Align Left" exec={() => exec("justifyLeft")} />
+        <ToolbarBtn icon={<AlignJustify className="h-3.5 w-3.5" />} title="Justify" exec={() => exec("justifyFull")} />
+        <span className="mx-1 h-4 w-px bg-white/10" />
+        {/* Undo / Redo / Clear */}
+        <ToolbarBtn icon={<Undo className="h-3.5 w-3.5" />} title="Undo" exec={() => exec("undo")} />
+        <ToolbarBtn icon={<Redo className="h-3.5 w-3.5" />} title="Redo" exec={() => exec("redo")} />
+        <ToolbarBtn icon={<RemoveFormatting className="h-3.5 w-3.5" />} title="Clear Formatting" exec={() => exec("removeFormat")} />
       </div>
       {/* Content */}
       <div
