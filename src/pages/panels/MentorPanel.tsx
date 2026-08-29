@@ -26,8 +26,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
-type Tab = "questions" | "groups" | "sessions" | "profile";
-
 type QuestionRow = (typeof api.mentor.listMentorQuestions)["_returnType"][number];
 type GroupRow = (typeof api.collab.listMentorGroups)["_returnType"][number];
 type SessionRow = (typeof api.mentor.listSessions)["_returnType"][number];
