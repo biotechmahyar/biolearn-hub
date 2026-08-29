@@ -260,3 +260,63 @@ export const removeWebhook = action({
     }
   },
 });
+
+/** Set Menu Button (opens Mini App) */
+export const setMenuButton = action({
+  args: {},
+  handler: async (ctx) => {
+    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    if (!tokenData?.token) throw new Error("توکن یافت نشد.");
+
+    const siteUrl = process.env.SITE_URL || "https://biolearn-hub.biotechmahyar.workers.dev";
+
+    try {
+      const data: any = await fetchJson(
+        `https://api.telegram.org/bot${tokenData.token}/setChatMenuButton`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            menu_button: {
+              type: "web_app",
+              text: "🚀 Genova",
+              web_app: { url: siteUrl },
+            },
+          }),
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+      return { success: data.ok as boolean, error: data.ok ? undefined : (data.description as string) };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : "خطا" };
+    }
+  },
+});
+
+/** Get Menu Button status */
+export const getMenuButton = action({
+  args: {},
+  handler: async (ctx) => {
+    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    if (!tokenData?.token) throw new Error("توکن یافت نشد.");
+
+    try {
+      const data: any = await fetchJson(
+        `https://api.telegram.org/bot${tokenData.token}/getChatMenuButton`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+      if (data.ok) {
+        const btn = data.result;
+        return {
+          success: true,
+          type: btn.type,
+          text: btn.text || null,
+          webAppUrl: btn.web_app?.url || null,
+        };
+      }
+      return { success: false, error: data.description as string };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : "خطا" };
+    }
+  },
+});

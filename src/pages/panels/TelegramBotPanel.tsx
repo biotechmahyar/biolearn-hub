@@ -66,6 +66,8 @@ export default function TelegramBotPanel() {
   const removeWebhookAction = useAction(api.telegramBotActions.removeWebhook);
   const setupWebhookAction = useAction(api.telegramBotActions.setupWebhook);
   const getWebhookInfoAction = useAction(api.telegramBotActions.getWebhookInfo);
+  const setMenuBtn = useAction(api.telegramBotActions.setMenuButton);
+  const getMenuBtn = useAction(api.telegramBotActions.getMenuButton);
 
   const [tokenInput, setTokenInput] = useState("");
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
@@ -79,6 +81,8 @@ export default function TelegramBotPanel() {
   const [loading, setLoading] = useState<string | null>(null);
   const [webhookInfo, setWebhookInfo] = useState<any>(null);
   const [webhookInfoLoading, setWebhookInfoLoading] = useState(false);
+  const [menuBtnInfo, setMenuBtnInfo] = useState<any>(null);
+  const [menuBtnLoading, setMenuBtnLoading] = useState(false);
 
   useEffect(() => {
     if (botConfig?.startMessage) setWelcomeMsg(botConfig.startMessage);
@@ -179,6 +183,24 @@ export default function TelegramBotPanel() {
       setWebhookInfo(r);
     } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا"); }
     finally { setWebhookInfoLoading(false); }
+  };
+
+  const handleSetMenuButton = async () => {
+    setMenuBtnLoading(true);
+    try {
+      const r = await setMenuBtn();
+      if (r.success) toast.success("Menu Button تنظیم شد."); else toast.error(r.error || "خطا");
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا"); }
+    finally { setMenuBtnLoading(false); }
+  };
+
+  const handleGetMenuButton = async () => {
+    setMenuBtnLoading(true);
+    try {
+      const r = await getMenuBtn();
+      setMenuBtnInfo(r);
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا"); }
+    finally { setMenuBtnLoading(false); }
   };
   const handleSaveCommands = async () => {
     setLoading("commands");
@@ -486,6 +508,50 @@ export default function TelegramBotPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Menu Button */}
+      {isConnected && (
+        <Card className="border-border/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Globe className="size-4 text-sky-500" /> Menu Button (Mini App)
+              </CardTitle>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleGetMenuButton} disabled={menuBtnLoading}>
+                  {menuBtnLoading ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+                  بررسی وضعیت
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleSetMenuButton} disabled={menuBtnLoading}>
+                  {menuBtnLoading ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                  تنظیم Menu Button
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-sm text-muted-foreground">
+              دکمه Menu در چت تلگرام با عنوان «🚀 Genova» نمایش داده می‌شود و Mini App را باز می‌کند.
+            </p>
+            {menuBtnInfo && (
+              <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">نوع:</span>
+                  <span className="font-mono text-foreground">{menuBtnInfo.type || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">متن:</span>
+                  <span className="text-foreground">{menuBtnInfo.text || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Mini App URL:</span>
+                  <span className="font-mono text-foreground truncate max-w-[250px]" dir="ltr">{menuBtnInfo.webAppUrl || "—"}</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bot Info */}
       {isConnected && (

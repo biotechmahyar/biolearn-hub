@@ -335,6 +335,26 @@ export const _findLinkingCode = query({
   },
 });
 
+/** Find user by Telegram ID (for Mini App auth) */
+export const authByTelegramId = query({
+  args: { telegramId: v.number() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_telegramId", (q) => q.eq("telegramId", args.telegramId))
+      .first();
+    if (!user) return null;
+    return {
+      _id: user._id,
+      name: user.name ?? null,
+      email: user.email ?? null,
+      role: user.role ?? null,
+      telegramUsername: user.telegramUsername ?? null,
+      telegramFirstName: user.telegramFirstName ?? null,
+    };
+  },
+});
+
 /** Internal: mark a linking code as used and link the Telegram account */
 export const _completeLinking = mutation({
   args: {
