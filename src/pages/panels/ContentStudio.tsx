@@ -1,12 +1,11 @@
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -22,8 +21,113 @@ import {
   FileText,
   Rocket,
   Eye,
+  Bold,
+  Italic,
+  Underline,
+  Heading1,
+  Heading2,
+  List,
+  ListOrdered,
+  Quote,
+  Code,
 } from "lucide-react";
 
+function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      className="rounded px-1.5 py-1 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        exec();
+      }}
+    >
+      {icon}
+    </button>
+  );
+}
+
+// ── Tiny Rich Text Editor (contentEditable) ─────────────────────────────
+function Editor({
+  html,
+  onChange,
+}: {
+  html: string;
+  onChange: (html: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Sync external HTML → DOM only when html prop changes from outside
+  useEffect(() => {
+    if (!ref.current) return;
+    if (ref.current.innerHTML !== html) {
+      ref.current.innerHTML = html;
+    }
+  }, [html]);
+
+  const exec = useCallback(
+    (cmd: string, val?: string) => {
+      ref.current?.focus();
+      document.execCommand(cmd, false, val);
+    },
+    [],
+  );
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02]">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 px-2 py-1">
+        <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" exec={() => exec("bold")} />
+        <ToolbarBtn icon={<Italic className="h-3.5 w-3.5" />} title="Italic" exec={() => exec("italic")} />
+        <ToolbarBtn icon={<Underline className="h-3.5 w-3.5" />} title="Underline" exec={() => exec("underline")} />
+        <span className="mx-1 h-4 w-px bg-white/10" />
+        <ToolbarBtn icon={<Heading1 className="h-3.5 w-3.5" />} title="H1" exec={() => exec("formatBlock", "<h1>")} />
+        <ToolbarBtn icon={<Heading2 className="h-3.5 w-3.5" />} title="H2" exec={() => exec("formatBlock", "<h2>")} />
+        <span className="mx-1 h-4 w-px bg-white/10" />
+        <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="List" exec={() => exec("insertUnorderedList")} />
+        <ToolbarBtn icon={<ListOrdered className="h-3.5 w-3.5" />} title="Ordered List" exec={() => exec("insertOrderedList")} />
+        <span className="mx-1 h-4 w-px bg-white/10" />
+        <ToolbarBtn icon={<Quote className="h-3.5 w-3.5" />} title="Quote" exec={() => exec("formatBlock", "<blockquote>")} />
+        <ToolbarBtn icon={<Code className="h-3.5 w-3.5" />} title="Code" exec={() => exec("formatBlock", "<pre>")} />
+      </div>
+      {/* Content */}
+      <div
+        ref={(el) => {
+          (ref as React.MutableRefObject<HTMLDivElement | null>).current = el;
+          if (el && el.innerHTML !== html) {
+            el.innerHTML = html;
+          }
+        }}
+        contentEditable
+        dir="rtl"
+        suppressContentEditableWarning
+        className="min-h-[250px] px-4 py-3 text-sm leading-7 text-slate-200 focus:outline-none prose prose-invert max-w-none"
+        onInput={() => {
+          if (!ref.current) return;
+          const html = ref.current.innerHTML;
+          onChange(html);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+              const node = sel.anchorNode;
+              if (node) {
+                const el = (node.nodeType === 3 ? node.parentElement : node) as HTMLElement;
+                if (el?.tagName === "H1") {
+                  e.preventDefault();
+                  exec("formatBlock", "<p>");
+                }
+              }
+            }
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Main ContentStudio ──────────────────────────────────────────────────
 export default function ContentStudio() {
   const { user } = useAuth();
   const articles = useQuery(api.admin.adminListArticles);
@@ -50,7 +154,7 @@ export default function ContentStudio() {
       title: "",
       category: "عمومی",
       excerpt: "",
-      body: "",
+      body: "<p></p>",
       authorName: "",
       published: false,
     });
@@ -59,19 +163,25 @@ export default function ContentStudio() {
 
   const openEdit = (a: any) => {
     setForm({
-      title: a.title,
-      category: a.category,
-      excerpt: a.excerpt,
-      body: a.body,
-      authorName: a.authorName,
-      published: a.published,
+      title: a.title ?? "",
+      category: a.category ?? "عمومی",
+      excerpt: a.excerpt ?? "",
+      body: a.body ?? "<p></p>",
+      authorName: a.authorName ?? "",
+      published: a.published ?? false,
     });
     setDialog({ mode: "edit", article: a });
   };
 
   const handleSave = async () => {
-    if (!form.title.trim() || !form.body.trim()) {
-      toast.error("عنوان و محتوا الزامی هستند");
+    if (!form.title.trim()) {
+      toast.error("عنوان مقاله الزامی است");
+      return;
+    }
+    // Strip empty tags to check for real content
+    const plainText = form.body.replace(/<[^>]*>/g, "").trim();
+    if (!plainText) {
+      toast.error("محتوای مقاله الزامی است");
       return;
     }
     setBusy(true);
@@ -84,10 +194,7 @@ export default function ContentStudio() {
           excerpt: form.excerpt,
           body: form.body,
           authorName: form.authorName,
-          readTime: Math.max(
-            1,
-            Math.round(form.body.split(/\s+/).length / 250),
-          ),
+          readTime: Math.max(1, Math.round(plainText.split(/\s+/).length / 250)),
           published: form.published,
         });
         toast.success("مقاله بروزرسانی شد");
@@ -99,10 +206,7 @@ export default function ContentStudio() {
           excerpt: form.excerpt,
           body: form.body,
           authorName: form.authorName || "تیم Genova",
-          readTime: Math.max(
-            1,
-            Math.round(form.body.split(/\s+/).length / 250),
-          ),
+          readTime: Math.max(1, Math.round(plainText.split(/\s+/).length / 250)),
           published: false,
         });
         toast.success("مقاله جدید ساخته شد");
@@ -219,12 +323,7 @@ export default function ContentStudio() {
                       variant="ghost"
                       className="h-7 text-xs text-red-400 hover:text-red-300"
                       onClick={async () => {
-                        if (
-                          !window.confirm(
-                            "آیا از حذف این مقاله مطمئن هستید؟",
-                          )
-                        )
-                          return;
+                        if (!window.confirm("آیا از حذف این مقاله مطمئن هستید؟")) return;
                         try {
                           await deleteArticle({ id: article._id });
                           toast.success("مقاله حذف شد");
@@ -312,26 +411,24 @@ export default function ContentStudio() {
                 <label className="mb-1 block text-xs font-bold text-slate-400">
                   خلاصه
                 </label>
-                <Textarea
+                <input
                   value={form.excerpt}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, excerpt: e.target.value }))
                   }
                   placeholder="خلاصه مقاله..."
-                  className="min-h-[60px] border-white/10 bg-white/5 text-slate-200"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-bold text-slate-400">
-                  محتوا (HTML)
+                  محتوا
                 </label>
-                <Textarea
-                  value={form.body}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, body: e.target.value }))
+                <Editor
+                  html={form.body}
+                  onChange={(html) =>
+                    setForm((f) => ({ ...f, body: html }))
                   }
-                  placeholder="محتوای مقاله..."
-                  className="min-h-[200px] border-white/10 bg-white/5 font-mono text-xs text-slate-200"
                 />
               </div>
             </div>
