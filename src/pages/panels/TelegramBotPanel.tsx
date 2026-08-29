@@ -162,7 +162,7 @@ export default function TelegramBotPanel() {
   const handleSetupWebhook = async () => {
     setLoading("setup-webhook");
     try {
-      const r = await setupWebhookAction();
+      const r = await setupWebhookAction({});
       if (r.success) toast.success(`Webhook تنظیم شد: ${r.webhookUrl}`);
       else toast.error(r.error || "خطا در تنظیم Webhook");
     } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا"); }

@@ -134,17 +134,20 @@ export const setBotCommands = action({
   },
 });
 
-/** Setup webhook — auto-builds URL from CONVEX_SITE_URL */
+/** Setup webhook — auto-builds URL from CONVEX_SITE_URL or uses custom URL */
 export const setupWebhook = action({
-  args: {},
-  handler: async (ctx) => {
+  args: { customUrl: v.optional(v.string()) },
+  handler: async (ctx, args) => {
     const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
-    // Build webhook URL from Convex site URL
-    const siteUrl = process.env.CONVEX_SITE_URL;
-    if (!siteUrl) throw new Error("CONVEX_SITE_URL تنظیم نشده است.");
-    const webhookUrl = `${siteUrl}/telegram/webhook`;
+    // Use custom URL or auto-build from CONVEX_SITE_URL
+    let webhookUrl = args.customUrl;
+    if (!webhookUrl) {
+      const siteUrl = process.env.CONVEX_SITE_URL;
+      if (!siteUrl) throw new Error("CONVEX_SITE_URL تنظیم نشده است.");
+      webhookUrl = `${siteUrl}/telegram/webhook`;
+    }
 
     try {
       // Set webhook with Telegram
