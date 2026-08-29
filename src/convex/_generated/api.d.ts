@@ -35,6 +35,7 @@ import type * as sendOtpEmail from "../sendOtpEmail.js";
 import type * as superAdmin from "../superAdmin.js";
 import type * as telegramBot from "../telegramBot.js";
 import type * as telegramBotActions from "../telegramBotActions.js";
+import type * as telegramWebhook from "../telegramWebhook.js";
 import type * as tests from "../tests.js";
 import type * as tickets from "../tickets.js";
 import type * as upload from "../upload.js";
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   superAdmin: typeof superAdmin;
   telegramBot: typeof telegramBot;
   telegramBotActions: typeof telegramBotActions;
+  telegramWebhook: typeof telegramWebhook;
   tests: typeof tests;
   tickets: typeof tickets;
   upload: typeof upload;

@@ -134,7 +134,36 @@ export const setBotCommands = action({
   },
 });
 
-/** Set webhook */
+/** Setup webhook — auto-builds URL from CONVEX_SITE_URL */
+export const setupWebhook = action({
+  args: {},
+  handler: async (ctx) => {
+    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    if (!tokenData?.token) throw new Error("توکن یافت نشد.");
+
+    // Build webhook URL from Convex site URL
+    const siteUrl = process.env.CONVEX_SITE_URL;
+    if (!siteUrl) throw new Error("CONVEX_SITE_URL تنظیم نشده است.");
+    const webhookUrl = `${siteUrl}/telegram/webhook`;
+
+    try {
+      // Set webhook with Telegram
+      const setData: any = await fetchJson(
+        `https://api.telegram.org/bot${tokenData.token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`,
+        { signal: AbortSignal.timeout(15000) },
+      );
+
+      if (setData.ok) {
+        await ctx.runMutation(api.telegramBot._updateBotInfo, { webhookUrl });
+      }
+      return { success: setData.ok as boolean, webhookUrl, error: setData.ok ? undefined : (setData.description as string) };
+    } catch (err: unknown) {
+      return { success: false, webhookUrl, error: err instanceof Error ? err.message : "خطا" };
+    }
+  },
+});
+
+/** Set webhook with custom URL */
 export const setWebhook = action({
   args: { url: v.string() },
   handler: async (ctx, args) => {
@@ -150,6 +179,39 @@ export const setWebhook = action({
         await ctx.runMutation(api.telegramBot._updateBotInfo, { webhookUrl: args.url });
       }
       return { success: data.ok as boolean, error: data.ok ? undefined : (data.description as string) };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : "خطا" };
+    }
+  },
+});
+
+/** Get webhook info from Telegram */
+export const getWebhookInfo = action({
+  args: {},
+  handler: async (ctx) => {
+    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    if (!tokenData?.token) throw new Error("توکن یافت نشد.");
+
+    try {
+      const data: any = await fetchJson(
+        `https://api.telegram.org/bot${tokenData.token}/getWebhookInfo`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+
+      if (data.ok && data.result) {
+        const info = data.result;
+        return {
+          success: true,
+          url: info.url || null,
+          hasCustomCertificate: info.has_custom_certificate || false,
+          pendingUpdateCount: info.pending_update_count || 0,
+          lastErrorDate: info.last_error_date || null,
+          lastErrorMessage: info.last_error_message || null,
+          maxConnections: info.max_connections || 0,
+          allowedUpdates: info.allowed_updates || [],
+        };
+      }
+      return { success: false, error: data.description as string };
     } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : "خطا" };
     }

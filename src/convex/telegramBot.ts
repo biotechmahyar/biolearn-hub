@@ -34,6 +34,19 @@ function maskToken(token: string): string {
 
 // ── Queries ──────────────────────────────────────────────────────────────────
 
+/** Public query for webhook handler — returns token for server-side use only */
+export const getBotConfigPublic = query({
+  args: {},
+  handler: async (ctx) => {
+    const bots = await ctx.db.query("telegramBot").collect();
+    return bots.map((b) => ({
+      token: deobfuscateToken(b.tokenEncrypted),
+      startMessage: b.startMessage,
+      active: b.active,
+    }));
+  },
+});
+
 export const getBotConfig = query({
   args: {},
   handler: async (ctx) => {

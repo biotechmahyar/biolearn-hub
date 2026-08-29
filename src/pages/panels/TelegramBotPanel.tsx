@@ -63,6 +63,8 @@ export default function TelegramBotPanel() {
   const setCommands = useAction(api.telegramBotActions.setBotCommands);
   const setWebhookAction = useAction(api.telegramBotActions.setWebhook);
   const removeWebhookAction = useAction(api.telegramBotActions.removeWebhook);
+  const setupWebhookAction = useAction(api.telegramBotActions.setupWebhook);
+  const getWebhookInfoAction = useAction(api.telegramBotActions.getWebhookInfo);
 
   const [tokenInput, setTokenInput] = useState("");
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
@@ -77,6 +79,8 @@ export default function TelegramBotPanel() {
     { command: "courses", description: "لیست دوره‌ها" },
   ]);
   const [loading, setLoading] = useState<string | null>(null);
+  const [webhookInfo, setWebhookInfo] = useState<any>(null);
+  const [webhookInfoLoading, setWebhookInfoLoading] = useState(false);
 
   useEffect(() => {
     if (botConfig?.startMessage) setWelcomeMsg(botConfig.startMessage);
@@ -154,6 +158,25 @@ export default function TelegramBotPanel() {
     finally { setLoading(null); }
   };
 
+
+  const handleSetupWebhook = async () => {
+    setLoading("setup-webhook");
+    try {
+      const r = await setupWebhookAction();
+      if (r.success) toast.success(`Webhook تنظیم شد: ${r.webhookUrl}`);
+      else toast.error(r.error || "خطا در تنظیم Webhook");
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا"); }
+    finally { setLoading(null); }
+  };
+
+  const handleGetWebhookInfo = async () => {
+    setWebhookInfoLoading(true);
+    try {
+      const r = await getWebhookInfoAction();
+      setWebhookInfo(r);
+    } catch (e: unknown) { toast.error(e instanceof Error ? e.message : "خطا"); }
+    finally { setWebhookInfoLoading(false); }
+  };
   const handleSaveCommands = async () => {
     setLoading("commands");
     try {
@@ -344,19 +367,47 @@ export default function TelegramBotPanel() {
               )}
             </div>
           </CardHeader>
-          <CardContent>
-            {botConfig?.webhookUrl ? (
-              <div className="flex items-center gap-2 rounded-lg bg-muted/50 p-3">
-                <Globe className="size-4 shrink-0 text-violet-500" />
-                <span className="truncate text-xs font-mono text-muted-foreground" dir="ltr">{botConfig.webhookUrl}</span>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Webhook تنظیم نشده است.</p>
-            )}
-          </CardContent>
+              <CardContent>
+                <div className="space-y-3">
+                  {botConfig?.webhookUrl ? (
+                    <div className="flex items-center gap-2 rounded-lg bg-emerald-500/5 p-3">
+                      <Globe className="size-4 shrink-0 text-emerald-500" />
+                      <span className="truncate text-xs font-mono text-emerald-600 dark:text-emerald-400" dir="ltr">{botConfig.webhookUrl}</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Webhook تنظیم نشده است.</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" className="gap-1.5 bg-violet-600 text-white hover:bg-violet-700" onClick={handleSetupWebhook} disabled={loading === "setup-webhook" || !isConnected}>
+                      {loading === "setup-webhook" ? <Loader2 className="size-4 animate-spin" /> : <Webhook className="size-4" />}
+                      راه‌اندازی خودکار
+                    </Button>
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={handleGetWebhookInfo} disabled={webhookInfoLoading}>
+                      {webhookInfoLoading ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                      بررسی وضعیت
+                    </Button>
+                  </div>
+                  {webhookInfo && (
+                    <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">URL:</span>
+                        <span className="font-mono text-foreground truncate max-w-[200px]" dir="ltr">{webhookInfo.url || "—"}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Pending Updates:</span>
+                        <span className="text-foreground">{webhookInfo.pendingUpdateCount}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Last Error:</span>
+                        <span className={webhookInfo.lastErrorMessage ? "text-red-500" : "text-emerald-500"}>
+                          {webhookInfo.lastErrorMessage || "—"}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
         </Card>
-
-        {/* Bot Commands */}
         <Card className="border-border/50 sm:col-span-2">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
