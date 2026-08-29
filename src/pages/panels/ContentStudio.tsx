@@ -1263,11 +1263,56 @@ export default function ContentStudio() {
   const [tableDialogOpen, setTableDialogOpen] = useState(false);
   const rewriteText = useAction(api.aiActions.rewriteText);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiGenDialog, setAiGenDialog] = useState(false);
+  const [aiGenPrompt, setAiGenPrompt] = useState("");
+  const [aiGenLoading, setAiGenLoading] = useState(false);
+  const [aiGenResult, setAiGenResult] = useState("");
+  const [aiGenError, setAiGenError] = useState("");
+  const [aiGenTitle, setAiGenTitle] = useState("");
+  const [aiGenCategory, setAiGenCategory] = useState("عمومی");
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState("");
   const [aiError, setAiError] = useState("");
   const [selectedText, setSelectedText] = useState("");
+  const handleAIGenerate = async () => {
+    if (!aiGenPrompt.trim()) return;
+    setAiGenLoading(true);
+    setAiGenError("");
+    setAiGenResult("");
+    try {
+      const prompt = `Write a professional scientific article in Persian (Farsi) about: ${aiGenPrompt}. Include: title, introduction, main body with clear sections, and conclusion. Write 800-1200 words. Use HTML formatting with headings, paragraphs, and lists.`;
+      const res = await rewriteText({ prompt, selectedText: undefined });
+      if (res.ok && res.result) {
+        setAiGenResult(res.result);
+        if (!aiGenTitle) setAiGenTitle(aiGenPrompt.slice(0, 80));
+      } else {
+        setAiGenError(res.error || "Could not generate article");
+      }
+    } catch (e: any) {
+      setAiGenError(e?.message || "AI connection error");
+    } finally {
+      setAiGenLoading(false);
+    }
+  };
+  const applyAIGeneratedArticle = () => {
+    if (!aiGenTitle.trim()) { toast.error("Enter a title"); return; }
+    if (!aiGenResult.trim()) { toast.error("No content to apply"); return; }
+    setForm({
+      title: aiGenTitle,
+      category: aiGenCategory,
+      excerpt: aiGenResult.replace(/<[^>]*>/g, "").slice(0, 200),
+      body: aiGenResult,
+      authorName: form.authorName || user?.name || "",
+      published: false,
+      seoTitle: aiGenTitle,
+      seoDescription: aiGenResult.replace(/<[^>]*>/g, "").slice(0, 160),
+      seoKeywords: "", seoCanonical: "", ogTitle: "", ogDescription: "", ogImage: "",
+    });
+    setDialog({ mode: "create" });
+    setAiGenDialog(false);
+    toast.success("Article loaded into editor");
+  };
 
   const handleAIAction = async (prompt: string, withSelection: boolean) => {
     setAiLoading(true);
@@ -1433,6 +1478,14 @@ export default function ContentStudio() {
             onClick={openCreate}
           >
             <Plus className="ml-1 h-4 w-4" /> مقاله جدید
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-purple-400/30 text-purple-300 hover:bg-purple-500/10"
+            onClick={() => setAiGenDialog(true)}
+          >
+            <span className="ml-1 text-xs font-bold">AI</span> مقاله با هوش مصنوعی
           </Button>
         </div>
 
@@ -1809,6 +1862,46 @@ export default function ContentStudio() {
           }}
         />
 
+
+        {/* AI Article Generation Dialog */}
+        {aiGenDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="mx-4 w-full max-w-xl rounded-xl border border-white/10 bg-[#0c1a28] shadow-2xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                <h3 className="text-sm font-bold text-purple-300">AI Article Generator</h3>
+                <button onClick={() => { setAiGenDialog(false); setAiGenResult(""); setAiGenError("") }} className="text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="space-y-3 p-4">
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-slate-400">Topic</label>
+                  <Input value={aiGenPrompt} onChange={(e) => setAiGenPrompt(e.target.value)} placeholder="e.g. DNA structure and replication" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" onKeyDown={(e) => { if (e.key === "Enter" && !aiGenLoading) handleAIGenerate() }} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Title</label>
+                    <Input value={aiGenTitle} onChange={(e) => setAiGenTitle(e.target.value)} placeholder="Article title" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Category</label>
+                    <Input value={aiGenCategory} onChange={(e) => setAiGenCategory(e.target.value)} className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                  </div>
+                </div>
+                <Button size="sm" onClick={handleAIGenerate} disabled={aiGenLoading || !aiGenPrompt.trim()} className="w-full bg-purple-500/20 text-purple-300 hover:bg-purple-500/30">
+                  {aiGenLoading ? "Generating..." : "Generate Article"}
+                </Button>
+                {aiGenLoading && (<div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3"><div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" /><span className="text-xs text-slate-400">AI is writing your article...</span></div>)}
+                {aiGenError && (<div className="rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-xs text-red-300">{aiGenError}</div>)}
+                {aiGenResult && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400">Preview:</label>
+                    <div className="max-h-60 overflow-y-auto rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-200 whitespace-pre-wrap">{aiGenResult.replace(/<[^>]*>/g, " ").slice(0, 1000)}...</div>
+                    <Button size="sm" onClick={applyAIGeneratedArticle} className="w-full bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">Apply to Editor</Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         {/* AI Writing Assistant Panel */}
         {aiPanelOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
