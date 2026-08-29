@@ -1,4 +1,5 @@
 import { CategoryField } from "@/components/site/CategoryField";
+import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatDateTime, formatPrice } from "@/lib/format";
+import { formatJalaliDate } from "@/lib/jalali";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
@@ -1720,7 +1722,7 @@ function AdminWorkshops() {
                 <TableRow key={w._id}>
                   <TableCell className="max-w-md truncate font-medium">{w.title}</TableCell>
                   <TableCell className="text-muted-foreground">{w.instructor}</TableCell>
-                  <TableCell className="text-muted-foreground">{w.date}</TableCell>
+                  <TableCell className="text-muted-foreground">{w.date ? formatJalaliDate(w.date) : "—"}</TableCell>
                   <TableCell>{faNum(w.registeredCount)}/{faNum(w.capacity)}</TableCell>
                   <TableCell><StatusChip published={w.published} /></TableCell>
                   <TableCell>
@@ -1755,7 +1757,7 @@ function AdminWorkshops() {
             </Select>
             <Input placeholder="موضوع" value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <JalaliDatePicker value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
               <Input placeholder="ساعت" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} />
               <Input type="number" placeholder="ظرفیت" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
             </div>
