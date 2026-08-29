@@ -240,4 +240,31 @@
   .text-balance {
     text-wrap: balance;
   }
+  /* Theme-matched custom scrollbar */
+  .scrollbar-theme {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.5 0.08 80 / 0.5) transparent;
+  }
+  .scrollbar-theme::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-theme::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-theme::-webkit-scrollbar-thumb {
+    background: oklch(0.5 0.08 80 / 0.4);
+    border-radius: 999px;
+  }
+  .scrollbar-theme::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.6 0.08 80 / 0.6);
+  }
+  .dark .scrollbar-theme {
+    scrollbar-color: oklch(0.4 0.06 250 / 0.4) transparent;
+  }
+  .dark .scrollbar-theme::-webkit-scrollbar-thumb {
+    background: oklch(0.4 0.06 250 / 0.35);
+  }
+  .dark .scrollbar-theme::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.5 0.06 250 / 0.5);
+  }
 }

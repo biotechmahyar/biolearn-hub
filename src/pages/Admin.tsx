@@ -390,7 +390,7 @@ export default function Admin() {
             </span>
           </Link>
 
-          <nav className="mt-6 flex-1 space-y-5 overflow-y-auto">
+          <nav className="scrollbar-theme mt-6 flex-1 space-y-5 overflow-y-auto">
             {NAV_GROUPS.map((g) => (
               <div key={g.title}>
                 <p className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
@@ -474,7 +474,7 @@ export default function Admin() {
                       <span className="block font-mono text-[10px] text-muted-foreground">admin console</span>
                     </span>
                   </div>
-                  <nav className="space-y-5">
+                  <nav className="scrollbar-theme max-h-[60vh] space-y-5 overflow-y-auto">
                     {NAV_GROUPS.map((g) => (
                       <div key={g.title}>
                         <p className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
