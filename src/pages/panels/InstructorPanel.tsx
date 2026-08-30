@@ -25,6 +25,7 @@ import {
   CircleDot,
   ClipboardList,
   Clock,
+  CreditCard,
   Dna,
   DoorOpen,
   Eraser,
@@ -105,6 +106,7 @@ type Tab =
   | "analytics"
   | "reports"
   | "ai-assistant"
+  | "payments"
   | "profile";
 
 interface SidebarSection {
@@ -169,6 +171,7 @@ const SIDEBAR: SidebarSection[] = [
     ],
   },
   { label: "دستیار هوشمند", icon: Settings, children: [{ id: "ai-assistant", label: "دستیار هوشمند", icon: Settings }] },
+  { label: "پرداختی‌ها", icon: CreditCard, children: [{ id: "payments", label: "پرداختی‌ها", icon: CreditCard }] },
   { label: "پروفایل", icon: User, children: [{ id: "profile", label: "پروفایل", icon: User }] },
 ];
 
@@ -399,10 +402,83 @@ export default function InstructorPanel() {
           {/* دستیار هوشمند */}
           {tab === "ai-assistant" && <AIAssistantView />}
 
+          {/* پرداختی‌ها */}
+          {tab === "payments" && <PaymentsView />}
+
           {/* پروفایل */}
           {tab === "profile" && <ProfileView />}
         </main>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── پرداختی‌ها ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function PaymentsView() {
+  const payments = useQuery(api.instructorTools.listMyPayments) ?? [];
+
+  const totalPaid = payments.filter((p: any) => p.status === "paid").reduce((sum: number, p: any) => sum + p.amount, 0);
+  const totalPending = payments.filter((p: any) => p.status === "pending").reduce((sum: number, p: any) => sum + p.amount, 0);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">پرداختی‌ها</h2>
+        <p className="mt-1 text-sm text-slate-400">مشاهده وضعیت پرداخت دستمزد.</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold text-emerald-400">{totalPaid.toLocaleString("fa-IR")}</p>
+            <p className="mt-1 text-xs text-slate-400">پرداخت شده (تومان)</p>
+          </CardContent>
+        </Card>
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="py-4 text-center">
+            <p className="text-3xl font-bold text-amber-400">{totalPending.toLocaleString("fa-IR")}</p>
+            <p className="mt-1 text-xs text-slate-400">در انتظار پرداخت (تومان)</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {payments.length === 0 ? (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <CreditCard className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">هنوز پرداختی ثبت نشده است.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {payments.map((p: any) => (
+            <Card key={p._id} className="border-white/5 bg-white/[0.02]">
+              <CardContent className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{p.description}</p>
+                  <p className="text-xs text-slate-400">
+                    {new Date(p.createdAt).toLocaleDateString("fa-IR")}
+                    {p.paidAt && ` · پرداخت: ${new Date(p.paidAt).toLocaleDateString("fa-IR")}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-white">{p.amount.toLocaleString("fa-IR")} تومان</span>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                    p.status === "paid" ? "bg-emerald-400/15 text-emerald-300"
+                    : p.status === "pending" ? "bg-amber-400/15 text-amber-300"
+                    : "bg-red-400/15 text-red-300"
+                  }`}>
+                    {p.status === "paid" ? "پرداخت شده" : p.status === "pending" ? "در انتظار" : "رد شده"}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

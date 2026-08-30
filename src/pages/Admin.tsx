@@ -2399,7 +2399,7 @@ function AdminStudentReports() {
 // ── Users ───────────────────────────────────────────────────────────────────
 function AdminUsers() {
   const { user: me } = useAuth();
-  const isSystemAdmin = me?.role === "admin" || me?.role === "site_admin";
+  const isSystemAdmin = me?.role === "admin";
   const users = useQuery(api.admin.adminGetUsers);
   const setRole = useMutation(api.admin.adminSetRole);
   const setSecondaryRole = useMutation(api.admin.adminSetSecondaryRole);
