@@ -3,7 +3,8 @@
  * Mirrors: content.ts Convex queries.
  */
 import { Hono } from "hono";
-import { success } from "../lib/response.js";
+import { success, errorResponse } from "../lib/response.js";
+import { authMiddleware } from "../middleware/jwt.js";
 import {
   categoryService,
   courseService,
@@ -28,7 +29,9 @@ contentRoutes.get("/categories", async (c) => {
   return c.json(success(categories));
 });
 
-contentRoutes.post("/categories", async (c) => {
+contentRoutes.post("/categories", authMiddleware, async (c) => {
+  const userId = c.get("userId");
+  if (!userId) return c.json(errorResponse("Unauthorized", "UNAUTHORIZED"), 401);
   const body = await c.req.json();
   const parsed = createCategorySchema.safeParse(body);
   if (!parsed.success) {

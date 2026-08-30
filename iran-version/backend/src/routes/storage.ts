@@ -1,12 +1,15 @@
 /**
  * Storage / Media Library Routes
- * Upload, List, Get, Update, Delete, Presign
+ * Upload, List, Get, Update, Delete, Presign, Receipt Download
  */
 import { Hono } from "hono";
 import { success, errorResponse } from "../lib/response.js";
 import type { AppEnv } from "../lib/types.js";
 import { storage } from "../storage/index.js";
 import { mediaService } from "../services/media.service.js";
+import { db } from "../db/index.js";
+import { eq, and } from "drizzle-orm";
+import { offlinePayments } from "../db/schema.js";
 
 const app = new Hono<AppEnv>();
 
@@ -45,7 +48,7 @@ app.use("*", async (c, next) => {
 // ── Upload File ───────────────────────────────────────────────────────────
 
 app.post("/upload", async (c) => {
-  const userId = c.get("userId");
+  const userId = c.get("userId") as string;
 
   const body = await c.req.parseBody();
   const file = body["file"];
@@ -63,8 +66,6 @@ app.post("/upload", async (c) => {
   }
 
   const category = (body["category"] as string) || "general";
-
-  // Generate a unique key
   const date = new Date();
   const ymd = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
   const ext = file.name.split(".").pop() || "bin";
@@ -154,7 +155,6 @@ app.delete("/:id", async (c) => {
   const id = c.req.param("id");
   const item = await mediaService.delete(id);
   if (!item) return c.json(errorResponse("فایل یافت نشد.", "NOT_FOUND"), 404);
-  // Also delete from storage (best-effort)
   try {
     const urlParts = item.url.split("/");
     const key = urlParts.slice(-3).join("/");
@@ -163,6 +163,49 @@ app.delete("/:id", async (c) => {
     // Storage delete failure is non-critical
   }
   return c.json(success(item));
+});
+
+// ── Secure Receipt Download ───────────────────────────────────────────────
+// Ownership + RBAC enforced: admin sees all, user sees own receipts only.
+
+app.get("/receipt/:paymentId", async (c) => {
+  const userId = c.get("userId") as string;
+  const userRole = c.get("userRole") as string;
+  const paymentId = c.req.param("paymentId");
+
+  const isAdmin = ["admin", "site_admin"].includes(userRole);
+
+  // Build query: admin sees any, user sees own
+  const conditions = isAdmin
+    ? eq(offlinePayments.id, paymentId)
+    : and(eq(offlinePayments.id, paymentId), eq(offlinePayments.userId, userId));
+
+  const rows = await db
+    .select()
+    .from(offlinePayments)
+    .where(conditions)
+    .limit(1);
+
+  const payment = rows[0];
+  if (!payment) {
+    return c.json(errorResponse("رسید یافت نشد یا دسترسی ندارید.", "NOT_FOUND"), 404);
+  }
+
+  if (!payment.receiptStorageId) {
+    return c.json(errorResponse("رسید آپلود نشده است.", "NOT_FOUND"), 404);
+  }
+
+  // Generate presigned download URL for the receipt
+  const downloadUrl = await storage.getPresignedDownloadUrl(payment.receiptStorageId);
+
+  return c.json(success({
+    paymentId: payment.id,
+    receiptUrl: downloadUrl,
+    receiptStorageId: payment.receiptStorageId,
+    amount: payment.amount,
+    trackingNumber: payment.trackingNumber,
+    status: payment.status,
+  }));
 });
 
 export { app as storageRoutes };

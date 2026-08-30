@@ -9,6 +9,8 @@ import type { AppEnv } from "../lib/types.js";
 
 const commentRoutes = new Hono<AppEnv>();
 
+// authMiddleware is applied globally in routes/index.ts —
+// it sets c.get("userId") from JWT when present.
 const requireAuth = async (c: any, next: any) => {
   if (!c.get("userId")) return c.json(errorResponse("Unauthorized", "UNAUTHORIZED"), 401);
   await next();
