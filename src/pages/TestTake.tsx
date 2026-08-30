@@ -3,19 +3,17 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
-import { useAuth } from "@/hooks/use-auth";
 import { faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Timer } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate, useParams } from "react-router";
 
 export default function TestTake() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
   const exam = useQuery(api.tests.getExam, { slug });
   const submit = useMutation(api.tests.submitExam);
 
@@ -24,6 +22,7 @@ export default function TestTake() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     if (exam && secondsLeft === null) {
@@ -39,13 +38,10 @@ export default function TestTake() {
 
   const timeUp = secondsLeft !== null && secondsLeft <= 0;
 
-  const handleSubmit = async () => {
-    if (!exam) return;
-    if (!isAuthenticated) {
-      toast.error("برای ثبت آزمون ابتدا وارد حساب شوید.");
-      navigate(`/auth?returnTo=${encodeURIComponent(`/tests/${slug}`)}`);
-      return;
-    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleSubmit = useCallback(async () => {
+    if (!exam || submittedRef.current) return;
+    submittedRef.current = true;
     setSubmitting(true);
     try {
       const attempt = await submit({
@@ -55,20 +51,28 @@ export default function TestTake() {
           chosenIndex,
         })),
       });
-      navigate(`/tests/result/${attempt!._id}`);
+      if (attempt?._id) {
+        navigate(`/tests/result/${attempt._id}`);
+      }
     } catch (e) {
       console.error(e);
+      submittedRef.current = false;
       setSubmitting(false);
       const msg = e instanceof Error ? e.message : "خطا در ثبت آزمون";
-      toast.error(msg);
+      if (msg.includes("وارد حساب") || msg.includes("حساب شوید")) {
+        toast.error("لطفاً ابتدا وارد حساب خود شوید.");
+        navigate(`/auth?returnTo=${encodeURIComponent(`/tests/${slug}`)}`);
+      } else {
+        toast.error(msg);
+      }
     }
-  };
+  }, [exam, answers, submit, navigate, slug]);
 
   useEffect(() => {
     if (timeUp && !submitting) {
       handleSubmit();
     }
-  }, [timeUp]);
+  }, [timeUp, submitting, handleSubmit]);
 
   if (exam === undefined) {
     return (
