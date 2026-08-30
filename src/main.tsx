@@ -113,8 +113,8 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/courses" element={<Courses />} />
               <Route path="/courses/:slug" element={<CourseDetail />} />
               <Route path="/tests" element={<Tests />} />
-              <Route path="/tests/:slug" element={<TestTake />} />
-              <Route path="/tests/result/:attemptId" element={<TestResult />} />
+              <Route path="/tests/:slug" element={<RequireAuth><TestTake /></RequireAuth>} />
+              <Route path="/tests/result/:attemptId" element={<RequireAuth><TestResult /></RequireAuth>} />
               <Route path="/daily-quiz" element={<DailyQuiz />} />
               <Route path="/products" element={<Products />} />
               <Route path="/products/:slug" element={<ProductDetail />} />

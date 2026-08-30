@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
+import { useAuth } from "@/hooks/use-auth";
 import { faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
@@ -14,6 +15,7 @@ import { useNavigate, useParams } from "react-router";
 export default function TestTake() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const exam = useQuery(api.tests.getExam, { slug });
   const submit = useMutation(api.tests.submitExam);
 
@@ -39,6 +41,11 @@ export default function TestTake() {
 
   const handleSubmit = async () => {
     if (!exam) return;
+    if (!isAuthenticated) {
+      toast.error("برای ثبت آزمون ابتدا وارد حساب شوید.");
+      navigate(`/auth?returnTo=${encodeURIComponent(`/tests/${slug}`)}`);
+      return;
+    }
     setSubmitting(true);
     try {
       const attempt = await submit({
