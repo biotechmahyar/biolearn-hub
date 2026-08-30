@@ -75,7 +75,7 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
   const welcomeMsg = `سلام ${firstName}! 👋\nبه Genova خوش آمدید.\n\nبرای شروع یکی از دستورات زیر را ارسال کنید:`;
 
   const inlineKeyboard = [
-    [miniAppBtn("🚀 باز کردن Genova", "/")],
+    [miniAppBtn("🚀 باز کردن Genova", "/mini")],
     [
       { text: "👤 پروفایل", callback_data: "cmd_profile" },
       { text: "💬 سؤالات", callback_data: "cmd_questions" },
@@ -108,7 +108,7 @@ async function handleHelp(ctx: any, token: string, chatId: number) {
 /genova — باز کردن Genova`;
 
   const inlineKeyboard = [
-    [miniAppBtn("🚀 باز کردن Genova", "/")],
+    [miniAppBtn("🚀 باز کردن Genova", "/mini")],
     [urlBtn("📖 مستندات", `${SITE_URL}`)],
   ];
 
@@ -133,7 +133,7 @@ username: ${user.email || "—"}
 وضعیت Telegram: ${isLinked ? "✅ متصل" : "❌ متصل نیست"}`;
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("🚀 باز کردن پروفایل", "/profile")]],
+    inline_keyboard: [[miniAppBtn("🚀 باز کردن پروفایل", "/mini")]],
   });
 }
 
@@ -149,7 +149,7 @@ async function handleQuestions(ctx: any, token: string, chatId: number, telegram
 
   if (myQs.length === 0) {
     await sendMsg(token, chatId, "💬 سؤالی ثبت نکرده‌اید.", {
-      inline_keyboard: [[miniAppBtn("💬 ثبت سؤال جدید", "/questions")]],
+      inline_keyboard: [[miniAppBtn("💬 ثبت سؤال جدید", "/mini")]],
     });
     return;
   }
@@ -161,7 +161,7 @@ async function handleQuestions(ctx: any, token: string, chatId: number, telegram
   });
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("💬 مشاهده همه سؤالات", "/questions")]],
+    inline_keyboard: [[miniAppBtn("💬 مشاهده همه سؤالات", "/mini")]],
   });
 }
 
@@ -179,7 +179,7 @@ async function handleSessions(ctx: any, token: string, chatId: number, telegramI
 
   if (mySessions.length === 0) {
     await sendMsg(token, chatId, "📅 جلسه‌ای برای شما ثبت نشده است.", {
-      inline_keyboard: [[miniAppBtn("📅 مشاهده جلسات", "/sessions")]],
+      inline_keyboard: [[miniAppBtn("📅 مشاهده جلسات", "/mini")]],
     });
     return;
   }
@@ -192,7 +192,7 @@ async function handleSessions(ctx: any, token: string, chatId: number, telegramI
   });
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("📅 مشاهده همه جلسات", "/sessions")]],
+    inline_keyboard: [[miniAppBtn("📅 مشاهده همه جلسات", "/mini")]],
   });
 }
 
@@ -210,7 +210,7 @@ async function handleTasks(ctx: any, token: string, chatId: number, telegramId: 
 
     if (userTasks.length === 0) {
       await sendMsg(token, chatId, "✅ در حال حاضر Task فعالی ندارید.", {
-        inline_keyboard: [[miniAppBtn("📚 مشاهده Tasks", "/tasks")]],
+        inline_keyboard: [[miniAppBtn("📚 مشاهده Tasks", "/mini")]],
       });
       return;
     }
@@ -221,11 +221,11 @@ async function handleTasks(ctx: any, token: string, chatId: number, telegramId: 
     });
 
     await sendMsg(token, chatId, text, {
-      inline_keyboard: [[miniAppBtn("📚 مشاهده همه Tasks", "/tasks")]],
+      inline_keyboard: [[miniAppBtn("📚 مشاهده همه Tasks", "/mini")]],
     });
   } catch {
     await sendMsg(token, chatId, "✅ در حال حاضر Task فعالی ندارید.", {
-      inline_keyboard: [[miniAppBtn("📚 مشاهده Tasks", "/tasks")]],
+      inline_keyboard: [[miniAppBtn("📚 مشاهده Tasks", "/mini")]],
     });
   }
 }
@@ -247,7 +247,7 @@ async function handleNotifications(ctx: any, token: string, chatId: number, tele
 ${masterEnabled ? "اعلان‌های شما فعال هستند و از طریق Telegram ارسال می‌شوند." : "برای فعال‌سازی اعلان‌ها، از سایت اقدام کنید."}`;
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("⚙️ تنظیمات اعلان‌ها", "/settings")]],
+    inline_keyboard: [[miniAppBtn("⚙️ تنظیمات اعلان‌ها", "/mini")]],
   });
 }
 
@@ -268,7 +268,7 @@ async function handleGroups(ctx: any, token: string, chatId: number, telegramId:
 
   if (myGroups.length === 0) {
     await sendMsg(token, chatId, "👥 عضو هیچ گروه منتورینگی نیستید.", {
-      inline_keyboard: [[miniAppBtn("👥 مشاهده گروه‌ها", "/groups")]],
+      inline_keyboard: [[miniAppBtn("👥 مشاهده گروه‌ها", "/mini")]],
     });
     return;
   }
@@ -281,7 +281,7 @@ async function handleGroups(ctx: any, token: string, chatId: number, telegramId:
   });
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("👥 مشاهده گروه‌ها", "/groups")]],
+    inline_keyboard: [[miniAppBtn("👥 مشاهده گروه‌ها", "/mini")]],
   });
 }
 
@@ -304,7 +304,7 @@ async function handleSettings(ctx: any, token: string, chatId: number, telegramI
 
   await sendMsg(token, chatId, text, {
     inline_keyboard: [
-      [miniAppBtn("⚙️ باز کردن تنظیمات", "/settings")],
+      [miniAppBtn("⚙️ باز کردن تنظیمات", "/mini")],
       [urlBtn("🌐 باز کردن سایت", SITE_URL)],
     ],
   });
@@ -312,7 +312,7 @@ async function handleSettings(ctx: any, token: string, chatId: number, telegramI
 
 async function handleGenova(ctx: any, token: string, chatId: number) {
   await sendMsg(token, chatId, "🚀 Genova", {
-    inline_keyboard: [[miniAppBtn("🚀 باز کردن Genova", "/")]],
+    inline_keyboard: [[miniAppBtn("🚀 باز کردن Genova", "/mini")]],
   });
 }
 

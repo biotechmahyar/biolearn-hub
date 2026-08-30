@@ -27,6 +27,8 @@ const SupportPanel = lazy(() => import("./pages/panels/SupportPanel.tsx"));
 const ContentPanel = lazy(() => import("./pages/panels/ContentPanel.tsx"));
 const ContentStudio = lazy(() => import("./pages/panels/ContentStudio.tsx"));
 const TelegramBotPanel = lazy(() => import("./pages/panels/TelegramBotPanel.tsx"));
+const TelegramMiniApp = lazy(() => import("./pages/TelegramMiniApp.tsx"));
+const TelegramAdminCenter = lazy(() => import("./pages/panels/TelegramAdminCenter.tsx"));
 const ProfileCompletion = lazy(() => import("./pages/ProfileCompletion.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
@@ -184,6 +186,16 @@ createRoot(document.getElementById("root")!).render(
                 }
               />
 
+              {/* Telegram Admin Center — admin/site_admin only */}
+              <Route
+                path="/panel/telegram-admin"
+                element={
+                  <RoleGate allowed={["admin", "site_admin"]} title="telegram admin">
+                    <TelegramAdminCenter />
+                  </RoleGate>
+                }
+              />
+
               {/* Role-specific panels — each role gets its own workspace */}
               <Route
                 path="/panel/instructor"
@@ -227,6 +239,9 @@ createRoot(document.getElementById("root")!).render(
                   </RoleGate>
                 }
               />
+
+                            {/* Telegram Mini App (public) */}
+              <Route path="/mini" element={<TelegramMiniApp />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

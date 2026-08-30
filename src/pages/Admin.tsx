@@ -339,6 +339,7 @@ export default function Admin() {
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
     { label: "مدیریت هوش مصنوعی", icon: Bot, to: "/panel/ai-management" },
     { label: "تلگرام بات", icon: Send, to: "/panel/telegram-bot" },
+    { label: "مدیریت Telegram", icon: Bot, to: "/panel/telegram-admin" },
     // Only system admin (role === "admin") can see the super admin panel
     ...(user?.role === "admin" ? [{ label: "پنل مدیر سامانه", icon: Shield, to: "/panel/super-admin" }] : []),
   ];

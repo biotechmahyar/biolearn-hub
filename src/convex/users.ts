@@ -31,3 +31,15 @@ export const getCurrentUser = async (ctx: QueryCtx) => {
   }
   return await ctx.db.get(userId);
 };
+
+/** List all users (admin use) */
+export const listAllUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const user = await ctx.db.get(userId);
+    if (!user || (user.role !== "admin" && user.role !== "site_admin")) return [];
+    return await ctx.db.query("users").collect();
+  },
+});

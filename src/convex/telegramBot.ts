@@ -423,3 +423,12 @@ export const _linkDirect = mutation({
     return { success: true };
   },
 });
+
+/** Count users with linked Telegram accounts */
+export const _countLinkedUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users.filter((u) => !!u.telegramId).length;
+  },
+});
