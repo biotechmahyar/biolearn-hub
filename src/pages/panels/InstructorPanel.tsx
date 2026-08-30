@@ -619,34 +619,74 @@ function CalendarView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function AttendanceView({ rooms }: { rooms: RoomRow[] }) {
-  const pastRooms = rooms.filter((r) => r.status === "ended");
+  const { user } = useAuth();
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const myRooms = rooms.filter((r) => r.instructorId === user?._id);
+  const students = useQuery(
+    api.instructorTools.listRoomStudents,
+    selectedRoom ? { roomId: selectedRoom as any } : "skip",
+  ) ?? [];
+  const attendance = useQuery(
+    api.instructorTools.getAttendance,
+    selectedRoom ? { roomId: selectedRoom as any } : "skip",
+  ) ?? [];
+  const markAtt = useMutation(api.instructorTools.markAttendance);
+
+  const handleMark = async (studentId: string, studentName: string, present: boolean) => {
+    if (!selectedRoom) return;
+    try {
+      await markAtt({ roomId: selectedRoom as any, studentId: studentId as any, studentName, present });
+      toast.success(present ? "حضور ثبت شد" : "غیاب ثبت شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">حضور و غیاب</h2>
-        <p className="mt-1 text-sm text-slate-400">لیست حضور دانشجویان در کلاس‌های گذشته.</p>
+        <p className="mt-1 text-sm text-slate-400">مدیریت حضور دانشجویان در کلاس‌های خود.</p>
       </div>
-      {pastRooms.length === 0 ? (
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <CheckCircle2 className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">کلاس گذشته‌ای وجود ندارد.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {pastRooms.map((r) => (
-            <Card key={r._id} className="border-white/5 bg-white/[0.02]">
-              <CardContent className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-medium text-white">{r.title}</p>
-                  <p className="text-xs text-slate-400">{r.topic} · {r.messageCount} پیام</p>
-                </div>
-                <span className="text-xs text-slate-500">پایان‌یافته</span>
+      {!selectedRoom ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {myRooms.length === 0 ? (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                <CheckCircle2 className="size-8 text-slate-600" />
+                <p className="text-sm text-slate-400">کلاسی از شما وجود ندارد.</p>
               </CardContent>
             </Card>
-          ))}
+          ) : (
+            myRooms.map((r) => (
+              <button key={r._id} onClick={() => setSelectedRoom(r._id)} className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-right hover:border-cyan-400/30">
+                <p className="font-bold text-white">{r.title}</p>
+                <p className="mt-1 text-xs text-slate-400">{r.messageCount} پیام · {r.status}</p>
+              </button>
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => setSelectedRoom(null)}>← بازگشت</Button>
+          {students.length === 0 ? (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="py-8 text-center text-sm text-slate-400">دانشجویی در این کلاس پیام نداده است.</CardContent>
+            </Card>
+          ) : (
+            students.map((s: any) => {
+              const att = attendance.find((a: any) => String(a.studentId) === String(s._id));
+              return (
+                <div key={s._id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] p-3">
+                  <span className="text-sm text-white">{s.name}</span>
+                  <div className="flex gap-2">
+                    <Button size="sm" className={`h-7 text-xs ${att?.present ? "bg-green-600" : "bg-white/10 text-slate-400"}`} onClick={() => handleMark(s._id, s.name, true)}>حضور</Button>
+                    <Button size="sm" className={`h-7 text-xs ${att && !att.present ? "bg-red-600" : "bg-white/10 text-slate-400"}`} onClick={() => handleMark(s._id, s.name, false)}>غیاب</Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       )}
     </div>
@@ -658,41 +698,68 @@ function AttendanceView({ rooms }: { rooms: RoomRow[] }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function StudentsAllView() {
-  const online = useQuery(api.collab.listOnline) ?? [];
+  const { user } = useAuth();
+  const performance = useQuery(api.instructorTools.getStudentPerformance) ?? [];
+  const sendMessage = useMutation(api.instructorTools.sendMessage);
+  const [msgTarget, setMsgTarget] = useState<string | null>(null);
+  const [msgText, setMsgText] = useState("");
+
+  const handleSendMsg = async () => {
+    if (!msgTarget || !msgText.trim()) return;
+    try {
+      await sendMessage({ receiverId: msgTarget as any, text: msgText.trim() });
+      toast.success("پیام ارسال شد");
+      setMsgTarget(null); setMsgText("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">همه دانشجویان</h2>
-        <p className="mt-1 text-sm text-slate-400">{online.length} دانشجو آنلاین</p>
+        <h2 className="text-xl font-bold text-white">دانشجویان من</h2>
+        <p className="mt-1 text-sm text-slate-400">{performance.length} دانشجو در کلاس‌های شما</p>
       </div>
-      {online.length === 0 ? (
+      {performance.length === 0 ? (
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Users className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">دانشجوی آنلاینی وجود ندارد.</p>
+            <p className="text-sm text-slate-400">دانشجویی در کلاس‌های شما شرکت نکرده است.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {online.map((o) => (
-            <Card key={o.userId} className="border-white/5 bg-white/[0.02]">
-              <CardContent className="flex items-center gap-3 py-3">
-                <div className="relative">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-white/10 text-sm font-bold text-slate-300">
-                    {(o.name ?? "?")[0]}
+          {performance.map((s: any) => (
+            <Card key={s.studentId} className="border-white/5 bg-white/[0.02]">
+              <CardContent className="space-y-3 py-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-bold text-cyan-300">
+                    {(s.name ?? "?")[0]}
                   </div>
-                  <span className="absolute -bottom-0.5 -left-0.5 size-3 rounded-full border-2 border-[#071019] bg-emerald-400" />
+                  <div>
+                    <p className="text-sm font-medium text-white">{s.name}</p>
+                    <p className="text-xs text-slate-400">{s.questions} سؤال · {s.messages} پیام · {s.attendance}/{s.totalRooms} حضور</p>
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-white">{o.name ?? "—"}</p>
-                  <p className="truncate text-xs text-slate-400">{o.location ?? ""}</p>
-                </div>
+                <Button size="sm" variant="ghost" className="w-full h-7 text-xs text-cyan-300" onClick={() => setMsgTarget(s.studentId)}>
+                  <Send className="ml-1 size-3" /> ارسال پیام
+                </Button>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+      <Dialog open={!!msgTarget} onOpenChange={(o) => { if (!o) { setMsgTarget(null); setMsgText(""); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader><DialogTitle>ارسال پیام به دانشجو</DialogTitle></DialogHeader>
+          <Textarea placeholder="متن پیام…" value={msgText} onChange={(e) => setMsgText(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => { setMsgTarget(null); setMsgText(""); }}>انصراف</Button>
+            <Button size="sm" onClick={handleSendMsg}><Send className="ml-1 size-4" /> ارسال</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -913,18 +980,79 @@ function QAView({ rooms }: { rooms: RoomRow[] }) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function MessagesView() {
+  const conversations = useQuery(api.instructorTools.listMyMessages) ?? [];
+  const [selectedPartner, setSelectedPartner] = useState<string | null>(null);
+  const messages = useQuery(
+    api.instructorTools.listConversation,
+    selectedPartner ? { partnerId: selectedPartner as any } : "skip",
+  ) ?? [];
+  const sendMessage = useMutation(api.instructorTools.sendMessage);
+  const markRead = useMutation(api.instructorTools.markRead);
+  const [newMsg, setNewMsg] = useState("");
+
+  useEffect(() => {
+    if (selectedPartner) void markRead({ partnerId: selectedPartner as any });
+  }, [selectedPartner, markRead]);
+
+  const handleSend = async () => {
+    if (!selectedPartner || !newMsg.trim()) return;
+    try {
+      await sendMessage({ receiverId: selectedPartner as any, text: newMsg.trim() });
+      setNewMsg("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">پیام‌ها</h2>
         <p className="mt-1 text-sm text-slate-400">ارتباط مستقیم با دانشجویان.</p>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <MessageSquare className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش پیام‌ها به‌زودی فعال خواهد شد.</p>
-        </CardContent>
-      </Card>
+      {!selectedPartner ? (
+        conversations.length === 0 ? (
+          <Card className="border-white/5 bg-white/[0.02]">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <MessageSquare className="size-8 text-slate-600" />
+              <p className="text-sm text-slate-400">پیامی وجود ندارد.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {conversations.map((c: any) => (
+              <button key={c.partnerId} onClick={() => setSelectedPartner(c.partnerId)} className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-right hover:border-cyan-400/30">
+                <div className="flex size-10 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-bold text-cyan-300">{(c.partnerName ?? "?")[0]}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-white">{c.partnerName}</p>
+                  <p className="truncate text-xs text-slate-400">{c.lastMessage}</p>
+                </div>
+                {c.unread > 0 && <span className="size-2 rounded-full bg-cyan-400" />}
+              </button>
+            ))}
+          </div>
+        )
+      ) : (
+        <div className="space-y-3">
+          <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => setSelectedPartner(null)}>← بازگشت</Button>
+          <div className="max-h-96 space-y-2 overflow-y-auto">
+            {messages.map((m: any) => {
+              const isMine = String(m.senderId) !== selectedPartner;
+              return (
+                <div key={m._id} className={`flex ${isMine ? "justify-start" : "justify-end"}`}>
+                  <div className={`max-w-[75%] rounded-xl px-4 py-2 text-sm ${isMine ? "bg-cyan-400/10 text-cyan-100" : "bg-white/10 text-white"}`}>
+                    {m.text}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-2">
+            <Input placeholder="پیام…" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" onKeyDown={(e) => e.key === "Enter" && handleSend()} />
+            <Button size="sm" onClick={handleSend}><Send className="size-4" /></Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -934,18 +1062,48 @@ function MessagesView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function AnalyticsView() {
+  const { user } = useAuth();
+  const rooms = useQuery(api.collab.listRooms) ?? [];
+  const performance = useQuery(api.instructorTools.getStudentPerformance) ?? [];
+  const myRooms = rooms.filter((r) => r.instructorId === user?._id);
+  const liveRooms = myRooms.filter((r) => r.status === "live");
+  const totalMessages = myRooms.reduce((sum, r) => sum + (r.messageCount ?? 0), 0);
+  const totalQuestions = myRooms.reduce((sum, r) => sum + (r.openQuestions ?? 0), 0);
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">تحلیل و آمار</h2>
-        <p className="mt-1 text-sm text-slate-400">آمار حضور، فعالیت و عملکرد کلاس‌ها.</p>
+        <p className="mt-1 text-sm text-slate-400">آمار فعالیت کلاس‌ها و دانشجویان.</p>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <BarChart3 className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش آنالیتیکس به‌زودی فعال خواهد شد.</p>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "کل کلاس‌ها", value: myRooms.length, color: "text-cyan-400" },
+          { label: "کلاس‌های فعال", value: liveRooms.length, color: "text-red-400" },
+          { label: "دانشجویان", value: performance.length, color: "text-emerald-400" },
+          { label: "کل پیام‌ها", value: totalMessages, color: "text-amber-400" },
+        ].map((s) => (
+          <Card key={s.label} className="border-white/5 bg-white/[0.02]">
+            <CardContent className="py-4 text-center">
+              <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="mt-1 text-xs text-slate-400">{s.label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {performance.length > 0 && (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardHeader><CardTitle className="text-sm text-white">فعال‌ترین دانشجویان</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {performance.sort((a: any, b: any) => (b.questions + b.messages) - (a.questions + a.messages)).slice(0, 5).map((s: any) => (
+              <div key={s.studentId} className="flex items-center justify-between rounded-lg bg-white/[0.02] p-3">
+                <span className="text-sm text-white">{s.name}</span>
+                <span className="text-xs text-slate-400">{s.questions + s.messages} فعالیت</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -955,16 +1113,31 @@ function AnalyticsView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function ReportsView() {
+  const { user } = useAuth();
+  const rooms = useQuery(api.collab.listRooms) ?? [];
+  const performance = useQuery(api.instructorTools.getStudentPerformance) ?? [];
+  const myRooms = rooms.filter((r) => r.instructorId === user?._id);
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">گزارش‌ها</h2>
-        <p className="mt-1 text-sm text-slate-400">گزارش‌های دوره و عملکرد.</p>
+        <p className="mt-1 text-sm text-slate-400">گزارش عملکرد کلاس‌ها و دانشجویان.</p>
       </div>
       <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <FileText className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش گزارش‌ها به‌زودی فعال خواهد شد.</p>
+        <CardHeader><CardTitle className="text-sm text-white">خلاصه کلاس‌ها</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          {myRooms.length === 0 ? (
+            <p className="text-sm text-slate-400">کلاسی ثبت نشده است.</p>
+          ) : myRooms.map((r) => (
+            <div key={r._id} className="flex items-center justify-between rounded-lg bg-white/[0.02] p-3">
+              <div>
+                <p className="text-sm font-medium text-white">{r.title}</p>
+                <p className="text-xs text-slate-400">{r.topic}</p>
+              </div>
+              <span className="text-xs text-slate-400">{r.messageCount} پیام</span>
+            </div>
+          ))}
         </CardContent>
       </Card>
     </div>
@@ -976,6 +1149,7 @@ function ReportsView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function AIAssistantView() {
+  const navigate = useNavigate();
   return (
     <div className="space-y-6">
       <div>
@@ -983,9 +1157,13 @@ function AIAssistantView() {
         <p className="mt-1 text-sm text-slate-400">ابزارهای هوش مصنوعی برای مدیریت کلاس و تولید محتوا.</p>
       </div>
       <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <Settings className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">دستیار هوشمند به‌زودی فعال خواهد شد.</p>
+        <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+          <Settings className="size-10 text-cyan-400" />
+          <p className="text-sm text-slate-400">از هوش مصنوعی سایت برای تولید محتوا، پاسخ به سؤالات و مدیریت کلاس‌ها استفاده کنید.</p>
+          <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => navigate("/chat")}>
+            <Settings className="ml-1.5 size-4" />
+            باز کردن چت باکس هوش مصنوعی
+          </Button>
         </CardContent>
       </Card>
     </div>
@@ -2372,6 +2550,60 @@ function CourseStudioView() {
   );
 }
 
+// ── Bank account for payments ────────────────────────────────────────────────
+
+function BankAccountSection() {
+  const bank = useQuery(api.instructorTools.getBankAccount);
+  const updateBank = useMutation(api.instructorTools.updateBankAccount);
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [sheba, setSheba] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (bank) {
+      setBankName(bank.bankName);
+      setAccountNumber(bank.bankAccountNumber);
+      setCardNumber(bank.bankCardNumber);
+      setSheba(bank.bankSheba);
+    }
+  }, [bank]);
+
+  const handleSave = async () => {
+    try {
+      await updateBank({ bankName, bankAccountNumber: accountNumber, bankCardNumber: cardNumber, bankSheba: sheba });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      toast.success("اطلاعات بانکی ذخیره شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  return (
+    <Card className="border-white/5 bg-white/[0.02]">
+      <CardHeader>
+        <CardTitle className="text-sm text-white">اطلاعات حساب بانکی</CardTitle>
+        <p className="text-xs text-slate-400">برای دریافت دستمزد، اطلاعات حساب بانکی خود را وارد کنید.</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Input placeholder="نام بانک" value={bankName} onChange={(e) => setBankName(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+          <Input placeholder="شماره حساب" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Input placeholder="شماره کارت" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+          <Input placeholder="شماره شبا (IR...)" value={sheba} onChange={(e) => setSheba(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+        </div>
+        <Button size="sm" onClick={handleSave} className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20">
+          {saved ? "✓ ذخیره شد" : "ذخیره اطلاعات بانکی"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── My profile (name, photo, about) + suggested courses ─────────────────────
 function ProfileView() {
   const suggested = useQuery(api.profiles.listSuggestedCourses);
@@ -2399,6 +2631,9 @@ function ProfileView() {
 
       <TelegramAccount />
       <TelegramNotifications />
+
+      {/* Bank account */}
+      <BankAccountSection />
 
       {/* Suggested courses */}
       <div className="space-y-3">

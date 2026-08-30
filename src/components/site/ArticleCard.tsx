@@ -16,6 +16,7 @@ type Article = {
   readTime: number;
   createdAt: number;
   featured?: boolean;
+  featuredImage?: string;
 };
 
 export function ArticleCard({ article }: { article: Article }) {
@@ -23,6 +24,15 @@ export function ArticleCard({ article }: { article: Article }) {
   return (
     <Link to={`/free-content/${article.slug}`} className="group block h-full">
       <Card className="flex h-full flex-col border-border/70 bg-card/80 shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg group-hover:shadow-primary/5">
+        {article.featuredImage && (
+          <div className="relative h-40 w-full overflow-hidden rounded-t-xl">
+            <img
+              src={article.featuredImage}
+              alt={article.title}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          </div>
+        )}
         <CardContent className="flex flex-1 flex-col p-5">
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className={cn("rounded-full ring-1", a.chip)}>

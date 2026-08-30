@@ -111,6 +111,12 @@ const schema = defineSchema(
       telegramFirstName: v.optional(v.string()), // First name from Telegram
       telegramLinkedAt: v.optional(v.number()),  // When the account was linked
       telegramNotificationsEnabled: v.optional(v.boolean()), // Master toggle
+
+      // Bank account for instructor payments
+      bankName: v.optional(v.string()),
+      bankAccountNumber: v.optional(v.string()),
+      bankCardNumber: v.optional(v.string()),
+      bankSheba: v.optional(v.string()),
     }).index("email", ["email"]).index("by_telegramId", ["telegramId"]),
 
     // ── Catalog ──────────────────────────────────────────────────────────
@@ -644,11 +650,64 @@ const schema = defineSchema(
       contentType: v.string(), // article | course
       contentId: v.string(),
       userId: v.id("users"),
+      userName: v.optional(v.string()),
       text: v.string(),
+      approved: v.boolean(),
+      rejected: v.optional(v.boolean()),
       createdAt: v.number(),
     })
       .index("by_content", ["contentType", "contentId"])
-      .index("by_user", ["userId"]),
+      .index("by_user", ["userId"])
+      .index("by_approved", ["approved"]),
+
+    // ── Course resources / file uploads ──────────────────────────────────
+    courseResources: defineTable({
+      courseId: v.id("courses"),
+      instructorId: v.id("users"),
+      title: v.string(),
+      description: v.optional(v.string()),
+      fileUrl: v.string(),
+      fileName: v.string(),
+      fileSize: v.number(),
+      fileType: v.string(),
+      isFree: v.boolean(),
+      createdAt: v.number(),
+    }).index("by_course", ["courseId"]),
+
+    // ── Class attendance ─────────────────────────────────────────────────
+    attendance: defineTable({
+      roomId: v.id("classRooms"),
+      instructorId: v.id("users"),
+      studentId: v.id("users"),
+      studentName: v.string(),
+      present: v.boolean(),
+      note: v.optional(v.string()),
+      markedAt: v.number(),
+    })
+      .index("by_room", ["roomId"])
+      .index("by_student", ["studentId"]),
+
+    // ── Instructor payments ──────────────────────────────────────────────
+    instructorPayments: defineTable({
+      instructorId: v.id("users"),
+      amount: v.number(),
+      description: v.string(),
+      status: v.union(v.literal("pending"), v.literal("paid"), v.literal("rejected")),
+      receiptUrl: v.optional(v.string()),
+      paidAt: v.optional(v.number()),
+      createdAt: v.number(),
+    }).index("by_instructor", ["instructorId"]),
+
+    // ── Direct messages (instructor ↔ student) ──────────────────────────
+    directMessages: defineTable({
+      senderId: v.id("users"),
+      receiverId: v.id("users"),
+      text: v.string(),
+      read: v.boolean(),
+      createdAt: v.number(),
+    })
+      .index("by_receiver", ["receiverId", "read"])
+      .index("by_sender", ["senderId"]),
 
     // ── Trust & community ─────────────────────────────────────────────────
     testimonials: defineTable({

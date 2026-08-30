@@ -66,6 +66,7 @@ import {
   Lock,
   Mail,
   Menu,
+  MessageSquare,
   Package,
   Pencil,
   Plus,
@@ -128,7 +129,9 @@ type Section =
   | "examReports"
   | "offlinePayments"
   | "myprofile"
-  | "online";
+  | "online"
+  | "comments"
+  | "payments";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -142,9 +145,11 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "examReports", label: "گزارش‌های خطای آزمون", icon: Flag },
       { key: "orders", label: "سفارش‌ها", icon: CreditCard },
       { key: "offlinePayments", label: "پرداخت‌های آفلاین", icon: Receipt },
+      { key: "payments", label: "پرداخت دستمزد", icon: Receipt },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
+      { key: "comments", label: "دیدگاه‌ها", icon: MessageSquare },
     ],
   },
   {
@@ -600,6 +605,8 @@ export default function Admin() {
             {section === "coupons" && <AdminCoupons />}
             {section === "support" && <AdminSupport />}
             {section === "announcements" && <AdminAnnouncements />}
+            {section === "comments" && <AdminComments />}
+            {section === "payments" && <AdminPayments />}
             {section === "profiles" && <AdminProfiles />}
             {section === "inbox" && <AdminInbox />}
           </div>
@@ -2124,6 +2131,114 @@ function AdminInstructors() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Comments moderation ──────────────────────────────────────────────────────
+function AdminComments() {
+  const pending = useQuery(api.comments.listPending);
+  const approve = useMutation(api.comments.approveComment);
+  const reject = useMutation(api.comments.rejectComment);
+  const remove = useMutation(api.comments.deleteComment);
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="دیدگاه‌ها" subtitle="تأیید یا رد دیدگاه‌های کاربران" count={pending?.length} />
+      {(!pending || pending.length === 0) ? (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <MessageSquare className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">دیدگاه تأیید‌نشده‌ای وجود ندارد.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {pending.map((c: any) => (
+            <Card key={c._id} className="border-border/70 shadow-sm">
+              <CardContent className="space-y-3 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">{c.userName ?? "کاربر"}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{c.text}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {c.contentType} · {new Date(c.createdAt).toLocaleDateString("fa-IR")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => void approve({ id: c._id })}>
+                    تأیید
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => void reject({ id: c._id })}>
+                    رد
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => void remove({ id: c._id })}>
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Instructor payments (admin) ──────────────────────────────────────────────
+function AdminPayments() {
+  const users = useQuery(api.admin.adminGetUsers);
+  const createPayment = useMutation(api.instructorTools.adminCreatePayment);
+  const markPaid = useMutation(api.instructorTools.adminMarkPaid);
+  const [targetUser, setTargetUser] = useState("");
+  const [amount, setAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const instructors = (users ?? []).filter((u: any) => u.role === "instructor" || u.secondaryRole === "instructor");
+
+  const handleCreate = async () => {
+    if (!targetUser || !amount.trim()) return;
+    setBusy(true);
+    try {
+      await createPayment({
+        instructorId: targetUser as any,
+        amount: Number(amount),
+        description: description || "دستمزد مدرس",
+      });
+      toast.success("پرداخت ثبت شد");
+      setTargetUser(""); setAmount(""); setDescription("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="پرداخت دستمزد" subtitle="ثبت و مدیریت پرداختی‌ها به مدرسان" />
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-3 py-4">
+          <Select value={targetUser} onValueChange={setTargetUser}>
+            <SelectTrigger><SelectValue placeholder="انتخاب مدرس" /></SelectTrigger>
+            <SelectContent>
+              {instructors.map((u: any) => (
+                <SelectItem key={u._id} value={u._id}>{u.name ?? u.email}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input type="number" placeholder="مبلغ (تومان)" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input placeholder="توضیح" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <Button onClick={handleCreate} disabled={busy || !targetUser || !amount}>
+            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+            ثبت پرداخت
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

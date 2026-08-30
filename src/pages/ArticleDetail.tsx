@@ -59,6 +59,15 @@ export default function ArticleDetail() {
           <span className="text-foreground">{article.category}</span>
         </nav>
 
+        {article.featuredImage && (
+          <div className="mt-4 w-full overflow-hidden rounded-xl">
+            <img
+              src={article.featuredImage}
+              alt={article.title}
+              className="h-auto w-full object-cover"
+            />
+          </div>
+        )}
         <Badge variant="secondary" className={cn("rounded-full ring-1", a.chip)}>
           {article.category}
         </Badge>
