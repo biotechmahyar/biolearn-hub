@@ -221,6 +221,115 @@ export const createWorkshopSchema = z.object({
   published: z.boolean(),
 });
 
+// ── Exams ──────────────────────────────────────────────────────────────────
+
+export const listExamsQuerySchema = z.object({
+  featuredOnly: z.coerce.boolean().optional(),
+  freeOnly: z.coerce.boolean().optional(),
+});
+
+export const submitExamSchema = z.object({
+  examId: idSchema,
+  answers: z.array(
+    z.object({
+      questionId: idSchema,
+      chosenIndex: z.number().int().min(0),
+    })
+  ),
+});
+
+export const createExamSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().min(1),
+  durationMinutes: z.number().int().positive(),
+  free: z.boolean(),
+  diagnostic: z.boolean(),
+  published: z.boolean(),
+  topicId: idSchema.optional(),
+  count: z.number().int().min(1).max(50),
+});
+
+// ── Daily Quiz ─────────────────────────────────────────────────────────────
+
+export const answerDailyQuizSchema = z.object({
+  questionId: idSchema,
+  chosenIndex: z.number().int().min(0),
+});
+
+// ── Exam Reports ───────────────────────────────────────────────────────────
+
+export const submitExamReportSchema = z.object({
+  examId: idSchema,
+  questionId: idSchema,
+  comment: z.string().min(5),
+});
+
+// ── Orders & Purchase ──────────────────────────────────────────────────────
+
+export const purchaseSchema = z.object({
+  items: z.array(
+    z.object({
+      type: z.enum(["course", "product", "workshop"]),
+      refId: idSchema,
+    })
+  ).min(1),
+  couponCode: z.string().optional(),
+});
+
+export const getCouponInfoSchema = z.object({
+  code: z.string().min(1),
+});
+
+export const createCouponSchema = z.object({
+  code: z.string().min(1),
+  percent: z.number().int().min(1).max(100),
+  maxUses: z.number().int().min(0),
+  expiresAt: z.number().optional(),
+});
+
+// ── Offline Payments ───────────────────────────────────────────────────────
+
+export const submitOfflinePaymentSchema = z.object({
+  courseId: idSchema,
+  tier: z.string(),
+  amount: z.number().min(0),
+  trackingNumber: z.string().min(1),
+  receiptStorageId: z.string().min(1),
+});
+
+export const rejectOfflinePaymentSchema = z.object({
+  note: z.string(),
+});
+
+// ── Class Enroll ───────────────────────────────────────────────────────────
+
+export const requestClassEnrollSchema = z.object({
+  roomId: idSchema,
+});
+
+// ── Bookmarks ──────────────────────────────────────────────────────────────
+
+export const toggleBookmarkSchema = z.object({
+  contentType: z.string(),
+  contentId: z.string(),
+});
+
+// ── Flashcards ─────────────────────────────────────────────────────────────
+
+export const addFlashcardSchema = z.object({
+  front: z.string().min(1),
+  back: z.string().min(1),
+  category: z.string().default("عمومی"),
+});
+
+// ── Enrollment Progress ────────────────────────────────────────────────────
+
+export const markLessonCompleteSchema = z.object({
+  courseId: idSchema,
+  lessonId: z.string().min(1),
+  completed: z.boolean(),
+});
+
 export const updateWorkshopSchema = z.object({
   id: idSchema,
   title: z.string().min(1),

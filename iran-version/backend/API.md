@@ -160,6 +160,54 @@ All responses follow the shape:
 | PUT | `/api/admin/articles/:id` | Update article |
 | DELETE | `/api/admin/articles/:id` | Delete article |
 
+## Commerce & Enrollment
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/commerce/coupons/check?code=X` | No | Validate coupon |
+| POST | `/api/commerce/purchase` | Yes | Purchase items |
+| GET | `/api/commerce/orders/my` | Yes | My orders |
+| GET | `/api/commerce/orders/admin` | Admin | All orders |
+| GET | `/api/commerce/enrollments/my` | Yes | My enrollments |
+| POST | `/api/commerce/enrollments/lesson-complete` | Yes | Mark lesson complete |
+| GET | `/api/commerce/enrollments/downloads` | Yes | My downloads |
+| POST | `/api/commerce/offline-payments/submit` | Yes | Submit offline payment |
+| GET | `/api/commerce/offline-payments/my` | Yes | My offline payments |
+| GET | `/api/commerce/offline-payments/admin` | Admin | All offline payments |
+| POST | `/api/commerce/offline-payments/admin/:id/approve` | Admin | Approve payment |
+| POST | `/api/commerce/offline-payments/admin/:id/reject` | Admin | Reject payment |
+| DELETE | `/api/commerce/offline-payments/admin/:id` | Admin | Delete payment |
+| POST | `/api/commerce/class-enroll/request` | Yes | Request class join |
+| GET | `/api/commerce/class-enroll/pending` | Yes | Pending requests |
+| POST | `/api/commerce/class-enroll/admin/:id/approve` | Yes | Approve class join |
+| POST | `/api/commerce/class-enroll/admin/:id/reject` | Yes | Reject class join |
+| POST | `/api/commerce/bookmarks/toggle` | Yes | Toggle bookmark |
+| GET | `/api/commerce/bookmarks/my` | Yes | My bookmarks |
+| GET | `/api/commerce/bookmarks/check` | Yes | Check bookmark |
+| POST | `/api/commerce/flashcards` | Yes | Create flashcard |
+| DELETE | `/api/commerce/flashcards/:id` | Yes | Delete flashcard |
+| GET | `/api/commerce/flashcards/my` | Yes | My flashcards |
+| GET | `/api/commerce/coupons/admin` | Admin | List coupons |
+| POST | `/api/commerce/coupons/admin` | Admin | Create coupon |
+| PATCH | `/api/commerce/coupons/admin/:id/toggle` | Admin | Toggle coupon |
+| DELETE | `/api/commerce/coupons/admin/:id` | Admin | Delete coupon |
+
+### POST /api/commerce/purchase
+**Request:**
+```json
+{
+  "items": [{ "type": "course|product|workshop", "refId": "uuid" }],
+  "couponCode": "optional"
+}
+```
+**Business Rules:**
+- Empty cart rejected
+- All items validated (exist + published)
+- Workshop capacity checked
+- Coupon validated (active, not expired, not exceeded)
+- Enrollment created on purchase
+- Workshop registration count incremented
+
 ### Products
 
 | Method | Path | Description |
@@ -168,6 +216,34 @@ All responses follow the shape:
 | POST | `/api/admin/products` | Create product |
 | PUT | `/api/admin/products/:id` | Update product |
 | DELETE | `/api/admin/products/:id` | Delete product |
+
+## Exams & Daily Quiz
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/exams` | No | List published exams |
+| GET | `/api/exams/:slug` | No | Get exam by slug |
+| GET | `/api/exams/daily` | No | Get today's daily quiz |
+| POST | `/api/exams/submit` | Yes | Submit exam attempt |
+| GET | `/api/exams/attempts/:id` | Yes | Get attempt (owner/admin) |
+| GET | `/api/exams/my-attempts` | Yes | List my attempts |
+| GET | `/api/exams/daily/auth` | Yes | Daily quiz with my answer |
+| POST | `/api/exams/daily/answer` | Yes | Answer daily quiz |
+| POST | `/api/exams/reports` | Yes | Submit exam report |
+| GET | `/api/exams/admin/list` | Admin | List all exams |
+| POST | `/api/exams/admin/create` | Admin | Create exam |
+| PATCH | `/api/exams/admin/:id/toggle-publish` | Admin | Toggle publish |
+| DELETE | `/api/exams/admin/:id` | Admin | Delete exam |
+| GET | `/api/exams/admin/reports` | Admin | List exam reports |
+| PATCH | `/api/exams/admin/reports/:id/resolve` | Admin | Resolve report |
+| DELETE | `/api/exams/admin/reports/:id` | Admin | Delete report |
+
+### POST /api/exams/submit
+**Request:**
+```json
+{ "examId": "uuid", "answers": [{ "questionId": "uuid", "chosenIndex": 0 }] }
+```
+**Response:** Score, total, percent, topicBreakdown (correctIndex NOT leaked).
 
 ### Workshops
 
@@ -212,6 +288,94 @@ All responses follow the shape:
 | POST | `/api/admin/profiles/:id/reject` | Reject profile |
 
 ---
+
+## Migration Summary
+
+### Queries Migrated (29)
+
+| Convex Query | REST Endpoint |
+|-------------|---------------|
+| `content.listCategories` | `GET /api/content/categories` |
+| `content.listCourses` | `GET /api/content/courses` |
+| `content.getCourseBySlug` | `GET /api/content/courses/:slug` |
+| `content.listInstructors` | `GET /api/content/instructors` |
+| `content.getInstructorBySlug` | `GET /api/content/instructors/:slug` |
+| `content.listArticles` | `GET /api/content/articles` |
+| `content.getArticleBySlug` | `GET /api/content/articles/:slug` |
+| `content.listProducts` | `GET /api/content/products` |
+| `content.getProductBySlug` | `GET /api/content/products/:slug` |
+| `content.listWorkshops` | `GET /api/content/workshops` |
+| `content.getWorkshopBySlug` | `GET /api/content/workshops/:slug` |
+| `content.listTestimonials` | `GET /api/content/testimonials` |
+| `users.currentUser` | `GET /api/auth/me` |
+| `admin.amIAdmin` | `GET /api/auth/is-admin` |
+| `profiles.getMyProfile` | `GET /api/users/me` |
+| `tests.listExams` | `GET /api/exams` |
+| `tests.getExam` | `GET /api/exams/:slug` |
+| `tests.getDailyQuiz` | `GET /api/exams/daily` |
+| `tests.getMyAttempts` | `GET /api/exams/my-attempts` |
+| `tests.getMyLearningProfile` | `GET /api/exams/daily/auth` |
+| `enroll.getMyOrders` | `GET /api/commerce/orders/my` |
+| `enroll.getMyEnrollments` | `GET /api/commerce/enrollments/my` |
+| `enroll.getMyDownloads` | `GET /api/commerce/enrollments/downloads` |
+| `enroll.getMyBookmarks` | `GET /api/commerce/bookmarks/my` |
+| `enroll.getMyFlashcards` | `GET /api/commerce/flashcards/my` |
+| `offlinePayments.myOfflinePayments` | `GET /api/commerce/offline-payments/my` |
+| `classEnroll.listPendingRequests` | `GET /api/commerce/class-enroll/pending` |
+| `examReports.listExamReports` | `GET /api/exams/admin/reports` |
+| `admin.adminListExams` | `GET /api/exams/admin/list` |
+
+### Mutations Migrated (24)
+
+| Convex Mutation | REST Endpoint |
+|----------------|---------------|
+| `content.createCategory` | `POST /api/content/categories` |
+| `admin.adminCreateCourse` | `POST /api/admin/courses` |
+| `admin.adminUpdateCourse` | `PUT /api/admin/courses/:id` |
+| `admin.adminDeleteCourse` | `DELETE /api/admin/courses/:id` |
+| `admin.adminCreateArticle` | `POST /api/admin/articles` |
+| `admin.adminUpdateArticle` | `PUT /api/admin/articles/:id` |
+| `admin.adminDeleteArticle` | `DELETE /api/admin/articles/:id` |
+| `admin.adminCreateProduct` | `POST /api/admin/products` |
+| `admin.adminUpdateProduct` | `PUT /api/admin/products/:id` |
+| `admin.adminDeleteProduct` | `DELETE /api/admin/products/:id` |
+| `admin.adminCreateWorkshop` | `POST /api/admin/workshops` |
+| `admin.adminUpdateWorkshop` | `PUT /api/admin/workshops/:id` |
+| `admin.adminDeleteWorkshop` | `DELETE /api/admin/workshops/:id` |
+| `admin.adminCreateInstructor` | `POST /api/admin/instructors` |
+| `admin.adminUpdateInstructor` | `PUT /api/admin/instructors/:id` |
+| `admin.adminDeleteInstructor` | `DELETE /api/admin/instructors/:id` |
+| `admin.adminUpdateCategory` | `PUT /api/admin/categories/:id` |
+| `admin.adminDeleteCategory` | `DELETE /api/admin/categories/:id` |
+| `admin.adminSetRole` | `PUT /api/admin/users/:id/role` |
+| `admin.adminDeleteUser` | `DELETE /api/admin/users/:id` |
+| `profiles.updateMyProfile` | `PUT /api/users/me` |
+| `tests.submitExam` | `POST /api/exams/submit` |
+| `tests.answerDailyQuiz` | `POST /api/exams/daily/answer` |
+| `examReports.submitExamReport` | `POST /api/exams/reports` |
+| `enroll.purchase` | `POST /api/commerce/purchase` |
+| `enroll.markLessonComplete` | `POST /api/commerce/enrollments/lesson-complete` |
+| `enroll.toggleBookmark` | `POST /api/commerce/bookmarks/toggle` |
+| `enroll.addFlashcard` | `POST /api/commerce/flashcards` |
+| `offlinePayments.submitOfflinePayment` | `POST /api/commerce/offline-payments/submit` |
+| `offlinePayments.approveOfflinePayment` | `POST /api/commerce/offline-payments/admin/:id/approve` |
+| `offlinePayments.rejectOfflinePayment` | `POST /api/commerce/offline-payments/admin/:id/reject` |
+| `classEnroll.requestClassEnroll` | `POST /api/commerce/class-enroll/request` |
+| `classEnroll.approveClassEnroll` | `POST /api/commerce/class-enroll/admin/:id/approve` |
+| `classEnroll.rejectClassEnroll` | `POST /api/commerce/class-enroll/admin/:id/reject` |
+
+### Business Rules Implemented
+
+1. **Exam Scoring**: Score, total, percent, topicBreakdown — correctIndex NOT leaked
+2. **Daily Quiz Idempotency**: One answer per user per day
+3. **Exam Report Idempotency**: One open report per user+question
+4. **Purchase Validation**: Items exist, published, capacity checked
+5. **Coupon Validation**: Active, not expired, not exceeded
+6. **Enrollment Auto-Create**: On purchase
+7. **Workshop Capacity**: Incremented on purchase
+8. **Offline Payment Duplicate**: Same course+tier+pending rejected
+9. **Class Enroll**: Duplicate pending/approved rejected
+10. **Bookmark Toggle**: Idempotent add/remove
 
 ## Health
 
