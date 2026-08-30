@@ -1,182 +1,193 @@
-/**
- * Mentor routes — groups, questions, sessions.
- * Mirrors: mentor.ts, collab.ts group logic.
- */
 import { Hono } from "hono";
-import { success, errorResponse } from "../lib/response.js";
-import { groupService, questionService, sessionService } from "../services/mentor.service.js";
-import type { AppEnv } from "../lib/types.js";
+import { db } from "../db/index.js";
+import { mentorGroups, groupMembers, groupAnnouncements, mentorQuestions, mentorSessions, users } from "../db/schema.js";
+import { requireAuth, requireMentorOrAdmin } from "../middleware/auth.js";
+import { eq, and, desc } from "drizzle-orm";
 
-const mentorRoutes = new Hono<AppEnv>();
+const mentor = new Hono();
 
-const requireAuth = async (c: any, next: any) => {
-  if (!c.get("userId")) return c.json(errorResponse("Unauthorized", "UNAUTHORIZED"), 401);
-  await next();
-};
+// ── Groups ──────────────────────────────────────────────────────────────────
 
-const requireMentor = async (c: any, next: any) => {
-  const userRole = c.get("userRole") ?? "";
-  if (!["mentor", "admin", "site_admin"].includes(userRole)) {
-    return c.json(errorResponse("فقط منتور می‌تواند این عملیات را انجام دهد.", "FORBIDDEN"), 403);
-  }
-  await next();
-};
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ── Groups ─────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-mentorRoutes.get("/groups", async (c) => {
-  const groups = await groupService.list();
-  return c.json(success(groups));
+mentor.get("/groups", async (c) => {
+  const list = await db.query.mentorGroups.findMany({ orderBy: [desc(mentorGroups.createdAt)] });
+  return c.json({ ok: true, data: list });
 });
 
-mentorRoutes.post("/groups", requireAuth, requireMentor, async (c) => {
-  const body = await c.req.json();
-  const { title, description, meetingDay, meetingTime, capacity } = body;
-  if (!title?.trim()) return c.json(errorResponse("عنوان گروه لازم است.", "VALIDATION"), 400);
-  const group = await groupService.create(c.get("userId"), {
-    title, description: description ?? "", meetingDay: meetingDay ?? "",
-    meetingTime: meetingTime ?? "", capacity: capacity ?? 10,
+mentor.post("/groups", requireMentorOrAdmin, async (c) => {
+  const user = c.get("user");
+  const { title, description, meetingDay, meetingTime, capacity } = await c.req.json();
+  if (!title?.trim()) return c.json({ ok: false, error: "عنوان گروه لازم است." }, 400);
+  const [created] = await db.insert(mentorGroups).values({
+    mentorId: user.id, mentorName: user.name || "منتور", title: title.trim(),
+    description: description?.trim() || "", meetingDay, meetingTime,
+    capacity: capacity || 10, memberCount: 0, createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
+});
+
+mentor.delete("/groups/:id", requireMentorOrAdmin, async (c) => {
+  const user = c.get("user");
+  const group = await db.query.mentorGroups.findFirst({ where: eq(mentorGroups.id, c.req.param("id")) });
+  if (!group) return c.json({ ok: false, error: "گروه یافت نشد." }, 404);
+  if (group.mentorId !== user.id && user.role !== "admin" && user.role !== "site_admin") {
+    return c.json({ ok: false, error: "فقط منتور این گروه می‌تواند آن را حذف کند." }, 403);
+  }
+  await db.delete(mentorGroups).where(eq(mentorGroups.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+// ── Group Membership ────────────────────────────────────────────────────────
+
+mentor.post("/groups/:id/join", requireAuth, async (c) => {
+  const user = c.get("user");
+  const groupId = c.req.param("id");
+  const group = await db.query.mentorGroups.findFirst({ where: eq(mentorGroups.id, groupId) });
+  if (!group) return c.json({ ok: false, error: "گروه یافت نشد." }, 404);
+  if (group.memberCount >= group.capacity) return c.json({ ok: false, error: "ظرفیت گروه تکمیل است." }, 400);
+  const existing = await db.query.groupMembers.findFirst({
+    where: and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, user.id)),
   });
-  return c.json(success(group), 201);
+  if (existing) return c.json({ ok: false, error: "شما قبلاً عضو این گروه هستید." }, 409);
+  await db.insert(groupMembers).values({ groupId, userId: user.id, userName: user.name || "کاربر", joinedAt: Date.now() });
+  await db.update(mentorGroups).set({ memberCount: group.memberCount + 1 }).where(eq(mentorGroups.id, groupId));
+  return c.json({ ok: true });
 });
 
-mentorRoutes.delete("/groups/:id", requireAuth, async (c) => {
-  const userRole = c.get("userRole") ?? "";
-  const userId = c.get("userId");
-  const group = await groupService.findById(c.req.param("id"));
-  if (!group) return c.json(errorResponse("Not found"), 404);
-  const isOwner = group.mentorId === userId;
-  const isAdmin = ["admin", "site_admin"].includes(userRole);
-  if (!isOwner && !isAdmin) return c.json(errorResponse("دسترسی ندارید.", "FORBIDDEN"), 403);
-  await groupService.delete(c.req.param("id"));
-  return c.json(success({ deleted: true }));
-});
-
-mentorRoutes.post("/groups/:id/join", requireAuth, async (c) => {
-  try {
-    const result = await groupService.join(c.get("userId"), c.req.param("id"));
-    return c.json(success(result));
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
+mentor.post("/groups/:id/leave", requireAuth, async (c) => {
+  const user = c.get("user");
+  const groupId = c.req.param("id");
+  const membership = await db.query.groupMembers.findFirst({
+    where: and(eq(groupMembers.groupId, groupId), eq(groupMembers.userId, user.id)),
+  });
+  if (!membership) return c.json({ ok: false, error: "عضویت یافت نشد." }, 404);
+  await db.delete(groupMembers).where(eq(groupMembers.id, membership.id));
+  const group = await db.query.mentorGroups.findFirst({ where: eq(mentorGroups.id, groupId) });
+  if (group && group.memberCount > 0) {
+    await db.update(mentorGroups).set({ memberCount: group.memberCount - 1 }).where(eq(mentorGroups.id, groupId));
   }
+  return c.json({ ok: true });
 });
 
-mentorRoutes.post("/groups/:id/leave", requireAuth, async (c) => {
-  try {
-    const result = await groupService.leave(c.get("userId"), c.req.param("id"));
-    return c.json(success(result));
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
+mentor.get("/groups/:id/members", async (c) => {
+  const list = await db.query.groupMembers.findMany({ where: eq(groupMembers.groupId, c.req.param("id")) });
+  return c.json({ ok: true, data: list });
+});
+
+mentor.get("/groups/:id/is-member", requireAuth, async (c) => {
+  const user = c.get("user");
+  const existing = await db.query.groupMembers.findFirst({
+    where: and(eq(groupMembers.groupId, c.req.param("id")), eq(groupMembers.userId, user.id)),
+  });
+  return c.json({ ok: true, data: { isMember: !!existing } });
+});
+
+// ── Group Announcements ─────────────────────────────────────────────────────
+
+mentor.post("/groups/:id/announcements", requireMentorOrAdmin, async (c) => {
+  const user = c.get("user");
+  const groupId = c.req.param("id");
+  const { title, message } = await c.req.json();
+  if (!title?.trim()) return c.json({ ok: false, error: "عنوان لازم است." }, 400);
+  const [created] = await db.insert(groupAnnouncements).values({
+    groupId, mentorId: user.id, mentorName: user.name || "منتور",
+    title: title.trim(), message: message?.trim() || "", createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
+});
+
+mentor.get("/groups/:id/announcements", async (c) => {
+  const list = await db.query.groupAnnouncements.findMany({
+    where: eq(groupAnnouncements.groupId, c.req.param("id")),
+    orderBy: [desc(groupAnnouncements.createdAt)],
+  });
+  return c.json({ ok: true, data: list });
+});
+
+// ── Questions ───────────────────────────────────────────────────────────────
+
+mentor.post("/questions", requireAuth, async (c) => {
+  const user = c.get("user");
+  const { text, topic } = await c.req.json();
+  if (!text?.trim() || text.trim().length < 5) return c.json({ ok: false, error: "سؤال را کامل بنویسید." }, 400);
+  const [created] = await db.insert(mentorQuestions).values({
+    studentId: user.id, studentName: user.name || "دانشجو",
+    topic: topic?.trim() || "عمومی", text: text.trim(), status: "open", createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
+});
+
+mentor.get("/questions", requireAuth, async (c) => {
+  const user = c.get("user");
+  if (user.role === "mentor" || user.role === "admin" || user.role === "site_admin") {
+    const list = await db.query.mentorQuestions.findMany({ orderBy: [desc(mentorQuestions.createdAt)] });
+    return c.json({ ok: true, data: list.slice(0, 200) });
   }
+  const list = await db.query.mentorQuestions.findMany({
+    where: eq(mentorQuestions.studentId, user.id),
+    orderBy: [desc(mentorQuestions.createdAt)],
+  });
+  return c.json({ ok: true, data: list.slice(0, 100) });
 });
 
-mentorRoutes.get("/groups/:id/members", async (c) => {
-  const members = await groupService.listMembers(c.req.param("id"));
-  return c.json(success(members));
+mentor.post("/questions/:id/answer", requireMentorOrAdmin, async (c) => {
+  const user = c.get("user");
+  const { answer } = await c.req.json();
+  if (!answer?.trim()) return c.json({ ok: false, error: "پاسخ خالی است." }, 400);
+  const q = await db.query.mentorQuestions.findFirst({ where: eq(mentorQuestions.id, c.req.param("id")) });
+  if (!q) return c.json({ ok: false, error: "سؤال یافت نشد." }, 404);
+  await db.update(mentorQuestions).set({
+    answer: answer.trim(), answeredByName: user.name || "منتور", status: "answered", answeredAt: Date.now(),
+  }).where(eq(mentorQuestions.id, c.req.param("id")));
+  return c.json({ ok: true, data: await db.query.mentorQuestions.findFirst({ where: eq(mentorQuestions.id, c.req.param("id")) }) });
 });
 
-mentorRoutes.get("/groups/:id/is-member", requireAuth, async (c) => {
-  const result = await groupService.isMember(c.get("userId"), c.req.param("id"));
-  return c.json(success(result));
+// ── Sessions ────────────────────────────────────────────────────────────────
+
+mentor.post("/sessions", requireMentorOrAdmin, async (c) => {
+  const user = c.get("user");
+  const { studentId, title, date, time, notes } = await c.req.json();
+  if (!title?.trim()) return c.json({ ok: false, error: "عنوان جلسه لازم است." }, 400);
+  const [created] = await db.insert(mentorSessions).values({
+    mentorId: user.id, mentorName: user.name || "منتور", studentId,
+    title: title.trim(), date, time, notes: notes?.trim() || "", status: "scheduled", createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
 });
 
-// ── Group Announcements ────────────────────────────────────────────────────
-
-mentorRoutes.post("/groups/:id/announcements", requireAuth, requireMentor, async (c) => {
-  const body = await c.req.json();
-  if (!body.title?.trim()) return c.json(errorResponse("عنوان لازم است.", "VALIDATION"), 400);
-  try {
-    const row = await groupService.createAnnouncement(c.get("userId"), c.req.param("id"), body.title, body.message ?? "");
-    return c.json(success(row), 201);
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
+mentor.get("/sessions", requireAuth, async (c) => {
+  const user = c.get("user");
+  if (user.role === "mentor" || user.role === "admin" || user.role === "site_admin") {
+    const list = await db.query.mentorSessions.findMany({ orderBy: [desc(mentorSessions.createdAt)] });
+    return c.json({ ok: true, data: list.slice(0, 100) });
   }
+  const list = await db.query.mentorSessions.findMany({
+    where: eq(mentorSessions.studentId, user.id),
+    orderBy: [desc(mentorSessions.createdAt)],
+  });
+  return c.json({ ok: true, data: list.slice(0, 50) });
 });
 
-mentorRoutes.get("/groups/:id/announcements", async (c) => {
-  const rows = await groupService.listAnnouncements(c.req.param("id"));
-  return c.json(success(rows));
+mentor.patch("/sessions/:id/status", requireMentorOrAdmin, async (c) => {
+  const { status } = await c.req.json();
+  if (!["scheduled", "done", "cancelled"].includes(status)) return c.json({ ok: false, error: "وضعیت نامعتبر است." }, 400);
+  await db.update(mentorSessions).set({ status }).where(eq(mentorSessions.id, c.req.param("id")));
+  return c.json({ ok: true, data: await db.query.mentorSessions.findFirst({ where: eq(mentorSessions.id, c.req.param("id")) }) });
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── Questions ──────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-mentorRoutes.post("/questions", requireAuth, async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json();
-  if (!body.text?.trim()) return c.json(errorResponse("سؤال را بنویسید.", "VALIDATION"), 400);
-  try {
-    const q = await questionService.ask(userId, body.text, body.topic ?? "عمومی");
-    return c.json(success(q), 201);
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
-  }
+mentor.get("/students", requireMentorOrAdmin, async (c) => {
+  const allUsers = await db.query.users.findMany();
+  const students = allUsers.filter((u) => u.role === "user" || u.role === "member" || !u.role)
+    .map((u) => ({ id: u.id, name: u.name || "کاربر", email: u.email }));
+  return c.json({ ok: true, data: students });
 });
 
-mentorRoutes.get("/questions", requireAuth, async (c) => {
-  const questions = await questionService.list(c.get("userId"), c.get("userRole") ?? "");
-  return c.json(success(questions));
+mentor.get("/stats", requireAuth, async (c) => {
+  const user = c.get("user");
+  const isM = user.role === "mentor" || user.role === "admin" || user.role === "site_admin";
+  const openQuestions = isM ? (await db.query.mentorQuestions.findMany({ where: eq(mentorQuestions.status, "open") })).length : 0;
+  const sessions = isM ? (await db.query.mentorSessions.findMany({ where: eq(mentorSessions.mentorId, user.id) })).length : 0;
+  const groups = (await db.query.mentorGroups.findMany({ where: eq(mentorGroups.mentorId, user.id) })).length;
+  return c.json({ ok: true, data: { openQuestions, sessions, groups } });
 });
 
-mentorRoutes.post("/questions/:id/answer", requireAuth, requireMentor, async (c) => {
-  const body = await c.req.json();
-  if (!body.answer?.trim()) return c.json(errorResponse("پاسخ خالی است.", "VALIDATION"), 400);
-  try {
-    const q = await questionService.answer(c.get("userId"), c.req.param("id"), body.answer);
-    return c.json(success(q));
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
-  }
-});
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ── Sessions ───────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-mentorRoutes.post("/sessions", requireAuth, requireMentor, async (c) => {
-  const body = await c.req.json();
-  if (!body.title?.trim()) return c.json(errorResponse("عنوان جلسه لازم است.", "VALIDATION"), 400);
-  try {
-    const s = await sessionService.plan(c.get("userId"), {
-      studentId: body.studentId,
-      title: body.title,
-      date: body.date ?? "",
-      time: body.time ?? "",
-      notes: body.notes ?? "",
-    });
-    return c.json(success(s), 201);
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
-  }
-});
-
-mentorRoutes.get("/sessions", requireAuth, async (c) => {
-  const sessions = await sessionService.list(c.get("userId"), c.get("userRole") ?? "");
-  return c.json(success(sessions));
-});
-
-mentorRoutes.patch("/sessions/:id/status", requireAuth, requireMentor, async (c) => {
-  const body = await c.req.json();
-  try {
-    const s = await sessionService.setStatus(c.get("userId"), c.req.param("id"), body.status);
-    if (!s) return c.json(errorResponse("Not found"), 404);
-    return c.json(success(s));
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
-  }
-});
-
-mentorRoutes.get("/students", requireAuth, requireMentor, async (c) => {
-  const students = await sessionService.listStudents();
-  return c.json(success(students));
-});
-
-mentorRoutes.get("/stats", requireAuth, async (c) => {
-  const stats = await sessionService.getStats(c.get("userId"), c.get("userRole") ?? "");
-  return c.json(success(stats));
-});
-
-export { mentorRoutes };
+export default mentor;

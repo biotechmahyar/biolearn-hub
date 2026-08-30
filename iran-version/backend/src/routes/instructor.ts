@@ -1,170 +1,203 @@
-/**
- * Instructor Tools Routes
- * Attendance, Course Resources, Direct Messages, Payments, Performance, Bank Account
- */
 import { Hono } from "hono";
-import { success, errorResponse } from "../lib/response.js";
 import { db } from "../db/index.js";
-import { eq } from "drizzle-orm";
-import { users } from "../db/schema.js";
-import type { AppEnv } from "../lib/types.js";
 import {
-  attendanceService,
-  resourceService,
-  directMessageService,
-  paymentService,
-  performanceService,
-  bankAccountService,
-} from "../services/instructor.service.js";
+  classRooms, roomMessages, attendance, courseResources, directMessages,
+  instructorPayments, users, courses, enrollments, examAttempts, questions, categories,
+} from "../db/schema.js";
+import { requireAuth, requireInstructorOrAdmin, requireAdmin } from "../middleware/auth.js";
+import { eq, and, desc } from "drizzle-orm";
 
-const app = new Hono<AppEnv>();
+const instructor = new Hono();
 
-// ── Middleware: require auth ───────────────────────────────────────────────
-app.use("*", async (c, next) => {
-  const userId = c.get("userId");
-  if (!userId) {
-    return c.json(errorResponse("برای دسترسی لازم است وارد شوید.", "UNAUTHORIZED"), 401);
-  }
-  await next();
+// ── Attendance ──────────────────────────────────────────────────────────────
+
+instructor.get("/attendance/rooms", requireInstructorOrAdmin, async (c) => {
+  const user = c.get("user");
+  const list = await db.query.classRooms.findMany({ where: eq(classRooms.instructorId, user.id) });
+  return c.json({ ok: true, data: list });
 });
 
-// ── Attendance ────────────────────────────────────────────────────────────
-
-app.get("/attendance/rooms", async (c) => {
-  const userId = c.get("userId");
-  const rooms = await attendanceService.listMyRooms(userId);
-  return c.json(success(rooms));
+instructor.get("/attendance/rooms/:roomId/students", requireInstructorOrAdmin, async (c) => {
+  const messages = await db.query.roomMessages.findMany({ where: eq(roomMessages.roomId, c.req.param("roomId")) });
+  const studentIds = [...new Set(messages.map((m) => m.userId))];
+  const students = await Promise.all(
+    studentIds.map(async (id) => {
+      const u = await db.query.users.findFirst({ where: eq(users.id, id) });
+      return u ? { id: u.id, name: u.name || "—" } : null;
+    })
+  );
+  return c.json({ ok: true, data: students.filter(Boolean) });
 });
 
-app.get("/attendance/rooms/:roomId/students", async (c) => {
+instructor.get("/attendance/rooms/:roomId", requireInstructorOrAdmin, async (c) => {
+  const list = await db.query.attendance.findMany({ where: eq(attendance.roomId, c.req.param("roomId")) });
+  return c.json({ ok: true, data: list });
+});
+
+instructor.post("/attendance/rooms/:roomId/mark", requireInstructorOrAdmin, async (c) => {
+  const user = c.get("user");
   const roomId = c.req.param("roomId");
-  const students = await attendanceService.listRoomStudents(roomId);
-  return c.json(success(students));
-});
-
-app.get("/attendance/rooms/:roomId", async (c) => {
-  const roomId = c.req.param("roomId");
-  const records = await attendanceService.getAttendance(roomId);
-  return c.json(success(records));
-});
-
-app.post("/attendance/rooms/:roomId/mark", async (c) => {
-  const userId = c.get("userId");
-  const roomId = c.req.param("roomId");
-  const body = await c.req.json();
-  if (!body.studentId || !body.studentName || typeof body.present !== "boolean") {
-    return c.json(errorResponse("داده‌های نامعتبر", "VALIDATION"), 400);
-  }
-  const record = await attendanceService.markAttendance(userId, {
-    roomId,
-    studentId: body.studentId,
-    studentName: body.studentName,
-    present: body.present,
-    note: body.note,
+  const { studentId, studentName, present, note } = await c.req.json();
+  const existing = await db.query.attendance.findFirst({
+    where: and(eq(attendance.roomId, roomId), eq(attendance.studentId, studentId)),
   });
-  return c.json(success(record));
-});
-
-// ── Course Resources ──────────────────────────────────────────────────────
-
-app.get("/resources/:courseId", async (c) => {
-  const courseId = c.req.param("courseId");
-  const resources = await resourceService.listByCourse(courseId);
-  return c.json(success(resources));
-});
-
-app.post("/resources", async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json();
-  if (!body.courseId || !body.title || !body.fileUrl || !body.fileName) {
-    return c.json(errorResponse("داده‌های نامعتبر", "VALIDATION"), 400);
+  if (existing) {
+    await db.update(attendance).set({ present, note, markedAt: Date.now() }).where(eq(attendance.id, existing.id));
+  } else {
+    await db.insert(attendance).values({
+      roomId, instructorId: user.id, studentId, studentName, present, note, markedAt: Date.now(),
+    });
   }
-  const resource = await resourceService.add(userId, {
-    courseId: body.courseId,
-    title: body.title,
-    description: body.description,
-    fileUrl: body.fileUrl,
-    fileName: body.fileName,
-    fileSize: body.fileSize ?? 0,
-    fileType: body.fileType ?? "application/octet-stream",
-    isFree: body.isFree ?? false,
+  return c.json({ ok: true });
+});
+
+// ── Course Resources ────────────────────────────────────────────────────────
+
+instructor.get("/resources/:courseId", requireAuth, async (c) => {
+  const list = await db.query.courseResources.findMany({ where: eq(courseResources.courseId, c.req.param("courseId")) });
+  return c.json({ ok: true, data: list });
+});
+
+instructor.post("/resources", requireAuth, async (c) => {
+  const user = c.get("user");
+  const body = await c.req.json();
+  const [created] = await db.insert(courseResources).values({
+    courseId: body.courseId, instructorId: user.id, title: body.title,
+    description: body.description, fileUrl: body.fileUrl, fileName: body.fileName,
+    fileSize: body.fileSize, fileType: body.fileType, isFree: body.isFree ?? false, createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
+});
+
+instructor.delete("/resources/:id", requireAuth, async (c) => {
+  const user = c.get("user");
+  const resource = await db.query.courseResources.findFirst({ where: eq(courseResources.id, c.req.param("id")) });
+  if (!resource) return c.json({ ok: false, error: "فایل یافت نشد." }, 404);
+  if (resource.instructorId !== user.id && user.role !== "admin" && user.role !== "site_admin") {
+    return c.json({ ok: false, error: "دسترسی ندارید." }, 403);
+  }
+  await db.delete(courseResources).where(eq(courseResources.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+// ── Direct Messages ─────────────────────────────────────────────────────────
+
+instructor.post("/messages", requireAuth, async (c) => {
+  const user = c.get("user");
+  const { receiverId, text } = await c.req.json();
+  if (!text?.trim()) return c.json({ ok: false, error: "پیام خالی است." }, 400);
+  await db.insert(directMessages).values({
+    senderId: user.id, receiverId, text: text.trim(), read: false, createdAt: Date.now(),
   });
-  return c.json(success(resource), 201);
+  return c.json({ ok: true });
 });
 
-app.delete("/resources/:resourceId", async (c) => {
-  const userId = c.get("userId");
-  const resourceId = c.req.param("resourceId");
-  const rows = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
-  const userRole = rows[0]?.role ?? "user";
-  const deleted = await resourceService.delete(resourceId, userId, userRole);
-  return c.json(success(deleted));
-});
-
-// ── Direct Messages ───────────────────────────────────────────────────────
-
-app.post("/messages", async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json();
-  if (!body.receiverId || !body.text) {
-    return c.json(errorResponse("داده‌های نامعتبر", "VALIDATION"), 400);
+instructor.get("/messages/conversations", requireAuth, async (c) => {
+  const userId = c.get("user").id;
+  const received = await db.query.directMessages.findMany({
+    where: eq(directMessages.receiverId, userId), orderBy: [desc(directMessages.createdAt)],
+  });
+  const sent = await db.query.directMessages.findMany({
+    where: eq(directMessages.senderId, userId), orderBy: [desc(directMessages.createdAt)],
+  });
+  const all = [...received, ...sent].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  const conversations = new Map<string, any>();
+  for (const msg of all) {
+    const partnerId = msg.senderId === userId ? msg.receiverId : msg.senderId;
+    if (!conversations.has(partnerId)) {
+      const partner = await db.query.users.findFirst({ where: eq(users.id, partnerId) });
+      conversations.set(partnerId, {
+        partnerId, partnerName: partner?.name || "—",
+        lastMessage: msg.text, lastTime: msg.createdAt,
+        unread: msg.receiverId === userId && !msg.read ? 1 : 0,
+      });
+    }
   }
-  const msg = await directMessageService.send(userId, body.receiverId, body.text);
-  return c.json(success(msg), 201);
+  return c.json({ ok: true, data: [...conversations.values()] });
 });
 
-app.get("/messages/conversations", async (c) => {
-  const userId = c.get("userId");
-  const conversations = await directMessageService.listConversations(userId);
-  return c.json(success(conversations));
-});
-
-app.get("/messages/:partnerId", async (c) => {
-  const userId = c.get("userId");
+instructor.get("/messages/:partnerId", requireAuth, async (c) => {
+  const userId = c.get("user").id;
   const partnerId = c.req.param("partnerId");
-  const messages = await directMessageService.listConversation(userId, partnerId);
-  return c.json(success(messages));
+  const received = await db.query.directMessages.findMany({
+    where: and(eq(directMessages.receiverId, userId), eq(directMessages.senderId, partnerId)),
+    orderBy: [directMessages.createdAt],
+  });
+  const sent = await db.query.directMessages.findMany({
+    where: and(eq(directMessages.senderId, userId), eq(directMessages.receiverId, partnerId)),
+    orderBy: [directMessages.createdAt],
+  });
+  return c.json({ ok: true, data: [...received, ...sent].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)) });
 });
 
-app.post("/messages/:partnerId/read", async (c) => {
-  const userId = c.get("userId");
+instructor.post("/messages/:partnerId/read", requireAuth, async (c) => {
+  const userId = c.get("user").id;
   const partnerId = c.req.param("partnerId");
-  await directMessageService.markRead(userId, partnerId);
-  return c.json(success({ ok: true }));
-});
-
-// ── Payments ──────────────────────────────────────────────────────────────
-
-app.get("/payments", async (c) => {
-  const userId = c.get("userId");
-  const payments = await paymentService.listMyPayments(userId);
-  return c.json(success(payments));
-});
-
-// ── Performance ───────────────────────────────────────────────────────────
-
-app.get("/performance", async (c) => {
-  const userId = c.get("userId");
-  const performance = await performanceService.getStudentPerformance(userId);
-  return c.json(success(performance));
-});
-
-// ── Bank Account ──────────────────────────────────────────────────────────
-
-app.get("/bank-account", async (c) => {
-  const userId = c.get("userId");
-  const account = await bankAccountService.get(userId);
-  return c.json(success(account));
-});
-
-app.put("/bank-account", async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json();
-  if (!body.bankName || !body.bankAccountNumber || !body.bankCardNumber || !body.bankSheba) {
-    return c.json(errorResponse("داده‌های نامعتبر", "VALIDATION"), 400);
+  const unread = await db.query.directMessages.findMany({
+    where: and(eq(directMessages.receiverId, userId), eq(directMessages.senderId, partnerId), eq(directMessages.read, false)),
+  });
+  for (const msg of unread) {
+    await db.update(directMessages).set({ read: true }).where(eq(directMessages.id, msg.id));
   }
-  await bankAccountService.update(userId, body);
-  return c.json(success({ ok: true }));
+  return c.json({ ok: true });
 });
 
-export { app as instructorRoutes };
+// ── Payments ────────────────────────────────────────────────────────────────
+
+instructor.get("/payments", requireAuth, async (c) => {
+  const userId = c.get("user").id;
+  const list = await db.query.instructorPayments.findMany({
+    where: eq(instructorPayments.instructorId, userId),
+    orderBy: [desc(instructorPayments.createdAt)],
+  });
+  return c.json({ ok: true, data: list });
+});
+
+instructor.get("/bank-account", requireAuth, async (c) => {
+  const userId = c.get("user").id;
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  return c.json({
+    ok: true,
+    data: {
+      bankName: user?.bankName || "",
+      bankAccountNumber: user?.bankAccountNumber || "",
+      bankCardNumber: user?.bankCardNumber || "",
+      bankSheba: user?.bankSheba || "",
+    },
+  });
+});
+
+instructor.put("/bank-account", requireAuth, async (c) => {
+  const userId = c.get("user").id;
+  const body = await c.req.json();
+  await db.update(users).set({
+    bankName: body.bankName, bankAccountNumber: body.bankAccountNumber,
+    bankCardNumber: body.bankCardNumber, bankSheba: body.bankSheba,
+  }).where(eq(users.id, userId));
+  return c.json({ ok: true });
+});
+
+// ── Performance ─────────────────────────────────────────────────────────────
+
+instructor.get("/performance", requireInstructorOrAdmin, async (c) => {
+  const user = c.get("user");
+  const myRooms = (await db.query.classRooms.findMany()).filter((r) => r.instructorId === user.id);
+  const studentMap = new Map<string, { name: string; questions: number; messages: number; attendance: number }>();
+  for (const room of myRooms) {
+    const messages = await db.query.roomMessages.findMany({ where: eq(roomMessages.roomId, room.id) });
+    for (const m of messages) {
+      if (m.userId === user.id) continue;
+      const existing = studentMap.get(m.userId) ?? { name: "", questions: 0, messages: 0, attendance: 0 };
+      if (m.type === "question") existing.questions++; else existing.messages++;
+      studentMap.set(m.userId, existing);
+    }
+  }
+  const results = [];
+  for (const [id, stats] of studentMap) {
+    const u = await db.query.users.findFirst({ where: eq(users.id, id) });
+    results.push({ studentId: id, ...stats, name: u?.name || stats.name, totalRooms: myRooms.length });
+  }
+  return c.json({ ok: true, data: results });
+});
+
+export default instructor;

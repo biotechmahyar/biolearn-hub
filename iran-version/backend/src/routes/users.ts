@@ -1,35 +1,27 @@
-/**
- * User profile routes — require authentication.
- */
 import { Hono } from "hono";
-import { success, errorResponse } from "../lib/response.js";
-import { userService } from "../services/user.service.js";
-import { updateProfileSchema } from "../lib/validators.js";
-
-import type { AppEnv } from "../lib/types.js";
-
-const userRoutes = new Hono<AppEnv>();
-
-import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
+import { requireAuth } from "../middleware/auth.js";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 
-// ── Auth middleware — require logged-in user ────────────────────────────────
-userRoutes.use("*", async (c, next) => {
-  const userId = c.get("userId");
-  if (!userId) {
-    return c.json(errorResponse("Unauthorized", "UNAUTHORIZED"), 401);
-  }
-  await next();
+const usersRouter = new Hono();
+
+const updateProfileSchema = z.object({
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  avatarUrl: z.string().optional(),
+  about: z.string().optional(),
+  university: z.string().optional(),
+  major: z.string().optional(),
 });
 
-// GET /api/users/me — get current user profile
-userRoutes.get("/me", async (c) => {
-  const userId = c.get("userId");
-  const user = await userService.findById(userId);
-  if (!user) return c.json(errorResponse("User not found"), 404);
-  return c.json(
-    success({
+// GET /api/users/me
+usersRouter.get("/me", requireAuth, async (c) => {
+  const user = c.get("user");
+  return c.json({
+    ok: true,
+    data: {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -41,21 +33,31 @@ userRoutes.get("/me", async (c) => {
       avatarUrl: user.avatarUrl,
       university: user.university,
       major: user.major,
-    })
-  );
+    },
+  });
 });
 
-// PUT /api/users/me — update profile (staged for non-admins)
-userRoutes.put("/me", async (c) => {
-  const userId = c.get("userId");
+// PUT /api/users/me
+usersRouter.put("/me", requireAuth, async (c) => {
+  const user = c.get("user");
   const body = await c.req.json();
   const parsed = updateProfileSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json(errorResponse(parsed.error.issues[0].message, "VALIDATION"), 400);
+    return c.json({ ok: false, error: "ورودی نامعتبر است." }, 400);
   }
-  const user = await userService.updateProfile(userId, parsed.data);
-  if (!user) return c.json(errorResponse("User not found"), 404);
-  return c.json(success({ updated: true }));
+  const data = parsed.data;
+  const patch: Record<string, unknown> = {};
+  if (data.firstName !== undefined) patch.firstName = data.firstName;
+  if (data.lastName !== undefined) patch.lastName = data.lastName;
+  if (data.avatarUrl !== undefined) patch.avatarUrl = data.avatarUrl;
+  if (data.about !== undefined) patch.about = data.about;
+  if (data.university !== undefined) patch.university = data.university;
+  if (data.major !== undefined) patch.major = data.major;
+
+  if (Object.keys(patch).length > 0) {
+    await db.update(users).set(patch).where(eq(users.id, user.id));
+  }
+  return c.json({ ok: true, data: patch });
 });
 
-export { userRoutes };
+export default usersRouter;

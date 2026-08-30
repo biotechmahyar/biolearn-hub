@@ -1,89 +1,57 @@
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * NIBRC Iran Version — Complete Database Schema
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * Converted from Convex schema (src/convex/schema.ts) + actual usage analysis
- * of all queries, mutations, and actions.
- *
- * Design decisions:
- * - Fields only read/written as whole objects → JSONB
- * - Arrays never queried individually → JSONB
- * - Arrays with unique constraints or lookups → junction tables
- * - Convex v.id("table") → UUID FK references
- * - Convex timestamps (number) → BIGINT (epoch ms) to preserve compatibility
- * - Convex optional fields → nullable columns
- */
-
 import {
   pgTable,
   uuid,
+  varchar,
   text,
-  boolean,
   integer,
   bigint,
-  doublePrecision,
+  boolean,
   jsonb,
   timestamp,
-  index,
   uniqueIndex,
-  primaryKey,
+  index,
 } from "drizzle-orm/pg-core";
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── AUTHENTICATION ───────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Auth & Users ──────────────────────────────────────────────────────────────
 
 export const users = pgTable(
   "users",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    name: text("name"),
-    email: text("email").unique(),
-    passwordHash: text("password_hash"),
-    image: text("image"),
-    emailVerificationTime: bigint("email_verification_time", { mode: "number" }),
-    isAnonymous: boolean("is_anonymous").default(false),
-
-    // Roles
-    role: text("role"), // admin | site_admin | user | member | instructor | mentor | content_manager | support
-    secondaryRole: text("secondary_role"),
-    university: text("university"),
-    major: text("major"),
-
-    // Profile (pending approval system)
-    firstName: text("first_name"),
-    lastName: text("last_name"),
-    avatarUrl: text("avatar_url"), // was avatarStorageId in Convex
+    name: varchar("name", { length: 255 }),
+    email: varchar("email", { length: 255 }),
+    passwordHash: varchar("password_hash", { length: 255 }),
+    role: varchar("role", { length: 50 }),
+    secondaryRole: varchar("secondary_role", { length: 50 }),
+    university: varchar("university", { length: 255 }),
+    major: varchar("major", { length: 255 }),
+    firstName: varchar("first_name", { length: 255 }),
+    lastName: varchar("last_name", { length: 255 }),
+    avatarUrl: text("avatar_url"),
     about: text("about"),
     suggestedCourseIds: jsonb("suggested_course_ids").$type<string[]>(),
     pendingProfile: jsonb("pending_profile").$type<{
       firstName?: string;
       lastName?: string;
-      avatarStorageId?: string;
+      avatarUrl?: string;
+      about?: string;
       submittedAt: number;
     }>(),
-
-    // Telegram
-    telegramId: bigint("telegram_id", { mode: "number" }).unique(),
-    telegramUsername: text("telegram_username"),
-    telegramFirstName: text("telegram_first_name"),
+    telegramId: bigint("telegram_id", { mode: "number" }),
+    telegramUsername: varchar("telegram_username", { length: 255 }),
+    telegramFirstName: varchar("telegram_first_name", { length: 255 }),
     telegramLinkedAt: bigint("telegram_linked_at", { mode: "number" }),
-    telegramNotificationsEnabled: boolean("telegram_notifications_enabled").default(false),
-
-    // Bank
-    bankName: text("bank_name"),
-    bankAccountNumber: text("bank_account_number"),
-    bankCardNumber: text("bank_card_number"),
-    bankSheba: text("bank_sheba"),
-
+    telegramNotificationsEnabled: boolean("telegram_notifications_enabled"),
+    bankName: varchar("bank_name", { length: 255 }),
+    bankAccountNumber: varchar("bank_account_number", { length: 255 }),
+    bankCardNumber: varchar("bank_card_number", { length: 255 }),
+    bankSheba: varchar("bank_sheba", { length: 255 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [
-    index("idx_users_email").on(t.email),
-    index("idx_users_role").on(t.role),
-    index("idx_users_telegram_id").on(t.telegramId),
+  (table) => [
+    uniqueIndex("idx_users_email").on(table.email),
+    index("idx_users_role").on(table.role),
+    uniqueIndex("idx_users_telegram_id").on(table.telegramId),
   ]
 );
 
@@ -91,177 +59,165 @@ export const sessions = pgTable(
   "sessions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
     token: text("token").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [
-    index("idx_sessions_user_id").on(t.userId),
-    index("idx_sessions_token").on(t.token),
-  ]
+  (table) => [index("idx_sessions_user").on(table.userId)]
 );
 
 export const refreshTokens = pgTable(
   "refresh_tokens",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    token: text("token").notNull().unique(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    token: text("token").notNull(),
     expiresAt: timestamp("expires_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [
-    index("idx_refresh_tokens_user_id").on(t.userId),
-    index("idx_refresh_tokens_token").on(t.token),
-  ]
+  (table) => [index("idx_refresh_tokens_user").on(table.userId)]
 );
 
 export const otpCodes = pgTable(
   "otp_codes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    email: text("email").notNull(),
-    code: text("code").notNull(),
+    email: varchar("email", { length: 255 }).notNull(),
+    code: varchar("code", { length: 10 }).notNull(),
     expiresAt: timestamp("expires_at").notNull(),
-    used: boolean("used").default(false),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_otp_email").on(t.email)]
+  (table) => [index("idx_otp_email").on(table.email)]
 );
 
-export const authRateLimits = pgTable(
-  "auth_rate_limits",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    identifier: text("identifier").notNull(),
-    expireAt: timestamp("expire_at").notNull(),
-  },
-  (t) => [index("idx_rate_limits_identifier").on(t.identifier)]
-);
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ── ADMIN ────────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+export const authRateLimits = pgTable("auth_rate_limits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  identifier: varchar("identifier", { length: 255 }).notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  expireAt: timestamp("expire_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 export const admins = pgTable(
   "admins",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    email: text("email").notNull().unique(),
+    email: varchar("email", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_admins_email").on(t.email)]
+  (table) => [uniqueIndex("idx_admins_email").on(table.email)]
 );
 
 export const superAdminSessions = pgTable(
   "super_admin_sessions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    createdAt: bigint("created_at", { mode: "number" }).notNull(),
-    expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
   },
-  (t) => [index("idx_super_admin_sessions_user").on(t.userId)]
+  (table) => [index("idx_super_admin_sessions_user").on(table.userId)]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── CATALOG ──────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Catalog ──────────────────────────────────────────────────────────────────
 
 export const categories = pgTable(
   "categories",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
-    description: text("description").notNull(),
-    icon: text("icon").notNull(),
-    accent: text("accent").notNull(),
-    order: integer("order").notNull().default(0),
+    name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    description: text("description").default("").notNull(),
+    icon: varchar("icon", { length: 100 }).default("Dna").notNull(),
+    accent: varchar("accent", { length: 50 }).default("teal").notNull(),
+    "order": integer("order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_categories_slug").on(t.slug)]
+  (table) => [uniqueIndex("idx_categories_slug").on(table.slug)]
 );
 
 export const instructors = pgTable(
   "instructors",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    name: text("name").notNull(),
-    slug: text("slug").notNull().unique(),
-    title: text("title").notNull(),
-    bio: text("bio").notNull(),
-    education: jsonb("education").$type<string[]>().notNull(),
-    specialties: jsonb("specialties").$type<string[]>().notNull(),
-    accent: text("accent").notNull(),
-    verified: boolean("verified").notNull().default(false),
-    userId: uuid("user_id").references(() => users.id), // linked registered user
+    name: varchar("name", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    title: varchar("title", { length: 255 }).notNull(),
+    bio: text("bio").default("").notNull(),
+    education: jsonb("education").$type<string[]>().default([]).notNull(),
+    specialties: jsonb("specialties").$type<string[]>().default([]).notNull(),
+    accent: varchar("accent", { length: 50 }).default("teal").notNull(),
+    verified: boolean("verified").default(false).notNull(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [
-    index("idx_instructors_slug").on(t.slug),
-    index("idx_instructors_user_id").on(t.userId),
+  (table) => [
+    uniqueIndex("idx_instructors_slug").on(table.slug),
+    index("idx_instructors_user").on(table.userId),
   ]
 );
-
-// ── Courses ──────────────────────────────────────────────────────────────────
-// syllabus[], packagePrices[], includes[], files[] → JSONB (never queried individually)
-// audience[], prerequisites[] → JSONB (display only)
 
 export const courses = pgTable(
   "courses",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    title: text("title").notNull(),
-    slug: text("slug").notNull().unique(),
-    categoryId: uuid("category_id").notNull().references(() => categories.id),
-    instructorId: uuid("instructor_id").notNull().references(() => instructors.id),
-    summary: text("summary").notNull(),
-    description: text("description").notNull(),
-    audience: jsonb("audience").$type<string[]>().notNull(),
-    prerequisites: jsonb("prerequisites").$type<string[]>().notNull(),
-
-    // JSONB: [{ id, title, durationMin, free }]
-    syllabus: jsonb("syllabus").$type<
-      { id: string; title: string; durationMin: number; free: boolean }[]
-    >().notNull(),
-
-    durationText: text("duration_text").notNull(),
-    mode: text("mode").notNull(), // live | recorded | hybrid
-    price: doublePrecision("price").notNull(),
-    discountPrice: doublePrecision("discount_price"),
-    rating: doublePrecision("rating").notNull().default(0),
-    ratingCount: integer("rating_count").notNull().default(0),
-    studentsCount: integer("students_count").notNull().default(0),
-    accent: text("accent").notNull(),
-    bundle: text("bundle").notNull(), // economy | basic | plus | premium
-    includes: jsonb("includes").$type<string[]>().notNull(),
-    hasSampleVideo: boolean("has_sample_video").notNull().default(false),
-
-    // JSONB: [{ name, size, type }]
-    files: jsonb("files").$type<
-      { name: string; size: string; type: string }[]
-    >().notNull(),
-
-    published: boolean("published").notNull().default(false),
-    featured: boolean("featured").notNull().default(false),
-    popular: boolean("popular").notNull().default(false),
-    createdAt: bigint("created_at", { mode: "number" }),
-
-    // JSONB: [{ tier, price, features }]
-    packagePrices: jsonb("package_prices").$type<
-      { tier: string; price: number; features: string[] }[]
-    >(),
-
-    // Instructor-designed course flow
-    authorId: uuid("author_id").references(() => users.id),
-    status: text("status"), // draft | pending | rejected
+    title: varchar("title", { length: 500 }).notNull(),
+    slug: varchar("slug", { length: 500 }).notNull(),
+    categoryId: uuid("category_id")
+      .references(() => categories.id, { onDelete: "restrict" })
+      .notNull(),
+    instructorId: uuid("instructor_id")
+      .references(() => instructors.id, { onDelete: "restrict" })
+      .notNull(),
+    summary: text("summary").default("").notNull(),
+    description: text("description").default("").notNull(),
+    audience: jsonb("audience").$type<string[]>().default([]).notNull(),
+    prerequisites: jsonb("prerequisites").$type<string[]>().default([]).notNull(),
+    syllabus: jsonb("syllabus")
+      .$type<{ id: string; title: string; durationMin: number; free: boolean }[]>()
+      .default([])
+      .notNull(),
+    durationText: varchar("duration_text", { length: 100 }).default("به‌زودی").notNull(),
+    mode: varchar("mode", { length: 20 }).default("hybrid").notNull(),
+    price: integer("price").default(0).notNull(),
+    discountPrice: integer("discount_price"),
+    rating: integer("rating").default(0).notNull(),
+    ratingCount: integer("rating_count").default(0).notNull(),
+    studentsCount: integer("students_count").default(0).notNull(),
+    accent: varchar("accent", { length: 50 }).default("teal").notNull(),
+    bundle: varchar("bundle", { length: 20 }).default("basic").notNull(),
+    includes: jsonb("includes").$type<string[]>().default([]).notNull(),
+    hasSampleVideo: boolean("has_sample_video").default(false).notNull(),
+    files: jsonb("files")
+      .$type<{ name: string; size: string; type: string }[]>()
+      .default([])
+      .notNull(),
+    published: boolean("published").default(false).notNull(),
+    featured: boolean("featured").default(false).notNull(),
+    popular: boolean("popular").default(false).notNull(),
+    packagePrices: jsonb("package_prices")
+      .$type<{ tier: string; price: number; features: string[] }[]>()
+      .default([]),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 20 }),
     reviewNote: text("review_note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [
-    index("idx_courses_slug").on(t.slug),
-    index("idx_courses_category").on(t.categoryId),
-    index("idx_courses_published").on(t.published),
-    index("idx_courses_featured").on(t.featured),
-    index("idx_courses_author").on(t.authorId),
+  (table) => [
+    uniqueIndex("idx_courses_slug").on(table.slug),
+    index("idx_courses_category").on(table.categoryId),
+    index("idx_courses_instructor").on(table.instructorId),
+    index("idx_courses_published").on(table.published),
+    index("idx_courses_featured").on(table.featured),
+    index("idx_courses_author").on(table.authorId),
   ]
 );
 
@@ -269,88 +225,84 @@ export const products = pgTable(
   "products",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    title: text("title").notNull(),
-    slug: text("slug").notNull().unique(),
-    type: text("type").notNull(), // flashcards | guide | poster
-    description: text("description").notNull(),
-    price: doublePrecision("price").notNull(),
-    accent: text("accent").notNull(),
-    published: boolean("published").notNull().default(false),
-    featured: boolean("featured").notNull().default(false),
-    createdAt: bigint("created_at", { mode: "number" }),
+    title: varchar("title", { length: 500 }).notNull(),
+    slug: varchar("slug", { length: 500 }).notNull(),
+    type: varchar("type", { length: 50 }).notNull(),
+    description: text("description").default("").notNull(),
+    price: integer("price").default(0).notNull(),
+    accent: varchar("accent", { length: 50 }).default("teal").notNull(),
+    published: boolean("published").default(false).notNull(),
+    featured: boolean("featured").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_products_slug").on(t.slug)]
+  (table) => [uniqueIndex("idx_products_slug").on(table.slug)]
 );
 
 export const workshops = pgTable(
   "workshops",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    title: text("title").notNull(),
-    slug: text("slug").notNull().unique(),
-    instructorId: uuid("instructor_id").notNull().references(() => instructors.id),
-    topic: text("topic").notNull(),
-    date: text("date").notNull(), // ISO date
-    time: text("time").notNull(),
-    capacity: integer("capacity").notNull(),
-    registeredCount: integer("registered_count").notNull().default(0),
-    price: doublePrecision("price").notNull(),
-    description: text("description").notNull(),
-    agenda: jsonb("agenda").$type<string[]>().notNull(),
-    free: boolean("free").notNull().default(false),
-    expertTalk: boolean("expert_talk").notNull().default(false),
-    published: boolean("published").notNull().default(false),
+    title: varchar("title", { length: 500 }).notNull(),
+    slug: varchar("slug", { length: 500 }).notNull(),
+    instructorId: uuid("instructor_id")
+      .references(() => instructors.id, { onDelete: "restrict" })
+      .notNull(),
+    topic: varchar("topic", { length: 255 }).notNull(),
+    date: varchar("date", { length: 50 }).notNull(),
+    time: varchar("time", { length: 50 }).notNull(),
+    capacity: integer("capacity").default(0).notNull(),
+    registeredCount: integer("registered_count").default(0).notNull(),
+    price: integer("price").default(0).notNull(),
+    description: text("description").default("").notNull(),
+    agenda: jsonb("agenda").$type<string[]>().default([]).notNull(),
+    free: boolean("free").default(false).notNull(),
+    expertTalk: boolean("expert_talk").default(false).notNull(),
+    published: boolean("published").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_workshops_slug").on(t.slug)]
+  (table) => [uniqueIndex("idx_workshops_slug").on(table.slug)]
 );
 
 // ── Articles ─────────────────────────────────────────────────────────────────
-// references[] → JSONB (display only, never queried individually)
-// tags[], seoKeywords[] → JSONB (display only)
 
 export const articles = pgTable(
   "articles",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    title: text("title").notNull(),
-    slug: text("slug").notNull().unique(),
-    subtitle: text("subtitle"),
-    category: text("category").notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    slug: varchar("slug", { length: 500 }).notNull(),
+    subtitle: varchar("subtitle", { length: 500 }),
+    category: varchar("category", { length: 255 }).default("عمومی").notNull(),
     tags: jsonb("tags").$type<string[]>(),
-    excerpt: text("excerpt").notNull(),
-    body: text("body").notNull(), // HTML from TipTap
-    authorName: text("author_name").notNull(),
-    authorId: uuid("author_id").references(() => users.id),
+    excerpt: text("excerpt").default("").notNull(),
+    body: text("body").default("").notNull(),
+    authorName: varchar("author_name", { length: 255 }).default("تیم NIBRC").notNull(),
+    authorId: uuid("author_id").references(() => users.id, { onDelete: "set null" }),
     featuredImage: text("featured_image"),
-    accent: text("accent").notNull(),
-    readTime: integer("read_time").notNull(),
-    level: text("level"), // beginner | intermediate | advanced
-    status: text("status"), // draft | in_review | scheduled | published | archived
+    accent: varchar("accent", { length: 50 }).default("teal").notNull(),
+    readTime: integer("read_time").default(5).notNull(),
+    level: varchar("level", { length: 20 }),
+    status: varchar("status", { length: 20 }).default("draft"),
     scheduledAt: bigint("scheduled_at", { mode: "number" }),
-    published: boolean("published").notNull().default(false),
-    featured: boolean("featured").notNull().default(false),
-
-    // SEO fields
-    seoTitle: text("seo_title"),
+    published: boolean("published").default(false).notNull(),
+    featured: boolean("featured").default(false).notNull(),
+    seoTitle: varchar("seo_title", { length: 500 }),
     seoDescription: text("seo_description"),
     seoKeywords: jsonb("seo_keywords").$type<string[]>(),
     seoCanonical: text("seo_canonical"),
-    ogTitle: text("og_title"),
+    ogTitle: varchar("og_title", { length: 500 }),
     ogDescription: text("og_description"),
     ogImage: text("og_image"),
-
-    // JSONB: [{ title, authors, journal, year, doi?, url? }]
     references: jsonb("references").$type<
       { title: string; authors: string; journal: string; year: number; doi?: string; url?: string }[]
     >(),
-
-    createdAt: bigint("created_at", { mode: "number" }),
-    updatedAt: bigint("updated_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_articles_slug").on(t.slug),
-    index("idx_articles_status").on(t.status),
-    index("idx_articles_author").on(t.authorId),
+  (table) => [
+    uniqueIndex("idx_articles_slug").on(table.slug),
+    index("idx_articles_status").on(table.status),
+    index("idx_articles_author").on(table.authorId),
   ]
 );
 
@@ -358,45 +310,47 @@ export const articleVersions = pgTable(
   "article_versions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    articleId: uuid("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
+    articleId: uuid("article_id")
+      .references(() => articles.id, { onDelete: "cascade" })
+      .notNull(),
     body: text("body").notNull(),
-    title: text("title").notNull(),
-    savedBy: uuid("saved_by").notNull().references(() => users.id),
-    createdAt: bigint("created_at", { mode: "number" }),
+    title: varchar("title", { length: 500 }).notNull(),
+    savedBy: uuid("saved_by")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_article_versions_article").on(t.articleId)]
+  (table) => [index("idx_article_versions_article").on(table.articleId)]
 );
 
 // ── Dictionary ───────────────────────────────────────────────────────────────
-// All arrays are display-only, never queried individually → JSONB
 
 export const dictionaryTerms = pgTable(
   "dictionary_terms",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    term: text("term").notNull(),
-    slug: text("slug").notNull().unique(),
-    fullName: text("full_name").notNull(),
-    gramStatus: text("gram_status").notNull(),
-    shape: text("shape").notNull(),
-    oxygen: text("oxygen").notNull(),
-    habitat: text("habitat").notNull(),
-    diseases: jsonb("diseases").$type<string[]>().notNull(),
-    virulence: jsonb("virulence").$type<string[]>().notNull(),
-    diagnosis: text("diagnosis").notNull(),
-    characteristics: jsonb("characteristics").$type<string[]>().notNull(),
-    examNotes: jsonb("exam_notes").$type<string[]>().notNull(),
-    sources: jsonb("sources").$type<string[]>().notNull(),
+    term: varchar("term", { length: 255 }).notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    fullName: varchar("full_name", { length: 500 }).notNull(),
+    gramStatus: varchar("gram_status", { length: 100 }).default("").notNull(),
+    shape: varchar("shape", { length: 100 }).default("").notNull(),
+    oxygen: varchar("oxygen", { length: 100 }).default("").notNull(),
+    habitat: varchar("habitat", { length: 255 }).default("").notNull(),
+    diseases: jsonb("diseases").$type<string[]>().default([]).notNull(),
+    virulence: jsonb("virulence").$type<string[]>().default([]).notNull(),
+    diagnosis: text("diagnosis").default("").notNull(),
+    characteristics: jsonb("characteristics").$type<string[]>().default([]).notNull(),
+    examNotes: jsonb("exam_notes").$type<string[]>().default([]).notNull(),
+    sources: jsonb("sources").$type<string[]>().default([]).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [
-    index("idx_dict_slug").on(t.slug),
-    index("idx_dict_term").on(t.term),
+  (table) => [
+    uniqueIndex("idx_dict_slug").on(table.slug),
+    index("idx_dict_term").on(table.term),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── ASSESSMENT ───────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Assessment ───────────────────────────────────────────────────────────────
 
 export const questions = pgTable(
   "questions",
@@ -405,73 +359,85 @@ export const questions = pgTable(
     text: text("text").notNull(),
     options: jsonb("options").$type<string[]>().notNull(),
     correctIndex: integer("correct_index").notNull(),
-    explanation: text("explanation").notNull(),
-    topicId: uuid("topic_id").notNull().references(() => categories.id),
-    difficulty: integer("difficulty").notNull(), // 1 | 2 | 3
+    explanation: text("explanation").default("").notNull(),
+    topicId: uuid("topic_id")
+      .references(() => categories.id, { onDelete: "restrict" })
+      .notNull(),
+    difficulty: integer("difficulty").default(1).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_questions_topic").on(t.topicId)]
+  (table) => [index("idx_questions_topic").on(table.topicId)]
 );
 
 export const exams = pgTable(
   "exams",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    title: text("title").notNull(),
-    slug: text("slug").notNull().unique(),
-    description: text("description").notNull(),
-    durationMinutes: integer("duration_minutes").notNull(),
-    questionIds: jsonb("question_ids").$type<string[]>().notNull(),
-    free: boolean("free").notNull().default(false),
-    published: boolean("published").notNull().default(false),
-    featured: boolean("featured").notNull().default(false),
-    diagnostic: boolean("diagnostic").notNull().default(false),
-    accent: text("accent").notNull(),
-    order: integer("order").notNull().default(0),
+    title: varchar("title", { length: 500 }).notNull(),
+    slug: varchar("slug", { length: 500 }).notNull(),
+    description: text("description").default("").notNull(),
+    durationMinutes: integer("duration_minutes").default(30).notNull(),
+    questionIds: jsonb("question_ids").$type<string[]>().default([]).notNull(),
+    free: boolean("free").default(false).notNull(),
+    published: boolean("published").default(false).notNull(),
+    featured: boolean("featured").default(false).notNull(),
+    diagnostic: boolean("diagnostic").default(false).notNull(),
+    accent: varchar("accent", { length: 50 }).default("teal").notNull(),
+    "order": integer("order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_exams_slug").on(t.slug)]
+  (table) => [uniqueIndex("idx_exams_slug").on(table.slug)]
+);
+
+export const examAttempts = pgTable(
+  "exam_attempts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    examId: uuid("exam_id")
+      .references(() => exams.id, { onDelete: "cascade" })
+      .notNull(),
+    answers: jsonb("answers").$type<{ questionId: string; chosenIndex: number }[]>().default([]).notNull(),
+    score: integer("score").default(0).notNull(),
+    total: integer("total").default(0).notNull(),
+    percent: integer("percent").default(0).notNull(),
+    topicBreakdown: jsonb("topic_breakdown")
+      .$type<{ topicId: string; topicName: string; correct: number; total: number; percent: number }[]>()
+      .default([])
+      .notNull(),
+    startedAt: bigint("started_at", { mode: "number" }).notNull(),
+    finishedAt: bigint("finished_at", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_exam_attempts_user").on(table.userId),
+    index("idx_exam_attempts_exam").on(table.examId),
+  ]
 );
 
 export const examReports = pgTable(
   "exam_reports",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    examId: uuid("exam_id").notNull().references(() => exams.id),
-    questionId: uuid("question_id").notNull().references(() => questions.id),
-    comment: text("comment").notNull(),
-    status: text("status").notNull(), // open | resolved
-    createdAt: bigint("created_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    examId: uuid("exam_id")
+      .references(() => exams.id, { onDelete: "cascade" })
+      .notNull(),
+    questionId: uuid("question_id")
+      .references(() => questions.id, { onDelete: "cascade" })
+      .notNull(),
+    comment: text("comment").default("").notNull(),
+    status: varchar("status", { length: 20 }).default("open").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_exam_reports_status").on(t.status),
-    index("idx_exam_reports_user").on(t.userId),
-    index("idx_exam_reports_exam").on(t.examId),
-  ]
-);
-
-// answers[] and topicBreakdown[] → JSONB (written atomically, never queried inside)
-
-export const examAttempts = pgTable(
-  "exam_attempts",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    examId: uuid("exam_id").notNull().references(() => exams.id),
-    answers: jsonb("answers").$type<
-      { questionId: string; chosenIndex: number }[]
-    >().notNull(),
-    score: integer("score").notNull(),
-    total: integer("total").notNull(),
-    percent: doublePrecision("percent").notNull(),
-    topicBreakdown: jsonb("topic_breakdown").$type<
-      { topicId: string; topicName: string; correct: number; total: number; percent: number }[]
-    >().notNull(),
-    startedAt: bigint("started_at", { mode: "number" }),
-    finishedAt: bigint("finished_at", { mode: "number" }),
-  },
-  (t) => [
-    index("idx_exam_attempts_user").on(t.userId),
-    index("idx_exam_attempts_exam").on(t.examId),
+  (table) => [
+    index("idx_exam_reports_status").on(table.status),
+    index("idx_exam_reports_user").on(table.userId),
+    index("idx_exam_reports_exam").on(table.examId),
   ]
 );
 
@@ -479,66 +445,63 @@ export const dailyQuiz = pgTable(
   "daily_quiz",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    date: text("date").notNull(), // YYYY-MM-DD
-    questionId: uuid("question_id").notNull().references(() => questions.id),
-    points: integer("points").notNull(),
+    date: varchar("date", { length: 10 }).notNull(),
+    questionId: uuid("question_id")
+      .references(() => questions.id, { onDelete: "cascade" })
+      .notNull(),
+    points: integer("points").default(1).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_daily_quiz_date").on(t.date)]
+  (table) => [index("idx_daily_quiz_date").on(table.date)]
 );
 
 export const dailyQuizAnswers = pgTable(
   "daily_quiz_answers",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    date: text("date").notNull(),
-    questionId: uuid("question_id").notNull().references(() => questions.id),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    date: varchar("date", { length: 10 }).notNull(),
+    questionId: uuid("question_id")
+      .references(() => questions.id, { onDelete: "cascade" })
+      .notNull(),
     chosenIndex: integer("chosen_index").notNull(),
-    correct: boolean("correct").notNull(),
-    points: integer("points").notNull(),
-    answeredAt: bigint("answered_at", { mode: "number" }),
+    correct: boolean("correct").default(false).notNull(),
+    points: integer("points").default(0).notNull(),
+    answeredAt: bigint("answered_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_dqa_user").on(t.userId),
-    index("idx_dqa_date").on(t.date),
+  (table) => [
+    index("idx_dqa_user").on(table.userId),
+    index("idx_dqa_date").on(table.date),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── COMMERCE ─────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-// order items → separate table (queryable by type/refId)
-export const orderItems = pgTable(
-  "order_items",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    orderId: uuid("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
-    type: text("type").notNull(), // course | product | workshop
-    refId: text("ref_id").notNull(),
-    title: text("title").notNull(),
-    price: doublePrecision("price").notNull(),
-  },
-  (t) => [index("idx_order_items_order").on(t.orderId)]
-);
+// ── Commerce ─────────────────────────────────────────────────────────────────
 
 export const orders = pgTable(
   "orders",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    subtotal: doublePrecision("subtotal").notNull(),
-    discountAmount: doublePrecision("discount_amount").notNull().default(0),
-    total: doublePrecision("total").notNull(),
-    couponCode: text("coupon_code"),
-    status: text("status").notNull(), // paid | pending | cancelled
-    invoiceNumber: text("invoice_number").notNull(),
-    createdAt: bigint("created_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    items: jsonb("items")
+      .$type<{ type: string; refId: string; title: string; price: number }[]>()
+      .default([])
+      .notNull(),
+    subtotal: integer("subtotal").default(0).notNull(),
+    discountAmount: integer("discount_amount").default(0).notNull(),
+    total: integer("total").default(0).notNull(),
+    couponCode: varchar("coupon_code", { length: 100 }),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    invoiceNumber: varchar("invoice_number", { length: 100 }).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_orders_user").on(t.userId),
-    index("idx_orders_status").on(t.status),
-    index("idx_orders_created").on(t.createdAt),
+  (table) => [
+    index("idx_orders_user").on(table.userId),
+    index("idx_orders_status").on(table.status),
+    index("idx_orders_created").on(table.createdAt),
   ]
 );
 
@@ -546,29 +509,34 @@ export const coupons = pgTable(
   "coupons",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    code: text("code").notNull().unique(),
-    percent: integer("percent").notNull(),
-    active: boolean("active").notNull().default(true),
-    maxUses: integer("max_uses").notNull(),
-    usedCount: integer("used_count").notNull().default(0),
+    code: varchar("code", { length: 100 }).notNull(),
+    percent: integer("percent").default(0).notNull(),
+    active: boolean("active").default(true).notNull(),
+    maxUses: integer("max_uses").default(0).notNull(),
+    usedCount: integer("used_count").default(0).notNull(),
     expiresAt: bigint("expires_at", { mode: "number" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("idx_coupons_code").on(t.code)]
+  (table) => [uniqueIndex("idx_coupons_code").on(table.code)]
 );
 
 export const enrollments = pgTable(
   "enrollments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    courseId: uuid("course_id").notNull().references(() => courses.id),
-    completedLessons: jsonb("completed_lessons").$type<string[]>().notNull(),
-    enrolledAt: bigint("enrolled_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    courseId: uuid("course_id")
+      .references(() => courses.id, { onDelete: "cascade" })
+      .notNull(),
+    completedLessons: jsonb("completed_lessons").$type<string[]>().default([]).notNull(),
+    enrolledAt: bigint("enrolled_at", { mode: "number" }).notNull(),
     lastActiveAt: bigint("last_active_at", { mode: "number" }),
   },
-  (t) => [
-    index("idx_enrollments_user").on(t.userId),
-    index("idx_enrollments_course").on(t.courseId),
+  (table) => [
+    index("idx_enrollments_user").on(table.userId),
+    index("idx_enrollments_course").on(table.courseId),
   ]
 );
 
@@ -576,132 +544,94 @@ export const offlinePayments = pgTable(
   "offline_payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    courseId: uuid("course_id").notNull().references(() => courses.id),
-    tier: text("tier").notNull(), // economy | basic | plus | premium
-    amount: doublePrecision("amount").notNull(),
-    trackingNumber: text("tracking_number").notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    courseId: uuid("course_id")
+      .references(() => courses.id, { onDelete: "cascade" })
+      .notNull(),
+    tier: varchar("tier", { length: 20 }).notNull(),
+    amount: integer("amount").default(0).notNull(),
+    trackingNumber: varchar("tracking_number", { length: 255 }).notNull(),
     receiptStorageId: text("receipt_storage_id").notNull(),
-    status: text("status").notNull(), // pending | approved | rejected
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
     note: text("note"),
-    createdAt: bigint("created_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_offline_payments_user").on(t.userId),
-    index("idx_offline_payments_status").on(t.status),
-    index("idx_offline_payments_course").on(t.courseId),
+  (table) => [
+    index("idx_offline_payments_user").on(table.userId),
+    index("idx_offline_payments_status").on(table.status),
+    index("idx_offline_payments_course").on(table.courseId),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── ENGAGEMENT ───────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-export const reminders = pgTable(
-  "reminders",
+export const classEnrollRequests = pgTable(
+  "class_enroll_requests",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    kind: text("kind").notNull(), // exam_new | exam_next | course_nudge
-    refId: text("ref_id").notNull(),
-    title: text("title").notNull(),
-    body: text("body").notNull(),
-    link: text("link").notNull(),
-    shownCount: integer("shown_count").notNull().default(0),
-    createdAt: bigint("created_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    roomId: uuid("room_id")
+      .references(() => classRooms.id, { onDelete: "cascade" })
+      .notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_reminders_user").on(t.userId),
-    index("idx_reminders_user_kind").on(t.userId, t.kind),
+  (table) => [
+    index("idx_cer_room").on(table.roomId),
+    index("idx_cer_user").on(table.userId),
+    index("idx_cer_status").on(table.status),
   ]
 );
 
-export const announcements = pgTable(
-  "announcements",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    authorId: uuid("author_id").notNull().references(() => users.id),
-    authorName: text("author_name").notNull(),
-    authorRole: text("author_role").notNull(),
-    targetType: text("target_type").notNull(), // all | course | exam
-    targetId: text("target_id"),
-    targetTitle: text("target_title"),
-    title: text("title").notNull(),
-    body: text("body").notNull(),
-    createdAt: bigint("created_at", { mode: "number" }),
-  },
-  (t) => [
-    index("idx_announcements_created").on(t.createdAt),
-    index("idx_announcements_author").on(t.authorId),
-  ]
-);
-
-// Unique constraint on (userId, contentType, contentId)
 export const bookmarks = pgTable(
   "bookmarks",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    contentType: text("content_type").notNull(),
-    contentId: text("content_id").notNull(),
-    createdAt: bigint("created_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    contentType: varchar("content_type", { length: 50 }).notNull(),
+    contentId: varchar("content_id", { length: 255 }).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_bookmarks_user").on(t.userId),
-    uniqueIndex("idx_bookmarks_user_content").on(t.userId, t.contentType, t.contentId),
-  ]
+  (table) => [index("idx_bookmarks_user").on(table.userId)]
 );
 
 export const flashcards = pgTable(
   "flashcards",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
     front: text("front").notNull(),
     back: text("back").notNull(),
-    category: text("category").notNull(),
-    createdAt: bigint("created_at", { mode: "number" }),
+    category: varchar("category", { length: 255 }).default("عمومی").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_flashcards_user").on(t.userId)]
+  (table) => [index("idx_flashcards_user").on(table.userId)]
 );
 
-export const comments = pgTable(
-  "comments",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    contentType: text("content_type").notNull(),
-    contentId: text("content_id").notNull(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    userName: text("user_name"),
-    text: text("text").notNull(),
-    approved: boolean("approved").notNull().default(false),
-    rejected: boolean("rejected"),
-    createdAt: bigint("created_at", { mode: "number" }),
-  },
-  (t) => [
-    index("idx_comments_content").on(t.contentType, t.contentId),
-    index("idx_comments_user").on(t.userId),
-    index("idx_comments_approved").on(t.approved),
-  ]
-);
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ── LIVE COLLABORATION ───────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Live Collaboration ───────────────────────────────────────────────────────
 
 export const presence = pgTable(
   "presence",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    name: text("name"),
-    role: text("role"),
-    location: text("location"),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    name: varchar("name", { length: 255 }),
+    role: varchar("role", { length: 50 }),
+    location: varchar("location", { length: 255 }),
     lastSeen: bigint("last_seen", { mode: "number" }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [
-    index("idx_presence_user").on(t.userId),
-    index("idx_presence_last_seen").on(t.lastSeen),
+  (table) => [
+    index("idx_presence_user").on(table.userId),
+    index("idx_presence_last_seen").on(table.lastSeen),
   ]
 );
 
@@ -709,22 +639,24 @@ export const classRooms = pgTable(
   "class_rooms",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    instructorId: uuid("instructor_id").notNull().references(() => users.id),
-    instructorName: text("instructor_name").notNull(),
-    title: text("title").notNull(),
-    topic: text("topic").notNull(),
-    description: text("description").notNull(),
-    status: text("status").notNull(), // live | scheduled | ended
-    broadcasting: boolean("broadcasting").notNull().default(false),
-    broadcastKind: text("broadcast_kind"), // camera | screen
-    boardBg: text("board_bg"),
-    createdAt: bigint("created_at", { mode: "number" }),
+    instructorId: uuid("instructor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    instructorName: varchar("instructor_name", { length: 255 }).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    topic: varchar("topic", { length: 500 }).default("").notNull(),
+    description: text("description").default("").notNull(),
+    status: varchar("status", { length: 20 }).default("scheduled").notNull(),
+    broadcasting: boolean("broadcasting").default(false).notNull(),
+    broadcastKind: varchar("broadcast_kind", { length: 20 }),
+    boardBg: varchar("board_bg", { length: 50 }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
     platformUrl: text("platform_url"),
-    scheduledDate: text("scheduled_date"),
+    scheduledDate: varchar("scheduled_date", { length: 50 }),
   },
-  (t) => [
-    index("idx_class_rooms_instructor").on(t.instructorId),
-    index("idx_class_rooms_status").on(t.status),
+  (table) => [
+    index("idx_class_rooms_instructor").on(table.instructorId),
+    index("idx_class_rooms_status").on(table.status),
   ]
 );
 
@@ -732,41 +664,43 @@ export const classRequests = pgTable(
   "class_requests",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    instructorId: uuid("instructor_id").notNull().references(() => users.id),
-    instructorName: text("instructor_name").notNull(),
-    title: text("title").notNull(),
-    topic: text("topic").notNull(),
-    description: text("description").notNull(),
-    proposedDate: text("proposed_date").notNull(),
-    status: text("status").notNull(), // pending | approved | rejected
-    createdAt: bigint("created_at", { mode: "number" }),
-    reviewedBy: uuid("reviewed_by").references(() => users.id),
+    instructorId: uuid("instructor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    instructorName: varchar("instructor_name", { length: 255 }).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    topic: varchar("topic", { length: 500 }).notNull(),
+    description: text("description").default("").notNull(),
+    proposedDate: varchar("proposed_date", { length: 50 }).notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
     reviewedAt: bigint("reviewed_at", { mode: "number" }),
     platformUrl: text("platform_url"),
   },
-  (t) => [
-    index("idx_class_requests_instructor").on(t.instructorId),
-    index("idx_class_requests_status").on(t.status),
+  (table) => [
+    index("idx_class_requests_instructor").on(table.instructorId),
+    index("idx_class_requests_status").on(table.status),
   ]
 );
-
-// whiteboardStrokes: points[] → JSONB (coordinate array)
 
 export const whiteboardStrokes = pgTable(
   "whiteboard_strokes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    roomId: uuid("room_id").notNull().references(() => classRooms.id, { onDelete: "cascade" }),
-    layer: text("layer").notNull(), // board | screen
-    tool: text("tool").notNull(), // pen | highlighter | eraser
-    color: text("color").notNull(),
-    size: doublePrecision("size").notNull(),
+    roomId: uuid("room_id")
+      .references(() => classRooms.id, { onDelete: "cascade" })
+      .notNull(),
+    layer: varchar("layer", { length: 20 }).notNull(),
+    tool: varchar("tool", { length: 20 }).notNull(),
+    color: varchar("color", { length: 50 }).notNull(),
+    size: integer("size").notNull(),
     points: jsonb("points").$type<{ x: number; y: number }[]>().notNull(),
-    createdAt: bigint("created_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_wb_strokes_room_layer").on(t.roomId, t.layer),
-    index("idx_wb_strokes_room_layer_created").on(t.roomId, t.layer, t.createdAt),
+  (table) => [
+    index("idx_wb_strokes_room_layer").on(table.roomId, table.layer),
+    index("idx_wb_strokes_room_layer_created").on(table.roomId, table.layer, table.createdAt),
   ]
 );
 
@@ -774,62 +708,68 @@ export const roomMessages = pgTable(
   "room_messages",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    roomId: uuid("room_id").notNull().references(() => classRooms.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    name: text("name").notNull(),
-    role: text("role"),
-    type: text("type").notNull(), // question | message | answer
-    text: text("text").notNull(),
+    roomId: uuid("room_id")
+      .references(() => classRooms.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    role: varchar("role", { length: 50 }),
+    type: varchar("type", { length: 20 }).default("message").notNull(),
+    text: text("text").default("").notNull(),
     answer: text("answer"),
-    attachmentType: text("attachment_type"), // file | voice | image
-    attachmentName: text("attachment_name"),
+    attachmentType: varchar("attachment_type", { length: 20 }),
+    attachmentName: varchar("attachment_name", { length: 255 }),
     attachmentStorageId: text("attachment_storage_id"),
-    attachmentSize: integer("attachment_size"),
-    createdAt: bigint("created_at", { mode: "number" }),
+    attachmentSize: bigint("attachment_size", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_room_messages_room").on(t.roomId),
-    index("idx_room_messages_room_created").on(t.roomId, t.createdAt),
+  (table) => [
+    index("idx_room_messages_room").on(table.roomId),
+    index("idx_room_messages_room_created").on(table.roomId, table.createdAt),
   ]
 );
-
-// signals: data is SDP/ICE JSON string
 
 export const signals = pgTable(
   "signals",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    roomId: uuid("room_id").notNull().references(() => classRooms.id, { onDelete: "cascade" }),
-    from: uuid("from_user").notNull().references(() => users.id),
-    to: uuid("to_user").references(() => users.id),
-    type: text("type").notNull(), // offer | answer | candidate
-    data: text("data").notNull(), // JSON-encoded SDP or ICE
-    createdAt: bigint("created_at", { mode: "number" }),
+    roomId: uuid("room_id")
+      .references(() => classRooms.id, { onDelete: "cascade" })
+      .notNull(),
+    from: uuid("from_user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    to: uuid("to_user_id").references(() => users.id, { onDelete: "cascade" }),
+    type: varchar("type", { length: 20 }).notNull(),
+    data: text("data").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_signals_room").on(t.roomId)]
+  (table) => [index("idx_signals_room").on(table.roomId)]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── MENTORING ────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Mentoring ────────────────────────────────────────────────────────────────
 
 export const mentorGroups = pgTable(
   "mentor_groups",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    mentorId: uuid("mentor_id").notNull().references(() => users.id),
-    mentorName: text("mentor_name").notNull(),
-    title: text("title").notNull(),
-    description: text("description").notNull(),
-    meetingDay: text("meeting_day").notNull(),
-    meetingTime: text("meeting_time").notNull(),
-    capacity: integer("capacity").notNull(),
-    memberCount: integer("member_count").notNull().default(0),
-    createdAt: bigint("created_at", { mode: "number" }),
+    mentorId: uuid("mentor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    mentorName: varchar("mentor_name", { length: 255 }).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    description: text("description").default("").notNull(),
+    meetingDay: varchar("meeting_day", { length: 50 }).notNull(),
+    meetingTime: varchar("meeting_time", { length: 50 }).notNull(),
+    capacity: integer("capacity").default(10).notNull(),
+    memberCount: integer("member_count").default(0).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_mentor_groups_mentor").on(t.mentorId),
-    index("idx_mentor_groups_created").on(t.createdAt),
+  (table) => [
+    index("idx_mentor_groups_mentor").on(table.mentorId),
+    index("idx_mentor_groups_created").on(table.createdAt),
   ]
 );
 
@@ -837,15 +777,19 @@ export const groupMembers = pgTable(
   "group_members",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    groupId: uuid("group_id").notNull().references(() => mentorGroups.id, { onDelete: "cascade" }),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    userName: text("user_name").notNull(),
-    joinedAt: bigint("joined_at", { mode: "number" }),
+    groupId: uuid("group_id")
+      .references(() => mentorGroups.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    userName: varchar("user_name", { length: 255 }).notNull(),
+    joinedAt: bigint("joined_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_group_members_group").on(t.groupId),
-    index("idx_group_members_user").on(t.userId),
-    uniqueIndex("idx_group_members_group_user").on(t.groupId, t.userId),
+  (table) => [
+    index("idx_group_members_group").on(table.groupId),
+    index("idx_group_members_user").on(table.userId),
+    uniqueIndex("idx_group_members_group_user").on(table.groupId, table.userId),
   ]
 );
 
@@ -853,34 +797,40 @@ export const groupAnnouncements = pgTable(
   "group_announcements",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    groupId: uuid("group_id").notNull().references(() => mentorGroups.id, { onDelete: "cascade" }),
-    mentorId: uuid("mentor_id").notNull().references(() => users.id),
-    mentorName: text("mentor_name").notNull(),
-    title: text("title").notNull(),
+    groupId: uuid("group_id")
+      .references(() => mentorGroups.id, { onDelete: "cascade" })
+      .notNull(),
+    mentorId: uuid("mentor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    mentorName: varchar("mentor_name", { length: 255 }).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
     message: text("message").notNull(),
-    createdAt: bigint("created_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_group_announcements_group").on(t.groupId)]
+  (table) => [index("idx_group_announcements_group").on(table.groupId)]
 );
 
 export const mentorQuestions = pgTable(
   "mentor_questions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    studentId: uuid("student_id").notNull().references(() => users.id),
-    studentName: text("student_name").notNull(),
-    topic: text("topic").notNull(),
+    studentId: uuid("student_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    studentName: varchar("student_name", { length: 255 }).notNull(),
+    topic: varchar("topic", { length: 255 }).default("عمومی").notNull(),
     text: text("text").notNull(),
-    status: text("status").notNull(), // open | answered
+    status: varchar("status", { length: 20 }).default("open").notNull(),
     answer: text("answer"),
-    answeredByName: text("answered_by_name"),
+    answeredByName: varchar("answered_by_name", { length: 255 }),
     answeredAt: bigint("answered_at", { mode: "number" }),
-    createdAt: bigint("created_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_mentor_questions_student").on(t.studentId),
-    index("idx_mentor_questions_status").on(t.status),
-    index("idx_mentor_questions_created").on(t.createdAt),
+  (table) => [
+    index("idx_mentor_questions_student").on(table.studentId),
+    index("idx_mentor_questions_status").on(table.status),
+    index("idx_mentor_questions_created").on(table.createdAt),
   ]
 );
 
@@ -888,248 +838,304 @@ export const mentorSessions = pgTable(
   "mentor_sessions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    mentorId: uuid("mentor_id").notNull().references(() => users.id),
-    mentorName: text("mentor_name").notNull(),
-    studentId: uuid("student_id").notNull().references(() => users.id),
-    title: text("title").notNull(),
-    date: text("date").notNull(),
-    time: text("time").notNull(),
-    notes: text("notes").notNull(),
-    status: text("status").notNull(), // scheduled | done | cancelled
-    createdAt: bigint("created_at", { mode: "number" }),
+    mentorId: uuid("mentor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    mentorName: varchar("mentor_name", { length: 255 }).notNull(),
+    studentId: uuid("student_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    date: varchar("date", { length: 50 }).notNull(),
+    time: varchar("time", { length: 50 }).notNull(),
+    notes: text("notes").default("").notNull(),
+    status: varchar("status", { length: 20 }).default("scheduled").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_mentor_sessions_mentor").on(t.mentorId),
-    index("idx_mentor_sessions_student").on(t.studentId),
-    index("idx_mentor_sessions_created").on(t.createdAt),
+  (table) => [
+    index("idx_mentor_sessions_mentor").on(table.mentorId),
+    index("idx_mentor_sessions_student").on(table.studentId),
+    index("idx_mentor_sessions_created").on(table.createdAt),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── SUPPORT ──────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-// tickets messages[] → JSONB (written atomically with push, read as whole)
+// ── Support ──────────────────────────────────────────────────────────────────
 
 export const tickets = pgTable(
   "tickets",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    subject: text("subject").notNull(),
-    status: text("status").notNull(), // open | answered | closed
-    createdAt: bigint("created_at", { mode: "number" }),
-    updatedAt: bigint("updated_at", { mode: "number" }),
-    messages: jsonb("messages").$type<
-      { author: string; text: string; at: number }[]
-    >().notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    subject: varchar("subject", { length: 500 }).notNull(),
+    status: varchar("status", { length: 20 }).default("open").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+    messages: jsonb("messages")
+      .$type<{ author: string; text: string; at: number }[]>()
+      .default([])
+      .notNull(),
   },
-  (t) => [
-    index("idx_tickets_user").on(t.userId),
-    index("idx_tickets_status").on(t.status),
+  (table) => [
+    index("idx_tickets_user").on(table.userId),
+    index("idx_tickets_status").on(table.status),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── COURSE RESOURCES ────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Comments ─────────────────────────────────────────────────────────────────
+
+export const comments = pgTable(
+  "comments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    contentType: varchar("content_type", { length: 50 }).notNull(),
+    contentId: varchar("content_id", { length: 255 }).notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    userName: varchar("user_name", { length: 255 }),
+    text: text("text").notNull(),
+    approved: boolean("approved").default(false).notNull(),
+    rejected: boolean("rejected"),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    index("idx_comments_content").on(table.contentType, table.contentId),
+    index("idx_comments_user").on(table.userId),
+    index("idx_comments_approved").on(table.approved),
+  ]
+);
+
+// ── Course Resources ─────────────────────────────────────────────────────────
 
 export const courseResources = pgTable(
   "course_resources",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    courseId: uuid("course_id").notNull().references(() => courses.id, { onDelete: "cascade" }),
-    instructorId: uuid("instructor_id").notNull().references(() => users.id),
-    title: text("title").notNull(),
+    courseId: uuid("course_id")
+      .references(() => courses.id, { onDelete: "cascade" })
+      .notNull(),
+    instructorId: uuid("instructor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
     description: text("description"),
     fileUrl: text("file_url").notNull(),
-    fileName: text("file_name").notNull(),
-    fileSize: integer("file_size").notNull(),
-    fileType: text("file_type").notNull(),
-    isFree: boolean("is_free").notNull().default(false),
-    createdAt: bigint("created_at", { mode: "number" }),
+    fileName: varchar("file_name", { length: 255 }).notNull(),
+    fileSize: bigint("file_size", { mode: "number" }).notNull(),
+    fileType: varchar("file_type", { length: 100 }).notNull(),
+    isFree: boolean("is_free").default(false).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_course_resources_course").on(t.courseId)]
+  (table) => [index("idx_course_resources_course").on(table.courseId)]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── ATTENDANCE ───────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Attendance ───────────────────────────────────────────────────────────────
 
 export const attendance = pgTable(
   "attendance",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    roomId: uuid("room_id").notNull().references(() => classRooms.id, { onDelete: "cascade" }),
-    instructorId: uuid("instructor_id").notNull().references(() => users.id),
-    studentId: uuid("student_id").notNull().references(() => users.id),
-    studentName: text("student_name").notNull(),
-    present: boolean("present").notNull(),
+    roomId: uuid("room_id")
+      .references(() => classRooms.id, { onDelete: "cascade" })
+      .notNull(),
+    instructorId: uuid("instructor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    studentId: uuid("student_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    studentName: varchar("student_name", { length: 255 }).notNull(),
+    present: boolean("present").default(false).notNull(),
     note: text("note"),
-    markedAt: bigint("marked_at", { mode: "number" }),
+    markedAt: bigint("marked_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_attendance_room").on(t.roomId),
-    index("idx_attendance_student").on(t.studentId),
+  (table) => [
+    index("idx_attendance_room").on(table.roomId),
+    index("idx_attendance_student").on(table.studentId),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── INSTRUCTOR PAYMENTS ──────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Instructor Payments ──────────────────────────────────────────────────────
 
 export const instructorPayments = pgTable(
   "instructor_payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    instructorId: uuid("instructor_id").notNull().references(() => users.id),
-    amount: doublePrecision("amount").notNull(),
+    instructorId: uuid("instructor_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    amount: integer("amount").default(0).notNull(),
     description: text("description").notNull(),
-    status: text("status").notNull(), // pending | paid | rejected
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
     receiptUrl: text("receipt_url"),
     paidAt: bigint("paid_at", { mode: "number" }),
-    createdAt: bigint("created_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_instructor_payments_instructor").on(t.instructorId)]
+  (table) => [index("idx_instructor_payments_instructor").on(table.instructorId)]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── DIRECT MESSAGES ──────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Direct Messages ──────────────────────────────────────────────────────────
 
 export const directMessages = pgTable(
   "direct_messages",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    senderId: uuid("sender_id").notNull().references(() => users.id),
-    receiverId: uuid("receiver_id").notNull().references(() => users.id),
+    senderId: uuid("sender_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    receiverId: uuid("receiver_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
     text: text("text").notNull(),
-    read: boolean("read").notNull().default(false),
-    createdAt: bigint("created_at", { mode: "number" }),
+    read: boolean("read").default(false).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_dm_receiver").on(t.receiverId, t.read),
-    index("idx_dm_sender").on(t.senderId),
+  (table) => [
+    index("idx_dm_receiver_read").on(table.receiverId, table.read),
+    index("idx_dm_sender").on(table.senderId),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── TESTIMONIALS ─────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Notifications ────────────────────────────────────────────────────────────
 
-export const testimonials = pgTable("testimonials", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  role: text("role").notNull(),
-  text: text("text").notNull(),
-  rating: integer("rating").notNull(),
-  course: text("course").notNull(),
-  accent: text("accent").notNull(),
-});
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ── CLASS ENROLLMENT ─────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
-
-export const classEnrollRequests = pgTable(
-  "class_enroll_requests",
+export const reminders = pgTable(
+  "reminders",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    roomId: uuid("room_id").notNull().references(() => classRooms.id, { onDelete: "cascade" }),
-    status: text("status").notNull(), // pending | approved | rejected
-    createdAt: bigint("created_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    kind: varchar("kind", { length: 50 }).notNull(),
+    refId: varchar("ref_id", { length: 255 }).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
+    body: text("body").notNull(),
+    link: varchar("link", { length: 500 }).notNull(),
+    shownCount: integer("shown_count").default(0).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_class_enroll_room").on(t.roomId),
-    index("idx_class_enroll_user").on(t.userId),
-    index("idx_class_enroll_status").on(t.status),
+  (table) => [
+    index("idx_reminders_user").on(table.userId),
+    index("idx_reminders_user_kind").on(table.userId, table.kind),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── INBOX ────────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    authorId: uuid("author_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    authorName: varchar("author_name", { length: 255 }).notNull(),
+    authorRole: varchar("author_role", { length: 50 }).notNull(),
+    targetType: varchar("target_type", { length: 20 }).default("all").notNull(),
+    targetId: varchar("target_id", { length: 255 }),
+    targetTitle: varchar("target_title", { length: 500 }),
+    title: varchar("title", { length: 500 }).notNull(),
+    body: text("body").notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  },
+  (table) => [
+    index("idx_announcements_created").on(table.createdAt),
+    index("idx_announcements_author").on(table.authorId),
+  ]
+);
 
 export const inboxMessages = pgTable(
   "inbox_messages",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    title: text("title").notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
     body: text("body").notNull(),
     readAt: bigint("read_at", { mode: "number" }),
-    createdAt: bigint("created_at", { mode: "number" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [
-    index("idx_inbox_user").on(t.userId),
-    index("idx_inbox_created").on(t.createdAt),
+  (table) => [
+    index("idx_inbox_user").on(table.userId),
+    index("idx_inbox_created").on(table.createdAt),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── AI SYSTEM ────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Media / Storage ──────────────────────────────────────────────────────────
 
-export const aiConfig = pgTable("ai_config", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  provider: text("provider").notNull(),
-  model: text("model").notNull(),
-  baseUrl: text("base_url").notNull(),
-  apiKeyEncrypted: text("api_key_encrypted").notNull(),
-  maxTokensPerRequest: integer("max_tokens_per_request").notNull(),
-  temperature: doublePrecision("temperature").notNull(),
-  systemPrompt: text("system_prompt").notNull(),
-  updatedAt: bigint("updated_at", { mode: "number" }),
-  updatedBy: uuid("updated_by").references(() => users.id),
-});
+export const mediaItems = pgTable(
+  "media_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    url: text("url").notNull(),
+    name: varchar("name", { length: 500 }).notNull(),
+    alt: varchar("alt", { length: 500 }),
+    caption: varchar("caption", { length: 500 }),
+    category: varchar("category", { length: 100 }),
+    size: bigint("size", { mode: "number" }).notNull(),
+    mimeType: varchar("mime_type", { length: 100 }).notNull(),
+    uploadedBy: uuid("uploaded_by")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  },
+  (table) => [index("idx_media_uploader").on(table.uploadedBy)]
+);
+
+// ── AI System ────────────────────────────────────────────────────────────────
 
 export const aiModels = pgTable("ai_models", {
   id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  provider: text("provider").notNull(),
-  model: text("model").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  provider: varchar("provider", { length: 100 }).notNull(),
+  model: varchar("model", { length: 255 }).notNull(),
   baseUrl: text("base_url").notNull(),
   apiKey: text("api_key").notNull(),
-  isFree: boolean("is_free").notNull().default(false),
-  dailyLimit: integer("daily_limit").notNull(),
-  pricePerMessage: doublePrecision("price_per_message").notNull().default(0),
-  description: text("description").notNull(),
+  isFree: boolean("is_free").default(true).notNull(),
+  dailyLimit: integer("daily_limit").default(50).notNull(),
+  pricePerMessage: integer("price_per_message").default(0).notNull(),
+  description: text("description").default("").notNull(),
   systemPrompt: text("system_prompt"),
-  maxTokens: integer("max_tokens").notNull(),
-  temperature: doublePrecision("temperature").notNull(),
-  active: boolean("active").notNull().default(true),
-  sortOrder: integer("sort_order").notNull().default(0),
-  createdBy: uuid("created_by").notNull().references(() => users.id),
-  createdAt: bigint("created_at", { mode: "number" }),
+  maxTokens: integer("max_tokens").default(2048).notNull(),
+  temperature: integer("temperature").default(70).notNull(),
+  active: boolean("active").default(true).notNull(),
+  sortOrder: integer("sort_order").default(0).notNull(),
+  createdBy: uuid("created_by")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
 export const aiPrompts = pgTable(
   "ai_prompts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    name: text("name").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
     content: text("content").notNull(),
-    category: text("category").notNull(),
-    isDefault: boolean("is_default").notNull().default(false),
-    createdBy: uuid("created_by").notNull().references(() => users.id),
-    createdAt: bigint("created_at", { mode: "number" }),
+    category: varchar("category", { length: 100 }).default("general").notNull(),
+    isDefault: boolean("is_default").default(false).notNull(),
+    createdBy: uuid("created_by")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_ai_prompts_category").on(t.category)]
+  (table) => [index("idx_ai_prompts_category").on(table.category)]
 );
 
 export const aiConversations = pgTable(
   "ai_conversations",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    title: text("title").notNull(),
-    promptId: uuid("prompt_id").references(() => aiPrompts.id),
-    modelId: uuid("model_id").references(() => aiModels.id),
-    createdAt: bigint("created_at", { mode: "number" }),
-    updatedAt: bigint("updated_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    title: varchar("title", { length: 500 }).default("گفتگوی جدید").notNull(),
+    promptId: uuid("prompt_id").references(() => aiPrompts.id, { onDelete: "set null" }),
+    modelId: uuid("model_id").references(() => aiModels.id, { onDelete: "set null" }),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_ai_conversations_user").on(t.userId)]
+  (table) => [index("idx_ai_conversations_user").on(table.userId)]
 );
 
 export const aiMessages = pgTable(
@@ -1137,28 +1143,29 @@ export const aiMessages = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     conversationId: uuid("conversation_id")
-      .notNull()
-      .references(() => aiConversations.id, { onDelete: "cascade" }),
-    role: text("role").notNull(), // user | assistant | system
+      .references(() => aiConversations.id, { onDelete: "cascade" })
+      .notNull(),
+    role: varchar("role", { length: 20 }).notNull(),
     content: text("content").notNull(),
-    tokensUsed: integer("tokens_used").notNull().default(0),
-    createdAt: bigint("created_at", { mode: "number" }),
+    tokensUsed: integer("tokens_used").default(0).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_ai_messages_conversation").on(t.conversationId)]
+  (table) => [index("idx_ai_messages_conversation").on(table.conversationId)]
 );
 
 export const aiUsage = pgTable(
   "ai_usage",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    date: text("date").notNull(), // YYYY-MM-DD
-    messagesSent: integer("messages_sent").notNull().default(0),
-    tokensUsed: integer("tokens_used").notNull().default(0),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    date: varchar("date", { length: 10 }).notNull(),
+    messagesSent: integer("messages_sent").default(0).notNull(),
+    tokensUsed: integer("tokens_used").default(0).notNull(),
   },
-  (t) => [
-    index("idx_ai_usage_user_date").on(t.userId, t.date),
-    uniqueIndex("idx_ai_usage_unique").on(t.userId, t.date),
+  (table) => [
+    uniqueIndex("idx_ai_usage_user_date").on(table.userId, table.date),
   ]
 );
 
@@ -1166,54 +1173,59 @@ export const aiTokenQuotas = pgTable(
   "ai_token_quotas",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    dailyLimit: integer("daily_limit").notNull(),
-    extraTokens: integer("extra_tokens").notNull().default(0),
-    grantedAt: bigint("granted_at", { mode: "number" }),
-    grantedBy: uuid("granted_by").notNull().references(() => users.id),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    dailyLimit: integer("daily_limit").default(50).notNull(),
+    extraTokens: integer("extra_tokens").default(0).notNull(),
+    grantedAt: bigint("granted_at", { mode: "number" }).notNull(),
+    grantedBy: uuid("granted_by")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
     note: text("note"),
   },
-  (t) => [index("idx_ai_token_quotas_user").on(t.userId)]
+  (table) => [index("idx_ai_token_quotas_user").on(table.userId)]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── TELEGRAM ─────────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Telegram ─────────────────────────────────────────────────────────────────
 
 export const telegramBot = pgTable("telegram_bot", {
   id: uuid("id").defaultRandom().primaryKey(),
   tokenEncrypted: text("token_encrypted").notNull(),
-  botId: text("bot_id"),
-  botName: text("bot_name"),
-  botUsername: text("bot_username"),
+  botId: varchar("bot_id", { length: 50 }),
+  botName: varchar("bot_name", { length: 255 }),
+  botUsername: varchar("bot_username", { length: 255 }),
   webhookUrl: text("webhook_url"),
-  connected: boolean("connected").notNull().default(false),
-  active: boolean("active").notNull().default(false),
-  startMessage: text("start_message").notNull(),
+  connected: boolean("connected").default(false).notNull(),
+  active: boolean("active").default(false).notNull(),
+  startMessage: text("start_message").default("خوش آمدید!").notNull(),
   lastTestedAt: bigint("last_tested_at", { mode: "number" }),
   lastTestResult: text("last_test_result"),
-  // commands → JSONB [{ command, description }]
   commands: jsonb("commands").$type<{ command: string; description: string }[]>(),
   commandsSyncedAt: bigint("commands_synced_at", { mode: "number" }),
-  updatedBy: uuid("updated_by").notNull().references(() => users.id),
-  updatedAt: bigint("updated_at", { mode: "number" }),
-  createdAt: bigint("created_at", { mode: "number" }),
+  updatedBy: uuid("updated_by")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
 export const telegramLinkingCodes = pgTable(
   "telegram_linking_codes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    code: text("code").notNull(),
-    createdAt: bigint("created_at", { mode: "number" }),
-    expiresAt: bigint("expires_at", { mode: "number" }),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    code: varchar("code", { length: 50 }).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+    expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
     usedAt: bigint("used_at", { mode: "number" }),
     telegramId: bigint("telegram_id", { mode: "number" }),
   },
-  (t) => [
-    index("idx_tl_linking_codes_code").on(t.code),
-    index("idx_tl_linking_codes_user").on(t.userId),
+  (table) => [
+    index("idx_telegram_linking_code").on(table.code),
+    index("idx_telegram_linking_user").on(table.userId),
   ]
 );
 
@@ -1221,81 +1233,78 @@ export const telegramNotifPrefs = pgTable(
   "telegram_notif_prefs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id).unique(),
-    mentorReplies: boolean("mentor_replies").notNull().default(true),
-    tasks: boolean("tasks").notNull().default(true),
-    deadlines: boolean("deadlines").notNull().default(true),
-    meetings: boolean("meetings").notNull().default(true),
-    groupNotifs: boolean("group_notifs").notNull().default(true),
-    articles: boolean("articles").notNull().default(true),
-    system: boolean("system").notNull().default(true),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    mentorReplies: boolean("mentor_replies").default(true).notNull(),
+    tasks: boolean("tasks").default(true).notNull(),
+    deadlines: boolean("deadlines").default(true).notNull(),
+    meetings: boolean("meetings").default(true).notNull(),
+    groupNotifs: boolean("group_notifs").default(true).notNull(),
+    articles: boolean("articles").default(true).notNull(),
+    system: boolean("system").default(true).notNull(),
   },
-  (t) => [index("idx_tl_notif_prefs_user").on(t.userId)]
+  (table) => [index("idx_telegram_notif_prefs_user").on(table.userId)]
 );
 
 export const telegramNotifLog = pgTable(
   "telegram_notif_log",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    userId: uuid("user_id").notNull().references(() => users.id),
-    type: text("type").notNull(),
-    key: text("key").notNull(),
-    sentAt: bigint("sent_at", { mode: "number" }),
-    success: boolean("success").notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    type: varchar("type", { length: 100 }).notNull(),
+    key: varchar("key", { length: 255 }).notNull(),
+    sentAt: bigint("sent_at", { mode: "number" }).notNull(),
+    success: boolean("success").default(true).notNull(),
   },
-  (t) => [
-    index("idx_tl_notif_log_key").on(t.key),
-    index("idx_tl_notif_log_user_type").on(t.userId, t.type),
-    uniqueIndex("idx_tl_notif_log_unique_key").on(t.key),
+  (table) => [
+    uniqueIndex("idx_telegram_notif_log_key").on(table.key),
+    index("idx_telegram_notif_log_user_type").on(table.userId, table.type),
   ]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── SITE CONTENT ─────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Site Content ─────────────────────────────────────────────────────────────
 
 export const sitePages = pgTable(
   "site_pages",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    slug: text("slug").notNull().unique(),
-    title: text("title").notNull(),
+    slug: varchar("slug", { length: 255 }).notNull(),
+    title: varchar("title", { length: 500 }).notNull(),
     htmlContent: text("html_content").notNull(),
-    createdBy: uuid("created_by").notNull().references(() => users.id),
-    updatedAt: bigint("updated_at", { mode: "number" }),
+    createdBy: uuid("created_by")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_site_pages_slug").on(t.slug)]
+  (table) => [uniqueIndex("idx_site_pages_slug").on(table.slug)]
 );
 
 export const siteTexts = pgTable(
   "site_texts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    key: text("key").notNull().unique(),
+    key: varchar("key", { length: 255 }).notNull(),
     value: text("value").notNull(),
-    updatedBy: uuid("updated_by").notNull().references(() => users.id),
-    updatedAt: bigint("updated_at", { mode: "number" }),
+    updatedBy: uuid("updated_by")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
   },
-  (t) => [index("idx_site_texts_key").on(t.key)]
+  (table) => [uniqueIndex("idx_site_texts_key").on(table.key)]
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ── MEDIA LIBRARY ────────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Testimonials ─────────────────────────────────────────────────────────────
 
-export const mediaItems = pgTable(
-  "media_items",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    url: text("url").notNull(),
-    name: text("name").notNull(),
-    alt: text("alt"),
-    caption: text("caption"),
-    category: text("category"),
-    size: doublePrecision("size").notNull(),
-    mimeType: text("mime_type").notNull(),
-    uploadedBy: uuid("uploaded_by").notNull().references(() => users.id),
-    createdAt: bigint("created_at", { mode: "number" }),
-  },
-  (t) => [index("idx_media_items_uploader").on(t.uploadedBy)]
-);
+export const testimonials = pgTable("testimonials", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  role: varchar("role", { length: 255 }).notNull(),
+  text: text("text").notNull(),
+  rating: integer("rating").default(5).notNull(),
+  course: varchar("course", { length: 255 }).notNull(),
+  accent: varchar("accent", { length: 50 }).default("teal").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

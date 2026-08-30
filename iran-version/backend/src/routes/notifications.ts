@@ -1,137 +1,103 @@
-/**
- * Notifications Routes
- * Announcements, Reminders, Inbox Messages
- */
 import { Hono } from "hono";
-import { success, errorResponse } from "../lib/response.js";
 import { db } from "../db/index.js";
-import { eq } from "drizzle-orm";
-import { users } from "../db/schema.js";
-import type { AppEnv } from "../lib/types.js";
-import {
-  announcementService,
-  reminderService,
-  inboxService,
-} from "../services/notification.service.js";
+import { announcements, reminders, inboxMessages, users } from "../db/schema.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { eq, and, desc } from "drizzle-orm";
 
-const app = new Hono<AppEnv>();
+const notifications = new Hono();
 
-// ── Middleware: require auth ───────────────────────────────────────────────
-app.use("*", async (c, next) => {
-  const userId = c.get("userId");
-  if (!userId) {
-    return c.json(errorResponse("برای دسترسی لازم است وارد شوید.", "UNAUTHORIZED"), 401);
-  }
-  await next();
+// ── Announcements ───────────────────────────────────────────────────────────
+
+notifications.get("/", requireAuth, async (c) => {
+  const list = await db.query.announcements.findMany({ orderBy: [desc(announcements.createdAt)] });
+  const visible = list.filter((a) => a.targetType === "all");
+  return c.json({ ok: true, data: visible });
 });
 
-// ── Announcements ─────────────────────────────────────────────────────────
-
-app.get("/", async (c) => {
-  const userId = c.get("userId");
-  const announcements = await announcementService.listVisible(userId);
-  return c.json(success(announcements));
+notifications.get("/all", requireAdmin, async (c) => {
+  const list = await db.query.announcements.findMany({ orderBy: [desc(announcements.createdAt)] });
+  return c.json({ ok: true, data: list });
 });
 
-app.get("/all", async (c) => {
-  const announcements = await announcementService.listAll();
-  return c.json(success(announcements));
-});
-
-app.get("/mine", async (c) => {
-  const userId = c.get("userId");
-  const announcements = await announcementService.listMy(userId);
-  return c.json(success(announcements));
-});
-
-app.post("/", async (c) => {
-  const userId = c.get("userId");
-  const rows = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
-  const userRole = rows[0]?.role ?? "user";
-  const body = await c.req.json();
-  if (!body.title || !body.body || !body.targetType) {
-    return c.json(errorResponse("داده‌های نامعتبر", "VALIDATION"), 400);
-  }
-  const announcement = await announcementService.create(userId, userRole, {
-    targetType: body.targetType,
-    targetId: body.targetId,
-    title: body.title,
-    body: body.body,
+notifications.get("/mine", requireAuth, async (c) => {
+  const user = c.get("user");
+  const list = await db.query.announcements.findMany({
+    where: eq(announcements.authorId, user.id),
+    orderBy: [desc(announcements.createdAt)],
   });
-  return c.json(success(announcement), 201);
+  return c.json({ ok: true, data: list });
 });
 
-app.delete("/:id", async (c) => {
-  const userId = c.get("userId");
-  const rows = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
-  const userRole = rows[0]?.role ?? "user";
-  const id = c.req.param("id");
-  await announcementService.delete(id, userId, userRole);
-  return c.json(success({ ok: true }));
-});
-
-// ── Reminders ─────────────────────────────────────────────────────────────
-
-app.get("/reminders", async (c) => {
-  const userId = c.get("userId");
-  const reminders = await reminderService.refresh(userId);
-  return c.json(success(reminders));
-});
-
-app.post("/reminders/:id/shown", async (c) => {
-  const userId = c.get("userId");
-  const id = c.req.param("id");
-  const updated = await reminderService.markShown(id, userId);
-  return c.json(success(updated));
-});
-
-app.post("/reminders/arm-next-exam", async (c) => {
-  const userId = c.get("userId");
-  const result = await reminderService.armNextExam(userId);
-  return c.json(success(result));
-});
-
-app.get("/reminders/armed-next-exam", async (c) => {
-  const userId = c.get("userId");
-  const reminder = await reminderService.getArmedNextExam(userId);
-  return c.json(success(reminder));
-});
-
-// ── Inbox Messages ────────────────────────────────────────────────────────
-
-app.get("/inbox", async (c) => {
-  const userId = c.get("userId");
-  const messages = await inboxService.listMy(userId);
-  return c.json(success(messages));
-});
-
-app.post("/inbox", async (c) => {
+notifications.post("/", requireAuth, async (c) => {
+  const user = c.get("user");
   const body = await c.req.json();
-  if (!body.userId || !body.title || !body.body) {
-    return c.json(errorResponse("داده‌های نامعتبر", "VALIDATION"), 400);
+  const [created] = await db.insert(announcements).values({
+    authorId: user.id, authorName: user.name || "", authorRole: user.role || "user",
+    targetType: body.targetType || "all", targetId: body.targetId,
+    targetTitle: body.targetTitle, title: body.title, body: body.body, createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
+});
+
+notifications.delete("/:id", requireAuth, async (c) => {
+  await db.delete(announcements).where(eq(announcements.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+// ── Reminders ───────────────────────────────────────────────────────────────
+
+notifications.get("/reminders", requireAuth, async (c) => {
+  const user = c.get("user");
+  const list = await db.query.reminders.findMany({ where: eq(reminders.userId, user.id) });
+  return c.json({ ok: true, data: list });
+});
+
+notifications.post("/reminders/:id/shown", requireAuth, async (c) => {
+  const reminder = await db.query.reminders.findFirst({ where: eq(reminders.id, c.req.param("id")) });
+  if (reminder) {
+    await db.update(reminders).set({ shownCount: reminder.shownCount + 1 }).where(eq(reminders.id, c.req.param("id")));
   }
-  const msg = await inboxService.send(body.userId, body.title, body.body);
-  return c.json(success(msg), 201);
+  return c.json({ ok: true });
 });
 
-app.delete("/inbox/:id", async (c) => {
-  const id = c.req.param("id");
-  await inboxService.delete(id);
-  return c.json(success({ ok: true }));
+// ── Inbox ───────────────────────────────────────────────────────────────────
+
+notifications.get("/inbox", requireAuth, async (c) => {
+  const user = c.get("user");
+  const list = await db.query.inboxMessages.findMany({
+    where: eq(inboxMessages.userId, user.id),
+    orderBy: [desc(inboxMessages.createdAt)],
+  });
+  return c.json({ ok: true, data: list });
 });
 
-app.post("/inbox/:id/read", async (c) => {
-  const userId = c.get("userId");
-  const rows = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
-  const userRole = rows[0]?.role ?? "user";
-  const id = c.req.param("id");
-  await inboxService.markRead(id, userId, userRole);
-  return c.json(success({ ok: true }));
+notifications.post("/inbox", requireAdmin, async (c) => {
+  const body = await c.req.json();
+  const [created] = await db.insert(inboxMessages).values({
+    userId: body.userId, title: body.title, body: body.body, createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
 });
 
-app.get("/inbox/all", async (c) => {
-  const messages = await inboxService.adminListAll();
-  return c.json(success(messages));
+notifications.delete("/inbox/:id", requireAuth, async (c) => {
+  const user = c.get("user");
+  const msg = await db.query.inboxMessages.findFirst({ where: eq(inboxMessages.id, c.req.param("id")) });
+  if (!msg) return c.json({ ok: false, error: "پیام یافت نشد." }, 404);
+  if (msg.userId !== user.id && user.role !== "admin" && user.role !== "site_admin") {
+    return c.json({ ok: false, error: "دسترسی ندارید." }, 403);
+  }
+  await db.delete(inboxMessages).where(eq(inboxMessages.id, c.req.param("id")));
+  return c.json({ ok: true });
 });
 
-export { app as notificationRoutes };
+notifications.post("/inbox/:id/read", requireAuth, async (c) => {
+  await db.update(inboxMessages).set({ readAt: Date.now() }).where(eq(inboxMessages.id, c.req.param("id")));
+  return c.json({ ok: true });
+});
+
+notifications.get("/inbox/all", requireAdmin, async (c) => {
+  const list = await db.query.inboxMessages.findMany({ orderBy: [desc(inboxMessages.createdAt)] });
+  return c.json({ ok: true, data: list });
+});
+
+export default notifications;

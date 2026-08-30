@@ -1,81 +1,65 @@
-/**
- * Comment routes — ownership + moderation.
- * Mirrors: comments.ts Convex mutations/queries.
- */
 import { Hono } from "hono";
-import { success, errorResponse } from "../lib/response.js";
-import { commentService } from "../services/comment.service.js";
-import type { AppEnv } from "../lib/types.js";
+import { db } from "../db/index.js";
+import { comments, users } from "../db/schema.js";
+import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { eq, and, desc } from "drizzle-orm";
 
-const commentRoutes = new Hono<AppEnv>();
+const commentsRouter = new Hono();
 
-// authMiddleware is applied globally in routes/index.ts —
-// it sets c.get("userId") from JWT when present.
-const requireAuth = async (c: any, next: any) => {
-  if (!c.get("userId")) return c.json(errorResponse("Unauthorized", "UNAUTHORIZED"), 401);
-  await next();
-};
-
-const requireAdmin = async (c: any, next: any) => {
-  const userRole = c.get("userRole") ?? "";
-  if (!["admin", "site_admin"].includes(userRole)) {
-    return c.json(errorResponse("دسترسی ادمین لازم است.", "FORBIDDEN"), 403);
-  }
-  await next();
-};
-
-// ── Public: list approved comments ────────────────────────────────────────
-
-commentRoutes.get("/", async (c) => {
-  const params = new URL(c.req.url).searchParams;
-  const contentType = params.get("contentType") ?? "";
-  const contentId = params.get("contentId") ?? "";
-  if (!contentType || !contentId) {
-    return c.json(errorResponse("contentType and contentId required", "VALIDATION"), 400);
-  }
-  const comments = await commentService.listApproved(contentType, contentId);
-  return c.json(success(comments));
+// POST /api/comments
+commentsRouter.post("/", requireAuth, async (c) => {
+  const user = c.get("user");
+  const { contentType, contentId, text } = await c.req.json();
+  const trimmed = text?.trim();
+  if (!trimmed || trimmed.length < 2) return c.json({ ok: false, error: "دیدگاه خیلی کوتاه است." }, 400);
+  if (trimmed.length > 1000) return c.json({ ok: false, error: "دیدگاه حداکثر ۱۰۰۰ کاراکتر می‌تواند باشد." }, 400);
+  const [created] = await db.insert(comments).values({
+    contentType, contentId, userId: user.id, userName: user.name, text: trimmed, approved: false, createdAt: Date.now(),
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
 });
 
-// ── Authenticated: add comment ────────────────────────────────────────────
-
-commentRoutes.post("/", requireAuth, async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json();
-  if (!body.contentType || !body.contentId || !body.text?.trim()) {
-    return c.json(errorResponse("Missing required fields", "VALIDATION"), 400);
-  }
-  try {
-    const comment = await commentService.add(userId, body.contentType, body.contentId, body.text);
-    return c.json(success(comment), 201);
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
-  }
+// GET /api/comments/:contentType/:contentId
+commentsRouter.get("/:contentType/:contentId", async (c) => {
+  const { contentType, contentId } = c.req.param();
+  const list = await db.query.comments.findMany({
+    where: and(eq(comments.contentType, contentType), eq(comments.contentId, contentId), eq(comments.approved, true)),
+    orderBy: [comments.createdAt],
+  });
+  const enriched = await Promise.all(
+    list.map(async (c2) => {
+      const u = await db.query.users.findFirst({ where: eq(users.id, c2.userId) });
+      return { ...c2, author: c2.userName || u?.name || "کاربر NIBRC" };
+    })
+  );
+  return c.json({ ok: true, data: enriched });
 });
 
-// ── Admin: moderation ─────────────────────────────────────────────────────
-
-commentRoutes.get("/admin/pending", requireAuth, requireAdmin, async (c) => {
-  const comments = await commentService.listPending();
-  return c.json(success(comments));
+// GET /api/comments/pending (admin)
+commentsRouter.get("/pending", requireAdmin, async (c) => {
+  const list = await db.query.comments.findMany({
+    where: eq(comments.approved, false),
+    orderBy: [desc(comments.createdAt)],
+  });
+  return c.json({ ok: true, data: list });
 });
 
-commentRoutes.patch("/admin/:id/approve", requireAuth, requireAdmin, async (c) => {
-  const comment = await commentService.approve(c.req.param("id"));
-  if (!comment) return c.json(errorResponse("Not found"), 404);
-  return c.json(success(comment));
+// POST /api/comments/:id/approve
+commentsRouter.post("/:id/approve", requireAdmin, async (c) => {
+  await db.update(comments).set({ approved: true, rejected: undefined }).where(eq(comments.id, c.req.param("id")));
+  return c.json({ ok: true });
 });
 
-commentRoutes.patch("/admin/:id/reject", requireAuth, requireAdmin, async (c) => {
-  const comment = await commentService.reject(c.req.param("id"));
-  if (!comment) return c.json(errorResponse("Not found"), 404);
-  return c.json(success(comment));
+// POST /api/comments/:id/reject
+commentsRouter.post("/:id/reject", requireAdmin, async (c) => {
+  await db.update(comments).set({ approved: false, rejected: true }).where(eq(comments.id, c.req.param("id")));
+  return c.json({ ok: true });
 });
 
-commentRoutes.delete("/admin/:id", requireAuth, requireAdmin, async (c) => {
-  const deleted = await commentService.delete(c.req.param("id"));
-  if (!deleted) return c.json(errorResponse("Not found"), 404);
-  return c.json(success({ deleted: true }));
+// DELETE /api/comments/:id
+commentsRouter.delete("/:id", requireAdmin, async (c) => {
+  await db.delete(comments).where(eq(comments.id, c.req.param("id")));
+  return c.json({ ok: true });
 });
 
-export { commentRoutes };
+export default commentsRouter;

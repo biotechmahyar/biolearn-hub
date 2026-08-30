@@ -1,89 +1,83 @@
-/**
- * Ticket routes — support system.
- * Mirrors: tickets.ts Convex mutations/queries.
- */
 import { Hono } from "hono";
-import { success, errorResponse } from "../lib/response.js";
-import { ticketService } from "../services/ticket.service.js";
-import type { AppEnv } from "../lib/types.js";
+import { db } from "../db/index.js";
+import { tickets, users } from "../db/schema.js";
+import { requireAuth, requireSupportStaff } from "../middleware/auth.js";
+import { eq, desc } from "drizzle-orm";
 
-const ticketRoutes = new Hono<AppEnv>();
+const ticketsRouter = new Hono();
 
-const requireAuth = async (c: any, next: any) => {
-  if (!c.get("userId")) return c.json(errorResponse("Unauthorized", "UNAUTHORIZED"), 401);
-  await next();
-};
-
-const requireSupport = async (c: any, next: any) => {
-  const userRole = c.get("userRole") ?? "";
-  if (!["support", "admin", "site_admin"].includes(userRole)) {
-    return c.json(errorResponse("دسترسی پشتیبانی لازم است.", "FORBIDDEN"), 403);
-  }
-  await next();
-};
-
-// ── Student side ──────────────────────────────────────────────────────────
-
-ticketRoutes.post("/", requireAuth, async (c) => {
-  const userId = c.get("userId");
-  const body = await c.req.json();
-  if (!body.subject?.trim() || !body.message?.trim()) {
-    return c.json(errorResponse("عنوان و متن پیام را وارد کنید.", "VALIDATION"), 400);
-  }
-  try {
-    const ticket = await ticketService.create(userId, body.subject, body.message);
-    return c.json(success(ticket), 201);
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
-  }
+// POST /api/tickets
+ticketsRouter.post("/", requireAuth, async (c) => {
+  const user = c.get("user");
+  const { subject, message } = await c.req.json();
+  if (!subject?.trim() || !message?.trim()) return c.json({ ok: false, error: "عنوان و متن پیام را وارد کنید." }, 400);
+  const now = Date.now();
+  const [created] = await db.insert(tickets).values({
+    userId: user.id, subject: subject.trim(), status: "open", createdAt: now, updatedAt: now,
+    messages: [{ author: "student", text: message.trim(), at: now }],
+  }).returning();
+  return c.json({ ok: true, data: created }, 201);
 });
 
-ticketRoutes.post("/:id/reply", requireAuth, async (c) => {
-  const userId = c.get("userId");
-  const userRole = c.get("userRole") ?? "";
-  const body = await c.req.json();
-  if (!body.message?.trim()) {
-    return c.json(errorResponse("پیام خالی است.", "VALIDATION"), 400);
+// GET /api/tickets/mine
+ticketsRouter.get("/mine", requireAuth, async (c) => {
+  const user = c.get("user");
+  const list = await db.query.tickets.findMany({ where: eq(tickets.userId, user.id), orderBy: [desc(tickets.createdAt)] });
+  return c.json({ ok: true, data: list });
+});
+
+// GET /api/tickets/:id
+ticketsRouter.get("/:id", requireAuth, async (c) => {
+  const user = c.get("user");
+  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) });
+  if (!ticket) return c.json({ ok: false, error: "تیکت یافت نشد." }, 404);
+  if (ticket.userId !== user.id && user.role !== "admin" && user.role !== "site_admin") {
+    return c.json({ ok: false, error: "دسترسی ندارید." }, 403);
   }
-  try {
-    const ticket = await ticketService.reply(c.req.param("id"), userId, userRole, body.message);
-    return c.json(success(ticket));
-  } catch (e: any) {
-    return c.json(errorResponse(e.message), 400);
-  }
+  return c.json({ ok: true, data: ticket });
 });
 
-ticketRoutes.get("/my", requireAuth, async (c) => {
-  const tickets = await ticketService.getMyTickets(c.get("userId"));
-  return c.json(success(tickets));
+// POST /api/tickets/:id/reply
+ticketsRouter.post("/:id/reply", requireAuth, async (c) => {
+  const user = c.get("user");
+  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) });
+  if (!ticket) return c.json({ ok: false, error: "تیکت یافت نشد." }, 404);
+  const isStaff = ["admin", "site_admin", "support"].includes(user.role || "");
+  const isOwner = ticket.userId === user.id;
+  if (!isStaff && !isOwner) return c.json({ ok: false, error: "دسترسی ندارید." }, 403);
+  const { message } = await c.req.json();
+  if (!message?.trim()) return c.json({ ok: false, error: "پیام خالی است." }, 400);
+  const author = isStaff ? "admin" : "student";
+  const messages = [...(ticket.messages as any[]), { author, text: message.trim(), at: Date.now() }];
+  await db.update(tickets).set({
+    messages, status: isStaff ? "answered" : ticket.status === "closed" ? "closed" : "open", updatedAt: Date.now(),
+  }).where(eq(tickets.id, c.req.param("id")));
+  return c.json({ ok: true, data: await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) }) });
 });
 
-ticketRoutes.get("/:id", requireAuth, async (c) => {
-  const userId = c.get("userId");
-  const userRole = c.get("userRole") ?? "";
-  const ticket = await ticketService.getTicket(c.req.param("id"), userId, userRole);
-  if (!ticket) return c.json(errorResponse("Not found", "NOT_FOUND"), 404);
-  return c.json(success(ticket));
+// DELETE /api/tickets/:id
+ticketsRouter.delete("/:id", requireSupportStaff, async (c) => {
+  await db.delete(tickets).where(eq(tickets.id, c.req.param("id")));
+  return c.json({ ok: true });
 });
 
-// ── Support desk (admins + support role) ──────────────────────────────────
-
-ticketRoutes.get("/admin/all", requireAuth, requireSupport, async (c) => {
-  const tickets = await ticketService.listAll();
-  return c.json(success(tickets));
-});
-
-ticketRoutes.patch("/admin/:id/status", requireAuth, requireSupport, async (c) => {
+// PATCH /api/tickets/:id/status
+ticketsRouter.patch("/:id/status", requireSupportStaff, async (c) => {
   const { status } = await c.req.json();
-  const ticket = await ticketService.updateStatus(c.req.param("id"), status);
-  if (!ticket) return c.json(errorResponse("Not found"), 404);
-  return c.json(success(ticket));
+  await db.update(tickets).set({ status, updatedAt: Date.now() }).where(eq(tickets.id, c.req.param("id")));
+  return c.json({ ok: true, data: await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) }) });
 });
 
-ticketRoutes.delete("/admin/:id", requireAuth, requireSupport, async (c) => {
-  const deleted = await ticketService.delete(c.req.param("id"));
-  if (!deleted) return c.json(errorResponse("Not found"), 404);
-  return c.json(success({ deleted: true }));
+// GET /api/tickets/all (admin)
+ticketsRouter.get("/all", requireSupportStaff, async (c) => {
+  const list = await db.query.tickets.findMany({ orderBy: [desc(tickets.createdAt)] });
+  const enriched = await Promise.all(
+    list.map(async (t) => {
+      const u = await db.query.users.findFirst({ where: eq(users.id, t.userId) });
+      return { ...t, user: u ? { name: u.name, email: u.email } : null };
+    })
+  );
+  return c.json({ ok: true, data: enriched });
 });
 
-export { ticketRoutes };
+export default ticketsRouter;

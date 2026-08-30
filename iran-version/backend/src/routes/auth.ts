@@ -1,159 +1,172 @@
-/**
- * Auth routes — Register, Login, OTP, Refresh, Logout.
- * Mirrors the Convex auth flow.
- */
 import { Hono } from "hono";
-import { z } from "zod";
-import { hashSync, compareSync } from "bcryptjs";
-import { sign, verify } from "jsonwebtoken";
-import { success, errorResponse } from "../lib/response.js";
-import { userService } from "../services/user.service.js";
+import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
-import { sessions, refreshTokens, users } from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { users, admins } from "../db/schema.js";
+import {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  requireAuth,
+} from "../middleware/auth.js";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 
-import type { AppEnv } from "../lib/types.js";
+const auth = new Hono();
 
-const authRoutes = new Hono<AppEnv>();
+const registerSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+});
 
-const jwtSecret = () => process.env.JWT_SECRET || "dev-jwt-secret-change-me";
-const refreshSecret = () => process.env.REFRESH_SECRET || "dev-refresh-secret-change-me";
-const JWT_EXPIRES = "15m";
-const REFRESH_EXPIRES = "7d";
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
 
-function generateTokens(userId: string) {
-  const accessToken = sign({ sub: userId }, jwtSecret(), { expiresIn: JWT_EXPIRES });
-  const refreshToken = sign({ sub: userId }, refreshSecret(), { expiresIn: REFRESH_EXPIRES });
-  return { accessToken, refreshToken };
-}
-
-// ── Register ───────────────────────────────────────────────────────────────
-authRoutes.post("/register", async (c) => {
+// POST /api/auth/register
+auth.post("/register", async (c) => {
   const body = await c.req.json();
-  const schema = z.object({
-    name: z.string().min(1),
-    email: z.string().email(),
-    password: z.string().min(6),
-  });
-  const parsed = schema.safeParse(body);
+  const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json(errorResponse(parsed.error.issues[0].message, "VALIDATION"), 400);
+    return c.json({ ok: false, error: "ورودی نامعتبر است." }, 400);
   }
+  const { name, email, password } = parsed.data;
+  const emailLower = email.toLowerCase().trim();
 
-  const existing = await userService.findByEmail(parsed.data.email);
+  // Check existing
+  const existing = await db.query.users.findFirst({
+    where: eq(users.email, emailLower),
+  });
   if (existing) {
-    return c.json(errorResponse("Email already registered", "CONFLICT"), 409);
+    return c.json({ ok: false, error: "حسابی با این ایمیل از قبل وجود دارد." }, 409);
   }
 
-  const passwordHash = hashSync(parsed.data.password, 12);
+  const passwordHash = await bcrypt.hash(password, 12);
   const [user] = await db
     .insert(users)
     .values({
-      name: parsed.data.name,
-      email: parsed.data.email,
+      name: name.trim(),
+      email: emailLower,
       passwordHash,
       role: "user",
-      emailVerificationTime: Date.now(),
     })
     .returning();
 
-  const tokens = generateTokens(user.id);
-  return c.json(success({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, ...tokens }), 201);
+  const payload = { userId: user.id, email: emailLower, role: "user" };
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload);
+
+  return c.json(
+    {
+      ok: true,
+      data: {
+        user: { id: user.id, name: user.name, email: user.email, role: user.role },
+        accessToken,
+        refreshToken,
+      },
+    },
+    201
+  );
 });
 
-// ── Login ──────────────────────────────────────────────────────────────────
-authRoutes.post("/login", async (c) => {
+// POST /api/auth/login
+auth.post("/login", async (c) => {
   const body = await c.req.json();
-  const schema = z.object({
-    email: z.string().email(),
-    password: z.string(),
+  const parsed = loginSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ ok: false, error: "ورودی نامعتبر است." }, 400);
+  }
+  const { email, password } = parsed.data;
+  const emailLower = email.toLowerCase().trim();
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.email, emailLower),
   });
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return c.json(errorResponse(parsed.error.issues[0].message, "VALIDATION"), 400);
-  }
-
-  const user = await userService.findByEmail(parsed.data.email);
   if (!user || !user.passwordHash) {
-    return c.json(errorResponse("Invalid credentials"), 401);
+    return c.json({ ok: false, error: "ایمیل یا رمز عبور اشتباه است." }, 401);
   }
 
-  const valid = compareSync(parsed.data.password, user.passwordHash);
+  const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    return c.json(errorResponse("Invalid credentials"), 401);
+    return c.json({ ok: false, error: "ایمیل یا رمز عبور اشتباه است." }, 401);
   }
 
-  const tokens = generateTokens(user.id);
-  return c.json(success({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, ...tokens }));
+  const payload = { userId: user.id, email: emailLower, role: user.role || "user" };
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload);
+
+  return c.json({
+    ok: true,
+    data: {
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      accessToken,
+      refreshToken,
+    },
+  });
 });
 
-// ── Refresh ────────────────────────────────────────────────────────────────
-authRoutes.post("/refresh", async (c) => {
+// POST /api/auth/refresh
+auth.post("/refresh", async (c) => {
   const body = await c.req.json();
-  const schema = z.object({ refreshToken: z.string() });
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return c.json(errorResponse("Refresh token required"), 400);
+  const { refreshToken } = body;
+  if (!refreshToken) {
+    return c.json({ ok: false, error: "refreshToken لازم است." }, 400);
   }
 
-  try {
-    const payload = verify(parsed.data.refreshToken, refreshSecret()) as { sub: string };
-    const tokens = generateTokens(payload.sub);
-    return c.json(success(tokens));
-  } catch {
-    return c.json(errorResponse("Invalid refresh token"), 401);
+  const payload = verifyRefreshToken(refreshToken);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
   }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, payload.userId),
+  });
+  if (!user) {
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
+  }
+
+  const newPayload = { userId: user.id, email: user.email || undefined, role: user.role || "user" };
+  const newAccessToken = signAccessToken(newPayload);
+  const newRefreshToken = signRefreshToken(newPayload);
+
+  return c.json({
+    ok: true,
+    data: { accessToken: newAccessToken, refreshToken: newRefreshToken },
+  });
 });
 
-// ── Logout ─────────────────────────────────────────────────────────────────
-authRoutes.post("/logout", async (c) => {
-  return c.json(success({ loggedOut: true }));
+// POST /api/auth/logout (client-side, no server state to invalidate for JWT)
+auth.post("/logout", async (c) => {
+  return c.json({ ok: true, data: null });
 });
 
-// ── Get current user ──────────────────────────────────────────────────────
-authRoutes.get("/me", async (c) => {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return c.json({ ok: true, data: null });
-  }
-  try {
-    const payload = verify(authHeader.slice(7), jwtSecret()) as { sub: string };
-    const user = await userService.findById(payload.sub);
-    if (!user) return c.json({ ok: true, data: null });
-    return c.json(
-      success({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        secondaryRole: user.secondaryRole,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        about: user.about,
-        avatarUrl: user.avatarUrl,
-        university: user.university,
-        major: user.major,
-      })
-    );
-  } catch {
-    return c.json({ ok: true, data: null });
-  }
+// GET /api/auth/me
+auth.get("/me", requireAuth, async (c) => {
+  const user = c.get("user");
+  return c.json({
+    ok: true,
+    data: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      secondaryRole: user.secondaryRole,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      about: user.about,
+      avatarUrl: user.avatarUrl,
+      university: user.university,
+      major: user.major,
+    },
+  });
 });
 
-// ── Check admin status ────────────────────────────────────────────────────
-authRoutes.get("/is-admin", async (c) => {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return c.json(success(false));
-  }
-  try {
-    const payload = verify(authHeader.slice(7), jwtSecret()) as { sub: string };
-    const user = await userService.findById(payload.sub);
-    const isAdmin = user?.role === "admin" || user?.role === "site_admin";
-    return c.json(success(isAdmin));
-  } catch {
-    return c.json(success(false));
-  }
+// GET /api/auth/is-admin
+auth.get("/is-admin", requireAuth, async (c) => {
+  const user = c.get("user");
+  const isAdminUser = user.role === "admin" || user.role === "site_admin";
+  return c.json(isAdminUser);
 });
 
-export { authRoutes };
+export default auth;

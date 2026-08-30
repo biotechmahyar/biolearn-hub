@@ -1,98 +1,224 @@
 import { Context, Next } from "hono";
-import { verifyAccessToken, JwtPayload } from "../modules/auth/jwt.js";
+import jwt from "jsonwebtoken";
 import { db } from "../db/index.js";
-import { users } from "../db/schema.js";
+import { users, admins } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 
-// Extend Hono context to carry user
-declare module "hono" {
-  interface ContextVariableMap {
-    user: JwtPayload & { dbUser: any };
+const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret";
+
+export interface JwtPayload {
+  userId: string;
+  email?: string;
+  role?: string;
+}
+
+export function signAccessToken(payload: JwtPayload): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "15m" });
+}
+
+export function signRefreshToken(payload: JwtPayload): string {
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET || "dev-refresh-secret", {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
+  });
+}
+
+export function verifyToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as JwtPayload;
+  } catch {
+    return null;
   }
 }
 
-/**
- * Require authentication — attaches user to context.
- */
-export async function requireAuth(c: Context, next: Next) {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return c.json({ error: "Unauthorized" }, 401);
+export function verifyRefreshToken(token: string): JwtPayload | null {
+  try {
+    return jwt.verify(token, process.env.JWT_REFRESH_SECRET || "dev-refresh-secret") as JwtPayload;
+  } catch {
+    return null;
   }
-
-  const token = authHeader.slice(7);
-  const payload = verifyAccessToken(token);
-  if (!payload) {
-    return c.json({ error: "Invalid or expired token" }, 401);
-  }
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
-  if (!dbUser) {
-    return c.json({ error: "User not found" }, 401);
-  }
-
-  c.set("user", { ...payload, dbUser });
-  await next();
 }
 
-/**
- * Optional authentication — attaches user if token present, but doesn't block.
- */
-export async function optionalAuth(c: Context, next: Next) {
+// Get user from Authorization header (optional - sets ctx.set("user"))
+export async function authMiddleware(c: Context, next: Next) {
   const authHeader = c.req.header("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
-    const payload = verifyAccessToken(token);
+    const payload = verifyToken(token);
     if (payload) {
-      const [dbUser] = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
-      if (dbUser) {
-        c.set("user", { ...payload, dbUser });
+      const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
+      if (user) {
+        c.set("user", { ...user, _id: user.id });
       }
     }
   }
   await next();
 }
 
-/**
- * Require specific role(s).
- */
-export function requireRole(...roles: string[]) {
-  return async (c: Context, next: Next) => {
-    const user = c.get("user");
-    if (!user) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-    if (!roles.includes(user.dbUser.role) && !roles.includes(user.dbUser.secondaryRole)) {
-      return c.json({ error: "Forbidden" }, 403);
-    }
-    await next();
-  };
+// Require authentication
+export async function requireAuth(c: Context, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ ok: false, error: "وارد نشده‌اید." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
+  if (!user) {
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
+  }
+  c.set("user", { ...user, _id: user.id });
+  await next();
 }
 
-/**
- * Require admin (admin or site_admin).
- */
+// Require any admin role
 export async function requireAdmin(c: Context, next: Next) {
-  const user = c.get("user");
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ ok: false, error: "وارد نشده‌اید." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
   if (!user) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
   }
-  if (user.dbUser.role !== "admin" && user.dbUser.role !== "site_admin") {
-    return c.json({ error: "Forbidden: admin access required" }, 403);
+  if (user.role !== "admin" && user.role !== "site_admin") {
+    return c.json({ ok: false, error: "دسترسی ادمین لازم است." }, 403);
   }
+  c.set("user", { ...user, _id: user.id });
   await next();
 }
 
-/**
- * Require system admin (admin only).
- */
-export async function requireSystemAdmin(c: Context, next: Next) {
-  const user = c.get("user");
+// Require content staff (content_manager, admin, site_admin)
+export async function requireContentStaff(c: Context, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ ok: false, error: "وارد نشده‌اید." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
   if (!user) {
-    return c.json({ error: "Unauthorized" }, 401);
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
   }
-  if (user.dbUser.role !== "admin") {
-    return c.json({ error: "Forbidden: system admin access required" }, 403);
+  if (!["admin", "site_admin", "content_manager"].includes(user.role || "")) {
+    return c.json({ ok: false, error: "دسترسی لازم است." }, 403);
   }
+  c.set("user", { ...user, _id: user.id });
   await next();
+}
+
+// Require support staff (support, admin, site_admin)
+export async function requireSupportStaff(c: Context, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ ok: false, error: "وارد نشده‌اید." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
+  if (!user) {
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
+  }
+  if (!["admin", "site_admin", "support"].includes(user.role || "")) {
+    return c.json({ ok: false, error: "دسترسی پشتیبانی لازم است." }, 403);
+  }
+  c.set("user", { ...user, _id: user.id });
+  await next();
+}
+
+// Require instructor or admin
+export async function requireInstructorOrAdmin(c: Context, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ ok: false, error: "وارد نشده‌اید." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
+  if (!user) {
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
+  }
+  if (!["admin", "site_admin", "instructor"].includes(user.role || "")) {
+    return c.json({ ok: false, error: "فقط مدرس یا ادمین می‌تواند این عملیات را انجام دهد." }, 403);
+  }
+  c.set("user", { ...user, _id: user.id });
+  await next();
+}
+
+// Require system admin only (admin role, not site_admin)
+export async function requireSystemAdmin(c: Context, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ ok: false, error: "وارد نشده‌اید." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
+  if (!user) {
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
+  }
+  if (user.role !== "admin") {
+    return c.json({ ok: false, error: "فقط ادمین سامانه می‌تواند این عملیات را انجام دهد." }, 403);
+  }
+  c.set("user", { ...user, _id: user.id });
+  await next();
+}
+
+// Require mentor or admin
+export async function requireMentorOrAdmin(c: Context, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json({ ok: false, error: "وارد نشده‌اید." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const payload = verifyToken(token);
+  if (!payload) {
+    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  }
+  const user = await db.query.users.findFirst({ where: eq(users.id, payload.userId) });
+  if (!user) {
+    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
+  }
+  if (!["admin", "site_admin", "mentor"].includes(user.role || "")) {
+    return c.json({ ok: false, error: "فقط منتور یا ادمین می‌تواند این عملیات را انجام دهد." }, 403);
+  }
+  c.set("user", { ...user, _id: user.id });
+  await next();
+}
+
+// Helper: check if user is admin
+export async function isUserAdmin(userId: string): Promise<boolean> {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  return user?.role === "admin" || user?.role === "site_admin";
+}
+
+// Helper: check if user is content staff
+export async function isContentStaff(userId: string): Promise<boolean> {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  return ["admin", "site_admin", "content_manager"].includes(user?.role || "");
+}
+
+// Helper: check email in admins table
+export async function isEmailAdmin(email: string): Promise<boolean> {
+  const admin = await db.query.admins.findFirst({ where: eq(admins.email, email) });
+  return !!admin;
 }
