@@ -324,6 +324,82 @@ export const addFlashcardSchema = z.object({
 
 // ── Enrollment Progress ────────────────────────────────────────────────────
 
+// ── Mentor ─────────────────────────────────────────────────────────────────
+
+export const createGroupSchema = z.object({
+  title: z.string().min(1, "عنوان گروه لازم است"),
+  description: z.string().default(""),
+  meetingDay: z.string().default(""),
+  meetingTime: z.string().default(""),
+  capacity: z.number().int().positive().default(10),
+});
+
+export const askQuestionSchema = z.object({
+  text: z.string().min(5, "سؤال را کامل بنویسید"),
+  topic: z.string().default("عمومی"),
+});
+
+export const answerQuestionSchema = z.object({
+  answer: z.string().min(1, "پاسخ خالی است"),
+});
+
+export const planSessionSchema = z.object({
+  studentId: idSchema,
+  title: z.string().min(1, "عنوان جلسه لازم است"),
+  date: z.string(),
+  time: z.string(),
+  notes: z.string().default(""),
+});
+
+export const setSessionStatusSchema = z.object({
+  status: z.enum(["scheduled", "done", "cancelled"]),
+});
+
+export const groupAnnouncementSchema = z.object({
+  title: z.string().min(1, "عنوان لازم است"),
+  message: z.string().default(""),
+});
+
+// ── Tickets ────────────────────────────────────────────────────────────────
+
+export const createTicketSchema = z.object({
+  subject: z.string().min(1, "عنوان لازم است"),
+  message: z.string().min(1, "متن پیام لازم است"),
+});
+
+export const replyTicketSchema = z.object({
+  message: z.string().min(1, "پیام خالی است"),
+});
+
+export const updateTicketStatusSchema = z.object({
+  status: z.enum(["open", "answered", "closed"]),
+});
+
+// ── Comments ───────────────────────────────────────────────────────────────
+
+export const addCommentSchema = z.object({
+  contentType: z.string().min(1),
+  contentId: z.string().min(1),
+  text: z.string().min(2, "دیدگاه خیلی کوتاه است").max(1000, "دیدگاه حداکثر ۱۰۰۰ کاراکتر"),
+});
+
+// ── Dictionary ─────────────────────────────────────────────────────────────
+
+export const dictionaryTermSchema = z.object({
+  term: z.string().min(1, "نام اصطلاح لازم است"),
+  fullName: z.string(),
+  gramStatus: z.string(),
+  shape: z.string(),
+  oxygen: z.string(),
+  habitat: z.string(),
+  diseases: z.array(z.string()),
+  virulence: z.array(z.string()),
+  diagnosis: z.string(),
+  characteristics: z.array(z.string()),
+  examNotes: z.array(z.string()),
+  sources: z.array(z.string()),
+});
+
 export const markLessonCompleteSchema = z.object({
   courseId: idSchema,
   lessonId: z.string().min(1),

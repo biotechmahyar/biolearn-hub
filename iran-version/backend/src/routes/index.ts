@@ -8,6 +8,10 @@ import { userRoutes } from "./users.js";
 import { authRoutes } from "./auth.js";
 import { examRoutes } from "./exams.js";
 import { commerceRoutes } from "./commerce.js";
+import { mentorRoutes } from "./mentor.js";
+import { ticketRoutes } from "./tickets.js";
+import { commentRoutes } from "./comments.js";
+import { dictionaryRoutes } from "./dictionary.js";
 
 const api = new Hono();
 
@@ -17,5 +21,9 @@ api.route("/users", userRoutes);
 api.route("/auth", authRoutes);
 api.route("/exams", examRoutes);
 api.route("/commerce", commerceRoutes);
+api.route("/mentor", mentorRoutes);
+api.route("/tickets", ticketRoutes);
+api.route("/comments", commentRoutes);
+api.route("/dictionary", dictionaryRoutes);
 
 export { api };
