@@ -1,36 +1,39 @@
-import dotenv from "dotenv";
-dotenv.config();
-
+import bcrypt from "bcrypt";
 import { db } from "../db/index.js";
-import { users } from "../db/schema.js";
+import { users, admins } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 
 async function seedAdmin() {
-  const email = "admin@nibrc.ir";
-  const password = "admin123";
-  const name = "Admin";
+  const email = process.env.ADMIN_EMAIL || "admin@nibrc.ir";
+  const password = process.env.ADMIN_PASSWORD || "admin123";
+  const name = process.env.ADMIN_NAME || "System Admin";
 
-  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing) {
-    console.log(`✅ Admin already exists: ${email}`);
+  console.log(`Seeding admin user: ${email}`);
+
+  const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  if (existing.length > 0) {
+    console.log(`Admin user ${email} already exists.`);
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  await db.insert(users).values({
+
+  const [user] = await db.insert(users).values({
     name,
     email,
     passwordHash,
     role: "admin",
-  });
+  }).returning();
 
-  console.log(`✅ Admin created: ${email} / ${password}`);
+  // Add to admins allow-list
+  await db.insert(admins).values({ email });
+
+  console.log(`✅ Admin user created: ${user.email} (${user.id})`);
 }
 
 seedAdmin()
   .then(() => process.exit(0))
   .catch((err) => {
-    console.error("❌ Seed failed:", err);
+    console.error("Failed to seed admin:", err);
     process.exit(1);
   });

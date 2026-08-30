@@ -1,83 +1,93 @@
 import { Hono } from "hono";
 import { db } from "../db/index.js";
-import { tickets, users } from "../db/schema.js";
-import { requireAuth, requireSupportStaff } from "../middleware/auth.js";
-import { eq, desc } from "drizzle-orm";
+import { tickets } from "../db/schema.js";
+import { eq, and, desc } from "drizzle-orm";
+import { requireAuth, getCurrentUser } from "../middleware/auth.js";
+import { requireAnyAdmin } from "../middleware/rbac.js";
+import { successResponse, errorResponse } from "../types/index.js";
 
-const ticketsRouter = new Hono();
+const ticketsRoutes = new Hono();
 
 // POST /api/tickets
-ticketsRouter.post("/", requireAuth, async (c) => {
-  const user = c.get("user");
-  const { subject, message } = await c.req.json();
-  if (!subject?.trim() || !message?.trim()) return c.json({ ok: false, error: "عنوان و متن پیام را وارد کنید." }, 400);
-  const now = Date.now();
-  const [created] = await db.insert(tickets).values({
-    userId: user.id, subject: subject.trim(), status: "open", createdAt: now, updatedAt: now,
-    messages: [{ author: "student", text: message.trim(), at: now }],
+ticketsRoutes.post("/", requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  const body = await c.req.json();
+  if (!body.subject) return c.json(errorResponse("موضوع لازم است."), 400);
+
+  const [ticket] = await db.insert(tickets).values({
+    userId: user!.id,
+    subject: body.subject,
+    status: "open",
+    messages: body.initialMessage ? [{ author: "student", text: body.initialMessage, at: Date.now() }] : [],
   }).returning();
-  return c.json({ ok: true, data: created }, 201);
+
+  return c.json(successResponse(ticket), 201);
 });
 
-// GET /api/tickets/mine
-ticketsRouter.get("/mine", requireAuth, async (c) => {
-  const user = c.get("user");
-  const list = await db.query.tickets.findMany({ where: eq(tickets.userId, user.id), orderBy: [desc(tickets.createdAt)] });
-  return c.json({ ok: true, data: list });
+// GET /api/tickets/my
+ticketsRoutes.get("/my", requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  const rows = await db.select().from(tickets).where(eq(tickets.userId, user!.id)).orderBy(desc(tickets.createdAt));
+  return c.json(successResponse(rows));
+});
+
+// GET /api/tickets/admin
+ticketsRoutes.get("/admin", requireAnyAdmin, async (c) => {
+  const rows = await db.select().from(tickets).orderBy(desc(tickets.updatedAt));
+  return c.json(successResponse(rows));
 });
 
 // GET /api/tickets/:id
-ticketsRouter.get("/:id", requireAuth, async (c) => {
-  const user = c.get("user");
-  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) });
-  if (!ticket) return c.json({ ok: false, error: "تیکت یافت نشد." }, 404);
-  if (ticket.userId !== user.id && user.role !== "admin" && user.role !== "site_admin") {
-    return c.json({ ok: false, error: "دسترسی ندارید." }, 403);
+ticketsRoutes.get("/:id", requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  const id = c.req.param("id");
+  const rows = await db.select().from(tickets).where(eq(tickets.id, id)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("تیکت یافت نشد."), 404);
+  const ticket = rows[0];
+  // Only owner or admin can view
+  if (ticket.userId !== user!.id && !["admin", "site_admin"].includes(user!.role!)) {
+    return c.json(errorResponse("دسترسی غیرمجاز."), 403);
   }
-  return c.json({ ok: true, data: ticket });
+  return c.json(successResponse(ticket));
 });
 
-// POST /api/tickets/:id/reply
-ticketsRouter.post("/:id/reply", requireAuth, async (c) => {
-  const user = c.get("user");
-  const ticket = await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) });
-  if (!ticket) return c.json({ ok: false, error: "تیکت یافت نشد." }, 404);
-  const isStaff = ["admin", "site_admin", "support"].includes(user.role || "");
-  const isOwner = ticket.userId === user.id;
-  if (!isStaff && !isOwner) return c.json({ ok: false, error: "دسترسی ندارید." }, 403);
-  const { message } = await c.req.json();
-  if (!message?.trim()) return c.json({ ok: false, error: "پیام خالی است." }, 400);
-  const author = isStaff ? "admin" : "student";
-  const messages = [...(ticket.messages as any[]), { author, text: message.trim(), at: Date.now() }];
-  await db.update(tickets).set({
-    messages, status: isStaff ? "answered" : ticket.status === "closed" ? "closed" : "open", updatedAt: Date.now(),
-  }).where(eq(tickets.id, c.req.param("id")));
-  return c.json({ ok: true, data: await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) }) });
+// POST /api/tickets/:id/messages
+ticketsRoutes.post("/:id/messages", requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  const id = c.req.param("id");
+  const body = await c.req.json();
+  if (!body.text) return c.json(errorResponse("متن پیام لازم است."), 400);
+
+  const rows = await db.select().from(tickets).where(eq(tickets.id, id)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("تیکت یافت نشد."), 404);
+  const ticket = rows[0];
+
+  if (ticket.userId !== user!.id && !["admin", "site_admin"].includes(user!.role!)) {
+    return c.json(errorResponse("دسترسی غیرمجاز."), 403);
+  }
+
+  const author = ["admin", "site_admin"].includes(user!.role!) ? "admin" : "student";
+  const messages = [...(ticket.messages as any[]), { author, text: body.text, at: Date.now() }];
+  const [updated] = await db.update(tickets).set({
+    messages,
+    status: author === "admin" ? "answered" : ticket.status,
+    updatedAt: Date.now(),
+  }).where(eq(tickets.id, id)).returning();
+
+  return c.json(successResponse(updated));
 });
 
-// DELETE /api/tickets/:id
-ticketsRouter.delete("/:id", requireSupportStaff, async (c) => {
-  await db.delete(tickets).where(eq(tickets.id, c.req.param("id")));
-  return c.json({ ok: true });
+// PATCH /api/tickets/:id/close
+ticketsRoutes.patch("/:id/close", requireAuth, async (c) => {
+  const user = getCurrentUser(c);
+  const id = c.req.param("id");
+  const rows = await db.select().from(tickets).where(eq(tickets.id, id)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("تیکت یافت نشد."), 404);
+  if (rows[0].userId !== user!.id && !["admin", "site_admin"].includes(user!.role!)) {
+    return c.json(errorResponse("دسترسی غیرمجاز."), 403);
+  }
+  const [updated] = await db.update(tickets).set({ status: "closed", updatedAt: Date.now() }).where(eq(tickets.id, id)).returning();
+  return c.json(successResponse(updated));
 });
 
-// PATCH /api/tickets/:id/status
-ticketsRouter.patch("/:id/status", requireSupportStaff, async (c) => {
-  const { status } = await c.req.json();
-  await db.update(tickets).set({ status, updatedAt: Date.now() }).where(eq(tickets.id, c.req.param("id")));
-  return c.json({ ok: true, data: await db.query.tickets.findFirst({ where: eq(tickets.id, c.req.param("id")) }) });
-});
-
-// GET /api/tickets/all (admin)
-ticketsRouter.get("/all", requireSupportStaff, async (c) => {
-  const list = await db.query.tickets.findMany({ orderBy: [desc(tickets.createdAt)] });
-  const enriched = await Promise.all(
-    list.map(async (t) => {
-      const u = await db.query.users.findFirst({ where: eq(users.id, t.userId) });
-      return { ...t, user: u ? { name: u.name, email: u.email } : null };
-    })
-  );
-  return c.json({ ok: true, data: enriched });
-});
-
-export default ticketsRouter;
+export default ticketsRoutes;

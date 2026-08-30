@@ -1,15 +1,11 @@
 import { Hono } from "hono";
-import bcrypt from "bcryptjs";
-import { db } from "../db/index.js";
-import { users, admins } from "../db/schema.js";
-import {
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-  requireAuth,
-} from "../middleware/auth.js";
-import { eq } from "drizzle-orm";
+import bcrypt from "bcrypt";
 import { z } from "zod";
+import { db } from "../db/index.js";
+import { users, admins as adminsTable, sessions, refreshTokens } from "../db/schema.js";
+import { eq } from "drizzle-orm";
+import { requireAuth, getCurrentUser, signAccessToken, signRefreshToken, verifyToken } from "../middleware/auth.js";
+import { successResponse, errorResponse } from "../types/index.js";
 
 const auth = new Hono();
 
@@ -24,22 +20,24 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
 // POST /api/auth/register
 auth.post("/register", async (c) => {
   const body = await c.req.json();
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ ok: false, error: "ورودی نامعتبر است." }, 400);
+    return c.json(errorResponse("ورودی نامعتبر است."), 400);
   }
   const { name, email, password } = parsed.data;
-  const emailLower = email.toLowerCase().trim();
+  const emailLower = email.trim().toLowerCase();
 
   // Check existing
-  const existing = await db.query.users.findFirst({
-    where: eq(users.email, emailLower),
-  });
-  if (existing) {
-    return c.json({ ok: false, error: "حسابی با این ایمیل از قبل وجود دارد." }, 409);
+  const existing = await db.select().from(users).where(eq(users.email, emailLower)).limit(1);
+  if (existing.length > 0) {
+    return c.json(errorResponse("حسابی با این ایمیل از قبل وجود دارد."), 409);
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -53,20 +51,16 @@ auth.post("/register", async (c) => {
     })
     .returning();
 
-  const payload = { userId: user.id, email: emailLower, role: "user" };
-  const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken(payload);
+  const accessToken = signAccessToken(user.id, user.email ?? undefined, user.role ?? undefined);
+  const refreshToken = signRefreshToken(user.id);
 
   return c.json(
-    {
-      ok: true,
-      data: {
-        user: { id: user.id, name: user.name, email: user.email, role: user.role },
-        accessToken,
-        refreshToken,
-      },
-    },
-    201
+    successResponse({
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      accessToken,
+      refreshToken,
+    }),
+    201,
   );
 });
 
@@ -75,78 +69,87 @@ auth.post("/login", async (c) => {
   const body = await c.req.json();
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ ok: false, error: "ورودی نامعتبر است." }, 400);
+    return c.json(errorResponse("ورودی نامعتبر است."), 400);
   }
   const { email, password } = parsed.data;
-  const emailLower = email.toLowerCase().trim();
+  const emailLower = email.trim().toLowerCase();
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.email, emailLower),
-  });
-  if (!user || !user.passwordHash) {
-    return c.json({ ok: false, error: "ایمیل یا رمز عبور اشتباه است." }, 401);
+  const rows = await db.select().from(users).where(eq(users.email, emailLower)).limit(1);
+  if (rows.length === 0) {
+    return c.json(errorResponse("ایمیل یا رمز عبور اشتباه است."), 401);
   }
-
+  const user = rows[0];
+  if (!user.passwordHash) {
+    return c.json(errorResponse("حساب شما رمز عبور ندارد."), 401);
+  }
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
-    return c.json({ ok: false, error: "ایمیل یا رمز عبور اشتباه است." }, 401);
+    return c.json(errorResponse("ایمیل یا رمز عبور اشتباه است."), 401);
   }
 
-  const payload = { userId: user.id, email: emailLower, role: user.role || "user" };
-  const accessToken = signAccessToken(payload);
-  const refreshToken = signRefreshToken(payload);
+  const accessToken = signAccessToken(user.id, user.email ?? undefined, user.role ?? undefined);
+  const refreshToken = signRefreshToken(user.id);
 
-  return c.json({
-    ok: true,
-    data: {
+  // Store session
+  await db.insert(sessions).values({
+    userId: user.id,
+    token: accessToken,
+    expiresAt: Date.now() + 15 * 60 * 1000,
+  });
+  await db.insert(refreshTokens).values({
+    userId: user.id,
+    token: refreshToken,
+    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  });
+
+  return c.json(
+    successResponse({
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
       accessToken,
       refreshToken,
-    },
-  });
+    }),
+  );
 });
 
 // POST /api/auth/refresh
 auth.post("/refresh", async (c) => {
   const body = await c.req.json();
-  const { refreshToken } = body;
-  if (!refreshToken) {
-    return c.json({ ok: false, error: "refreshToken لازم است." }, 400);
+  const parsed = refreshSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(errorResponse("ورودی نامعتبر است."), 400);
   }
-
-  const payload = verifyRefreshToken(refreshToken);
-  if (!payload) {
-    return c.json({ ok: false, error: "توکن نامعتبر است." }, 401);
+  try {
+    const payload = verifyToken(parsed.data.refreshToken);
+    if (payload.type !== "refresh") {
+      return c.json(errorResponse("توکن نامعتبر است."), 401);
+    }
+    const rows = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
+    if (rows.length === 0) {
+      return c.json(errorResponse("کاربر یافت نشد."), 401);
+    }
+    const user = rows[0];
+    const accessToken = signAccessToken(user.id, user.email ?? undefined, user.role ?? undefined);
+    const newRefreshToken = signRefreshToken(user.id);
+    return c.json(successResponse({ accessToken, refreshToken: newRefreshToken }));
+  } catch {
+    return c.json(errorResponse("توکن منقضی یا نامعتبر است."), 401);
   }
-
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, payload.userId),
-  });
-  if (!user) {
-    return c.json({ ok: false, error: "کاربر یافت نشد." }, 401);
-  }
-
-  const newPayload = { userId: user.id, email: user.email || undefined, role: user.role || "user" };
-  const newAccessToken = signAccessToken(newPayload);
-  const newRefreshToken = signRefreshToken(newPayload);
-
-  return c.json({
-    ok: true,
-    data: { accessToken: newAccessToken, refreshToken: newRefreshToken },
-  });
 });
 
-// POST /api/auth/logout (client-side, no server state to invalidate for JWT)
+// POST /api/auth/logout
 auth.post("/logout", async (c) => {
-  return c.json({ ok: true, data: null });
+  // Client-side: just discard tokens. Server could blacklist, but MVP is stateless.
+  return c.json(successResponse({ message: "با موفقیت خارج شدید." }));
 });
 
 // GET /api/auth/me
 auth.get("/me", requireAuth, async (c) => {
-  const user = c.get("user");
-  return c.json({
-    ok: true,
-    data: {
+  const user = getCurrentUser(c);
+  if (!user) {
+    return c.json(errorResponse("کاربر یافت نشد."), 404);
+  }
+  return c.json(
+    successResponse({
       id: user.id,
       name: user.name,
       email: user.email,
@@ -158,15 +161,29 @@ auth.get("/me", requireAuth, async (c) => {
       avatarUrl: user.avatarUrl,
       university: user.university,
       major: user.major,
-    },
-  });
+    }),
+  );
 });
 
 // GET /api/auth/is-admin
-auth.get("/is-admin", requireAuth, async (c) => {
-  const user = c.get("user");
-  const isAdminUser = user.role === "admin" || user.role === "site_admin";
-  return c.json(isAdminUser);
+auth.get("/is-admin", async (c) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return c.json(successResponse(false));
+  }
+  try {
+    const payload = verifyToken(authHeader.slice(7));
+    if (payload.type === "refresh") return c.json(successResponse(false));
+    const rows = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
+    if (rows.length === 0) return c.json(successResponse(false));
+    const user = rows[0];
+    const email = user.email;
+    if (!email) return c.json(successResponse(false));
+    const adminRow = await db.select().from(adminsTable).where(eq(adminsTable.email, email)).limit(1);
+    return c.json(successResponse(adminRow.length > 0 || user.role === "admin" || user.role === "site_admin"));
+  } catch {
+    return c.json(successResponse(false));
+  }
 });
 
 export default auth;

@@ -1,203 +1,234 @@
 import { Hono } from "hono";
 import { db } from "../db/index.js";
 import {
-  classRooms, roomMessages, attendance, courseResources, directMessages,
-  instructorPayments, users, courses, enrollments, examAttempts, questions, categories,
+  classRooms, attendance, courseResources, directMessages,
+  instructorPayments, courses, users,
 } from "../db/schema.js";
-import { requireAuth, requireInstructorOrAdmin, requireAdmin } from "../middleware/auth.js";
 import { eq, and, desc } from "drizzle-orm";
+import { requireAuth, getCurrentUser } from "../middleware/auth.js";
+import { requireInstructor } from "../middleware/rbac.js";
+import { successResponse, errorResponse } from "../types/index.js";
 
 const instructor = new Hono();
 
+instructor.use("*", requireAuth, requireInstructor);
+
 // ── Attendance ──────────────────────────────────────────────────────────────
 
-instructor.get("/attendance/rooms", requireInstructorOrAdmin, async (c) => {
-  const user = c.get("user");
-  const list = await db.query.classRooms.findMany({ where: eq(classRooms.instructorId, user.id) });
-  return c.json({ ok: true, data: list });
+instructor.get("/attendance/rooms", async (c) => {
+  const user = getCurrentUser(c);
+  const rows = await db.select().from(classRooms).where(eq(classRooms.instructorId, user!.id)).orderBy(desc(classRooms.createdAt));
+  return c.json(successResponse(rows));
 });
 
-instructor.get("/attendance/rooms/:roomId/students", requireInstructorOrAdmin, async (c) => {
-  const messages = await db.query.roomMessages.findMany({ where: eq(roomMessages.roomId, c.req.param("roomId")) });
-  const studentIds = [...new Set(messages.map((m) => m.userId))];
-  const students = await Promise.all(
-    studentIds.map(async (id) => {
-      const u = await db.query.users.findFirst({ where: eq(users.id, id) });
-      return u ? { id: u.id, name: u.name || "—" } : null;
-    })
-  );
-  return c.json({ ok: true, data: students.filter(Boolean) });
-});
-
-instructor.get("/attendance/rooms/:roomId", requireInstructorOrAdmin, async (c) => {
-  const list = await db.query.attendance.findMany({ where: eq(attendance.roomId, c.req.param("roomId")) });
-  return c.json({ ok: true, data: list });
-});
-
-instructor.post("/attendance/rooms/:roomId/mark", requireInstructorOrAdmin, async (c) => {
-  const user = c.get("user");
+instructor.get("/attendance/rooms/:roomId/students", async (c) => {
+  const user = getCurrentUser(c);
   const roomId = c.req.param("roomId");
-  const { studentId, studentName, present, note } = await c.req.json();
-  const existing = await db.query.attendance.findFirst({
-    where: and(eq(attendance.roomId, roomId), eq(attendance.studentId, studentId)),
-  });
-  if (existing) {
-    await db.update(attendance).set({ present, note, markedAt: Date.now() }).where(eq(attendance.id, existing.id));
-  } else {
-    await db.insert(attendance).values({
-      roomId, instructorId: user.id, studentId, studentName, present, note, markedAt: Date.now(),
-    });
+  // Verify room belongs to instructor
+  const roomRows = await db.select().from(classRooms).where(and(eq(classRooms.id, roomId), eq(classRooms.instructorId, user!.id))).limit(1);
+  if (roomRows.length === 0) return c.json(errorResponse("کلاس یافت نشد."), 404);
+  const rows = await db.select().from(attendance).where(eq(attendance.roomId, roomId));
+  return c.json(successResponse(rows));
+});
+
+instructor.get("/attendance/rooms/:roomId", async (c) => {
+  const user = getCurrentUser(c);
+  const roomId = c.req.param("roomId");
+  const roomRows = await db.select().from(classRooms).where(and(eq(classRooms.id, roomId), eq(classRooms.instructorId, user!.id))).limit(1);
+  if (roomRows.length === 0) return c.json(errorResponse("کلاس یافت نشد."), 404);
+  const rows = await db.select().from(attendance).where(eq(attendance.roomId, roomId));
+  return c.json(successResponse(rows));
+});
+
+instructor.post("/attendance/rooms/:roomId/mark", async (c) => {
+  const user = getCurrentUser(c);
+  const roomId = c.req.param("roomId");
+  const body = await c.req.json();
+  const roomRows = await db.select().from(classRooms).where(and(eq(classRooms.id, roomId), eq(classRooms.instructorId, user!.id))).limit(1);
+  if (roomRows.length === 0) return c.json(errorResponse("کلاس یافت نشد."), 404);
+
+  const { studentId, studentName, present, note } = body;
+  // Upsert attendance
+  const existing = await db.select().from(attendance).where(
+    and(eq(attendance.roomId, roomId), eq(attendance.studentId, studentId))
+  ).limit(1);
+
+  if (existing.length > 0) {
+    const [updated] = await db.update(attendance).set({ present, note, markedAt: Date.now() }).where(eq(attendance.id, existing[0].id)).returning();
+    return c.json(successResponse(updated));
   }
-  return c.json({ ok: true });
+
+  const [record] = await db.insert(attendance).values({
+    roomId,
+    instructorId: user!.id,
+    studentId,
+    studentName: studentName || "",
+    present,
+    note,
+    markedAt: Date.now(),
+  }).returning();
+
+  return c.json(successResponse(record), 201);
 });
 
 // ── Course Resources ────────────────────────────────────────────────────────
 
-instructor.get("/resources/:courseId", requireAuth, async (c) => {
-  const list = await db.query.courseResources.findMany({ where: eq(courseResources.courseId, c.req.param("courseId")) });
-  return c.json({ ok: true, data: list });
-});
-
-instructor.post("/resources", requireAuth, async (c) => {
-  const user = c.get("user");
-  const body = await c.req.json();
-  const [created] = await db.insert(courseResources).values({
-    courseId: body.courseId, instructorId: user.id, title: body.title,
-    description: body.description, fileUrl: body.fileUrl, fileName: body.fileName,
-    fileSize: body.fileSize, fileType: body.fileType, isFree: body.isFree ?? false, createdAt: Date.now(),
-  }).returning();
-  return c.json({ ok: true, data: created }, 201);
-});
-
-instructor.delete("/resources/:id", requireAuth, async (c) => {
-  const user = c.get("user");
-  const resource = await db.query.courseResources.findFirst({ where: eq(courseResources.id, c.req.param("id")) });
-  if (!resource) return c.json({ ok: false, error: "فایل یافت نشد." }, 404);
-  if (resource.instructorId !== user.id && user.role !== "admin" && user.role !== "site_admin") {
-    return c.json({ ok: false, error: "دسترسی ندارید." }, 403);
+instructor.get("/resources/:courseId", async (c) => {
+  const user = getCurrentUser(c);
+  const courseId = c.req.param("id");
+  // Verify course belongs to instructor
+  const courseRows = await db.select().from(courses).where(and(eq(courses.id, courseId), eq(courses.authorId, user!.id))).limit(1);
+  if (courseRows.length === 0) {
+    // Also check if user has a linked instructor profile
+    return c.json(errorResponse("دوره یافت نشد."), 404);
   }
-  await db.delete(courseResources).where(eq(courseResources.id, c.req.param("id")));
-  return c.json({ ok: true });
+  const rows = await db.select().from(courseResources).where(eq(courseResources.courseId, courseId));
+  return c.json(successResponse(rows));
+});
+
+instructor.post("/resources", async (c) => {
+  const user = getCurrentUser(c);
+  const body = await c.req.json();
+  const [resource] = await db.insert(courseResources).values({
+    courseId: body.courseId,
+    instructorId: user!.id,
+    title: body.title || "",
+    description: body.description,
+    fileUrl: body.fileUrl || "",
+    fileName: body.fileName || "",
+    fileSize: body.fileSize || 0,
+    fileType: body.fileType || "",
+    isFree: body.isFree || false,
+  }).returning();
+  return c.json(successResponse(resource), 201);
+});
+
+instructor.delete("/resources/:resourceId", async (c) => {
+  const user = getCurrentUser(c);
+  const resourceId = c.req.param("resourceId");
+  const rows = await db.select().from(courseResources).where(eq(courseResources.id, resourceId)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("منبع یافت نشد."), 404);
+  if (rows[0].instructorId !== user!.id && !["admin", "site_admin"].includes(user!.role!)) {
+    return c.json(errorResponse("دسترسی غیرمجاز."), 403);
+  }
+  await db.delete(courseResources).where(eq(courseResources.id, resourceId));
+  return c.json(successResponse({ message: "حذف شد." }));
 });
 
 // ── Direct Messages ─────────────────────────────────────────────────────────
 
-instructor.post("/messages", requireAuth, async (c) => {
-  const user = c.get("user");
-  const { receiverId, text } = await c.req.json();
-  if (!text?.trim()) return c.json({ ok: false, error: "پیام خالی است." }, 400);
-  await db.insert(directMessages).values({
-    senderId: user.id, receiverId, text: text.trim(), read: false, createdAt: Date.now(),
-  });
-  return c.json({ ok: true });
+instructor.post("/messages", async (c) => {
+  const user = getCurrentUser(c);
+  const body = await c.req.json();
+  if (!body.receiverId || !body.text) return c.json(errorResponse("ورودی نامعتبر است."), 400);
+
+  const [message] = await db.insert(directMessages).values({
+    senderId: user!.id,
+    receiverId: body.receiverId,
+    text: body.text,
+    read: false,
+  }).returning();
+
+  return c.json(successResponse(message), 201);
 });
 
-instructor.get("/messages/conversations", requireAuth, async (c) => {
-  const userId = c.get("user").id;
-  const received = await db.query.directMessages.findMany({
-    where: eq(directMessages.receiverId, userId), orderBy: [desc(directMessages.createdAt)],
-  });
-  const sent = await db.query.directMessages.findMany({
-    where: eq(directMessages.senderId, userId), orderBy: [desc(directMessages.createdAt)],
-  });
-  const all = [...received, ...sent].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  const conversations = new Map<string, any>();
-  for (const msg of all) {
-    const partnerId = msg.senderId === userId ? msg.receiverId : msg.senderId;
-    if (!conversations.has(partnerId)) {
-      const partner = await db.query.users.findFirst({ where: eq(users.id, partnerId) });
-      conversations.set(partnerId, {
-        partnerId, partnerName: partner?.name || "—",
-        lastMessage: msg.text, lastTime: msg.createdAt,
-        unread: msg.receiverId === userId && !msg.read ? 1 : 0,
-      });
+instructor.get("/messages/conversations", async (c) => {
+  const user = getCurrentUser(c);
+  // Get unique partners
+  const sent = await db.select().from(directMessages).where(eq(directMessages.senderId, user!.id));
+  const received = await db.select().from(directMessages).where(eq(directMessages.receiverId, user!.id));
+  const allMessages = [...sent, ...received].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  const partners = new Map<string, { lastMessage: any; unread: number }>();
+  for (const msg of allMessages) {
+    const partnerId = msg.senderId === user!.id ? msg.receiverId : msg.senderId;
+    if (!partners.has(partnerId)) {
+      partners.set(partnerId, { lastMessage: msg, unread: 0 });
+    }
+    if (msg.receiverId === user!.id && !msg.read) {
+      partners.get(partnerId)!.unread++;
     }
   }
-  return c.json({ ok: true, data: [...conversations.values()] });
-});
 
-instructor.get("/messages/:partnerId", requireAuth, async (c) => {
-  const userId = c.get("user").id;
-  const partnerId = c.req.param("partnerId");
-  const received = await db.query.directMessages.findMany({
-    where: and(eq(directMessages.receiverId, userId), eq(directMessages.senderId, partnerId)),
-    orderBy: [directMessages.createdAt],
-  });
-  const sent = await db.query.directMessages.findMany({
-    where: and(eq(directMessages.senderId, userId), eq(directMessages.receiverId, partnerId)),
-    orderBy: [directMessages.createdAt],
-  });
-  return c.json({ ok: true, data: [...received, ...sent].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0)) });
-});
-
-instructor.post("/messages/:partnerId/read", requireAuth, async (c) => {
-  const userId = c.get("user").id;
-  const partnerId = c.req.param("partnerId");
-  const unread = await db.query.directMessages.findMany({
-    where: and(eq(directMessages.receiverId, userId), eq(directMessages.senderId, partnerId), eq(directMessages.read, false)),
-  });
-  for (const msg of unread) {
-    await db.update(directMessages).set({ read: true }).where(eq(directMessages.id, msg.id));
+  const result = [];
+  for (const [partnerId, data] of partners) {
+    const partnerRows = await db.select().from(users).where(eq(users.id, partnerId)).limit(1);
+    result.push({
+      partnerId,
+      partner: partnerRows[0] ? { name: partnerRows[0].name, email: partnerRows[0].email } : null,
+      lastMessage: data.lastMessage,
+      unread: data.unread,
+    });
   }
-  return c.json({ ok: true });
+
+  return c.json(successResponse(result));
+});
+
+instructor.get("/messages/:partnerId", async (c) => {
+  const user = getCurrentUser(c);
+  const partnerId = c.req.param("partnerId");
+
+  const sent = await db.select().from(directMessages).where(
+    and(eq(directMessages.senderId, user!.id), eq(directMessages.receiverId, partnerId))
+  );
+  const received = await db.select().from(directMessages).where(
+    and(eq(directMessages.senderId, partnerId), eq(directMessages.receiverId, user!.id))
+  );
+
+  const messages = [...sent, ...received].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  return c.json(successResponse(messages));
+});
+
+instructor.post("/messages/:partnerId/read", async (c) => {
+  const user = getCurrentUser(c);
+  const partnerId = c.req.param("partnerId");
+
+  await db.update(directMessages).set({ read: true }).where(
+    and(eq(directMessages.senderId, partnerId), eq(directMessages.receiverId, user!.id), eq(directMessages.read, false))
+  );
+
+  return c.json(successResponse({ message: "خوانده شد." }));
 });
 
 // ── Payments ────────────────────────────────────────────────────────────────
 
-instructor.get("/payments", requireAuth, async (c) => {
-  const userId = c.get("user").id;
-  const list = await db.query.instructorPayments.findMany({
-    where: eq(instructorPayments.instructorId, userId),
-    orderBy: [desc(instructorPayments.createdAt)],
-  });
-  return c.json({ ok: true, data: list });
+instructor.get("/payments", async (c) => {
+  const user = getCurrentUser(c);
+  const rows = await db.select().from(instructorPayments).where(eq(instructorPayments.instructorId, user!.id)).orderBy(desc(instructorPayments.createdAt));
+  return c.json(successResponse(rows));
 });
 
-instructor.get("/bank-account", requireAuth, async (c) => {
-  const userId = c.get("user").id;
-  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
-  return c.json({
-    ok: true,
-    data: {
-      bankName: user?.bankName || "",
-      bankAccountNumber: user?.bankAccountNumber || "",
-      bankCardNumber: user?.bankCardNumber || "",
-      bankSheba: user?.bankSheba || "",
-    },
-  });
+instructor.get("/performance", async (c) => {
+  const user = getCurrentUser(c);
+  const courseRows = await db.select().from(courses).where(eq(courses.authorId, user!.id));
+  return c.json(successResponse({ courses: courseRows.length }));
 });
 
-instructor.put("/bank-account", requireAuth, async (c) => {
-  const userId = c.get("user").id;
+// ── Bank Account ────────────────────────────────────────────────────────────
+
+instructor.get("/bank-account", async (c) => {
+  const user = getCurrentUser(c);
+  const rows = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("کاربر یافت نشد."), 404);
+  const u = rows[0];
+  return c.json(successResponse({
+    bankName: u.bankName,
+    bankAccountNumber: u.bankAccountNumber,
+    bankCardNumber: u.bankCardNumber,
+    bankSheba: u.bankSheba,
+  }));
+});
+
+instructor.put("/bank-account", async (c) => {
+  const user = getCurrentUser(c);
   const body = await c.req.json();
   await db.update(users).set({
-    bankName: body.bankName, bankAccountNumber: body.bankAccountNumber,
-    bankCardNumber: body.bankCardNumber, bankSheba: body.bankSheba,
-  }).where(eq(users.id, userId));
-  return c.json({ ok: true });
-});
-
-// ── Performance ─────────────────────────────────────────────────────────────
-
-instructor.get("/performance", requireInstructorOrAdmin, async (c) => {
-  const user = c.get("user");
-  const myRooms = (await db.query.classRooms.findMany()).filter((r) => r.instructorId === user.id);
-  const studentMap = new Map<string, { name: string; questions: number; messages: number; attendance: number }>();
-  for (const room of myRooms) {
-    const messages = await db.query.roomMessages.findMany({ where: eq(roomMessages.roomId, room.id) });
-    for (const m of messages) {
-      if (m.userId === user.id) continue;
-      const existing = studentMap.get(m.userId) ?? { name: "", questions: 0, messages: 0, attendance: 0 };
-      if (m.type === "question") existing.questions++; else existing.messages++;
-      studentMap.set(m.userId, existing);
-    }
-  }
-  const results = [];
-  for (const [id, stats] of studentMap) {
-    const u = await db.query.users.findFirst({ where: eq(users.id, id) });
-    results.push({ studentId: id, ...stats, name: u?.name || stats.name, totalRooms: myRooms.length });
-  }
-  return c.json({ ok: true, data: results });
+    bankName: body.bankName,
+    bankAccountNumber: body.bankAccountNumber,
+    bankCardNumber: body.bankCardNumber,
+    bankSheba: body.bankSheba,
+  }).where(eq(users.id, user!.id));
+  return c.json(successResponse({ message: "بروزرسانی شد." }));
 });
 
 export default instructor;

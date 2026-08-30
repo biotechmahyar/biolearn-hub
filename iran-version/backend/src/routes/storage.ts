@@ -1,211 +1,184 @@
-/**
- * Storage / Media Library Routes
- * Upload, List, Get, Update, Delete, Presign, Receipt Download
- */
 import { Hono } from "hono";
-import { success, errorResponse } from "../lib/response.js";
-import type { AppEnv } from "../lib/types.js";
-import { storage } from "../storage/index.js";
-import { mediaService } from "../services/media.service.js";
 import { db } from "../db/index.js";
-import { eq, and } from "drizzle-orm";
-import { offlinePayments } from "../db/schema.js";
+import { mediaItems } from "../db/schema.js";
+import { eq, and, ilike, or } from "drizzle-orm";
+import { requireAuth, getCurrentUser } from "../middleware/auth.js";
+import { successResponse, errorResponse } from "../types/index.js";
+import * as fs from "fs";
+import * as path from "path";
 
-const app = new Hono<AppEnv>();
+const storage = new Hono();
 
-// Allowed MIME types for upload
-const ALLOWED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/svg+xml",
+const ALLOWED_MIME_TYPES = [
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml",
   "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "audio/mpeg",
-  "audio/wav",
-  "video/mp4",
-  "video/webm",
+  "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "audio/mpeg", "audio/wav",
+  "video/mp4", "video/webm",
   "application/zip",
-  "text/plain",
-  "text/csv",
-]);
+  "text/plain", "text/csv",
+];
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
-// ── Middleware: require auth ───────────────────────────────────────────────
-app.use("*", async (c, next) => {
-  const userId = c.get("userId");
-  if (!userId) {
-    return c.json(errorResponse("برای دسترسی لازم است وارد شوید.", "UNAUTHORIZED"), 401);
+function getStoragePath(): string {
+  return process.env.LOCAL_STORAGE_PATH || "./uploads";
+}
+
+function ensureDir(dir: string) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-  await next();
+}
+
+// GET /api/media
+storage.get("/", requireAuth, async (c) => {
+  const category = c.req.query("category");
+  const search = c.req.query("search");
+  const limit = parseInt(c.req.query("limit") || "50", 10);
+  const offset = parseInt(c.req.query("offset") || "0", 10);
+
+  let rows = await db.select().from(mediaItems).orderBy(mediaItems.createdAt);
+
+  if (category) {
+    rows = rows.filter((r) => r.category === category);
+  }
+  if (search) {
+    const q = search.trim().toLowerCase();
+    rows = rows.filter((r) => r.name.toLowerCase().includes(q) || r.alt?.toLowerCase().includes(q));
+  }
+
+  return c.json(successResponse(rows.slice(offset, offset + limit)));
 });
 
-// ── Upload File ───────────────────────────────────────────────────────────
+// GET /api/media/:id
+storage.get("/:id", requireAuth, async (c) => {
+  const id = c.req.param("id");
+  const rows = await db.select().from(mediaItems).where(eq(mediaItems.id, id)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("فایل یافت نشد."), 404);
+  return c.json(successResponse(rows[0]));
+});
 
-app.post("/upload", async (c) => {
-  const userId = c.get("userId") as string;
-
+// POST /api/media/upload
+storage.post("/upload", requireAuth, async (c) => {
+  const user = getCurrentUser(c);
   const body = await c.req.parseBody();
-  const file = body["file"];
+  const file = body["file"] as File;
+  if (!file) return c.json(errorResponse("فایل ارسال نشد."), 400);
 
-  if (!file || !(file instanceof File)) {
-    return c.json(errorResponse("فایل ارسال نشده است.", "VALIDATION"), 400);
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    return c.json(errorResponse("نوع فایل مجاز نیست."), 400);
   }
-
   if (file.size > MAX_FILE_SIZE) {
-    return c.json(errorResponse(`حجم فایل نباید بیشتر از ${MAX_FILE_SIZE / 1024 / 1024}MB باشد.`, "VALIDATION"), 400);
+    return c.json(errorResponse("حجم فایل بیشتر از ۵۰ مگابایت است."), 400);
   }
 
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return c.json(errorResponse("نوع فایل پشتیبانی نمی‌شود.", "VALIDATION"), 400);
-  }
+  // Sanitize filename
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, ".");
+  const uniqueName = `${Date.now()}-${safeName}`;
+  const storagePath = getStoragePath();
+  ensureDir(storagePath);
 
-  const category = (body["category"] as string) || "general";
-  const date = new Date();
-  const ymd = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
-  const ext = file.name.split(".").pop() || "bin";
-  const base = file.name.replace(/[^a-zA-Z0-9\u0600-\u06FF_.-]/g, "_").substring(0, 80);
-  const key = `${category}/${ymd}/${Date.now()}_${base}.${ext}`;
-
+  const filePath = path.join(storagePath, uniqueName);
   const buffer = Buffer.from(await file.arrayBuffer());
-  const url = await storage.upload(key, buffer, file.type);
+  fs.writeFileSync(filePath, buffer);
 
-  const mediaItem = await mediaService.upload(userId, {
+  const url = `/api/media/file/${uniqueName}`;
+
+  const [item] = await db.insert(mediaItems).values({
+    url,
     name: file.name,
-    mimeType: file.type,
+    alt: (body["alt"] as string) || null,
+    caption: (body["caption"] as string) || null,
+    category: (body["category"] as string) || null,
     size: file.size,
-    url: url || "",
-    alt: (body["alt"] as string) || "",
-    caption: (body["caption"] as string) || "",
-    category,
+    mimeType: file.type,
+    uploadedBy: user!.id,
+  }).returning();
+
+  return c.json(successResponse(item), 201);
+});
+
+// GET /api/media/file/:filename — Serve uploaded files
+storage.get("/file/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  // Prevent path traversal
+  if (filename.includes("..") || filename.includes("/") || filename.includes("\\")) {
+    return c.json(errorResponse("نام فایل نامعتبر است."), 400);
+  }
+
+  const filePath = path.join(getStoragePath(), filename);
+  if (!fs.existsSync(filePath)) {
+    return c.json(errorResponse("فایل یافت نشد."), 404);
+  }
+
+  const buffer = fs.readFileSync(filePath);
+  const ext = path.extname(filename).toLowerCase();
+  const mimeMap: Record<string, string> = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+    ".pdf": "application/pdf", ".mp3": "audio/mpeg", ".wav": "audio/wav",
+    ".mp4": "video/mp4", ".webm": "video/webm", ".zip": "application/zip",
+    ".txt": "text/plain", ".csv": "text/csv",
+  };
+  const mime = mimeMap[ext] || "application/octet-stream";
+
+  return new Response(buffer, {
+    headers: { "Content-Type": mime, "Content-Length": buffer.length.toString() },
   });
-
-  return c.json(success(mediaItem), 201);
 });
 
-// ── Presign Upload URL ────────────────────────────────────────────────────
-
-app.post("/presign", async (c) => {
+// POST /api/media/presign — Get presigned upload URL (for local storage, just return the upload endpoint)
+storage.post("/presign", requireAuth, async (c) => {
   const body = await c.req.json();
-  if (!body.filename || !body.contentType) {
-    return c.json(errorResponse("نام فایل و نوع فایل لازم است.", "VALIDATION"), 400);
-  }
-
-  if (!ALLOWED_MIME_TYPES.has(body.contentType)) {
-    return c.json(errorResponse("نوع فایل پشتیبانی نمی‌شود.", "VALIDATION"), 400);
-  }
-
-  const category = body.category || "general";
-  const date = new Date();
-  const ymd = `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
-  const ext = body.filename.split(".").pop() || "bin";
-  const base = body.filename.replace(/[^a-zA-Z0-9\u0600-\u06FF_.-]/g, "_").substring(0, 80);
-  const key = `${category}/${ymd}/${Date.now()}_${base}.${ext}`;
-  const url = await storage.getPresignedUploadUrl(key, body.contentType);
-
-  return c.json(success({ url, key }));
+  const filename = body.filename || "upload";
+  const safeName = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+  return c.json(successResponse({
+    url: `/api/media/upload`,
+    method: "POST",
+    fields: { key: safeName },
+  }));
 });
 
-// ── List Media ────────────────────────────────────────────────────────────
-
-app.get("/", async (c) => {
-  const category = c.req.query("category") || undefined;
-  const search = c.req.query("search") || undefined;
-  const limit = parseInt(c.req.query("limit") || "50");
-  const offset = parseInt(c.req.query("offset") || "0");
-
-  const items = await mediaService.list({ category, search, limit, offset });
-  const total = await mediaService.count(category);
-
-  return c.json(success({ items, total, limit, offset }));
-});
-
-// ── Get Media Item ────────────────────────────────────────────────────────
-
-app.get("/:id", async (c) => {
-  const id = c.req.param("id");
-  const item = await mediaService.getById(id);
-  if (!item) return c.json(errorResponse("فایل یافت نشد.", "NOT_FOUND"), 404);
-  return c.json(success(item));
-});
-
-// ── Update Media Metadata ─────────────────────────────────────────────────
-
-app.put("/:id", async (c) => {
+// PUT /api/media/:id
+storage.put("/:id", requireAuth, async (c) => {
   const id = c.req.param("id");
   const body = await c.req.json();
-  const updated = await mediaService.update(id, {
+  const [updated] = await db.update(mediaItems).set({
     alt: body.alt,
     caption: body.caption,
     category: body.category,
     name: body.name,
-  });
-  if (!updated) return c.json(errorResponse("فایل یافت نشد.", "NOT_FOUND"), 404);
-  return c.json(success(updated));
+  }).where(eq(mediaItems.id, id)).returning();
+  if (!updated) return c.json(errorResponse("فایل یافت نشد."), 404);
+  return c.json(successResponse(updated));
 });
 
-// ── Delete Media ──────────────────────────────────────────────────────────
-
-app.delete("/:id", async (c) => {
+// DELETE /api/media/:id
+storage.delete("/:id", requireAuth, async (c) => {
+  const user = getCurrentUser(c);
   const id = c.req.param("id");
-  const item = await mediaService.delete(id);
-  if (!item) return c.json(errorResponse("فایل یافت نشد.", "NOT_FOUND"), 404);
-  try {
-    const urlParts = item.url.split("/");
-    const key = urlParts.slice(-3).join("/");
-    await storage.delete(key);
-  } catch {
-    // Storage delete failure is non-critical
+  const rows = await db.select().from(mediaItems).where(eq(mediaItems.id, id)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("فایل یافت نشد."), 404);
+
+  // Only uploader or admin can delete
+  if (rows[0].uploadedBy !== user!.id && !["admin", "site_admin"].includes(user!.role!)) {
+    return c.json(errorResponse("دسترسی غیرمجاز."), 403);
   }
-  return c.json(success(item));
+
+  // Delete file from disk
+  const url = rows[0].url;
+  if (url.startsWith("/api/media/file/")) {
+    const filename = url.split("/").pop();
+    if (filename) {
+      const filePath = path.join(getStoragePath(), filename);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+  }
+
+  await db.delete(mediaItems).where(eq(mediaItems.id, id));
+  return c.json(successResponse({ message: "حذف شد." }));
 });
 
-// ── Secure Receipt Download ───────────────────────────────────────────────
-// Ownership + RBAC enforced: admin sees all, user sees own receipts only.
-
-app.get("/receipt/:paymentId", async (c) => {
-  const userId = c.get("userId") as string;
-  const userRole = c.get("userRole") as string;
-  const paymentId = c.req.param("paymentId");
-
-  const isAdmin = ["admin", "site_admin"].includes(userRole);
-
-  // Build query: admin sees any, user sees own
-  const conditions = isAdmin
-    ? eq(offlinePayments.id, paymentId)
-    : and(eq(offlinePayments.id, paymentId), eq(offlinePayments.userId, userId));
-
-  const rows = await db
-    .select()
-    .from(offlinePayments)
-    .where(conditions)
-    .limit(1);
-
-  const payment = rows[0];
-  if (!payment) {
-    return c.json(errorResponse("رسید یافت نشد یا دسترسی ندارید.", "NOT_FOUND"), 404);
-  }
-
-  if (!payment.receiptStorageId) {
-    return c.json(errorResponse("رسید آپلود نشده است.", "NOT_FOUND"), 404);
-  }
-
-  // Generate presigned download URL for the receipt
-  const downloadUrl = await storage.getPresignedDownloadUrl(payment.receiptStorageId);
-
-  return c.json(success({
-    paymentId: payment.id,
-    receiptUrl: downloadUrl,
-    receiptStorageId: payment.receiptStorageId,
-    amount: payment.amount,
-    trackingNumber: payment.trackingNumber,
-    status: payment.status,
-  }));
-});
-
-export { app as storageRoutes };
+export default storage;

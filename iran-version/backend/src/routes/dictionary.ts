@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import { db } from "../db/index.js";
 import { dictionaryTerms } from "../db/schema.js";
+import { eq, or, ilike } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
-import { eq, ilike, or, desc } from "drizzle-orm";
+import { requireDictionaryEditor } from "../middleware/rbac.js";
+import { successResponse, errorResponse } from "../types/index.js";
 
-const dict = new Hono();
+const dictionary = new Hono();
 
 function slugifyTerm(term: string): string {
   const t = term.trim();
@@ -16,74 +18,103 @@ function slugifyTerm(term: string): string {
 }
 
 // GET /api/dictionary
-dict.get("/", async (c) => {
-  const q = (c.req.query("q") || c.req.query("query") || "").trim();
-  const limit = parseInt(c.req.query("limit") || "20");
-  let terms = await db.query.dictionaryTerms.findMany();
-  if (q) {
-    const lower = q.toLowerCase();
-    terms = terms.filter((t) =>
-      t.term.toLowerCase().includes(lower) || t.fullName.toLowerCase().includes(lower) || t.slug.toLowerCase().includes(lower)
+dictionary.get("/", async (c) => {
+  const query = c.req.query("query");
+  const limit = parseInt(c.req.query("limit") || "20", 10);
+
+  let rows;
+  if (query && query.trim()) {
+    const q = query.trim().toLowerCase();
+    const all = await db.select().from(dictionaryTerms);
+    rows = all.filter(
+      (t) =>
+        t.term.toLowerCase().includes(q) ||
+        t.fullName.toLowerCase().includes(q) ||
+        t.slug.toLowerCase().includes(q),
     );
+  } else {
+    rows = await db.select().from(dictionaryTerms);
   }
-  return c.json({ ok: true, data: terms.slice(0, limit) });
+
+  return c.json(successResponse(rows.slice(0, limit)));
 });
 
 // GET /api/dictionary/:slug
-dict.get("/:slug", async (c) => {
-  const term = await db.query.dictionaryTerms.findFirst({ where: eq(dictionaryTerms.slug, c.req.param("slug")) });
-  if (!term) return c.json({ ok: false, error: "اصطلاح یافت نشد." }, 404);
-  return c.json({ ok: true, data: term });
+dictionary.get("/:slug", async (c) => {
+  const slug = c.req.param("slug");
+  const rows = await db.select().from(dictionaryTerms).where(eq(dictionaryTerms.slug, slug)).limit(1);
+  if (rows.length === 0) return c.json(errorResponse("اصطلاح یافت نشد."), 404);
+  return c.json(successResponse(rows[0]));
 });
 
 // POST /api/dictionary
-dict.post("/", requireAuth, async (c) => {
-  const user = c.get("user");
-  if (!["instructor", "content_manager", "site_admin", "admin"].includes(user.role || "")) {
-    return c.json({ ok: false, error: "فقط مدرس، مدیر محتوا یا ادمین می‌تواند اصطلاح اضافه کند." }, 403);
-  }
+dictionary.post("/", requireAuth, requireDictionaryEditor, async (c) => {
   const body = await c.req.json();
   const term = body.term?.trim();
-  if (!term) return c.json({ ok: false, error: "نام اصطلاح لازم است." }, 400);
-  const existing = await db.query.dictionaryTerms.findFirst({ where: eq(dictionaryTerms.term, term) });
-  if (existing) return c.json({ ok: false, error: "این اصطلاح از قبل در دیکشنری وجود دارد." }, 409);
-  const [created] = await db.insert(dictionaryTerms).values({
-    term, slug: slugifyTerm(term), fullName: body.fullName || "",
-    gramStatus: body.gramStatus || "", shape: body.shape || "", oxygen: body.oxygen || "",
-    habitat: body.habitat || "", diseases: body.diseases || [], virulence: body.virulence || [],
-    diagnosis: body.diagnosis || "", characteristics: body.characteristics || [],
-    examNotes: body.examNotes || [], sources: body.sources || [],
+  if (!term) return c.json(errorResponse("نام اصطلاح لازم است."), 400);
+
+  const existing = await db.select().from(dictionaryTerms).where(eq(dictionaryTerms.term, term)).limit(1);
+  if (existing.length > 0) return c.json(errorResponse("این اصطلاح از قبل در دیکشنری وجود دارد."), 409);
+
+  const [newTerm] = await db.insert(dictionaryTerms).values({
+    term,
+    slug: slugifyTerm(term),
+    fullName: body.fullName || "",
+    gramStatus: body.gramStatus || "",
+    shape: body.shape || "",
+    oxygen: body.oxygen || "",
+    habitat: body.habitat || "",
+    diseases: body.diseases || [],
+    virulence: body.virulence || [],
+    diagnosis: body.diagnosis || "",
+    characteristics: body.characteristics || [],
+    examNotes: body.examNotes || [],
+    sources: body.sources || [],
   }).returning();
-  return c.json({ ok: true, data: created }, 201);
+
+  return c.json(successResponse(newTerm), 201);
 });
 
 // PUT /api/dictionary/:id
-dict.put("/:id", requireAuth, async (c) => {
-  const user = c.get("user");
-  if (!["instructor", "content_manager", "site_admin", "admin"].includes(user.role || "")) {
-    return c.json({ ok: false, error: "فقط مدرس، مدیر محتوا یا ادمین می‌تواند اصطلاح ویرایش کند." }, 403);
-  }
+dictionary.put("/:id", requireAuth, requireDictionaryEditor, async (c) => {
+  const id = c.req.param("id");
   const body = await c.req.json();
   const term = body.term?.trim();
-  if (!term) return c.json({ ok: false, error: "نام اصطلاح لازم است." }, 400);
-  await db.update(dictionaryTerms).set({
-    term, slug: slugifyTerm(term), fullName: body.fullName || "",
-    gramStatus: body.gramStatus || "", shape: body.shape || "", oxygen: body.oxygen || "",
-    habitat: body.habitat || "", diseases: body.diseases || [], virulence: body.virulence || [],
-    diagnosis: body.diagnosis || "", characteristics: body.characteristics || [],
-    examNotes: body.examNotes || [], sources: body.sources || [],
-  }).where(eq(dictionaryTerms.id, c.req.param("id")));
-  return c.json({ ok: true });
+  if (!term) return c.json(errorResponse("نام اصطلاح لازم است."), 400);
+
+  const existing = await db.select().from(dictionaryTerms).where(eq(dictionaryTerms.id, id)).limit(1);
+  if (existing.length === 0) return c.json(errorResponse("اصطلاح یافت نشد."), 404);
+
+  const dup = await db.select().from(dictionaryTerms).where(eq(dictionaryTerms.term, term)).limit(1);
+  if (dup.length > 0 && dup[0].id !== id) {
+    return c.json(errorResponse("اصطلاحی با این نام از قبل وجود دارد."), 409);
+  }
+
+  const [updated] = await db.update(dictionaryTerms).set({
+    term,
+    slug: slugifyTerm(term),
+    fullName: body.fullName,
+    gramStatus: body.gramStatus,
+    shape: body.shape,
+    oxygen: body.oxygen,
+    habitat: body.habitat,
+    diseases: body.diseases,
+    virulence: body.virulence,
+    diagnosis: body.diagnosis,
+    characteristics: body.characteristics,
+    examNotes: body.examNotes,
+    sources: body.sources,
+  }).where(eq(dictionaryTerms.id, id)).returning();
+
+  return c.json(successResponse(updated));
 });
 
 // DELETE /api/dictionary/:id
-dict.delete("/:id", requireAuth, async (c) => {
-  const user = c.get("user");
-  if (!["instructor", "content_manager", "site_admin", "admin"].includes(user.role || "")) {
-    return c.json({ ok: false, error: "فقط مدرس، مدیر محتوا یا ادمین می‌تواند اصطلاح حذف کند." }, 403);
-  }
-  await db.delete(dictionaryTerms).where(eq(dictionaryTerms.id, c.req.param("id")));
-  return c.json({ ok: true });
+dictionary.delete("/:id", requireAuth, requireDictionaryEditor, async (c) => {
+  const id = c.req.param("id");
+  const rows = await db.delete(dictionaryTerms).where(eq(dictionaryTerms.id, id)).returning();
+  if (rows.length === 0) return c.json(errorResponse("اصطلاح یافت نشد."), 404);
+  return c.json(successResponse({ message: "حذف شد." }));
 });
 
-export default dict;
+export default dictionary;

@@ -1,80 +1,91 @@
-import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
-import dotenv from "dotenv";
-import { db } from "./db/index.js";
-import { users } from "./db/schema.js";
-import { api } from "./routes/index.js";
-import { setupSocketIO } from "./ws/index.js";
+import { serve } from "@hono/node-server";
+import { db, isDbAvailable } from "./db/index.js";
 
-dotenv.config();
+// Routes
+import authRoutes from "./routes/auth.js";
+import usersRoutes from "./routes/users.js";
+import contentRoutes from "./routes/content.js";
+import adminRoutes from "./routes/admin.js";
+import examsRoutes from "./routes/exams.js";
+import commerceRoutes from "./routes/commerce.js";
+import mentorRoutes from "./routes/mentor.js";
+import ticketsRoutes from "./routes/tickets.js";
+import commentsRoutes from "./routes/comments.js";
+import dictionaryRoutes from "./routes/dictionary.js";
+import instructorRoutes from "./routes/instructor.js";
+import notificationsRoutes from "./routes/notifications.js";
+import storageRoutes from "./routes/storage.js";
 
 const app = new Hono();
 
-// ── Global Middleware ────────────────────────────────────────────────────────
-app.use("*", logger());
+// ── Middleware ───────────────────────────────────────────────────────────────
+
 app.use(
   "*",
   cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:5173",
     credentials: true,
-  })
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  }),
 );
 
-// ── Health Check ─────────────────────────────────────────────────────────────
-app.get("/api/health", (c) => {
+// ── Health ──────────────────────────────────────────────────────────────────
+
+app.get("/api/health", async (c) => {
+  const dbOk = await isDbAvailable();
   return c.json({
-    status: "ok",
-    version: "0.1.0",
+    ok: true,
+    service: "nibrc-iran-backend",
+    version: "1.0.0",
+    db: dbOk ? "connected" : "unavailable",
     timestamp: Date.now(),
   });
 });
 
 app.get("/api/health/db", async (c) => {
-  try {
-    await db.select().from(users).limit(1);
-    return c.json({ status: "ok", database: "connected" });
-  } catch {
-    return c.json({ status: "error", database: "disconnected" }, 503);
-  }
+  const dbOk = await isDbAvailable();
+  return c.json({ ok: dbOk, db: dbOk ? "connected" : "unavailable" });
 });
 
-// ── API Routes — single mount point via central router ───────────────────────
-app.route("/api", api);
+// ── Routes ──────────────────────────────────────────────────────────────────
 
-// ── 404 Handler ──────────────────────────────────────────────────────────────
+app.route("/api/auth", authRoutes);
+app.route("/api/users", usersRoutes);
+app.route("/api/content", contentRoutes);
+app.route("/api/admin", adminRoutes);
+app.route("/api/exams", examsRoutes);
+app.route("/api/commerce", commerceRoutes);
+app.route("/api/mentor", mentorRoutes);
+app.route("/api/tickets", ticketsRoutes);
+app.route("/api/comments", commentsRoutes);
+app.route("/api/dictionary", dictionaryRoutes);
+app.route("/api/instructor", instructorRoutes);
+app.route("/api/notifications", notificationsRoutes);
+app.route("/api/media", storageRoutes);
+
+// ── 404 ─────────────────────────────────────────────────────────────────────
+
 app.notFound((c) => {
-  return c.json({ error: "Not Found" }, 404);
+  return c.json({ ok: false, error: "Endpoint not found" }, 404);
 });
 
-// ── Error Handler ────────────────────────────────────────────────────────────
+// ── Error handler ───────────────────────────────────────────────────────────
+
 app.onError((err, c) => {
-  console.error("Server error:", err);
-  return c.json({ error: "Internal Server Error" }, 500);
+  console.error("Unhandled error:", err);
+  return c.json({ ok: false, error: "Internal server error" }, 500);
 });
 
-// ── Start Server ─────────────────────────────────────────────────────────────
-const port = parseInt(process.env.PORT || "3000");
-const host = process.env.HOST || "0.0.0.0";
+// ── Start ───────────────────────────────────────────────────────────────────
 
-const serverInfo = serve(
-  {
-    fetch: app.fetch,
-    port,
-    hostname: host,
-  },
-  (info) => {
-    console.log(`🚀 NIBRC Backend running on http://${host}:${info.port}`);
-    console.log(`📦 Database: ${process.env.DATABASE_URL ? "configured" : "NOT configured"}`);
-  }
-);
+const port = parseInt(process.env.PORT || "3000", 10);
 
-// ── Socket.IO ────────────────────────────────────────────────────────────────
-try {
-  setupSocketIO(serverInfo as any);
-} catch (e) {
-  console.warn("⚠️ Socket.IO setup skipped:", (e as Error).message);
-}
+serve({ fetch: app.fetch, port }, (info) => {
+  console.log(`🚀 NIBRC Iran Backend running on http://localhost:${info.port}`);
+  console.log(`📊 Health: http://localhost:${info.port}/api/health`);
+});
 
-export type AppType = typeof app;
+export default app;
