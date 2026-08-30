@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { Scrypt } from "lucia";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { roleValidator } from "./schema";
 
 const ROLES = [
   "user",
@@ -167,6 +168,7 @@ export const adminGetUsers = query({
         name: u.name ?? null,
         email: u.email ?? null,
         role: u.role ?? null,
+        secondaryRole: u.secondaryRole ?? null,
         university: u.university ?? null,
         major: u.major ?? null,
         isAnonymous: u.isAnonymous ?? false,
@@ -205,6 +207,25 @@ export const adminSetRole = mutation({
         await ctx.db.delete(row._id);
       }
     }
+    return { ok: true };
+  },
+});
+
+// Set or clear a secondary role for admin/site_admin so they can also teach/mentor.
+export const adminSetSecondaryRole = mutation({
+  args: { userId: v.id("users"), secondaryRole: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const me = await getCurrentUser(ctx);
+    if (!me) throw new Error("کاربر یافت نشد.");
+    // Only admin / site_admin can have a secondary role
+    if (me.role !== "admin" && me.role !== "site_admin") {
+      throw new Error("فقط ادمین و مدیر سایت می‌توانند نقش ثانویه داشته باشند.");
+    }
+    const val = args.secondaryRole;
+    await ctx.db.patch(args.userId, {
+      secondaryRole: val && val !== "" ? (val as any) : undefined,
+    });
     return { ok: true };
   },
 });

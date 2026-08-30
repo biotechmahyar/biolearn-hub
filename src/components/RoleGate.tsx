@@ -62,7 +62,9 @@ export function RoleGate({ allowed, children, title }: RoleGateProps) {
   }
 
   const role = user.role ?? "user";
-  if (!allowed.includes(role)) {
+  const secondaryRole = user.secondaryRole;
+  const hasAccess = allowed.includes(role) || (secondaryRole && allowed.includes(secondaryRole));
+  if (!hasAccess) {
     // Redirect staff members to their own panel instead of the student dashboard.
     return <Navigate to={panelForRole(role)} replace />;
   }

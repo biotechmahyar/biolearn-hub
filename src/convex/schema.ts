@@ -84,6 +84,7 @@ const schema = defineSchema(
       isAnonymous: v.optional(v.boolean()),
 
       role: v.optional(roleValidator),
+      secondaryRole: v.optional(roleValidator),
       university: v.optional(v.string()),
       major: v.optional(v.string()),
 

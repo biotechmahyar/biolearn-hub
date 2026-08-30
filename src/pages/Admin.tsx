@@ -2046,6 +2046,7 @@ function AdminUsers() {
   const isSystemAdmin = me?.role === "admin";
   const users = useQuery(api.admin.adminGetUsers);
   const setRole = useMutation(api.admin.adminSetRole);
+  const setSecondaryRole = useMutation(api.admin.adminSetSecondaryRole);
   const createUser = useMutation(api.admin.adminCreateUser);
   const setPassword = useMutation(api.admin.adminSetPassword);
   const updateUser = useMutation(api.admin.adminUpdateUser);
@@ -2223,6 +2224,20 @@ function AdminUsers() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {(u.role === "admin" || u.role === "site_admin") && (
+                      <Select
+                        value={u.secondaryRole ?? ""}
+                        onValueChange={(v) => setSecondaryRole({ userId: u._id, secondaryRole: v === "_clear" ? undefined : v })}
+                      >
+                        <SelectTrigger className="mt-1 w-40"><SelectValue placeholder="نقش ثانویه…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_clear">بدون نقش ثانویه</SelectItem>
+                          {ROLES.filter((r) => r !== "admin" && r !== "site_admin" && r !== (u.role ?? "")).map((r) => (
+                            <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </TableCell>
                   <TableCell>
                     {u.email ? (
