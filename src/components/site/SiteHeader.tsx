@@ -51,9 +51,13 @@ export function SiteHeader() {
   const [open, setOpen] = useState(false);
 
   const role = user?.role;
+  const secondaryRole = user?.secondaryRole as string | undefined;
   const isStaff = !!role && role !== "user" && role !== "member";
   const myPanel = panelForRole(role);
   const myPanelLabel = isStaff ? (ROLE_LABEL[role] ?? "پنل من") : null;
+  const hasSecondaryPanel = !!secondaryRole && secondaryRole !== role;
+  const secondaryPanel = hasSecondaryPanel ? panelForRole(secondaryRole) : null;
+  const secondaryPanelLabel = hasSecondaryPanel ? (ROLE_LABEL[secondaryRole] ?? "پنل دوم") : null;
 
   const { settings, setTheme } = useSettings();
   const isDark = settings.theme === "dark";
@@ -124,6 +128,12 @@ export function SiteHeader() {
                   <DropdownMenuItem onClick={() => navigate("/dashboard")} className="cursor-pointer">
                     <LayoutDashboard className="ml-2 size-4" />
                     پنل دانشجویی
+                  </DropdownMenuItem>
+                )}
+                {hasSecondaryPanel && secondaryPanel && (
+                  <DropdownMenuItem onClick={() => navigate(secondaryPanel)} className="cursor-pointer">
+                    <ShieldCheck className="ml-2 size-4" />
+                    {secondaryPanelLabel}
                   </DropdownMenuItem>
                 )}
 

@@ -213,12 +213,15 @@ function RoomsView({
   rooms: RoomRow[];
   onOpen: (id: string) => void;
 }) {
+  const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
+  const [hideOthers, setHideOthers] = useState(false);
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [description, setDescription] = useState("");
   const createRoom = useMutation(api.collab.createRoom);
   const deleteRoom = useMutation(api.collab.deleteRoom);
+  const isAdminOrManager = user?.role === "admin" || user?.role === "site_admin";
 
   async function handleCreate() {
     try {
@@ -235,7 +238,10 @@ function RoomsView({
   }
 
   const live = rooms.filter((r) => r.status === "live");
-  const past = rooms.filter((r) => r.status !== "live");
+  const pastRaw = rooms.filter((r) => r.status !== "live");
+  const past = hideOthers && user?.name
+    ? pastRaw.filter((r) => (r.instructorName ?? "") === user.name)
+    : pastRaw;
 
   return (
     <div className="space-y-6">
@@ -340,9 +346,17 @@ function RoomsView({
 
       {past.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-            جلسات گذشته
-          </p>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              جلسات گذشته ({past.length}{hideOthers ? "/" + pastRaw.length : ""})
+            </p>
+            <button
+              onClick={() => setHideOthers((h) => !h)}
+              className="text-[11px] text-slate-400 underline-offset-2 hover:underline"
+            >
+              {hideOthers ? "نمایش همه" : "فقط جلسات خودم"}
+            </button>
+          </div>
           <div className="space-y-2">
             {past.map((room) => (
               <div
@@ -367,13 +381,15 @@ function RoomsView({
                   >
                     {room.status === "ended" ? "پایان‌یافته" : "زمان‌بندی‌شده"}
                   </Badge>
-                  <button
-                    onClick={() => void deleteRoom({ roomId: room._id as any })}
-                    title="حذف جلسه و تمام محتویاتش"
-                    className="text-slate-600 transition-colors hover:text-red-400"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
+                  {isAdminOrManager && (
+                    <button
+                      onClick={() => void deleteRoom({ roomId: room._id as any })}
+                      title="حذف جلسه و تمام محتویاتش"
+                      className="text-slate-600 transition-colors hover:text-red-400"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
