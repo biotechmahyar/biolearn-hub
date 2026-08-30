@@ -26,7 +26,7 @@ export async function requireAuth(c: Context, next: Next) {
     return c.json({ error: "Invalid or expired token" }, 401);
   }
 
-  const [dbUser] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+  const [dbUser] = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
   if (!dbUser) {
     return c.json({ error: "User not found" }, 401);
   }
@@ -44,7 +44,7 @@ export async function optionalAuth(c: Context, next: Next) {
     const token = authHeader.slice(7);
     const payload = verifyAccessToken(token);
     if (payload) {
-      const [dbUser] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
+      const [dbUser] = await db.select().from(users).where(eq(users.id, payload.sub)).limit(1);
       if (dbUser) {
         c.set("user", { ...payload, dbUser });
       }

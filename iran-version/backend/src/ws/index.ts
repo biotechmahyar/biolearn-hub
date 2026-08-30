@@ -31,7 +31,7 @@ export function setupSocketIO(server: HttpServer) {
       return next(new Error("Invalid token"));
     }
 
-    (socket as any).userId = payload.userId;
+    (socket as any).userId = payload.sub;
     (socket as any).userRole = payload.role;
     next();
   });

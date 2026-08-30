@@ -1,58 +1,61 @@
+/**
+ * User profile routes — require authentication.
+ */
 import { Hono } from "hono";
-import { requireAuth, requireAdmin } from "../middleware/auth.js";
+import { success, errorResponse } from "../lib/response.js";
+import { userService } from "../services/user.service.js";
+import { updateProfileSchema } from "../lib/validators.js";
+
+import type { AppEnv } from "../lib/types.js";
+
+const userRoutes = new Hono<AppEnv>();
+
+import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
-import { eq } from "drizzle-orm";
 
-export const userRoutes = new Hono();
-
-// Get current user profile
-userRoutes.get("/me", requireAuth, async (c) => {
-  const user = c.get("user");
-  const u = user.dbUser;
-  return c.json({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    secondaryRole: u.secondaryRole,
-    image: u.image,
-    university: u.university,
-    major: u.major,
-    firstName: u.firstName,
-    lastName: u.lastName,
-    avatarUrl: u.avatarUrl,
-    about: u.about,
-  });
+// ── Auth middleware — require logged-in user ────────────────────────────────
+userRoutes.use("*", async (c, next) => {
+  const userId = c.get("userId");
+  if (!userId) {
+    return c.json(errorResponse("Unauthorized", "UNAUTHORIZED"), 401);
+  }
+  await next();
 });
 
-// Update own profile
-userRoutes.put("/me", requireAuth, async (c) => {
-  const user = c.get("user");
-  const body = await c.req.json();
-  const allowed = ["name", "firstName", "lastName", "about", "university", "major"];
-  const updates: Record<string, any> = {};
-  for (const key of allowed) {
-    if (body[key] !== undefined) updates[key] = body[key];
-  }
-  if (Object.keys(updates).length > 0) {
-    updates.updatedAt = new Date();
-    await db.update(users).set(updates).where(eq(users.id, user.userId));
-  }
-  return c.json({ message: "Profile updated" });
-});
-
-// List users (admin only)
-userRoutes.get("/", requireAuth, requireAdmin, async (c) => {
-  const allUsers = await db.select().from(users);
+// GET /api/users/me — get current user profile
+userRoutes.get("/me", async (c) => {
+  const userId = c.get("userId");
+  const user = await userService.findById(userId);
+  if (!user) return c.json(errorResponse("User not found"), 404);
   return c.json(
-    allUsers.map((u) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      secondaryRole: u.secondaryRole,
-      createdAt: u.createdAt,
-    }))
+    success({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      secondaryRole: user.secondaryRole,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      about: user.about,
+      avatarUrl: user.avatarUrl,
+      university: user.university,
+      major: user.major,
+    })
   );
 });
+
+// PUT /api/users/me — update profile (staged for non-admins)
+userRoutes.put("/me", async (c) => {
+  const userId = c.get("userId");
+  const body = await c.req.json();
+  const parsed = updateProfileSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(errorResponse(parsed.error.issues[0].message, "VALIDATION"), 400);
+  }
+  const user = await userService.updateProfile(userId, parsed.data);
+  if (!user) return c.json(errorResponse("User not found"), 404);
+  return c.json(success({ updated: true }));
+});
+
+export { userRoutes };

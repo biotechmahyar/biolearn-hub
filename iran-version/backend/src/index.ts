@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import dotenv from "dotenv";
 import { db } from "./db/index.js";
+import { users } from "./db/schema.js";
 import { authRoutes } from "./routes/auth.js";
 import { userRoutes } from "./routes/users.js";
 import { contentRoutes } from "./routes/content.js";
@@ -36,17 +37,23 @@ app.get("/api/health", (c) => {
 
 app.get("/api/health/db", async (c) => {
   try {
-    await db.execute({ sql: "SELECT 1" });
+    // Simple DB connectivity check
+    const result = await db.select().from(users).limit(1);
     return c.json({ status: "ok", database: "connected" });
   } catch (error) {
     return c.json({ status: "error", database: "disconnected" }, 503);
   }
 });
 
+import { authMiddleware } from "./middleware/jwt.js";
+
 // ── API Routes ───────────────────────────────────────────────────────────────
 app.route("/api/auth", authRoutes);
+app.route("/api/content", contentRoutes); // Public — no auth needed
+// Protected routes: extract user from JWT
+app.use("/api/users/*", authMiddleware);
+app.use("/api/admin/*", authMiddleware);
 app.route("/api/users", userRoutes);
-app.route("/api/content", contentRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/api/upload", uploadRoutes);
 
@@ -65,7 +72,7 @@ app.onError((err, c) => {
 const port = parseInt(process.env.PORT || "3000");
 const host = process.env.HOST || "0.0.0.0";
 
-const server = serve(
+const serverInfo = serve(
   {
     fetch: app.fetch,
     port,
@@ -78,6 +85,11 @@ const server = serve(
 );
 
 // ── Socket.IO ────────────────────────────────────────────────────────────────
-setupSocketIO(server);
+// serverInfo is the underlying Node HTTP server — pass it to Socket.IO
+try {
+  setupSocketIO(serverInfo as any);
+} catch (e) {
+  console.warn("⚠️ Socket.IO setup skipped:", (e as Error).message);
+}
 
 export type AppType = typeof app;

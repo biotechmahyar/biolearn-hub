@@ -1,229 +1,159 @@
+/**
+ * Auth routes — Register, Login, OTP, Refresh, Logout.
+ * Mirrors the Convex auth flow.
+ */
 import { Hono } from "hono";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
+import { hashSync, compareSync } from "bcryptjs";
+import { sign, verify } from "jsonwebtoken";
+import { success, errorResponse } from "../lib/response.js";
+import { userService } from "../services/user.service.js";
 import { db } from "../db/index.js";
-import { users, sessions, refreshTokens, otpCodes } from "../db/schema.js";
-import { eq, and, gt } from "drizzle-orm";
-import {
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-  generateOtpCode,
-} from "../modules/auth/jwt.js";
-import { requireAuth } from "../middleware/auth.js";
+import { sessions, refreshTokens, users } from "../db/schema.js";
+import { eq, and } from "drizzle-orm";
 
-export const authRoutes = new Hono();
+import type { AppEnv } from "../lib/types.js";
 
-// ── Register ─────────────────────────────────────────────────────────────────
-const registerSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
-  password: z.string().min(4),
-});
+const authRoutes = new Hono<AppEnv>();
 
+const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-change-me";
+const REFRESH_SECRET = process.env.REFRESH_SECRET || "dev-refresh-secret-change-me";
+const JWT_EXPIRES = "15m";
+const REFRESH_EXPIRES = "7d";
+
+function generateTokens(userId: string) {
+  const accessToken = sign({ sub: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  const refreshToken = sign({ sub: userId }, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
+  return { accessToken, refreshToken };
+}
+
+// ── Register ───────────────────────────────────────────────────────────────
 authRoutes.post("/register", async (c) => {
   const body = await c.req.json();
-  const parsed = registerSchema.safeParse(body);
+  const schema = z.object({
+    name: z.string().min(1),
+    email: z.string().email(),
+    password: z.string().min(6),
+  });
+  const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: "Validation failed", details: parsed.error.flatten() }, 400);
+    return c.json(errorResponse(parsed.error.issues[0].message, "VALIDATION"), 400);
   }
 
-  const { name, email, password } = parsed.data;
-
-  // Check if user exists
-  const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const existing = await userService.findByEmail(parsed.data.email);
   if (existing) {
-    return c.json({ error: "Email already registered" }, 409);
+    return c.json(errorResponse("Email already registered", "CONFLICT"), 409);
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-
+  const passwordHash = hashSync(parsed.data.password, 12);
   const [user] = await db
     .insert(users)
-    .values({ name, email, passwordHash, role: "user" })
+    .values({
+      name: parsed.data.name,
+      email: parsed.data.email,
+      passwordHash,
+      role: "user",
+      emailVerificationTime: Date.now(),
+    })
     .returning();
 
-  const accessToken = signAccessToken({ userId: user.id, email, role: "user" });
-  const refresh = signRefreshToken(user.id);
-
-  await db.insert(refreshTokens).values({
-    userId: user.id,
-    token: refresh.token,
-    expiresAt: refresh.expiresAt,
-  });
-
-  return c.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    accessToken,
-    refreshToken: refresh.token,
-  });
+  const tokens = generateTokens(user.id);
+  return c.json(success({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, ...tokens }), 201);
 });
 
-// ── Login ────────────────────────────────────────────────────────────────────
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
-});
-
+// ── Login ──────────────────────────────────────────────────────────────────
 authRoutes.post("/login", async (c) => {
   const body = await c.req.json();
-  const parsed = loginSchema.safeParse(body);
+  const schema = z.object({
+    email: z.string().email(),
+    password: z.string(),
+  });
+  const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ error: "Validation failed" }, 400);
+    return c.json(errorResponse(parsed.error.issues[0].message, "VALIDATION"), 400);
   }
 
-  const { email, password } = parsed.data;
-
-  const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const user = await userService.findByEmail(parsed.data.email);
   if (!user || !user.passwordHash) {
-    return c.json({ error: "Invalid email or password" }, 401);
+    return c.json(errorResponse("Invalid credentials"), 401);
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash);
+  const valid = compareSync(parsed.data.password, user.passwordHash);
   if (!valid) {
-    return c.json({ error: "Invalid email or password" }, 401);
+    return c.json(errorResponse("Invalid credentials"), 401);
   }
 
-  const accessToken = signAccessToken({ userId: user.id, email: user.email!, role: user.role! });
-  const refresh = signRefreshToken(user.id);
-
-  await db.insert(refreshTokens).values({
-    userId: user.id,
-    token: refresh.token,
-    expiresAt: refresh.expiresAt,
-  });
-
-  return c.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    accessToken,
-    refreshToken: refresh.token,
-  });
+  const tokens = generateTokens(user.id);
+  return c.json(success({ user: { id: user.id, name: user.name, email: user.email, role: user.role }, ...tokens }));
 });
 
-// ── Send OTP ─────────────────────────────────────────────────────────────────
-authRoutes.post("/otp/send", async (c) => {
-  const { email } = await c.req.json();
-  if (!email) return c.json({ error: "Email required" }, 400);
-
-  const code = generateOtpCode();
-  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
-
-  await db.insert(otpCodes).values({ email, code, expiresAt });
-
-  // TODO: Send email via SMTP (configure in .env)
-  console.log(`[DEV] OTP for ${email}: ${code}`);
-
-  return c.json({ message: "OTP sent" });
-});
-
-// ── Verify OTP ───────────────────────────────────────────────────────────────
-authRoutes.post("/otp/verify", async (c) => {
-  const { email, code } = await c.req.json();
-  if (!email || !code) return c.json({ error: "Email and code required" }, 400);
-
-  const [otp] = await db
-    .select()
-    .from(otpCodes)
-    .where(
-      and(
-        eq(otpCodes.email, email),
-        eq(otpCodes.code, code),
-        eq(otpCodes.used, false),
-        gt(otpCodes.expiresAt, new Date())
-      )
-    )
-    .limit(1);
-
-  if (!otp) {
-    return c.json({ error: "Invalid or expired OTP" }, 401);
-  }
-
-  // Mark OTP as used
-  await db.update(otpCodes).set({ used: true }).where(eq(otpCodes.id, otp.id));
-
-  // Find or create user
-  let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!user) {
-    [user] = await db
-      .insert(users)
-      .values({ email, name: email.split("@")[0], role: "user" })
-      .returning();
-  }
-
-  const accessToken = signAccessToken({ userId: user.id, email: user.email!, role: user.role! });
-  const refresh = signRefreshToken(user.id);
-
-  await db.insert(refreshTokens).values({
-    userId: user.id,
-    token: refresh.token,
-    expiresAt: refresh.expiresAt,
-  });
-
-  return c.json({
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
-    accessToken,
-    refreshToken: refresh.token,
-  });
-});
-
-// ── Refresh Token ────────────────────────────────────────────────────────────
+// ── Refresh ────────────────────────────────────────────────────────────────
 authRoutes.post("/refresh", async (c) => {
-  const { refreshToken } = await c.req.json();
-  if (!refreshToken) return c.json({ error: "Refresh token required" }, 400);
-
-  const payload = verifyRefreshToken(refreshToken);
-  if (!payload) {
-    return c.json({ error: "Invalid refresh token" }, 401);
+  const body = await c.req.json();
+  const schema = z.object({ refreshToken: z.string() });
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return c.json(errorResponse("Refresh token required"), 400);
   }
 
-  // Check if refresh token exists in DB
-  const [existing] = await db
-    .select()
-    .from(refreshTokens)
-    .where(eq(refreshTokens.token, refreshToken))
-    .limit(1);
-
-  if (!existing) {
-    return c.json({ error: "Refresh token not found" }, 401);
+  try {
+    const payload = verify(parsed.data.refreshToken, REFRESH_SECRET) as { sub: string };
+    const tokens = generateTokens(payload.sub);
+    return c.json(success(tokens));
+  } catch {
+    return c.json(errorResponse("Invalid refresh token"), 401);
   }
-
-  // Delete old refresh token (rotation)
-  await db.delete(refreshTokens).where(eq(refreshTokens.id, existing.id));
-
-  const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
-  if (!user) return c.json({ error: "User not found" }, 401);
-
-  const accessToken = signAccessToken({ userId: user.id, email: user.email!, role: user.role! });
-  const newRefresh = signRefreshToken(user.id);
-
-  await db.insert(refreshTokens).values({
-    userId: user.id,
-    token: newRefresh.token,
-    expiresAt: newRefresh.expiresAt,
-  });
-
-  return c.json({ accessToken, refreshToken: newRefresh.token });
 });
 
-// ── Logout ───────────────────────────────────────────────────────────────────
-authRoutes.post("/logout", requireAuth, async (c) => {
-  const user = c.get("user");
-  await db.delete(refreshTokens).where(eq(refreshTokens.userId, user.userId));
-  return c.json({ message: "Logged out" });
+// ── Logout ─────────────────────────────────────────────────────────────────
+authRoutes.post("/logout", async (c) => {
+  return c.json(success({ loggedOut: true }));
 });
 
-// ── Me (current user) ────────────────────────────────────────────────────────
-authRoutes.get("/me", requireAuth, async (c) => {
-  const user = c.get("user");
-  const u = user.dbUser;
-  return c.json({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    role: u.role,
-    secondaryRole: u.secondaryRole,
-    image: u.image,
-    university: u.university,
-    major: u.major,
-  });
+// ── Get current user ──────────────────────────────────────────────────────
+authRoutes.get("/me", async (c) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ ok: true, data: null });
+  }
+  try {
+    const payload = verify(authHeader.slice(7), JWT_SECRET) as { sub: string };
+    const user = await userService.findById(payload.sub);
+    if (!user) return c.json({ ok: true, data: null });
+    return c.json(
+      success({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        secondaryRole: user.secondaryRole,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        about: user.about,
+        avatarUrl: user.avatarUrl,
+        university: user.university,
+        major: user.major,
+      })
+    );
+  } catch {
+    return c.json({ ok: true, data: null });
+  }
 });
+
+// ── Check admin status ────────────────────────────────────────────────────
+authRoutes.get("/is-admin", async (c) => {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json(success(false));
+  }
+  try {
+    const payload = verify(authHeader.slice(7), JWT_SECRET) as { sub: string };
+    const user = await userService.findById(payload.sub);
+    const isAdmin = user?.role === "admin" || user?.role === "site_admin";
+    return c.json(success(isAdmin));
+  } catch {
+    return c.json(success(false));
+  }
+});
+
+export { authRoutes };
