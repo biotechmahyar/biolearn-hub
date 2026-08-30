@@ -7,6 +7,7 @@ import { NotificationCenter } from "@/components/site/NotificationCenter";
 import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
+import { TelegramAutoLinker } from "@/components/site/TelegramAutoLinker";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { StrictMode, useEffect, lazy, Suspense } from "react";
@@ -96,6 +97,7 @@ createRoot(document.getElementById("root")!).render(
         <BrowserRouter>
           <NotificationCenter />
           <SeedBootstrap />
+          <TelegramAutoLinker />
           <RouteSyncer />
           <Suspense fallback={<RouteLoading />}>
             <Routes>

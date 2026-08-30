@@ -396,3 +396,30 @@ export const _completeLinking = mutation({
     return { success: true as const, userId: codeDoc.userId };
   },
 });
+
+/** Internal: find user by ID — used by linkByTelegramInitData action */
+export const _findUserById = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.userId);
+  },
+});
+
+/** Internal: directly link Telegram to a user (for Mini App auto-link) */
+export const _linkDirect = mutation({
+  args: {
+    userId: v.id("users"),
+    telegramId: v.number(),
+    telegramUsername: v.optional(v.string()),
+    telegramFirstName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, {
+      telegramId: args.telegramId,
+      telegramUsername: args.telegramUsername,
+      telegramFirstName: args.telegramFirstName,
+      telegramLinkedAt: Date.now(),
+    });
+    return { success: true };
+  },
+});

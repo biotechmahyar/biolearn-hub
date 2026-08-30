@@ -320,3 +320,94 @@ export const getMenuButton = action({
     }
   },
 });
+
+// ── Telegram Mini App Auto-Link ─────────────────────────────────────────────
+
+import { createHmac } from "node:crypto";
+
+/**
+ * Validate Telegram WebApp initData and link the Telegram account
+ * to the currently signed-in Genova user.
+ *
+ * Flow: Telegram WebApp → initData → Backend HMAC validation → Account linking.
+ */
+export const linkByTelegramInitData = action({
+  args: { initData: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("لطفاً وارد شوید.");
+
+    // 1. Get the bot token (server-side only)
+    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    if (!tokenData?.token) throw new Error("توکن بات ذخیره نشده است.");
+    const botToken: string = tokenData.token;
+
+    // 2. Parse initData query parameters
+    const params = new URLSearchParams(args.initData);
+    const hash = params.get("hash");
+    if (!hash) throw new Error(" initData معتبر نیست (hash missing).");
+    params.delete("hash");
+
+    // 3. Build the data-check-string: sorted key=value pairs joined by newlines
+    const dataCheckString = Array.from(params.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n");
+
+    // 4. Compute HMAC-SHA256 using bot_token as secret key
+    const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
+    const computedHash = createHmac("sha256", secretKey)
+      .update(dataCheckString)
+      .digest("hex");
+
+    if (computedHash !== hash) {
+      throw new Error("اعتبارسنجی Telegram ناموفق بود.");
+    }
+
+    // 5. Extract Telegram user info from initData
+    const userStr = params.get("user");
+    if (!userStr) throw new Error("اطلاعات کاربر Telegram یافت نشد.");
+
+    let tgUser: { id: number; first_name?: string; username?: string };
+    try {
+      tgUser = JSON.parse(userStr);
+    } catch {
+      throw new Error("اطلاعات کاربر Telegram نامعتبر است.");
+    }
+
+    const telegramId = tgUser.id;
+    if (!telegramId || typeof telegramId !== "number") {
+      throw new Error("Telegram User ID نامعتبر است.");
+    }
+
+    // 6. Check if this Telegram account is already linked to THIS user
+    const currentUser = await ctx.runQuery(api.telegramBot._findUserById, { userId });
+    if (!currentUser) throw new Error("کاربر Genova یافت نشد.");
+
+    if (currentUser.telegramId === telegramId) {
+      // Already linked — just return success
+      return { success: true, alreadyLinked: true };
+    }
+
+    if (currentUser.telegramId && currentUser.telegramId !== telegramId) {
+      // This Genova user is linked to a DIFFERENT Telegram account
+      throw new Error("حساب Telegram شما قبلاً به حساب دیگری متصل است. ابتدا آن را قطع کنید.");
+    }
+
+    // 7. Check if this Telegram ID is linked to ANOTHER Genova user
+    const existingOwner = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+    if (existingOwner) {
+      throw new Error("این حساب Telegram قبلاً به یک حساب Genova دیگر متصل شده است.");
+    }
+
+    // 8. Link!
+    await ctx.runMutation(api.telegramBot._linkDirect, {
+      userId,
+      telegramId,
+      telegramUsername: tgUser.username,
+      telegramFirstName: tgUser.first_name,
+    });
+
+    return { success: true, alreadyLinked: false };
+  },
+});
