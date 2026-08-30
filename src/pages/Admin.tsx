@@ -432,12 +432,14 @@ export default function Admin() {
           </nav>
 
           <div className="mt-4 space-y-2 border-t border-border/70 pt-3">
-            <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
-              <Link to="/dashboard">
-                <BookOpen className="ml-2 size-4" />
-                پنل دانشجویی
-              </Link>
-            </Button>
+            {!isSystemAdmin && (
+              <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+                <Link to="/dashboard">
+                  <BookOpen className="ml-2 size-4" />
+                  پنل دانشجویی
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
               <Link to="/">
                 <Home className="ml-2 size-4" />
@@ -518,12 +520,14 @@ export default function Admin() {
                     ))}
                   </nav>
                   <div className="mt-6 space-y-2 border-t border-border/70 pt-4">
-                    <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
-                      <Link to="/dashboard">
-                        <BookOpen className="ml-2 size-4" />
-                        پنل دانشجویی
-                      </Link>
-                    </Button>
+                    {!isSystemAdmin && (
+                      <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+                        <Link to="/dashboard">
+                          <BookOpen className="ml-2 size-4" />
+                          پنل دانشجویی
+                        </Link>
+                      </Button>
+                    )}
                     <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
                       <Link to="/">
                         <Home className="ml-2 size-4" />
@@ -564,14 +568,6 @@ export default function Admin() {
                         {r.label}
                       </DropdownMenuItem>
                     ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => navigate("/admin")}
-                      className="cursor-pointer"
-                    >
-                      <ShieldCheck className="ml-2 size-4" />
-                      کنسول مدیریت
-                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
                 )}
@@ -581,9 +577,7 @@ export default function Admin() {
                     <span className="hidden sm:inline">صفحهٔ اصلی</span>
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="sm" className="hidden h-8 rounded-lg text-xs lg:inline-flex">
-                  <Link to="/dashboard">پنل دانشجویی</Link>
-                </Button>
+
               </div>
             </div>
           </header>

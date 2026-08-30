@@ -126,12 +126,7 @@ export function SiteHeader() {
                     پنل دانشجویی
                   </DropdownMenuItem>
                 )}
-                {isAdmin && (
-                  <DropdownMenuItem onClick={() => navigate("/admin")} className="cursor-pointer">
-                    <ShieldCheck className="ml-2 size-4" />
-                    پنل مدیریت
-                  </DropdownMenuItem>
-                )}
+
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive">
                   <LogOut className="ml-2 size-4" />

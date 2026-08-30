@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Timer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useNavigate, useParams } from "react-router";
 
 export default function TestTake() {
@@ -51,6 +52,8 @@ export default function TestTake() {
     } catch (e) {
       console.error(e);
       setSubmitting(false);
+      const msg = e instanceof Error ? e.message : "خطا در ثبت آزمون";
+      toast.error(msg);
     }
   };
 
