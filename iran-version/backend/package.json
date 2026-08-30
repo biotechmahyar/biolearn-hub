@@ -1,0 +1,40 @@
+{
+  "name": "nibrc-iran-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "seed": "tsx src/scripts/seed-admin.ts"
+  },
+  "dependencies": {
+    "hono": "^4.10.7",
+    "@hono/node-server": "^1.14.1",
+    "drizzle-orm": "^0.44.2",
+    "postgres": "^3.4.5",
+    "socket.io": "^4.8.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^3.0.2",
+    "nanoid": "^5.1.5",
+    "zod": "^3.25.76",
+    "dotenv": "^16.5.0",
+    "cors": "^2.8.5",
+    "minio": "^8.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/cors": "^2.8.18",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/bcryptjs": "^3.0.0",
+    "drizzle-kit": "^0.31.1",
+    "tsx": "^4.19.4",
+    "tsc-alias": "^1.8.11",
+    "typescript": "^5.8.3"
+  }
+}
