@@ -16,14 +16,14 @@ import type { AppEnv } from "../lib/types.js";
 
 const authRoutes = new Hono<AppEnv>();
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-change-me";
-const REFRESH_SECRET = process.env.REFRESH_SECRET || "dev-refresh-secret-change-me";
+const jwtSecret = () => process.env.JWT_SECRET || "dev-jwt-secret-change-me";
+const refreshSecret = () => process.env.REFRESH_SECRET || "dev-refresh-secret-change-me";
 const JWT_EXPIRES = "15m";
 const REFRESH_EXPIRES = "7d";
 
 function generateTokens(userId: string) {
-  const accessToken = sign({ sub: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
-  const refreshToken = sign({ sub: userId }, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRES });
+  const accessToken = sign({ sub: userId }, jwtSecret(), { expiresIn: JWT_EXPIRES });
+  const refreshToken = sign({ sub: userId }, refreshSecret(), { expiresIn: REFRESH_EXPIRES });
   return { accessToken, refreshToken };
 }
 
@@ -97,7 +97,7 @@ authRoutes.post("/refresh", async (c) => {
   }
 
   try {
-    const payload = verify(parsed.data.refreshToken, REFRESH_SECRET) as { sub: string };
+    const payload = verify(parsed.data.refreshToken, refreshSecret()) as { sub: string };
     const tokens = generateTokens(payload.sub);
     return c.json(success(tokens));
   } catch {
@@ -117,7 +117,7 @@ authRoutes.get("/me", async (c) => {
     return c.json({ ok: true, data: null });
   }
   try {
-    const payload = verify(authHeader.slice(7), JWT_SECRET) as { sub: string };
+    const payload = verify(authHeader.slice(7), jwtSecret()) as { sub: string };
     const user = await userService.findById(payload.sub);
     if (!user) return c.json({ ok: true, data: null });
     return c.json(
@@ -147,7 +147,7 @@ authRoutes.get("/is-admin", async (c) => {
     return c.json(success(false));
   }
   try {
-    const payload = verify(authHeader.slice(7), JWT_SECRET) as { sub: string };
+    const payload = verify(authHeader.slice(7), jwtSecret()) as { sub: string };
     const user = await userService.findById(payload.sub);
     const isAdmin = user?.role === "admin" || user?.role === "site_admin";
     return c.json(success(isAdmin));

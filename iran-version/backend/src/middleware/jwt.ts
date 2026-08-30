@@ -9,13 +9,13 @@ import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-change-me";
+const jwtSecret = () => process.env.JWT_SECRET || "dev-jwt-secret-change-me";
 
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
   const authHeader = c.req.header("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
     try {
-      const payload = verify(authHeader.slice(7), JWT_SECRET) as {
+      const payload = verify(authHeader.slice(7), jwtSecret()) as {
         sub: string;
       };
       c.set("userId", payload.sub);

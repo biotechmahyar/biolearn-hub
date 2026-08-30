@@ -5,8 +5,8 @@
 import { sign, verify } from "jsonwebtoken";
 import { randomInt } from "crypto";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-change-me";
-const REFRESH_SECRET = process.env.REFRESH_SECRET || "dev-refresh-secret-change-me";
+function jwtSecret() { return process.env.JWT_SECRET || "dev-jwt-secret-change-me"; }
+function refreshSecret() { return process.env.REFRESH_SECRET || "dev-refresh-secret-change-me"; }
 
 export interface JwtPayload {
   sub: string;
@@ -16,20 +16,20 @@ export interface JwtPayload {
 }
 
 export function signAccessToken(payload: { userId: string; role?: string }): string {
-  return sign({ sub: payload.userId, role: payload.role } as object, JWT_SECRET, {
+  return sign({ sub: payload.userId, role: payload.role } as object, jwtSecret(), {
     expiresIn: "15m",
   } as any);
 }
 
 export function signRefreshToken(payload: { userId: string }): string {
-  return sign({ sub: payload.userId } as object, REFRESH_SECRET, {
+  return sign({ sub: payload.userId } as object, refreshSecret(), {
     expiresIn: "7d",
   } as any);
 }
 
 export function verifyAccessToken(token: string): JwtPayload | null {
   try {
-    return verify(token, JWT_SECRET) as JwtPayload;
+    return verify(token, jwtSecret()) as JwtPayload;
   } catch {
     return null;
   }
@@ -37,7 +37,7 @@ export function verifyAccessToken(token: string): JwtPayload | null {
 
 export function verifyRefreshToken(token: string): JwtPayload | null {
   try {
-    return verify(token, REFRESH_SECRET) as JwtPayload;
+    return verify(token, refreshSecret()) as JwtPayload;
   } catch {
     return null;
   }
