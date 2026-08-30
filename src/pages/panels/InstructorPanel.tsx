@@ -8,6 +8,7 @@ import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanva
 import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
+import { gregorianToJalali, toPersianDigits } from "@/lib/jalali";
 import { useMutation, useQuery } from "convex/react";
 import {
   BarChart3,
@@ -543,53 +544,70 @@ function ResourcesView() {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── کلاس‌ها: تقویم ──────────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════════════
+
+function formatTimestampToShamsi(ts: number): string {
+  const d = new Date(ts);
+  const [jy, jm, jd] = gregorianToJalali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+  const months = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+  const h = d.getHours();
+  const m = d.getMinutes();
+  return `${toPersianDigits(jd)} ${months[jm - 1]} ${toPersianDigits(jy)} · ساعت ${toPersianDigits(String(h).padStart(2,"0"))}:${toPersianDigits(String(m).padStart(2,"0"))}`;
+}
 
 function CalendarView() {
-  const myRequests = useQuery(api.admin.listMyClassRequests) ?? [];
-  const scheduled = myRequests.filter((r: any) => r.status === "approved");
-  const pending = myRequests.filter((r: any) => r.status === "pending");
+  const rooms = useQuery(api.collab.listRooms) ?? [];
+  const myRooms = rooms.filter((r) => r.instructorName === useAuth().user?.name);
+  const live = myRooms.filter((r) => r.status === "live");
+  const past = myRooms.filter((r) => r.status === "ended");
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">تقویم کلاس‌ها</h2>
-        <p className="mt-1 text-sm text-slate-400">برنامه کلاس‌ها و درخواست‌های تشکیل کلاس.</p>
+        <p className="mt-1 text-sm text-slate-400">برنامه کلاس‌ها و زمان‌بندی برگزاری.</p>
       </div>
-      {scheduled.length > 0 && (
+
+      {live.length > 0 && (
         <Card className="border-cyan-400/20 bg-[#0b1a2a]">
-          <CardHeader><CardTitle className="text-sm text-cyan-200">کلاس‌های تأیید شده</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm text-cyan-200">کلاس‌های در حال برگزاری</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            {scheduled.map((r: any) => (
+            {live.map((r) => (
               <div key={r._id} className="flex items-center justify-between rounded-lg border border-cyan-400/10 bg-white/[0.02] p-3">
                 <div>
                   <p className="text-sm font-medium text-white">{r.title}</p>
-                  <p className="text-xs text-slate-400">تاریخ: {r.proposedDate} {r.platformUrl ? `· لینک: ${r.platformUrl}` : ""}</p>
+                  <p className="text-xs text-slate-400">{r.topic}</p>
+                  <p className="mt-1 text-[11px] text-cyan-300/70">⏱ شروع: {formatTimestampToShamsi(r.createdAt)}</p>
                 </div>
-                <span className="rounded-full bg-green-400/15 px-2.5 py-1 text-[10px] font-bold text-green-300">تأیید شده</span>
+                <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold text-red-300">LIVE</span>
               </div>
             ))}
           </CardContent>
         </Card>
       )}
-      {pending.length > 0 && (
-        <Card className="border-amber-400/20 bg-amber-400/5">
-          <CardHeader><CardTitle className="text-sm text-amber-200">در انتظار تأیید</CardTitle></CardHeader>
+
+      {past.length > 0 && (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardHeader><CardTitle className="text-sm text-white">کلاس‌های گذشته</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            {pending.map((r: any) => (
-              <div key={r._id} className="rounded-lg border border-amber-400/10 bg-white/[0.02] p-3">
-                <p className="text-sm font-medium text-white">{r.title}</p>
-                <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate}</p>
+            {past.map((r) => (
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.01] p-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-300">{r.title}</p>
+                  <p className="text-xs text-slate-500">{r.topic}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">📅 {formatTimestampToShamsi(r.createdAt)}</p>
+                </div>
+                <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-slate-400">پایان‌یافته</span>
               </div>
             ))}
           </CardContent>
         </Card>
       )}
-      {scheduled.length === 0 && pending.length === 0 && (
+
+      {live.length === 0 && past.length === 0 && (
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Calendar className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">هنوز کلاسی برنامه‌ریزی نشده است.</p>
+            <p className="text-sm text-slate-400">هنوز کلاسی ثبت نشده است.</p>
           </CardContent>
         </Card>
       )}
@@ -597,7 +615,6 @@ function CalendarView() {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
 // ── کلاس‌ها: حضور و غیاب ───────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -975,7 +992,7 @@ function AIAssistantView() {
   );
 }
 
-// ── Rooms list + class request ─────────────────────────────────────────────
+// ── Rooms list + create + cancel ─────────────────────────────────────────────
 function RoomsView({
   rooms,
   onOpen,
@@ -989,16 +1006,16 @@ function RoomsView({
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [description, setDescription] = useState("");
-  const [proposedDate, setProposedDate] = useState("");
   const createRoom = useMutation(api.collab.createRoom);
-  const requestClass = useMutation(api.admin.requestClass);
-  const myRequests = useQuery(api.admin.listMyClassRequests);
-  const classRequests = useQuery(api.admin.adminListClassRequests);
-  const reviewRequest = useMutation(api.admin.adminReviewClassRequest);
+  const deleteRoom = useMutation(api.collab.deleteRoom);
+  const setRoomStatus = useMutation(api.collab.setRoomStatus);
   const isAdminOrManager = user?.role === "admin" || user?.role === "site_admin";
-  const [requestBusy, setRequestBusy] = useState(false);
 
   async function handleCreate() {
+    if (!title.trim()) {
+      toast.error("عنوان کلاس الزامی است");
+      return;
+    }
     try {
       const id = await createRoom({ title, topic, description });
       toast.success("کلاس ساخته شد و اکنون زنده است");
@@ -1012,33 +1029,12 @@ function RoomsView({
     }
   }
 
-  async function handleRequestClass() {
-    if (!title.trim() || !proposedDate.trim()) {
-      toast.error("عنوان و تاریخ پیشنهادی الزامی است");
-      return;
-    }
-    setRequestBusy(true);
+  async function handleCancelRoom(roomId: string) {
     try {
-      await requestClass({ title, topic, description, proposedDate });
-      toast.success("درخواست کلاس برای مدیر ارسال شد");
-      setShowCreate(false);
-      setTitle("");
-      setTopic("");
-      setDescription("");
-      setProposedDate("");
+      await setRoomStatus({ roomId: roomId as any, status: "ended" });
+      toast.success("کلاس لغو شد");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "خطا در ارسال درخواست");
-    } finally {
-      setRequestBusy(false);
-    }
-  }
-
-  async function handleReview(reqId: string, status: "approved" | "rejected", url?: string) {
-    try {
-      await reviewRequest({ id: reqId as any, status, platformUrl: url });
-      toast.success(status === "approved" ? "کلاس تأیید و ایجاد شد" : "درخواست رد شد");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "خطا");
+      toast.error(e instanceof Error ? e.message : "خطا در لغو کلاس");
     }
   }
 
@@ -1050,8 +1046,6 @@ function RoomsView({
   const past = hideOthers && user?.name
     ? pastRaw.filter((r) => (r.instructorName ?? "") === user.name)
     : pastRaw;
-
-  const myPending = (myRequests ?? []).filter((r: any) => r.status === "pending");
 
   return (
     <div className="space-y-6">
@@ -1076,7 +1070,7 @@ function RoomsView({
             onClick={() => setShowCreate((s) => !s)}
           >
             <Plus className="size-4" />
-            درخواست کلاس
+            کلاس جدید
           </Button>
         </div>
       </div>
@@ -1084,44 +1078,34 @@ function RoomsView({
       {showCreate && (
         <Card className="border-cyan-400/20 bg-[#0b1a2a]">
           <CardHeader>
-            <CardTitle className="text-sm text-cyan-200">درخواست تشکیل کلاس</CardTitle>
-            <p className="text-xs text-slate-400 mt-1">
-              درخواست شما برای مدیر سایت ارسال می‌شود. مدیر لینک پلتفرم را تنظیم و کلاس را فعال می‌کند.
-            </p>
+            <CardTitle className="text-sm text-cyan-200">ایجاد کلاس زنده</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input
-              placeholder="عنوان کلاس"
+              placeholder="عنوان کلاس (مثلاً: میکروب‌شناسی — گفتگوی زنده)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
             />
             <Input
-              placeholder="موضوع"
+              placeholder="موضوع (مثلاً: باکتری‌شناسی)"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
             />
             <Textarea
-              placeholder="توضیح کوتاه…"
+              placeholder="توضیح کوتاه دربارهٔ این جلسه…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
-            />
-            <Input
-              type="date"
-              placeholder="تاریخ پیشنهادی"
-              value={proposedDate}
-              onChange={(e) => setProposedDate(e.target.value)}
-              className="border-white/10 bg-white/5 text-slate-100"
             />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>
                 انصراف
               </Button>
-              <Button size="sm" onClick={handleRequestClass} disabled={requestBusy}>
-                {requestBusy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="size-4" />}
-                ارسال درخواست
+              <Button size="sm" onClick={handleCreate}>
+                <Radio className="size-4" />
+                شروع کلاس
               </Button>
             </div>
           </CardContent>
@@ -1141,132 +1125,144 @@ function RoomsView({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {liveFiltered.map((room) => (
-          <button
-            key={room._id}
-            onClick={() => onOpen(room._id)}
-            className="group min-w-0 rounded-xl border border-cyan-400/15 bg-[#0b1a2a] p-4 text-right transition-all hover:border-cyan-400/40 hover:bg-[#0e2033]"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
-                <CircleDot className="size-2.5 animate-pulse" />
-                LIVE
-              </span>
-              <span className="flex items-center gap-2">
-                <ClassTimer startMs={room.createdAt} running={room.status === "live"} />
-                <span className="font-mono text-[10px] text-slate-500">
-                  {room.messageCount} پیام
-                </span>
-              </span>
-            </div>
-            <h3 className="mt-3 break-words font-bold text-white group-hover:text-cyan-200">{room.title}</h3>
-            <p className="mt-1 break-words text-xs text-slate-400">{room.topic}</p>
-            <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-400">
-              <span className="flex min-w-0 items-center gap-1.5">
-                <BookUser className="size-3.5 shrink-0 text-cyan-300/70" />
-                <span className="truncate">{room.instructorName}</span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1.5">
-                <HelpCircle className="size-3.5 text-amber-300" />
-                {room.openQuestions} سؤال بی‌پاسخ
-              </span>
-            </div>
-          </button>
+          <RoomCard key={room._id} room={room} onOpen={onOpen} onCancel={handleCancelRoom} user={user} isOwner={(room.instructorName ?? "") === user?.name} />
         ))}
       </div>
 
-      {myPending.length > 0 && (
-        <Card className="border-amber-400/20 bg-amber-400/5">
-          <CardHeader>
-            <CardTitle className="text-sm text-amber-200">درخواست‌های در انتظار تأیید</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {myPending.map((r: any) => (
-              <div key={r._id} className="flex items-center justify-between gap-3 rounded-lg border border-amber-400/10 bg-white/[0.02] p-3">
-                <div>
-                  <p className="text-sm font-medium text-white">{r.title}</p>
-                  <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate}</p>
-                </div>
-                <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[10px] font-bold text-amber-300">در انتظار</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Admin/Manager: review pending class requests */}
-      {isAdminOrManager && classRequests && (
-        <Card className="border-blue-400/20 bg-blue-400/5">
-          <CardHeader>
-            <CardTitle className="text-sm text-blue-200">درخواست‌های کلاس از مدرسان</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {classRequests.filter((r: any) => r.status === "pending").length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-4">درخواست جدیدی وجود ندارد</p>
-            )}
-            {classRequests.filter((r: any) => r.status === "pending").map((r: any) => (
-              <div key={r._id} className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-white">{r.title}</p>
-                  <span className="rounded-full bg-blue-400/15 px-2.5 py-1 text-[10px] font-bold text-blue-300">درخواست جدید</span>
-                </div>
-                <p className="text-xs text-slate-400">مدرس: {r.instructorName} · تاریخ پیشنهادی: {r.proposedDate}</p>
-                {r.description && <p className="text-xs text-slate-400">{r.description}</p>}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="لینک پلتفرم (Zoom, Google Meet, ...)"
-                    className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-100"
-                    id={`url-${r._id}`}
-                  />
-                  <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => {
-                    const url = (document.getElementById(`url-${r._id}`) as HTMLInputElement)?.value;
-                    handleReview(r._id, "approved", url || undefined);
-                  }}>
-                    تأیید
-                  </Button>
-                  <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => handleReview(r._id, "rejected")}>
-                    رد
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
       {past.length > 0 && (
         <div>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              کلاس‌های گذشته ({past.length})
-            </p>
-          </div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            کلاس‌های گذشته ({past.length})
+          </p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {past.map((room) => (
-              <button
-                key={room._id}
-                onClick={() => onOpen(room._id)}
-                className="group min-w-0 rounded-xl border border-white/5 bg-white/[0.02] p-4 text-right transition-all hover:border-white/15 hover:bg-white/[0.04]"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-slate-400">
-                    پایان‌یافته
-                  </span>
-                  <span className="font-mono text-[10px] text-slate-500">
-                    {room.messageCount} پیام
-                  </span>
-                </div>
-                <h3 className="mt-3 break-words font-bold text-slate-300 group-hover:text-white">{room.title}</h3>
-                <p className="mt-1 break-words text-xs text-slate-500">{room.topic}</p>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
-                  <BookUser className="size-3.5 shrink-0" />
-                  <span className="truncate">{room.instructorName}</span>
-                </div>
-              </button>
+              <RoomCard key={room._id} room={room} onOpen={onOpen} onCancel={handleCancelRoom} user={user} isOwner={(room.instructorName ?? "") === user?.name} isPast />
             ))}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// ── Room card with countdown ─────────────────────────────────────────────────
+
+function RoomCard({
+  room,
+  onOpen,
+  onCancel,
+  user,
+  isOwner,
+  isPast,
+}: {
+  room: RoomRow;
+  onOpen: (id: string) => void;
+  onCancel: (id: string) => void;
+  user: any;
+  isOwner: boolean;
+  isPast?: boolean;
+}) {
+  const [now, setNow] = useState(Date.now());
+  const isLive = room.status === "live";
+  const createdAt = room.createdAt;
+  const elapsed = now - createdAt;
+  const ONE_HOUR = 60 * 60 * 1000;
+
+  // For live rooms, show a countdown since the class started
+  // Instructor can enter 10 min early (not applicable for live - they created it)
+  const showCountdown = isLive && elapsed < ONE_HOUR;
+  const remainingMs = Math.max(0, ONE_HOUR - elapsed);
+  const remainingMin = Math.floor(remainingMs / 60000);
+  const remainingSec = Math.floor((remainingMs % 60000) / 1000);
+
+  useEffect(() => {
+    if (!showCountdown) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [showCountdown]);
+
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => onOpen(room._id)}
+        className={`group min-w-0 rounded-xl border p-4 text-right transition-all ${
+          isPast
+            ? "border-white/5 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"
+            : "border-cyan-400/15 bg-[#0b1a2a] hover:border-cyan-400/40 hover:bg-[#0e2033]"
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          {isLive ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+              <CircleDot className="size-2.5 animate-pulse" />
+              LIVE
+            </span>
+          ) : (
+            <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+              پایان‌یافته
+            </span>
+          )}
+          <span className="font-mono text-[10px] text-slate-500">
+            {room.messageCount} پیام
+          </span>
+        </div>
+        <h3 className="mt-3 break-words font-bold text-white group-hover:text-cyan-200">{room.title}</h3>
+        <p className="mt-1 break-words text-xs text-slate-400">{room.topic}</p>
+
+        {showCountdown && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2">
+            <Clock className="size-3.5 text-red-400 animate-pulse" />
+            <span className="font-mono text-xs font-bold text-red-300">
+              {toPersianDigits(remainingMin)}:{toPersianDigits(String(remainingSec).padStart(2, "0"))}
+            </span>
+            <span className="text-[10px] text-red-300/70">تا پایان</span>
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <BookUser className="size-3.5 shrink-0 text-cyan-300/70" />
+            <span className="truncate">{room.instructorName}</span>
+          </span>
+          {isLive && (
+            <span className="flex shrink-0 items-center gap-1.5">
+              <HelpCircle className="size-3.5 text-amber-300" />
+              {room.openQuestions} سؤال
+            </span>
+          )}
+        </div>
+
+        {isOwner && isLive && (
+          <div className="mt-3 flex justify-end">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10"
+              onClick={(e) => { e.stopPropagation(); setShowCancelConfirm(true); }}
+            >
+              لغو کلاس
+            </Button>
+          </div>
+        )}
+      </button>
+
+      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>لغو کلاس</DialogTitle>
+            <DialogDescription>آیا مطمئنید که می‌خواهید «{room.title}» را لغو کنید؟</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowCancelConfirm(false)}>انصراف</Button>
+            <Button size="sm" variant="destructive" onClick={() => { onCancel(room._id); setShowCancelConfirm(false); }}>
+              لغو کلاس
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
