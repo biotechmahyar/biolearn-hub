@@ -12,6 +12,9 @@ import { mentorRoutes } from "./mentor.js";
 import { ticketRoutes } from "./tickets.js";
 import { commentRoutes } from "./comments.js";
 import { dictionaryRoutes } from "./dictionary.js";
+import { instructorRoutes } from "./instructor.js";
+import { notificationRoutes } from "./notifications.js";
+import { storageRoutes } from "./storage.js";
 
 const api = new Hono();
 
@@ -25,5 +28,8 @@ api.route("/mentor", mentorRoutes);
 api.route("/tickets", ticketRoutes);
 api.route("/comments", commentRoutes);
 api.route("/dictionary", dictionaryRoutes);
+api.route("/instructor", instructorRoutes);
+api.route("/notifications", notificationRoutes);
+api.route("/media", storageRoutes);
 
 export { api };

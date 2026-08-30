@@ -420,3 +420,65 @@ export const updateWorkshopSchema = z.object({
   expertTalk: z.boolean(),
   published: z.boolean(),
 });
+
+// ── Instructor Tools ─────────────────────────────────────────────────────
+
+export const markAttendanceSchema = z.object({
+  studentId: z.string().min(1),
+  studentName: z.string().min(1),
+  present: z.boolean(),
+  note: z.string().optional(),
+});
+
+export const addResourceSchema = z.object({
+  courseId: z.string().min(1),
+  title: z.string().min(1).max(200),
+  description: z.string().optional(),
+  fileUrl: z.string().url(),
+  fileName: z.string().min(1),
+  fileSize: z.number().min(0),
+  fileType: z.string().min(1),
+  isFree: z.boolean(),
+});
+
+export const sendMessageSchema = z.object({
+  receiverId: z.string().min(1),
+  text: z.string().min(1).max(5000),
+});
+
+export const bankAccountSchema = z.object({
+  bankName: z.string().min(1),
+  bankAccountNumber: z.string().min(1),
+  bankCardNumber: z.string().min(1),
+  bankSheba: z.string().min(1),
+});
+
+// ── Notifications ────────────────────────────────────────────────────────
+
+export const announcementSchema = z.object({
+  targetType: z.enum(["all", "course", "exam"]),
+  targetId: z.string().optional(),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(5000),
+});
+
+export const inboxSendSchema = z.object({
+  userId: z.string().min(1),
+  title: z.string().min(1).max(200),
+  body: z.string().min(1).max(5000),
+});
+
+// ── Storage ──────────────────────────────────────────────────────────────
+
+export const presignSchema = z.object({
+  filename: z.string().min(1).max(255),
+  contentType: z.string().min(1),
+  category: z.string().default("general"),
+});
+
+export const updateMediaSchema = z.object({
+  alt: z.string().optional(),
+  caption: z.string().optional(),
+  category: z.string().optional(),
+  name: z.string().min(1).max(255).optional(),
+});

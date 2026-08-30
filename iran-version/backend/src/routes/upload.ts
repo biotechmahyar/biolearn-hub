@@ -1,33 +1,47 @@
+/**
+ * Legacy upload routes — presign, get URL, delete.
+ * New media upload should go through /api/media/upload.
+ */
 import { Hono } from "hono";
-import { requireAuth } from "../middleware/auth.js";
+import { success, errorResponse } from "../lib/response.js";
+import type { AppEnv } from "../lib/types.js";
 import { storage } from "../storage/index.js";
 
-export const uploadRoutes = new Hono();
+const uploadRoutes = new Hono<AppEnv>();
 
-uploadRoutes.use("*", requireAuth);
+// ── Middleware: require auth ───────────────────────────────────────────────
+uploadRoutes.use("*", async (c, next) => {
+  const userId = c.get("userId");
+  if (!userId) {
+    return c.json(errorResponse("برای دسترسی لازم است وارد شوید.", "UNAUTHORIZED"), 401);
+  }
+  await next();
+});
 
 // Get presigned upload URL
 uploadRoutes.post("/presign", async (c) => {
   const { filename, contentType, folder } = await c.req.json();
-  if (!filename) return c.json({ error: "filename required" }, 400);
+  if (!filename) return c.json(errorResponse("filename required", "VALIDATION"), 400);
 
   const key = `${folder || "uploads"}/${Date.now()}-${filename}`;
-  const url = await storage.getPresignedUrl(key, contentType || "application/octet-stream");
+  const url = await storage.getPresignedUploadUrl(key, contentType || "application/octet-stream");
 
-  return c.json({ url, key });
+  return c.json(success({ url, key }));
 });
 
 // Get file URL
-uploadRoutes.get("/url/:key", async (c) => {
-  const key = c.req.param("key");
-  const url = await storage.getUrl(key);
-  if (!url) return c.json({ error: "File not found" }, 404);
-  return c.json({ url });
+uploadRoutes.get("/url/:key(*)", async (c) => {
+  const key = c.req.param("key") || "";
+  const url = await storage.getPresignedDownloadUrl(key);
+  if (!url) return c.json(errorResponse("File not found", "NOT_FOUND"), 404);
+  return c.json(success({ url }));
 });
 
 // Delete file
-uploadRoutes.delete("/:key", async (c) => {
-  const key = c.req.param("key");
+uploadRoutes.delete("/:key(*)", async (c) => {
+  const key = c.req.param("key") || "";
   await storage.delete(key);
-  return c.json({ message: "Deleted" });
+  return c.json(success({ message: "Deleted" }));
 });
+
+export { uploadRoutes };

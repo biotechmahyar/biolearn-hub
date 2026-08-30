@@ -440,3 +440,92 @@ All responses follow the shape:
 | `admin.adminSetRole` | `PUT /api/admin/users/:id/role` |
 | `admin.adminDeleteUser` | `DELETE /api/admin/users/:id` |
 | `profiles.updateMyProfile` | `PUT /api/users/me` |
+
+---
+
+## Instructor Tools (`/api/instructor`)
+
+Requires: Auth
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/instructor/attendance/rooms` | `GET` | List instructor's rooms |
+| `/instructor/attendance/rooms/:roomId/students` | `GET` | List students in a room |
+| `/instructor/attendance/rooms/:roomId` | `GET` | Get attendance records |
+| `/instructor/attendance/rooms/:roomId/mark` | `POST` | Mark student attendance |
+| `/instructor/resources/:courseId` | `GET` | List course resources |
+| `/instructor/resources` | `POST` | Add course resource |
+| `/instructor/resources/:resourceId` | `DELETE` | Delete resource |
+| `/instructor/messages` | `POST` | Send direct message |
+| `/instructor/messages/conversations` | `GET` | List conversations |
+| `/instructor/messages/:partnerId` | `GET` | Get conversation with partner |
+| `/instructor/messages/:partnerId/read` | `POST` | Mark messages as read |
+| `/instructor/payments` | `GET` | List instructor payments |
+| `/instructor/performance` | `GET` | Student performance stats |
+| `/instructor/bank-account` | `GET` | Get bank account info |
+| `/instructor/bank-account` | `PUT` | Update bank account |
+
+---
+
+## Notifications (`/api/notifications`)
+
+Requires: Auth
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/notifications` | `GET` | List visible announcements |
+| `/notifications/all` | `GET` | List all announcements (admin) |
+| `/notifications/mine` | `GET` | List my announcements |
+| `/notifications` | `POST` | Create announcement |
+| `/notifications/:id` | `DELETE` | Delete announcement |
+| `/notifications/reminders` | `GET` | Refresh and get reminders |
+| `/notifications/reminders/:id/shown` | `POST` | Mark reminder as shown |
+| `/notifications/reminders/arm-next-exam` | `POST` | Arm next-exam reminder |
+| `/notifications/reminders/armed-next-exam` | `GET` | Get armed next-exam reminder |
+| `/notifications/inbox` | `GET` | List my inbox messages |
+| `/notifications/inbox` | `POST` | Send inbox message |
+| `/notifications/inbox/:id` | `DELETE` | Delete inbox message |
+| `/notifications/inbox/:id/read` | `POST` | Mark inbox message as read |
+| `/notifications/inbox/all` | `GET` | List all inbox (admin) |
+
+---
+
+## Media / Storage (`/api/media`)
+
+Requires: Auth
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/media` | `GET` | List media (filter by category, search) |
+| `/media/:id` | `GET` | Get media item |
+| `/media/:id` | `PUT` | Update media metadata |
+| `/media/:id` | `DELETE` | Delete media item |
+| `/media/upload` | `POST` | Upload file (multipart/form-data) |
+| `/media/presign` | `POST` | Get presigned upload URL |
+
+**Query params for list:** `category`, `search`, `limit`, `offset`
+
+**Allowed MIME types:** jpg, png, gif, webp, svg, pdf, doc/docx, xls/xlsx, mp3, wav, mp4, webm, zip, txt, csv
+
+**Max file size:** 50MB
+
+---
+
+## Convex → REST Migration Summary
+
+| Category | Convex Functions | REST Endpoints |
+|----------|-----------------|----------------|
+| Auth | 5 | 5 |
+| Content (public) | 15 | 14 |
+| Users | 3 | 3 |
+| Admin (CRUD) | 28 | 30 |
+| Exams | 10 | 17 |
+| Commerce | 14 | 28 |
+| Mentor | 8 | 18 |
+| Tickets | 4 | 7 |
+| Comments | 3 | 6 |
+| Dictionary | 3 | 5 |
+| Instructor Tools | 12 | 15 |
+| Notifications | 10 | 14 |
+| Storage/Media | 4 | 6 |
+| **Total** | **~119** | **~168** |
