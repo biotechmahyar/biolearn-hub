@@ -64,6 +64,7 @@ import {
   Layers,
   Loader2,
   Lock,
+  Clock,
   Mail,
   Menu,
   MessageSquare,
@@ -131,7 +132,9 @@ type Section =
   | "myprofile"
   | "online"
   | "comments"
-  | "payments";
+  | "payments"
+  | "classRequests"
+  | "studentReports";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -165,7 +168,11 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
   },
   {
     title: "تیم",
-    items: [{ key: "instructors", label: "مدرسان", icon: BookUser }],
+    items: [
+      { key: "instructors", label: "مدرسان", icon: BookUser },
+      { key: "studentReports", label: "دانشجویان", icon: Users },
+      { key: "classRequests", label: "درخواست کلاس", icon: Clock },
+    ],
   },
   {
     title: "حساب من",
@@ -607,6 +614,8 @@ export default function Admin() {
             {section === "announcements" && <AdminAnnouncements />}
             {section === "comments" && <AdminComments />}
             {section === "payments" && <AdminPayments />}
+            {section === "classRequests" && <AdminClassRequests />}
+            {section === "studentReports" && <AdminStudentReports />}
             {section === "profiles" && <AdminProfiles />}
             {section === "inbox" && <AdminInbox />}
           </div>
@@ -2239,6 +2248,150 @@ function AdminPayments() {
           </Button>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// ── Class requests from instructors ──────────────────────────────────────────
+function AdminClassRequests() {
+  const requests = useQuery(api.admin.adminListClassRequests);
+  const review = useMutation(api.admin.adminReviewClassRequest);
+  const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({});
+
+  const pending = (requests ?? []).filter((r: any) => r.status === "pending");
+  const reviewed = (requests ?? []).filter((r: any) => r.status !== "pending");
+
+  const handleReview = async (id: string, status: "approved" | "rejected") => {
+    try {
+      await review({ id: id as any, status, platformUrl: platformUrls[id] || undefined });
+      toast.success(status === "approved" ? "کلاس تأیید شد" : "درخواست رد شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="درخواست کلاس" subtitle="تأیید درخواست‌های کلاس مدرسان" count={pending.length} />
+
+      {pending.length === 0 ? (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Clock className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">درخواست جدیدی وجود ندارد.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {pending.map((r: any) => (
+            <Card key={r._id} className="border-border/70 shadow-sm">
+              <CardContent className="space-y-3 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">{r.title}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      مدرس: {r.instructorName} · تاریخ پیشنهادی: {r.proposedDate}
+                    </p>
+                    {r.description && <p className="text-xs text-muted-foreground mt-1">{r.description}</p>}
+                  </div>
+                  <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-500">جدید</span>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    placeholder="لینک پلتفرم (Zoom, Meet, ...) یا خالی برای برگزاری در سایت"
+                    value={platformUrls[r._id] ?? ""}
+                    onChange={(e) => setPlatformUrls((p) => ({ ...p, [r._id]: e.target.value }))}
+                    className="h-8 flex-1 text-xs"
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700 text-xs" onClick={() => handleReview(r._id, "approved")}>
+                      تأیید
+                    </Button>
+                    <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => handleReview(r._id, "rejected")}>
+                      رد
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {reviewed.length > 0 && (
+        <>
+          <h3 className="text-sm font-bold text-muted-foreground">بررسی‌شده</h3>
+          <div className="space-y-2">
+            {reviewed.map((r: any) => (
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
+                <div>
+                  <p className="text-xs font-medium">{r.title}</p>
+                  <p className="text-[11px] text-muted-foreground">{r.instructorName} · {r.proposedDate}</p>
+                </div>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${r.status === "approved" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
+                  {r.status === "approved" ? "تأیید شده" : "رد شده"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Student reports ──────────────────────────────────────────────────────────
+function AdminStudentReports() {
+  const users = useQuery(api.admin.adminGetUsers);
+  const performance = useQuery(api.instructorTools.getStudentPerformance) ?? [];
+
+  const students = (users ?? []).filter((u: any) => u.role === "user" || u.role === "member");
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="گزارش دانشجویان" subtitle="وضعیت و عملکرد دانشجویان سایت" count={students.length} />
+
+      {students.length === 0 ? (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Users className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">دانشجویی ثبت نام نکرده است.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {students.map((s: any) => {
+            const perf = performance.find((p: any) => String(p.studentId) === String(s._id));
+            return (
+              <Card key={s._id} className="border-border/70 shadow-sm">
+                <CardContent className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {(s.name ?? "?")[0]}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{s.name ?? "—"}</p>
+                      <p className="text-xs text-muted-foreground">{s.email ?? "—"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {perf ? (
+                      <>
+                        <span>{perf.questions} سؤال</span>
+                        <span>{perf.messages} پیام</span>
+                        <span>{perf.attendance}/{perf.totalRooms} حضور</span>
+                      </>
+                    ) : (
+                      <span>فعالیتی ثبت نشده</span>
+                    )}
+                    <Badge variant="outline" className="text-[10px]">{s.role ?? "user"}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

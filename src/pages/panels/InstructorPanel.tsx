@@ -1180,13 +1180,16 @@ function RoomsView({
 }) {
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
+  const [showRequest, setShowRequest] = useState(false);
   const [hideOthers, setHideOthers] = useState(true);
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [description, setDescription] = useState("");
+  const [proposedDate, setProposedDate] = useState("");
   const createRoom = useMutation(api.collab.createRoom);
-  const deleteRoom = useMutation(api.collab.deleteRoom);
   const setRoomStatus = useMutation(api.collab.setRoomStatus);
+  const requestClass = useMutation(api.admin.requestClass);
+  const myRequests = useQuery(api.admin.listMyClassRequests);
   const isAdminOrManager = user?.role === "admin" || user?.role === "site_admin";
 
   async function handleCreate() {
@@ -1198,21 +1201,34 @@ function RoomsView({
       const id = await createRoom({ title, topic, description });
       toast.success("کلاس ساخته شد و اکنون زنده است");
       setShowCreate(false);
-      setTitle("");
-      setTopic("");
-      setDescription("");
+      setTitle(""); setTopic(""); setDescription("");
       onOpen(id);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا در ساخت کلاس");
     }
   }
 
-  async function handleCancelRoom(roomId: string) {
+  async function handleRequestClass() {
+    if (!title.trim()) {
+      toast.error("عنوان کلاس الزامی است");
+      return;
+    }
+    try {
+      await requestClass({ title, topic, description, proposedDate: proposedDate || new Date().toISOString().slice(0, 10) });
+      toast.success("درخواست کلاس برای مدیر ارسال شد");
+      setShowRequest(false);
+      setTitle(""); setTopic(""); setDescription(""); setProposedDate("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ارسال درخواست");
+    }
+  }
+
+  async function handleDeletePast(roomId: string) {
     try {
       await setRoomStatus({ roomId: roomId as any, status: "ended" });
-      toast.success("کلاس لغو شد");
+      toast.success("کلاس حذف شد");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "خطا در لغو کلاس");
+      toast.error(e instanceof Error ? e.message : "خطا");
     }
   }
 
@@ -1224,6 +1240,8 @@ function RoomsView({
   const past = hideOthers && user?.name
     ? pastRaw.filter((r) => (r.instructorName ?? "") === user.name)
     : pastRaw;
+
+  const myPending = (myRequests ?? []).filter((r: any) => r.status === "pending");
 
   return (
     <div className="space-y-6">
@@ -1245,7 +1263,14 @@ function RoomsView({
           </Button>
           <Button
             className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
-            onClick={() => setShowCreate((s) => !s)}
+            onClick={() => { setShowCreate(false); setShowRequest((s) => !s); }}
+          >
+            <Send className="size-4" />
+            درخواست کلاس
+          </Button>
+          <Button
+            className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
+            onClick={() => { setShowRequest(false); setShowCreate((s) => !s); }}
           >
             <Plus className="size-4" />
             کلاس جدید
@@ -1253,44 +1278,49 @@ function RoomsView({
         </div>
       </div>
 
+      {/* ── Create form (direct) ── */}
       {showCreate && (
         <Card className="border-cyan-400/20 bg-[#0b1a2a]">
           <CardHeader>
             <CardTitle className="text-sm text-cyan-200">ایجاد کلاس زنده</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input
-              placeholder="عنوان کلاس (مثلاً: میکروب‌شناسی — گفتگوی زنده)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
-            />
-            <Input
-              placeholder="موضوع (مثلاً: باکتری‌شناسی)"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
-            />
-            <Textarea
-              placeholder="توضیح کوتاه دربارهٔ این جلسه…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
-            />
+            <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>
-                انصراف
-              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>انصراف</Button>
               <Button size="sm" onClick={handleCreate}>
-                <Radio className="size-4" />
-                شروع کلاس
+                <Radio className="size-4" /> شروع کلاس
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {liveFiltered.length === 0 && !showCreate && (
+      {/* ── Request form (to admin) ── */}
+      {showRequest && (
+        <Card className="border-amber-400/20 bg-amber-400/5">
+          <CardHeader>
+            <CardTitle className="text-sm text-amber-200">درخواست تشکیل کلاس</CardTitle>
+            <p className="text-xs text-amber-300/60 mt-1">درخواست شما برای مدیر سایت ارسال می‌شود.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Input type="date" placeholder="تاریخ پیشنهادی" value={proposedDate} onChange={(e) => setProposedDate(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowRequest(false)}>انصراف</Button>
+              <Button size="sm" onClick={handleRequestClass}>
+                <Send className="size-4" /> ارسال درخواست
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {liveFiltered.length === 0 && !showCreate && !showRequest && (
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Video className="size-8 text-slate-600" />
@@ -1303,9 +1333,27 @@ function RoomsView({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {liveFiltered.map((room) => (
-          <RoomCard key={room._id} room={room} onOpen={onOpen} onCancel={handleCancelRoom} user={user} isOwner={(room.instructorName ?? "") === user?.name} />
+          <RoomCard key={room._id} room={room} onOpen={onOpen} user={user} isOwner={(room.instructorName ?? "") === user?.name} isAdmin={isAdminOrManager} />
         ))}
       </div>
+
+      {/* Pending requests */}
+      {myPending.length > 0 && (
+        <Card className="border-amber-400/15 bg-amber-400/5">
+          <CardHeader><CardTitle className="text-sm text-amber-200">درخواست‌های در انتظار</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {myPending.map((r: any) => (
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-amber-400/10 bg-white/[0.02] p-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{r.title}</p>
+                  <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate}</p>
+                </div>
+                <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[10px] font-bold text-amber-300">در انتظار</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {past.length > 0 && (
         <div>
@@ -1314,7 +1362,7 @@ function RoomsView({
           </p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {past.map((room) => (
-              <RoomCard key={room._id} room={room} onOpen={onOpen} onCancel={handleCancelRoom} user={user} isOwner={(room.instructorName ?? "") === user?.name} isPast />
+              <RoomCard key={room._id} room={room} onOpen={onOpen} user={user} isOwner={(room.instructorName ?? "") === user?.name} isAdmin={isAdminOrManager} isPast onDelete={isAdminOrManager ? () => handleDeletePast(room._id) : undefined} />
             ))}
           </div>
         </div>
@@ -1328,17 +1376,19 @@ function RoomsView({
 function RoomCard({
   room,
   onOpen,
-  onCancel,
   user,
   isOwner,
+  isAdmin,
   isPast,
+  onDelete,
 }: {
   room: RoomRow;
   onOpen: (id: string) => void;
-  onCancel: (id: string) => void;
   user: any;
   isOwner: boolean;
+  isAdmin?: boolean;
   isPast?: boolean;
+  onDelete?: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
   const isLive = room.status === "live";
@@ -1424,18 +1474,30 @@ function RoomCard({
             </Button>
           </div>
         )}
+        {isPast && isAdmin && onDelete && (
+          <div className="mt-3 flex justify-end">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10"
+              onClick={(e) => { e.stopPropagation(); setShowCancelConfirm(true); }}
+            >
+              حذف کلاس گذشته
+            </Button>
+          </div>
+        )}
       </button>
 
       <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>لغو کلاس</DialogTitle>
-            <DialogDescription>آیا مطمئنید که می‌خواهید «{room.title}» را لغو کنید؟</DialogDescription>
+            <DialogDescription>آیا مطمئنید که می‌خواهید «{room.title}» را {isPast ? "حذف" : "لغو"} کنید؟</DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" size="sm" onClick={() => setShowCancelConfirm(false)}>انصراف</Button>
-            <Button size="sm" variant="destructive" onClick={() => { onCancel(room._id); setShowCancelConfirm(false); }}>
-              لغو کلاس
+            <Button size="sm" variant="destructive" onClick={() => { onDelete?.(); setShowCancelConfirm(false); }}>
+              {isPast ? "حذف" : "لغو کلاس"}
             </Button>
           </div>
         </DialogContent>
