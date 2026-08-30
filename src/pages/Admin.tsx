@@ -318,7 +318,7 @@ export default function Admin() {
   const navigate = useNavigate();
   const notifCounts = useQuery(api.admin.getSectionNotifications);
   // System admins (full power) vs site admins (lower-tier team managers).
-  const isSystemAdmin = user?.role === "admin";
+  const isSystemAdmin = user?.role === "admin" || user?.role === "site_admin";
   // Both system and site admins can jump between the team panels.
   const canRoleSwitch = user?.role === "admin" || user?.role === "site_admin";
 
@@ -1892,16 +1892,23 @@ function AdminProducts() {
 // ── Instructors ─────────────────────────────────────────────────────────────
 function AdminInstructors() {
   const instructors = useQuery(api.admin.adminListInstructors);
+  const users = useQuery(api.admin.adminGetUsers);
   const create = useMutation(api.admin.adminCreateInstructor);
   const update = useMutation(api.admin.adminUpdateInstructor);
   const remove = useMutation(api.admin.adminDeleteInstructor);
+  const createUser = useMutation(api.admin.adminCreateUser);
+  const [userSearch, setUserSearch] = useState("");
+  const [createUserMode, setCreateUserMode] = useState<"existing" | "new">("existing");
+  const [newUserName, setNewUserName] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPass, setNewUserPass] = useState("");
 
-  const empty = { name: "", title: "", bio: "", education: "", specialties: "", accent: "teal", verified: false };
+  const empty = { name: "", title: "", bio: "", education: "", specialties: "", accent: "teal", verified: false, userId: "" };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; instructor: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
 
-  const openCreate = () => { setForm(empty); setDialog({ mode: "create" }); };
+  const openCreate = () => { setForm(empty); setCreateUserMode("existing"); setUserSearch(""); setNewUserName(""); setNewUserEmail(""); setNewUserPass(""); setDialog({ mode: "create" }); };
   const openEdit = (i: any) => {
     setForm({
       name: i.name,
@@ -1911,14 +1918,40 @@ function AdminInstructors() {
       specialties: (i.specialties ?? []).join("، "),
       accent: i.accent || "teal",
       verified: i.verified,
+      userId: i.userId ?? "",
     });
+    setCreateUserMode("existing");
     setDialog({ mode: "edit", instructor: i });
   };
+
+  const filteredUsers = (users ?? []).filter((u: any) =>
+    u.name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.email?.toLowerCase().includes(userSearch.toLowerCase())
+  );
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
     setBusy(true);
     try {
+      let linkedUserId = form.userId || undefined;
+
+      // If user chose "new" mode and filled in details, create user first
+      if (createUserMode === "new" && newUserEmail.trim() && newUserPass.trim() && !form.userId) {
+        try {
+          const result = await createUser({
+            name: newUserName.trim() || form.name,
+            email: newUserEmail.trim(),
+            password: newUserPass,
+            role: "instructor",
+          });
+          if (result?.userId) linkedUserId = result.userId;
+        } catch (e) {
+          toast.error("خطا در ساخت کاربر: " + (e instanceof Error ? e.message : ""));
+          setBusy(false);
+          return;
+        }
+      }
+
       const payload = {
         name: form.name,
         title: form.title,
@@ -1927,6 +1960,7 @@ function AdminInstructors() {
         specialties: form.specialties.split("،").map((s) => s.trim()).filter(Boolean),
         accent: form.accent,
         verified: form.verified,
+        userId: linkedUserId as any,
       };
       if (dialog?.mode === "edit") {
         await update({ id: dialog.instructor._id, ...payload });
@@ -1934,8 +1968,9 @@ function AdminInstructors() {
         await create(payload);
       }
       setDialog(null);
+      toast.success(dialog?.mode === "edit" ? "مدرس به‌روزرسانی شد" : "مدرس اضافه شد");
     } catch (e) {
-      console.error(e);
+      toast.error(e instanceof Error ? e.message : "خطا در ذخیره");
     } finally {
       setBusy(false);
     }
@@ -1958,52 +1993,59 @@ function AdminInstructors() {
               <TableRow>
                 <TableHead>نام</TableHead>
                 <TableHead>تخصص</TableHead>
+                <TableHead>حساب کاربری</TableHead>
                 <TableHead>دوره‌ها</TableHead>
-                <TableHead>کارگاه‌ها</TableHead>
                 <TableHead className="text-left">عملیات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(instructors ?? []).map((i) => (
-                <TableRow key={i._id}>
-                  <TableCell className="font-medium">
-                    {i.name}
-                    {i.verified && (
-                      <span className="mr-1.5 rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary">✓</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-56 truncate text-muted-foreground">{i.title}</TableCell>
-                  <TableCell>{faNum(i.courseCount)}</TableCell>
-                  <TableCell>{faNum(i.workshopCount)}</TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1.5">
-                      <Button size="sm" variant="outline" className="h-7 rounded-md text-xs" onClick={() => openEdit(i)}>
-                        ویرایش
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
-                        onClick={() => remove({ id: i._id })}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {(instructors ?? []).map((i: any) => {
+                const linkedUser = i.userId ? (users ?? []).find((u: any) => u._id === i.userId) : null;
+                return (
+                  <TableRow key={i._id}>
+                    <TableCell className="font-medium">
+                      {i.name}
+                      {i.verified && (
+                        <span className="mr-1.5 rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary">✓</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-56 truncate text-muted-foreground">{i.title}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {linkedUser ? (
+                        <span className="flex items-center gap-1">
+                          <span className="size-1.5 rounded-full bg-green-500" />
+                          {linkedUser.name ?? linkedUser.email}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-500">بدون حساب</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{faNum(i.courseCount)}</TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1.5">
+                        <Button size="sm" variant="outline" className="h-7 rounded-md text-xs" onClick={() => openEdit(i)}>
+                          ویرایش
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                          onClick={() => remove({ id: i._id })}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <p className="text-xs leading-5 text-muted-foreground">
-        برای دادن حساب ورود (ایمیل + رمز) به مدرس، از بخش «کاربران و دسترسی‌ها» یک حساب با نقش
-        «مدرس» بساز؛ این بخش فقط پروفایل نمایشی مدرس را مدیریت می‌کند.
-      </p>
-
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{dialog?.mode === "edit" ? "ویرایش مدرس" : "مدرس جدید"}</DialogTitle>
           </DialogHeader>
@@ -2012,7 +2054,7 @@ function AdminInstructors() {
               <Input placeholder="نام" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               <Input placeholder="تخصص (مثلاً میکروبیولوژی)" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             </div>
-            <Textarea placeholder="معرفی کوتاه" rows={2} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} />
+            <Textarea placeholder="معرفی کوتاه (هر خط در سایت نمایش داده می‌شود)" rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="font-mono text-sm" />
             <Textarea placeholder="تحصیلات (هر مورد در یک خط)" rows={2} value={form.education} onChange={(e) => setForm({ ...form, education: e.target.value })} />
             <Input placeholder="تخصص‌ها (با ، جدا کنید)" value={form.specialties} onChange={(e) => setForm({ ...form, specialties: e.target.value })} />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2029,6 +2071,52 @@ function AdminInstructors() {
                 تأییدشده
               </label>
             </div>
+
+            {/* ── User Link Section ── */}
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-3 space-y-2">
+              <p className="text-xs font-bold text-muted-foreground">حساب کاربری مدرس</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant={createUserMode === "existing" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setCreateUserMode("existing")}>
+                  انتخاب کاربر ثبت‌نام‌شده
+                </Button>
+                <Button size="sm" variant={createUserMode === "new" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setCreateUserMode("new")}>
+                  ساخت کاربر جدید
+                </Button>
+              </div>
+              {createUserMode === "existing" ? (
+                <div className="space-y-2">
+                  <Input placeholder="جستجوی نام یا ایمیل کاربر…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="h-8 text-xs" />
+                  {userSearch && (
+                    <div className="max-h-36 space-y-1 overflow-y-auto rounded border border-border/50 bg-background p-1">
+                      {filteredUsers.length === 0 && <p className="p-2 text-xs text-muted-foreground">کاربری یافت نشد</p>}
+                      {filteredUsers.slice(0, 8).map((u: any) => (
+                        <button
+                          key={u._id}
+                          onClick={() => { setForm({ ...form, userId: u._id, name: form.name || u.name || "" }); setUserSearch(""); }}
+                          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-right text-xs hover:bg-muted ${form.userId === u._id ? "bg-primary/10 text-primary" : ""}`}
+                        >
+                          <span className="size-1.5 shrink-0 rounded-full bg-green-500" />
+                          <span className="truncate">{u.name ?? "بدون نام"}</span>
+                          <span className="mr-auto truncate text-muted-foreground">{u.email}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {form.userId && !userSearch && (
+                    <p className="text-xs text-green-500">
+                      ✓ کاربر انتخاب‌شده: {(users ?? []).find((u: any) => u._id === form.userId)?.name}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <Input placeholder="نام" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} className="h-8 text-xs" />
+                  <Input placeholder="ایمیل" type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} className="h-8 text-xs" />
+                  <Input placeholder="رمز عبور" type="password" value={newUserPass} onChange={(e) => setNewUserPass(e.target.value)} className="h-8 text-xs" />
+                </div>
+              )}
+            </div>
+
             <Button className="w-full" onClick={handleSave} disabled={busy}>
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "افزودن مدرس"}
@@ -2043,7 +2131,7 @@ function AdminInstructors() {
 // ── Users ───────────────────────────────────────────────────────────────────
 function AdminUsers() {
   const { user: me } = useAuth();
-  const isSystemAdmin = me?.role === "admin";
+  const isSystemAdmin = me?.role === "admin" || me?.role === "site_admin";
   const users = useQuery(api.admin.adminGetUsers);
   const setRole = useMutation(api.admin.adminSetRole);
   const setSecondaryRole = useMutation(api.admin.adminSetSecondaryRole);

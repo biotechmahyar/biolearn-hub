@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { Scrypt } from "lucia";
 import { mutation, query, QueryCtx } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { getCurrentUser } from "./users";
 import { roleValidator } from "./schema";
 
@@ -911,6 +912,7 @@ export const adminCreateInstructor = mutation({
     specialties: v.array(v.string()),
     accent: v.string(),
     verified: v.boolean(),
+    userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
@@ -920,11 +922,12 @@ export const adminCreateInstructor = mutation({
       name,
       slug: name.replace(/\s+/g, "-").toLowerCase(),
       title: args.title.trim(),
-      bio: args.bio.trim(),
+      bio: args.bio, // preserve newlines
       education: args.education.filter((e) => e.trim()),
       specialties: args.specialties.filter((s) => s.trim()),
       accent: args.accent || "teal",
       verified: args.verified,
+      ...(args.userId ? { userId: args.userId } : {}),
     });
     return { ok: true };
   },
@@ -940,18 +943,21 @@ export const adminUpdateInstructor = mutation({
     specialties: v.array(v.string()),
     accent: v.string(),
     verified: v.boolean(),
+    userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
-    await ctx.db.patch(args.id, {
+    const patch: Record<string, unknown> = {
       name: args.name.trim(),
       title: args.title.trim(),
-      bio: args.bio.trim(),
+      bio: args.bio, // preserve newlines
       education: args.education.filter((e) => e.trim()),
       specialties: args.specialties.filter((s) => s.trim()),
       accent: args.accent || "teal",
       verified: args.verified,
-    });
+    };
+    if (args.userId !== undefined) patch.userId = args.userId || undefined;
+    await ctx.db.patch(args.id, patch);
     return { ok: true };
   },
 });
@@ -962,6 +968,89 @@ export const adminDeleteInstructor = mutation({
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
     await ctx.db.delete(args.id);
     return { ok: true };
+  },
+});
+
+// ── Class Requests ──────────────────────────────────────────────────────────
+export const requestClass = mutation({
+  args: {
+    title: v.string(),
+    topic: v.string(),
+    description: v.string(),
+    proposedDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("برای ارسال درخواست ابتدا وارد شوید.");
+    const cu = await getCurrentUser(ctx);
+    if (!cu) throw new Error("کاربر یافت نشد.");
+    await ctx.db.insert("classRequests", {
+      instructorId: userId,
+      instructorName: cu.name ?? "",
+      title: args.title,
+      topic: args.topic,
+      description: args.description,
+      proposedDate: args.proposedDate,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    return { ok: true };
+  },
+});
+
+export const adminListClassRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("classRequests").order("desc").collect();
+  },
+});
+
+export const adminReviewClassRequest = mutation({
+  args: {
+    id: v.id("classRequests"),
+    status: v.union(v.literal("approved"), v.literal("rejected")),
+    platformUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    const userId = await getAuthUserId(ctx);
+    await ctx.db.patch(args.id, {
+      status: args.status,
+      reviewedBy: userId ?? undefined,
+      reviewedAt: Date.now(),
+      platformUrl: args.platformUrl,
+    });
+    if (args.status === "approved" && args.platformUrl) {
+      const req = await ctx.db.get(args.id);
+      if (req) {
+        await ctx.db.insert("classRooms", {
+          instructorId: req.instructorId,
+          instructorName: req.instructorName,
+          title: req.title,
+          topic: req.topic,
+          description: req.description,
+          status: "scheduled",
+          broadcasting: false,
+          createdAt: Date.now(),
+          platformUrl: args.platformUrl,
+          scheduledDate: req.proposedDate,
+        });
+      }
+    }
+    return { ok: true };
+  },
+});
+
+export const listMyClassRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    return await ctx.db.query("classRequests")
+      .withIndex("by_instructor", (q) => q.eq("instructorId", userId))
+      .order("desc")
+      .collect();
   },
 });
 

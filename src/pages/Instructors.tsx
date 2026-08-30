@@ -48,7 +48,7 @@ export default function Instructors() {
                   {ins.name}
                 </h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">{ins.title}</p>
-                <p className="mt-3 line-clamp-2 text-[13px] leading-6 text-muted-foreground">
+                <p className="mt-3 line-clamp-2 whitespace-pre-wrap text-[13px] leading-6 text-muted-foreground">
                   {ins.bio}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-1.5">

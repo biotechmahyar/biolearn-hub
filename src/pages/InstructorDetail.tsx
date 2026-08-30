@@ -62,7 +62,7 @@ export default function InstructorDetail() {
                 )}
               </div>
               <p className="mt-1.5 text-sm font-medium text-primary">{instructor.title}</p>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground">
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground whitespace-pre-wrap">
                 {instructor.bio}
               </p>
             </div>

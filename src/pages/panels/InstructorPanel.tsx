@@ -205,7 +205,7 @@ export default function InstructorPanel() {
   );
 }
 
-// ── Rooms list + create ─────────────────────────────────────────────────────
+// ── Rooms list + class request ─────────────────────────────────────────────
 function RoomsView({
   rooms,
   onOpen,
@@ -215,13 +215,18 @@ function RoomsView({
 }) {
   const { user } = useAuth();
   const [showCreate, setShowCreate] = useState(false);
-  const [hideOthers, setHideOthers] = useState(false);
+  const [hideOthers, setHideOthers] = useState(true);
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [description, setDescription] = useState("");
+  const [proposedDate, setProposedDate] = useState("");
   const createRoom = useMutation(api.collab.createRoom);
-  const deleteRoom = useMutation(api.collab.deleteRoom);
+  const requestClass = useMutation(api.admin.requestClass);
+  const myRequests = useQuery(api.admin.listMyClassRequests);
+  const classRequests = useQuery(api.admin.adminListClassRequests);
+  const reviewRequest = useMutation(api.admin.adminReviewClassRequest);
   const isAdminOrManager = user?.role === "admin" || user?.role === "site_admin";
+  const [requestBusy, setRequestBusy] = useState(false);
 
   async function handleCreate() {
     try {
@@ -237,11 +242,46 @@ function RoomsView({
     }
   }
 
+  async function handleRequestClass() {
+    if (!title.trim() || !proposedDate.trim()) {
+      toast.error("عنوان و تاریخ پیشنهادی الزامی است");
+      return;
+    }
+    setRequestBusy(true);
+    try {
+      await requestClass({ title, topic, description, proposedDate });
+      toast.success("درخواست کلاس برای مدیر ارسال شد");
+      setShowCreate(false);
+      setTitle("");
+      setTopic("");
+      setDescription("");
+      setProposedDate("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ارسال درخواست");
+    } finally {
+      setRequestBusy(false);
+    }
+  }
+
+  async function handleReview(reqId: string, status: "approved" | "rejected", url?: string) {
+    try {
+      await reviewRequest({ id: reqId as any, status, platformUrl: url });
+      toast.success(status === "approved" ? "کلاس تأیید و ایجاد شد" : "درخواست رد شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  }
+
   const live = rooms.filter((r) => r.status === "live");
+  const liveFiltered = hideOthers && user?.name
+    ? live.filter((r) => (r.instructorName ?? "") === user.name)
+    : live;
   const pastRaw = rooms.filter((r) => r.status !== "live");
   const past = hideOthers && user?.name
     ? pastRaw.filter((r) => (r.instructorName ?? "") === user.name)
     : pastRaw;
+
+  const myPending = (myRequests ?? []).filter((r: any) => r.status === "pending");
 
   return (
     <div className="space-y-6">
@@ -249,68 +289,88 @@ function RoomsView({
         <div>
           <h2 className="text-xl font-bold text-white">کلاس‌های زنده</h2>
           <p className="mt-1 text-sm text-slate-400">
-            {live.length} کلاس در حال برگزاری — دانشجویان فقط کلاس‌های زنده را می‌بینند.
+            {liveFiltered.length} کلاس{hideOthers ? " خودم" : ""} در حال برگزاری
           </p>
         </div>
-        <Button
-          className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
-          onClick={() => setShowCreate((s) => !s)}
-        >
-          <Plus className="size-4" />
-          کلاس جدید
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-8 rounded-lg text-xs ${hideOthers ? "text-slate-400" : "text-cyan-300"}`}
+            onClick={() => setHideOthers((s) => !s)}
+          >
+            {hideOthers ? "نمایش همه" : "فقط خودم"}
+          </Button>
+          <Button
+            className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
+            onClick={() => setShowCreate((s) => !s)}
+          >
+            <Plus className="size-4" />
+            درخواست کلاس
+          </Button>
+        </div>
       </div>
 
       {showCreate && (
         <Card className="border-cyan-400/20 bg-[#0b1a2a]">
           <CardHeader>
-            <CardTitle className="text-sm text-cyan-200">راه‌اندازی کلاس زنده</CardTitle>
+            <CardTitle className="text-sm text-cyan-200">درخواست تشکیل کلاس</CardTitle>
+            <p className="text-xs text-slate-400 mt-1">
+              درخواست شما برای مدیر سایت ارسال می‌شود. مدیر لینک پلتفرم را تنظیم و کلاس را فعال می‌کند.
+            </p>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input
-              placeholder="عنوان کلاس (مثلاً: میکروب‌شناسی — گفتگوی زنده)"
+              placeholder="عنوان کلاس"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
             />
             <Input
-              placeholder="موضوع (مثلاً: باکتری‌شناسی)"
+              placeholder="موضوع"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
               className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
             />
             <Textarea
-              placeholder="توضیح کوتاه دربارهٔ این جلسه…"
+              placeholder="توضیح کوتاه…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+            />
+            <Input
+              type="date"
+              placeholder="تاریخ پیشنهادی"
+              value={proposedDate}
+              onChange={(e) => setProposedDate(e.target.value)}
+              className="border-white/10 bg-white/5 text-slate-100"
             />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>
                 انصراف
               </Button>
-              <Button size="sm" onClick={handleCreate}>
-                <Radio className="size-4" />
-                شروع کلاس
+              <Button size="sm" onClick={handleRequestClass} disabled={requestBusy}>
+                {requestBusy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="size-4" />}
+                ارسال درخواست
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {live.length === 0 && !showCreate && (
+      {liveFiltered.length === 0 && !showCreate && (
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Video className="size-8 text-slate-600" />
             <p className="text-sm text-slate-400">
-              کلاسی در حال برگزاری نیست. یک کلاس جدید بسازید تا دانشجویان بتوانند سؤال بپرسند.
+              {hideOthers ? "کلاس فعالی از شما وجود ندارد." : "کلاسی در حال برگزاری نیست."}
             </p>
           </CardContent>
         </Card>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {live.map((room) => (
+        {liveFiltered.map((room) => (
           <button
             key={room._id}
             onClick={() => onOpen(room._id)}
@@ -344,54 +404,94 @@ function RoomsView({
         ))}
       </div>
 
+      {myPending.length > 0 && (
+        <Card className="border-amber-400/20 bg-amber-400/5">
+          <CardHeader>
+            <CardTitle className="text-sm text-amber-200">درخواست‌های در انتظار تأیید</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {myPending.map((r: any) => (
+              <div key={r._id} className="flex items-center justify-between gap-3 rounded-lg border border-amber-400/10 bg-white/[0.02] p-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{r.title}</p>
+                  <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate}</p>
+                </div>
+                <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[10px] font-bold text-amber-300">در انتظار</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Admin/Manager: review pending class requests */}
+      {isAdminOrManager && classRequests && (
+        <Card className="border-blue-400/20 bg-blue-400/5">
+          <CardHeader>
+            <CardTitle className="text-sm text-blue-200">درخواست‌های کلاس از مدرسان</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {classRequests.filter((r: any) => r.status === "pending").length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-4">درخواست جدیدی وجود ندارد</p>
+            )}
+            {classRequests.filter((r: any) => r.status === "pending").map((r: any) => (
+              <div key={r._id} className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-white">{r.title}</p>
+                  <span className="rounded-full bg-blue-400/15 px-2.5 py-1 text-[10px] font-bold text-blue-300">درخواست جدید</span>
+                </div>
+                <p className="text-xs text-slate-400">مدرس: {r.instructorName} · تاریخ پیشنهادی: {r.proposedDate}</p>
+                {r.description && <p className="text-xs text-slate-400">{r.description}</p>}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="لینک پلتفرم (Zoom, Google Meet, ...)"
+                    className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-100"
+                    id={`url-${r._id}`}
+                  />
+                  <Button size="sm" className="h-8 text-xs bg-green-600 hover:bg-green-700" onClick={() => {
+                    const url = (document.getElementById(`url-${r._id}`) as HTMLInputElement)?.value;
+                    handleReview(r._id, "approved", url || undefined);
+                  }}>
+                    تأیید
+                  </Button>
+                  <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => handleReview(r._id, "rejected")}>
+                    رد
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {past.length > 0 && (
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              جلسات گذشته ({past.length}{hideOthers ? "/" + pastRaw.length : ""})
+              کلاس‌های گذشته ({past.length})
             </p>
-            <button
-              onClick={() => setHideOthers((h) => !h)}
-              className="text-[11px] text-slate-400 underline-offset-2 hover:underline"
-            >
-              {hideOthers ? "نمایش همه" : "فقط جلسات خودم"}
-            </button>
           </div>
-          <div className="space-y-2">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {past.map((room) => (
-              <div
+              <button
                 key={room._id}
-                className="flex w-full items-center justify-between gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3 hover:bg-white/[0.05]"
+                onClick={() => onOpen(room._id)}
+                className="group min-w-0 rounded-xl border border-white/5 bg-white/[0.02] p-4 text-right transition-all hover:border-white/15 hover:bg-white/[0.04]"
               >
-                <button
-                  onClick={() => onOpen(room._id)}
-                  className="min-w-0 flex-1 text-right"
-                >
-                  <p className="truncate text-sm text-slate-300">{room.title}</p>
-                  <p className="truncate text-[11px] text-slate-500">{room.topic}</p>
-                  <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-cyan-300/60">
-                    <BookUser className="size-3 shrink-0" />
-                    مدرس: {room.instructorName}
-                  </p>
-                </button>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Badge
-                    variant="outline"
-                    className="border-white/10 text-[10px] text-slate-400"
-                  >
-                    {room.status === "ended" ? "پایان‌یافته" : "زمان‌بندی‌شده"}
-                  </Badge>
-                  {isAdminOrManager && (
-                    <button
-                      onClick={() => void deleteRoom({ roomId: room._id as any })}
-                      title="حذف جلسه و تمام محتویاتش"
-                      className="text-slate-600 transition-colors hover:text-red-400"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  )}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+                    پایان‌یافته
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-500">
+                    {room.messageCount} پیام
+                  </span>
                 </div>
-              </div>
+                <h3 className="mt-3 break-words font-bold text-slate-300 group-hover:text-white">{room.title}</h3>
+                <p className="mt-1 break-words text-xs text-slate-500">{room.topic}</p>
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <BookUser className="size-3.5 shrink-0" />
+                  <span className="truncate">{room.instructorName}</span>
+                </div>
+              </button>
             ))}
           </div>
         </div>

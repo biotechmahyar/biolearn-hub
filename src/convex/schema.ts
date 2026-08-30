@@ -132,7 +132,9 @@ const schema = defineSchema(
       specialties: v.array(v.string()),
       accent: v.string(),
       verified: v.boolean(),
-    }).index("by_slug", ["slug"]),
+      userId: v.optional(v.id("users")), // linked registered user
+    }).index("by_slug", ["slug"])
+      .index("by_user", ["userId"]),
 
     courses: defineTable({
       title: v.string(),
@@ -487,6 +489,25 @@ const schema = defineSchema(
       broadcastKind: v.optional(v.union(v.literal("camera"), v.literal("screen"))),
       boardBg: v.optional(v.string()),
       createdAt: v.number(),
+      platformUrl: v.optional(v.string()), // external platform link
+      scheduledDate: v.optional(v.string()), // proposed date by instructor
+    })
+      .index("by_instructor", ["instructorId"])
+      .index("by_status", ["status"]),
+
+    // Class creation requests from instructors → admin approval
+    classRequests: defineTable({
+      instructorId: v.id("users"),
+      instructorName: v.string(),
+      title: v.string(),
+      topic: v.string(),
+      description: v.string(),
+      proposedDate: v.string(), // instructor proposed date
+      status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+      createdAt: v.number(),
+      reviewedBy: v.optional(v.id("users")),
+      reviewedAt: v.optional(v.number()),
+      platformUrl: v.optional(v.string()), // admin sets the link
     })
       .index("by_instructor", ["instructorId"])
       .index("by_status", ["status"]),
