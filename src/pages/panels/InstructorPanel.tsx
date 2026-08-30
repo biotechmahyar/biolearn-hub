@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { gregorianToJalali, toPersianDigits } from "@/lib/jalali";
+import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { useMutation, useQuery } from "convex/react";
 import {
   BarChart3,
@@ -620,6 +621,14 @@ function ResourcesView() {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── کلاس‌ها: تقویم ──────────────────────────────────────────────────────────
+
+function formatJalaliFull(iso: string): string {
+  const parsed = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!parsed) return iso;
+  const [jy, jm, jd] = gregorianToJalali(+parsed[1], +parsed[2], +parsed[3]);
+  const months = ["فروردین","اردیبهشت","خرداد","تیر","مرداد","شهریور","مهر","آبان","آذر","دی","بهمن","اسفند"];
+  return toPersianDigits(`${jd} ${months[jm - 1]} ${jy}`);
+}
 
 function formatTimestampToShamsi(ts: number): string {
   const d = new Date(ts);
@@ -1385,7 +1394,7 @@ function RoomsView({
             <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
             <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
             <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <Input type="date" placeholder="تاریخ پیشنهادی" value={proposedDate} onChange={(e) => setProposedDate(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+            <JalaliDatePicker value={proposedDate} onChange={setProposedDate} placeholder="تاریخ پیشنهادی" className="w-full" />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setShowRequest(false)}>انصراف</Button>
               <Button size="sm" onClick={handleRequestClass}>
@@ -1422,7 +1431,7 @@ function RoomsView({
               <div key={r._id} className="flex items-center justify-between rounded-lg border border-amber-400/10 bg-white/[0.02] p-3">
                 <div>
                   <p className="text-sm font-medium text-white">{r.title}</p>
-                  <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate}</p>
+                  <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate ? formatJalaliFull(r.proposedDate) : "—"}</p>
                 </div>
                 <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[10px] font-bold text-amber-300">در انتظار</span>
               </div>

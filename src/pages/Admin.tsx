@@ -2290,7 +2290,7 @@ function AdminClassRequests() {
                   <div>
                     <p className="text-sm font-medium">{r.title}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      مدرس: {r.instructorName} · تاریخ پیشنهادی: {r.proposedDate}
+                      مدرس: {r.instructorName} · تاریخ پیشنهادی: {formatJalaliDate(r.proposedDate)}
                     </p>
                     {r.description && <p className="text-xs text-muted-foreground mt-1">{r.description}</p>}
                   </div>
