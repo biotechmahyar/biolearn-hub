@@ -10,34 +10,48 @@ import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { useMutation, useQuery } from "convex/react";
 import {
+  BarChart3,
   BellRing,
   BookOpen,
   BookUser,
   BookmarkCheck,
   BookmarkPlus,
   Brush,
+  Calendar,
   Camera,
   CheckCircle2,
+  ChevronDown,
   CircleDot,
+  ClipboardList,
+  Clock,
   Dna,
   DoorOpen,
   Eraser,
   FileText,
+  GraduationCap,
   HelpCircle,
   Highlighter,
+  Home,
   Hourglass,
+  Layers,
+  LayoutDashboard,
   Loader2,
   MessageSquare,
   Mic,
   MonitorPlay,
   Paperclip,
+  PenTool,
   Plus,
   Presentation,
   Radio,
   Save,
   Send,
+  Settings,
   Square,
+  Star,
+  Target,
   Trash2,
+  TrendingUp,
   Upload,
   User,
   Users,
@@ -68,7 +82,94 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
-type Tab = "rooms" | "online" | "courses" | "announcements" | "profile";
+// ── Tab & sidebar types ──────────────────────────────────────────────────────
+
+type Tab =
+  | "dashboard"
+  | "courses-mine"
+  | "courses-design"
+  | "courses-resources"
+  | "rooms-live"
+  | "rooms-calendar"
+  | "rooms-attendance"
+  | "students-all"
+  | "students-performance"
+  | "students-attention"
+  | "assess-homework"
+  | "assess-exams"
+  | "assess-grades"
+  | "comm-qa"
+  | "comm-messages"
+  | "comm-announcements"
+  | "analytics"
+  | "reports"
+  | "ai-assistant"
+  | "profile";
+
+interface SidebarSection {
+  label: string;
+  icon: typeof Video;
+  children: { id: Tab; label: string; icon?: typeof Video }[];
+}
+
+const SIDEBAR: SidebarSection[] = [
+  { label: "داشبورد", icon: LayoutDashboard, children: [{ id: "dashboard", label: "داشبورد", icon: LayoutDashboard }] },
+  {
+    label: "آموزش",
+    icon: BookOpen,
+    children: [
+      { id: "courses-mine", label: "دوره‌های من", icon: BookOpen },
+      { id: "courses-design", label: "طراحی دوره", icon: PenTool },
+      { id: "courses-resources", label: "منابع", icon: Layers },
+    ],
+  },
+  {
+    label: "کلاس‌ها",
+    icon: Video,
+    children: [
+      { id: "rooms-live", label: "کلاس‌های زنده", icon: Video },
+      { id: "rooms-calendar", label: "تقویم", icon: Calendar },
+      { id: "rooms-attendance", label: "حضور و غیاب", icon: CheckCircle2 },
+    ],
+  },
+  {
+    label: "دانشجویان",
+    icon: Users,
+    children: [
+      { id: "students-all", label: "همه دانشجویان", icon: Users },
+      { id: "students-performance", label: "عملکرد", icon: TrendingUp },
+      { id: "students-attention", label: "نیازمند توجه", icon: Target },
+    ],
+  },
+  {
+    label: "ارزیابی",
+    icon: ClipboardList,
+    children: [
+      { id: "assess-homework", label: "تکالیف", icon: FileText },
+      { id: "assess-exams", label: "آزمون‌ها", icon: Clock },
+      { id: "assess-grades", label: "نمرات", icon: Star },
+    ],
+  },
+  {
+    label: "ارتباط",
+    icon: MessageSquare,
+    children: [
+      { id: "comm-qa", label: "پرسش و پاسخ", icon: HelpCircle },
+      { id: "comm-messages", label: "پیام‌ها", icon: MessageSquare },
+      { id: "comm-announcements", label: "اطلاعیه‌ها", icon: BellRing },
+    ],
+  },
+  {
+    label: "تحلیل",
+    icon: BarChart3,
+    children: [
+      { id: "analytics", label: "Analytics", icon: BarChart3 },
+      { id: "reports", label: "گزارش‌ها", icon: FileText },
+    ],
+  },
+  { label: "دستیار هوشمند", icon: Settings, children: [{ id: "ai-assistant", label: "دستیار هوشمند", icon: Settings }] },
+  { label: "پروفایل", icon: User, children: [{ id: "profile", label: "پروفایل", icon: User }] },
+];
 
 type RoomRow = (typeof api.collab.listRooms)["_returnType"][number];
 type OnlineRow = (typeof api.collab.listOnline)["_returnType"][number];
@@ -101,30 +202,101 @@ const TOOL_SIZES: Record<WbTool, number> = {
   eraser: 0.05,
 };
 
-const TABS: { id: Tab; label: string; icon: typeof Video }[] = [
-  { id: "rooms", label: "کلاس‌های زنده", icon: Video },
-  { id: "courses", label: "طراحی دوره", icon: BookOpen },
-  { id: "profile", label: "پروفایل من", icon: User },
-  { id: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
-  { id: "online", label: "دانشجویان آنلاین", icon: Users },
-];
+// ── Sidebar section component ────────────────────────────────────────────────
+
+function SidebarSectionButton({
+  section,
+  activeTab,
+  onSelect,
+}: {
+  section: SidebarSection;
+  activeTab: Tab;
+  onSelect: (id: Tab) => void;
+}) {
+  const [open, setOpen] = useState(() => {
+    // Auto-open if current tab is in this section
+    return section.children.some((c) => c.id === activeTab);
+  });
+  const isActive = section.children.some((c) => c.id === activeTab);
+  const Icon = section.icon;
+
+  if (section.children.length === 1) {
+    const child = section.children[0];
+    return (
+      <button
+        onClick={() => onSelect(child.id)}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+          activeTab === child.id
+            ? "border border-cyan-400/30 bg-cyan-400/10 text-cyan-200"
+            : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+        }`}
+      >
+        <Icon className="size-4 shrink-0" />
+        <span className="whitespace-nowrap">{child.label}</span>
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((s) => !s)}
+        className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+          isActive
+            ? "text-cyan-200"
+            : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+        }`}
+      >
+        <Icon className="size-4 shrink-0" />
+        <span className="flex-1 text-right whitespace-nowrap">{section.label}</span>
+        <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="mr-2 mt-0.5 space-y-0.5 border-r border-white/5 pr-2">
+          {section.children.map((child) => (
+            <button
+              key={child.id}
+              onClick={() => onSelect(child.id)}
+              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors ${
+                activeTab === child.id
+                  ? "bg-cyan-400/10 text-cyan-200"
+                  : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+              }`}
+            >
+              {child.icon && <child.icon className="size-3.5 shrink-0" />}
+              <span className="whitespace-nowrap">{child.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main panel ───────────────────────────────────────────────────────────────
 
 export default function InstructorPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("rooms");
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const rooms = useQuery(api.collab.listRooms) ?? [];
   const online = useQuery(api.collab.listOnline) ?? [];
   const touchPresence = useMutation(api.collab.touchPresence);
 
-  // Heartbeat so students/instructors show as online while in the studio.
   useEffect(() => {
     touchPresence({ location: "استودیوی مدرس" });
     const t = setInterval(() => touchPresence({ location: "استودیوی مدرس" }), 25_000);
     return () => clearInterval(t);
   }, [touchPresence]);
+
+  const handleTabSelect = (id: Tab) => {
+    setTab(id);
+    setActiveRoom(null);
+    setMobileMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#071019] text-slate-200" dir="rtl">
@@ -132,7 +304,10 @@ export default function InstructorPanel() {
       <header className="sticky top-0 z-20 border-b border-cyan-400/10 bg-[#071019]/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
+            <button className="lg:hidden text-slate-400" onClick={() => setMobileMenuOpen((s) => !s)}>
+              <Dna className="size-5 text-cyan-300" />
+            </button>
+            <span className="hidden lg:flex size-9 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
               <Dna className="size-5 text-cyan-300" />
             </span>
             <div>
@@ -156,51 +331,646 @@ export default function InstructorPanel() {
               className="text-slate-400"
               onClick={() => navigate(user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/")}
             >
-              <X className="size-4" />
+              <Home className="size-4" />
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[220px_1fr]">
-        {/* Side nav */}
-        <aside className="lg:sticky lg:top-20 lg:self-start">
-          <nav className="flex flex-wrap gap-1 lg:flex-col">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                  tab === t.id
-                    ? "border border-cyan-400/30 bg-cyan-400/10 text-cyan-200"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                }`}
-              >
-                <t.icon className="size-4 shrink-0" />
-                <span className="whitespace-nowrap">{t.label}</span>
-              </button>
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[240px_1fr]">
+        {/* Sidebar — mobile toggle */}
+        {mobileMenuOpen && (
+          <aside className="lg:hidden rounded-xl border border-cyan-400/10 bg-[#0a1520] p-3">
+            <nav className="space-y-1">
+              {SIDEBAR.map((section) => (
+                <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} />
+              ))}
+            </nav>
+          </aside>
+        )}
+
+        {/* Sidebar — desktop */}
+        <aside className="hidden lg:block lg:sticky lg:top-20 lg:self-start">
+          <nav className="space-y-1">
+            {SIDEBAR.map((section) => (
+              <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} />
             ))}
           </nav>
         </aside>
 
         {/* Main */}
         <main className="min-w-0">
-          {tab === "rooms" && !activeRoom && (
-            <RoomsView rooms={rooms} onOpen={setActiveRoom} />
+          {/* Dashboard */}
+          {tab === "dashboard" && <DashboardView rooms={rooms} online={online} user={user} />}
+
+          {/* آموزش */}
+          {tab === "courses-mine" && <CoursesMineView />}
+          {tab === "courses-design" && <CourseStudioView />}
+          {tab === "courses-resources" && <ResourcesView />}
+
+          {/* کلاس‌ها */}
+          {tab === "rooms-live" && !activeRoom && <RoomsView rooms={rooms} onOpen={setActiveRoom} />}
+          {tab === "rooms-live" && activeRoom && (
+            <RoomView roomId={activeRoom} onClose={() => setActiveRoom(null)} rooms={rooms} />
           )}
-          {tab === "rooms" && activeRoom && (
-            <RoomView
-              roomId={activeRoom}
-              onClose={() => setActiveRoom(null)}
-              rooms={rooms}
-            />
-          )}
-          {tab === "online" && <OnlineView online={online} />}
-          {tab === "courses" && <CourseStudioView />}
+          {tab === "rooms-calendar" && <CalendarView />}
+          {tab === "rooms-attendance" && <AttendanceView rooms={rooms} />}
+
+          {/* دانشجویان */}
+          {tab === "students-all" && <StudentsAllView />}
+          {tab === "students-performance" && <StudentsPerformanceView />}
+          {tab === "students-attention" && <StudentsAttentionView />}
+
+          {/* ارزیابی */}
+          {tab === "assess-homework" && <HomeworkView />}
+          {tab === "assess-exams" && <ExamsView />}
+          {tab === "assess-grades" && <GradesView />}
+
+          {/* ارتباط */}
+          {tab === "comm-qa" && <QAView rooms={rooms} />}
+          {tab === "comm-messages" && <MessagesView />}
+          {tab === "comm-announcements" && <AnnouncementsView instructorName={user?.name ?? null} />}
+
+          {/* تحلیل */}
+          {tab === "analytics" && <AnalyticsView />}
+          {tab === "reports" && <ReportsView />}
+
+          {/* دستیار هوشمند */}
+          {tab === "ai-assistant" && <AIAssistantView />}
+
+          {/* پروفایل */}
           {tab === "profile" && <ProfileView />}
-          {tab === "announcements" && <AnnouncementsView instructorName={user?.name ?? null} />}
         </main>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Dashboard ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function DashboardView({
+  rooms,
+  online,
+  user,
+}: {
+  rooms: RoomRow[];
+  online: OnlineRow[];
+  user: any;
+}) {
+  const courses = useQuery(api.profiles.listSuggestedCourses);
+  const liveRooms = rooms.filter((r) => r.status === "live");
+
+  const stats = [
+    { label: "کلاس‌های زنده", value: liveRooms.length, icon: Video, color: "text-red-400" },
+    { label: "دانشجویان آنلاین", value: online.length, icon: Users, color: "text-emerald-400" },
+    { label: "دوره‌های من", value: (courses?.mine ?? []).length, icon: BookOpen, color: "text-cyan-400" },
+    { label: "کل کلاس‌ها", value: rooms.length, icon: Calendar, color: "text-purple-400" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">داشبورد</h2>
+        <p className="mt-1 text-sm text-slate-400">خوش آمدید، {user?.name ?? "مدرس"} 👋</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((s) => (
+          <Card key={s.label} className="border-white/5 bg-white/[0.02]">
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className={`rounded-lg bg-white/5 p-2.5 ${s.color}`}>
+                <s.icon className="size-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-white">{s.value}</p>
+                <p className="text-xs text-slate-400">{s.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardHeader><CardTitle className="text-sm text-white">کلاس‌های فعال</CardTitle></CardHeader>
+          <CardContent>
+            {liveRooms.length === 0 ? (
+              <p className="text-sm text-slate-500">کلاس فعالی وجود ندارد.</p>
+            ) : (
+              <div className="space-y-2">
+                {liveRooms.slice(0, 5).map((r) => (
+                  <div key={r._id} className="flex items-center justify-between rounded-lg bg-white/[0.02] p-3">
+                    <span className="text-sm text-white">{r.title}</span>
+                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">LIVE</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardHeader><CardTitle className="text-sm text-white">آخرین فعالیت‌ها</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm text-slate-500">فعالیت‌های اخیر شما در اینجا نمایش داده خواهد شد.</p>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── آموزش: دوره‌های من ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function CoursesMineView() {
+  const suggested = useQuery(api.profiles.listSuggestedCourses);
+  const toggle = useMutation(api.profiles.toggleSuggestedCourse);
+  const courses = suggested?.mine ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">دوره‌های من</h2>
+        <p className="mt-1 text-sm text-slate-400">دوره‌هایی که تدریس می‌کنید.</p>
+      </div>
+      {courses.length === 0 ? (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <BookOpen className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">هنوز دوره‌ای ثبت نشده است.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {courses.map((c: any) => (
+            <Card key={c._id} className="border-white/5 bg-white/[0.02]">
+              <CardContent className="space-y-2 py-4">
+                <h3 className="break-words font-bold text-white">{c.title}</h3>
+                <p className="text-xs text-slate-400">{c.category ?? ""}</p>
+                <p className="line-clamp-2 text-xs text-slate-500">{c.summary ?? ""}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── آموزش: منابع ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ResourcesView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">منابع آموزشی</h2>
+        <p className="mt-1 text-sm text-slate-400">فایل‌ها و منابع آموزشی دوره‌ها.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <Layers className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش منابع به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── کلاس‌ها: تقویم ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function CalendarView() {
+  const myRequests = useQuery(api.admin.listMyClassRequests) ?? [];
+  const scheduled = myRequests.filter((r: any) => r.status === "approved");
+  const pending = myRequests.filter((r: any) => r.status === "pending");
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">تقویم کلاس‌ها</h2>
+        <p className="mt-1 text-sm text-slate-400">برنامه کلاس‌ها و درخواست‌های تشکیل کلاس.</p>
+      </div>
+      {scheduled.length > 0 && (
+        <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+          <CardHeader><CardTitle className="text-sm text-cyan-200">کلاس‌های تأیید شده</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {scheduled.map((r: any) => (
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-cyan-400/10 bg-white/[0.02] p-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{r.title}</p>
+                  <p className="text-xs text-slate-400">تاریخ: {r.proposedDate} {r.platformUrl ? `· لینک: ${r.platformUrl}` : ""}</p>
+                </div>
+                <span className="rounded-full bg-green-400/15 px-2.5 py-1 text-[10px] font-bold text-green-300">تأیید شده</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+      {pending.length > 0 && (
+        <Card className="border-amber-400/20 bg-amber-400/5">
+          <CardHeader><CardTitle className="text-sm text-amber-200">در انتظار تأیید</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {pending.map((r: any) => (
+              <div key={r._id} className="rounded-lg border border-amber-400/10 bg-white/[0.02] p-3">
+                <p className="text-sm font-medium text-white">{r.title}</p>
+                <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+      {scheduled.length === 0 && pending.length === 0 && (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Calendar className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">هنوز کلاسی برنامه‌ریزی نشده است.</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── کلاس‌ها: حضور و غیاب ───────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function AttendanceView({ rooms }: { rooms: RoomRow[] }) {
+  const pastRooms = rooms.filter((r) => r.status === "ended");
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">حضور و غیاب</h2>
+        <p className="mt-1 text-sm text-slate-400">لیست حضور دانشجویان در کلاس‌های گذشته.</p>
+      </div>
+      {pastRooms.length === 0 ? (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <CheckCircle2 className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">کلاس گذشته‌ای وجود ندارد.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {pastRooms.map((r) => (
+            <Card key={r._id} className="border-white/5 bg-white/[0.02]">
+              <CardContent className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{r.title}</p>
+                  <p className="text-xs text-slate-400">{r.topic} · {r.messageCount} پیام</p>
+                </div>
+                <span className="text-xs text-slate-500">پایان‌یافته</span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── دانشجویان: همه ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function StudentsAllView() {
+  const online = useQuery(api.collab.listOnline) ?? [];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">همه دانشجویان</h2>
+        <p className="mt-1 text-sm text-slate-400">{online.length} دانشجو آنلاین</p>
+      </div>
+      {online.length === 0 ? (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Users className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">دانشجوی آنلاینی وجود ندارد.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {online.map((o) => (
+            <Card key={o.userId} className="border-white/5 bg-white/[0.02]">
+              <CardContent className="flex items-center gap-3 py-3">
+                <div className="relative">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-white/10 text-sm font-bold text-slate-300">
+                    {(o.name ?? "?")[0]}
+                  </div>
+                  <span className="absolute -bottom-0.5 -left-0.5 size-3 rounded-full border-2 border-[#071019] bg-emerald-400" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white">{o.name ?? "—"}</p>
+                  <p className="truncate text-xs text-slate-400">{o.location ?? ""}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── دانشجویان: عملکرد ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function StudentsPerformanceView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">عملکرد دانشجویان</h2>
+        <p className="mt-1 text-sm text-slate-400">بررسی عملکرد تحصیلی دانشجویان.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <TrendingUp className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش عملکرد به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── دانشجویان: نیازمند توجه ─────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function StudentsAttentionView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">دانشجویان نیازمند توجه</h2>
+        <p className="mt-1 text-sm text-slate-400">دانشجویانی که نیاز به توجه ویژه دارند.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <Target className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش نیازمند توجه به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ارزیابی: تکالیف ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function HomeworkView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">تکالیف</h2>
+        <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت تکالیف دانشجویان.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <FileText className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش تکالیف به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ارزیابی: آزمون‌ها ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ExamsView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">آزمون‌ها</h2>
+        <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت آزمون‌ها.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <Clock className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش آزمون‌ها به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ارزیابی: نمرات ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function GradesView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">نمرات</h2>
+        <p className="mt-1 text-sm text-slate-400">مشاهده و مدیریت نمرات دانشجویان.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <Star className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش نمرات به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ارتباط: پرسش و پاسخ ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function QAView({ rooms }: { rooms: RoomRow[] }) {
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const detail = useQuery(
+    api.collab.getRoom,
+    selectedRoom ? { roomId: selectedRoom as any } : "skip",
+  );
+  const messages = (detail?.messages ?? []) as any[];
+  const questions = messages.filter((m: any) => m.type === "question");
+  const answerQuestion = useMutation(api.collab.answerQuestion);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
+  const handleAnswer = async (messageId: string) => {
+    const text = answers[messageId]?.trim();
+    if (!text) return;
+    try {
+      await answerQuestion({ messageId: messageId as any, answer: text });
+      setAnswers((prev) => ({ ...prev, [messageId]: "" }));
+      toast.success("پاسخ ارسال شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  const liveRooms = rooms.filter((r) => r.status === "live");
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">پرسش و پاسخ</h2>
+        <p className="mt-1 text-sm text-slate-400">انتخاب کلاس برای مشاهده سؤالات دانشجویان.</p>
+      </div>
+      {!selectedRoom ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {liveRooms.length === 0 ? (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                <HelpCircle className="size-8 text-slate-600" />
+                <p className="text-sm text-slate-400">کلاس فعالی وجود ندارد.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            liveRooms.map((r) => (
+              <button
+                key={r._id}
+                onClick={() => setSelectedRoom(r._id)}
+                className="rounded-xl border border-cyan-400/15 bg-[#0b1a2a] p-4 text-right transition-all hover:border-cyan-400/40 hover:bg-[#0e2033]"
+              >
+                <h3 className="font-bold text-white">{r.title}</h3>
+                <p className="mt-1 text-xs text-slate-400">{r.openQuestions} سؤال بی‌پاسخ</p>
+              </button>
+            ))
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => setSelectedRoom(null)}>
+            ← بازگشت به لیست کلاس‌ها
+          </Button>
+          {questions.length === 0 ? (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                <HelpCircle className="size-8 text-slate-600" />
+                <p className="text-sm text-slate-400">سؤالی در این کلاس ثبت نشده است.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            questions.map((q: any) => (
+              <Card key={q._id} className={`border-white/5 ${q.answer ? "bg-white/[0.01]" : "bg-amber-400/5"}`}>
+                <CardContent className="space-y-3 py-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm text-white">{q.text}</p>
+                    {q.answer ? (
+                      <span className="shrink-0 rounded-full bg-green-400/15 px-2 py-0.5 text-[10px] font-bold text-green-300">پاسخ داده شد</span>
+                    ) : (
+                      <span className="shrink-0 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">بی‌پاسخ</span>
+                    )}
+                  </div>
+                  {q.answer && <p className="rounded-lg bg-green-400/5 p-2 text-xs text-green-200">{q.answer}</p>}
+                  {!q.answer && (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="پاسخ…"
+                        value={answers[q._id] ?? ""}
+                        onChange={(e) => setAnswers((prev) => ({ ...prev, [q._id]: e.target.value }))}
+                        className="border-white/10 bg-white/5 text-sm text-slate-100"
+                        onKeyDown={(e) => e.key === "Enter" && handleAnswer(q._id)}
+                      />
+                      <Button size="sm" className="shrink-0" onClick={() => handleAnswer(q._id)}>
+                        <Send className="size-4" />
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ارتباط: پیام‌ها ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function MessagesView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">پیام‌ها</h2>
+        <p className="mt-1 text-sm text-slate-400">ارتباط مستقیم با دانشجویان.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <MessageSquare className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش پیام‌ها به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── تحلیل: Analytics ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function AnalyticsView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">تحلیل و آمار</h2>
+        <p className="mt-1 text-sm text-slate-400">آمار حضور، فعالیت و عملکرد کلاس‌ها.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <BarChart3 className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش آنالیتیکس به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── تحلیل: گزارش‌ها ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ReportsView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">گزارش‌ها</h2>
+        <p className="mt-1 text-sm text-slate-400">گزارش‌های دوره و عملکرد.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <FileText className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">بخش گزارش‌ها به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── دستیار هوشمند ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function AIAssistantView() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">دستیار هوشمند</h2>
+        <p className="mt-1 text-sm text-slate-400">ابزارهای هوش مصنوعی برای مدیریت کلاس و تولید محتوا.</p>
+      </div>
+      <Card className="border-white/5 bg-white/[0.02]">
+        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+          <Settings className="size-8 text-slate-600" />
+          <p className="text-sm text-slate-400">دستیار هوشمند به‌زودی فعال خواهد شد.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
