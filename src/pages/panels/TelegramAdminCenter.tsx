@@ -67,9 +67,9 @@ export default function TelegramAdminCenter() {
   const botConfig = useQuery(api.telegramBot.getBotConfig);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#0b1426]">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-30">
+      <div className="bg-[#0f2035] border-b border-white/10 px-4 py-3 sticky top-0 z-30">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Button
@@ -81,11 +81,11 @@ export default function TelegramAdminCenter() {
               <ArrowRight className="size-4" />
               مدیریت
             </Button>
-            <h1 className="text-lg font-bold">🤖 مدیریت Telegram</h1>
+            <h1 className="text-lg font-bold text-white">🤖 مدیریت Telegram</h1>
           </div>
           <div className="flex items-center gap-2">
             <StatusDot connected={!!botConfig?.connected} />
-            <span className="text-xs text-muted-foreground hidden sm:inline">
+            <span className="text-xs text-slate-400 hidden sm:inline">
               {botConfig?.botName ?? "تنظیم نشده"}
             </span>
           </div>
@@ -93,7 +93,7 @@ export default function TelegramAdminCenter() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-white border-b border-gray-200 overflow-x-auto">
+      <div className="bg-[#0f2035] border-b border-white/10 overflow-x-auto">
         <div className="max-w-6xl mx-auto flex gap-0 px-2">
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -104,8 +104,8 @@ export default function TelegramAdminCenter() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition-colors",
                   tab === t.id
-                    ? "border-teal-500 text-teal-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700",
+                    ? "border-blue-400 text-blue-400"
+                    : "border-transparent text-slate-400 hover:text-slate-200",
                 )}
               >
                 <Icon className="size-3.5" />
@@ -166,7 +166,7 @@ function DashboardTab({ botConfig }: { botConfig: any }) {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">دسترسی سریع</CardTitle>
+          <CardTitle className="text-sm text-white">دسترسی سریع</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button
@@ -204,7 +204,7 @@ function StudentsTab() {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
           <Input
             placeholder="جستجوی نام یا ایمیل..."
             value={search}
@@ -217,9 +217,9 @@ function StudentsTab() {
 
       {linkedStudents.length === 0 ? (
         <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
+          <CardContent className="p-8 text-center text-slate-400">
             <Users className="size-8 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">هنوز کاربری Telegram خود را متصل نکرده است.</p>
+            <p className="text-sm text-slate-300">هنوز کاربری Telegram خود را متصل نکرده است.</p>
           </CardContent>
         </Card>
       ) : (
@@ -228,12 +228,12 @@ function StudentsTab() {
             <Card key={s._id}>
               <CardContent className="p-3 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-teal-100 flex items-center justify-center text-sm font-bold text-teal-700 shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center text-sm font-bold text-blue-300 shrink-0">
                     {(s.name ?? "U")[0]}
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{s.name ?? "بدون نام"}</p>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <p className="text-xs text-slate-400 truncate">
                       {s.telegramUsername ? `@${s.telegramUsername}` : s.email ?? ""}
                     </p>
                   </div>
@@ -258,7 +258,7 @@ function CommandsTab({ botConfig }: { botConfig: any }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">دستورات Bot</h3>
+        <h3 className="text-sm font-semibold text-white">دستورات Bot</h3>
         <Badge variant={botConfig?.commandsSyncedAt ? "default" : "secondary"}>
           {botConfig?.commandsSyncedAt ? "همگام شده" : "همگام نشده"}
         </Badge>
@@ -266,9 +266,9 @@ function CommandsTab({ botConfig }: { botConfig: any }) {
 
       {commands.length === 0 ? (
         <Card>
-          <CardContent className="p-6 text-center text-muted-foreground">
+          <CardContent className="p-6 text-center text-slate-400">
             <Command className="size-8 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">دستوری ثبت نشده است.</p>
+            <p className="text-sm text-slate-300">دستوری ثبت نشده است.</p>
           </CardContent>
         </Card>
       ) : (
@@ -278,7 +278,7 @@ function CommandsTab({ botConfig }: { botConfig: any }) {
               <CardContent className="p-3 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-mono font-medium">/{cmd.command}</p>
-                  <p className="text-xs text-muted-foreground">{cmd.description}</p>
+                  <p className="text-xs text-slate-400">{cmd.description}</p>
                 </div>
                 <Badge variant="outline" className="text-[10px]">
                   فعال
@@ -289,7 +289,7 @@ function CommandsTab({ botConfig }: { botConfig: any }) {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-slate-400">
         برای ویرایش دستورات از پنل <strong>Telegram Bot</strong> استفاده کنید.
       </p>
     </div>
@@ -313,14 +313,14 @@ function NotificationsTab() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">وضعیت اعلان‌ها</h3>
+      <h3 className="text-sm font-semibold text-white">وضعیت اعلان‌ها</h3>
       <Card>
         <CardContent className="p-4 space-y-3">
           {categories.map((cat) => {
             const pref = notifPrefs?.categories?.[cat.key as keyof typeof notifPrefs.categories];
             return (
               <div key={cat.key} className="flex items-center justify-between">
-                <span className="text-sm">
+                <span className="text-sm text-slate-200">
                   {cat.emoji} {cat.label}
                 </span>
                 <Badge variant={pref !== false ? "default" : "secondary"}>
@@ -331,7 +331,7 @@ function NotificationsTab() {
           })}
         </CardContent>
       </Card>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-slate-400">
         تنظیمات اعلان‌ها توسط کاربران در پروفایل خود قابل تغییر است.
       </p>
     </div>
@@ -346,12 +346,12 @@ function AITab() {
       <Card>
         <CardContent className="p-6 text-center">
           <Sparkles className="size-10 mx-auto mb-3 text-purple-400" />
-          <h3 className="font-semibold mb-1">هوش مصنوعی Telegram Bot</h3>
-          <p className="text-sm text-muted-foreground mb-4">
+          <h3 className="font-semibold mb-1 text-white">هوش مصنوعی Telegram Bot</h3>
+          <p className="text-sm text-slate-400 mb-4">
             فعال‌سازی AI برای پاسخگویی خودکار در Telegram Bot
           </p>
           <Badge variant="secondary">به‌زودی</Badge>
-          <p className="text-xs text-muted-foreground mt-3">
+          <p className="text-xs text-slate-400 mt-3">
             این بخش پس از پیکربندی API هوش مصنوعی فعال خواهد شد.
           </p>
         </CardContent>
@@ -368,8 +368,8 @@ function ActivityTab() {
       <Card>
         <CardContent className="p-6 text-center">
           <Activity className="size-10 mx-auto mb-3 text-blue-400" />
-          <h3 className="font-semibold mb-1">لاگ فعالیت</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="font-semibold mb-1 text-white">لاگ فعالیت</h3>
+          <p className="text-sm text-slate-400">
             رویدادهای Telegram Bot در اینجا نمایش داده می‌شوند.
           </p>
           <Badge variant="secondary" className="mt-2">به‌زودی</Badge>
@@ -393,7 +393,7 @@ function AnalyticsTab() {
         <StatCard label="درخواست‌ها" value={0} icon={MessageSquare} />
       </div>
       <Card>
-        <CardContent className="p-6 text-center text-muted-foreground">
+        <CardContent className="p-6 text-center text-slate-400">
           <BarChart3 className="size-8 mx-auto mb-2 opacity-30" />
           <p className="text-sm">آمار تفصیلی به‌زودی اضافه خواهد شد.</p>
         </CardContent>
@@ -472,7 +472,7 @@ function TestsTab() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">تست اتصال</h3>
+      <h3 className="text-sm font-semibold text-white">تست اتصال</h3>
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
@@ -495,7 +495,7 @@ function TestsTab() {
       </div>
 
       {testResult && (
-        <Card className={cn(testResult.ok ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50")}>
+        <Card className={cn(testResult.ok ? "border-green-500/30 bg-green-500/10" : "border-red-500/30 bg-red-500/10")}>
           <CardContent className="p-3">
             <p className="text-sm font-medium">{testResult.msg}</p>
           </CardContent>
@@ -522,9 +522,9 @@ function StatusCard({ label, value, sub }: { label: string; value: string; sub: 
   return (
     <Card>
       <CardContent className="p-4">
-        <p className="text-xs text-muted-foreground mb-1">{label}</p>
-        <p className="text-lg font-bold">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+        <p className="text-xs text-slate-400 mb-1">{label}</p>
+        <p className="text-lg font-bold text-white">{value}</p>
+        {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -534,9 +534,9 @@ function StatCard({ label, value, icon: Icon }: { label: string; value: number; 
   return (
     <Card>
       <CardContent className="p-3 text-center">
-        <Icon className="size-5 mx-auto mb-1 text-muted-foreground" />
+        <Icon className="size-5 mx-auto mb-1 text-slate-400" />
         <p className="text-xl font-bold">{value}</p>
-        <p className="text-[10px] text-muted-foreground">{label}</p>
+        <p className="text-[10px] text-slate-400">{label}</p>
       </CardContent>
     </Card>
   );
@@ -545,8 +545,8 @@ function StatCard({ label, value, icon: Icon }: { label: string; value: number; 
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between py-1 border-b last:border-b-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="text-slate-400">{label}</span>
+      <span className="font-medium text-white">{value}</span>
     </div>
   );
 }

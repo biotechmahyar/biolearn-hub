@@ -1498,7 +1498,7 @@ export default function ContentStudio() {
                 <Home className="h-4 w-4" />
               </button>
               {(user?.role === "admin" || user?.role === "site_admin") && (
-                <button onClick={() => navigate("/panel")} className="rounded-lg border border-white/10 p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" title="Back to panels">
+                <button onClick={() => navigate("/admin")} className="rounded-lg border border-white/10 p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" title="بازگشت به پنل مدیریت">
                   <ArrowRight className="h-4 w-4" />
                 </button>
               )}
