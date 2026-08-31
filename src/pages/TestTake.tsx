@@ -2,34 +2,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
+import { api } from "@/convex/_generated/api";
 import { faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useApiQuery, useApiMutation } from "@/hooks/use-api";
+import { useMutation, useQuery } from "convex/react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Loader2, Timer } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useNavigate, useParams } from "react-router";
 
-interface ExamQuestion {
-  id: string;
-  text: string;
-  options: string[];
-  topic: { name: string; accent: string } | null;
-}
-
-interface ExamDetail {
-  id: string;
-  slug: string;
-  title: string;
-  durationMinutes: number;
-  questions: ExamQuestion[];
-}
-
 export default function TestTake() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
-  const exam = useApiQuery<ExamDetail>(`/api/exams/${slug}`);
-  const { mutate: submitExam } = useApiMutation<any, any>("/api/exams/submit", "POST");
+  const exam = useQuery(api.tests.getExam, { slug });
+  const submit = useMutation(api.tests.submitExam);
 
   const questions = useMemo(() => exam?.questions ?? [], [exam]);
   const [current, setCurrent] = useState(0);
@@ -58,15 +44,15 @@ export default function TestTake() {
     submittedRef.current = true;
     setSubmitting(true);
     try {
-      const attempt = await submitExam({
-        examId: exam.id,
+      const attempt = await submit({
+        examId: exam._id,
         answers: Object.entries(answers).map(([questionId, chosenIndex]) => ({
-          questionId,
+          questionId: questionId as any,
           chosenIndex,
         })),
       });
-      if (attempt?.id) {
-        navigate(`/tests/result/${attempt.id}`);
+      if (attempt?._id) {
+        navigate(`/tests/result/${attempt._id}`);
       }
     } catch (e) {
       console.error(e);
@@ -80,7 +66,7 @@ export default function TestTake() {
         toast.error(msg);
       }
     }
-  }, [exam, answers, submitExam, navigate, slug]);
+  }, [exam, answers, submit, navigate, slug]);
 
   useEffect(() => {
     if (timeUp && !submitting) {
@@ -158,12 +144,12 @@ export default function TestTake() {
 
             <div className="mt-6 space-y-2.5">
               {q.options.map((opt, i) => {
-                const selected = answers[q.id] === i;
+                const selected = answers[q._id] === i;
                 return (
                   <button
                     key={i}
                     type="button"
-                    onClick={() => setAnswers((a) => ({ ...a, [q.id]: i }))}
+                    onClick={() => setAnswers((a) => ({ ...a, [q._id]: i }))}
                     className={cn(
                       "flex w-full items-start gap-3 rounded-xl border px-4 py-3.5 text-right text-sm leading-6 transition-all",
                       selected

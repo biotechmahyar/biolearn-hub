@@ -1,16 +1,17 @@
 import { Button } from "@/components/ui/button";
 import { ProductCard } from "@/components/site/ProductCard";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { useApiQuery } from "@/hooks/use-api";
+import { api } from "@/convex/_generated/api";
 import { faNum, PRODUCT_TYPE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useQuery } from "convex/react";
 import { Package } from "lucide-react";
 import { useState } from "react";
 
 const TYPES = ["all", "flashcards", "guide", "poster"] as const;
 
 export default function Products() {
-  const products = useApiQuery<any[]>("/api/content/products");
+  const products = useQuery(api.content.listProducts, {});
   const [type, setType] = useState<(typeof TYPES)[number]>("all");
 
   const filtered = (products ?? []).filter((p) => type === "all" || p.type === type);

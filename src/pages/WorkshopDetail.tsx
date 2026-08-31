@@ -5,16 +5,17 @@ import { Progress } from "@/components/ui/progress";
 import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { useApiQuery } from "@/hooks/use-api";
+import { api } from "@/convex/_generated/api";
 import { faNum, formatDate, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useQuery } from "convex/react";
 import { CalendarDays, CheckCircle2, ChevronLeft, Clock, Users } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
 export default function WorkshopDetail() {
   const { slug = "" } = useParams();
-  const workshop = useApiQuery<any>(slug ? `/api/content/workshops/${slug}` : null);
+  const workshop = useQuery(api.content.getWorkshopBySlug, { slug });
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   if (workshop === undefined) {
@@ -85,7 +86,7 @@ export default function WorkshopDetail() {
               <div className="mt-8">
                 <h2 className="text-lg font-extrabold">سرفصل‌های کارگاه</h2>
                 <div className="mt-4 space-y-2.5">
-                  {workshop.agenda.map((item: string, i: number) => (
+                  {workshop.agenda.map((item, i) => (
                     <div key={i} className="flex items-start gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
                         {faNum(i + 1)}

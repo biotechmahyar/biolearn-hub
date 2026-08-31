@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
+import { api } from "@/convex/_generated/api";
 import { requestNotificationPermission } from "@/components/site/NotificationCenter";
 import { faNum, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useApiQuery, useApiMutation } from "@/hooks/use-api";
+import { useMutation, useQuery } from "convex/react";
 import {
   BellRing,
   CheckCircle2,
@@ -28,42 +29,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 
-interface AttemptQuestion {
-  id: string;
-  text: string;
-  options: string[];
-  correctIndex: number;
-  chosenIndex: number;
-  explanation: string;
-  topicId: string;
-}
-
-interface TopicBreakdown {
-  topicId: string;
-  topicName: string;
-  correct: number;
-  total: number;
-  percent: number;
-}
-
-interface AttemptDetail {
-  id: string;
-  examId: string;
-  score: number;
-  total: number;
-  percent: number;
-  finishedAt: string;
-  exam: { title: string; slug: string } | null;
-  questions: AttemptQuestion[];
-  topicBreakdown: TopicBreakdown[];
-}
-
 export default function TestResult() {
   const { attemptId = "" } = useParams();
-  const attempt = useApiQuery<AttemptDetail>(`/api/exams/attempts/${attemptId}`);
-  const { mutate: armNextExam } = useApiMutation<any, any>("/api/notifications/reminders/arm-next-exam", "POST");
+  const attempt = useQuery(api.tests.getAttempt, { attemptId: attemptId as any });
+  const armNextExam = useMutation(api.notifications.armNextExamReminder);
   const [reminderState, setReminderState] = useState<"idle" | "busy" | "armed">("idle");
-  const { mutate: reportExam } = useApiMutation<any, any>("/api/exams/reports", "POST");
+  const reportExam = useMutation(api.examReports.submitExamReport);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportQuestionId, setReportQuestionId] = useState("");
   const [reportComment, setReportComment] = useState("");
@@ -73,7 +44,7 @@ export default function TestResult() {
     setReminderState("busy");
     try {
       const granted = await requestNotificationPermission();
-      const res = await armNextExam({});
+      const res = await armNextExam();
       if (res.ok) {
         setReminderState("armed");
         toast.success(
@@ -117,8 +88,8 @@ export default function TestResult() {
     setReportBusy(true);
     try {
       const res = await reportExam({
-        examId: attempt.examId,
-        questionId: reportQuestionId,
+        examId: attempt.examId as any,
+        questionId: reportQuestionId as any,
         comment: reportComment.trim(),
       });
       toast.success(
@@ -300,7 +271,7 @@ export default function TestResult() {
             {(attempt.questions as any[]).map((q, i) => {
               const correct = q.chosenIndex === q.correctIndex;
               return (
-                <Card key={q.id} className="border-border/70 shadow-sm">
+                <Card key={q._id} className="border-border/70 shadow-sm">
                   <CardContent className="p-5">
                     <div className="flex items-start gap-3">
                       {correct ? (
@@ -381,7 +352,7 @@ export default function TestResult() {
                   </SelectTrigger>
                   <SelectContent>
                     {(attempt.questions as any[]).map((q, i) => (
-                      <SelectItem key={q.id} value={q.id}>
+                      <SelectItem key={q._id} value={q._id}>
                         {faNum(i + 1)}. {q.text.length > 70 ? `${q.text.slice(0, 70)}…` : q.text}
                       </SelectItem>
                     ))}

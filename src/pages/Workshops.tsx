@@ -1,12 +1,13 @@
 import { WorkshopCard } from "@/components/site/WorkshopCard";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { SectionHeading } from "@/components/site/SectionHeading";
-import { useApiQuery } from "@/hooks/use-api";
+import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
 import { Mic2 } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Workshops() {
-  const workshops = useApiQuery<any[]>("/api/content/workshops");
+  const workshops = useQuery(api.content.listWorkshops);
   const freeTalks = (workshops ?? []).filter((w) => w.expertTalk);
   const others = (workshops ?? []).filter((w) => !w.expertTalk);
 

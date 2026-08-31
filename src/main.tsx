@@ -3,7 +3,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { RequireAuth } from "@/components/RequireAuth";
 import { RoleGate } from "@/components/RoleGate";
 import { SettingsProvider } from "@/lib/settings";
-import { AuthProvider } from "@/lib/auth-provider";
 import { NotificationCenter } from "@/components/site/NotificationCenter";
 import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
@@ -96,9 +95,6 @@ createRoot(document.getElementById("root")!).render(
     <VlyToolbar />
     <InstrumentationProvider>
       <SettingsProvider>
-      {/* JWT Auth provider (new) */}
-      <AuthProvider>
-      {/* ConvexAuthProvider kept for unmigrated pages — auth no longer depends on it */}
       <ConvexAuthProvider client={convex}>
         <BrowserRouter>
           <NotificationCenter />
@@ -110,7 +106,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/" element={<Landing />} />
               <Route
                 path="/auth"
-                element={<AuthPage />}
+                element={<AuthPage redirectAfterAuth="/dashboard" />}
               />
 
               {/* Catalog */}
@@ -253,7 +249,6 @@ createRoot(document.getElementById("root")!).render(
         </BrowserRouter>
         <Toaster />
       </ConvexAuthProvider>
-      </AuthProvider>
       </SettingsProvider>
     </InstrumentationProvider>
   </StrictMode>,

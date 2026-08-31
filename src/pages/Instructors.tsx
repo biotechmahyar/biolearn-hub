@@ -1,14 +1,15 @@
 import { Badge } from "@/components/ui/badge";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { useApiQuery } from "@/hooks/use-api";
+import { api } from "@/convex/_generated/api";
 import { accent } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useQuery } from "convex/react";
 import { BadgeCheck, ChevronLeft } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Instructors() {
-  const instructors = useApiQuery<any[]>("/api/content/instructors");
+  const instructors = useQuery(api.content.listInstructors);
 
   return (
     <PublicLayout>
@@ -51,7 +52,7 @@ export default function Instructors() {
                   {ins.bio}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {ins.specialties.slice(0, 3).map((s: string) => (
+                  {ins.specialties.slice(0, 3).map((s) => (
                     <span key={s} className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
                       {s}
                     </span>

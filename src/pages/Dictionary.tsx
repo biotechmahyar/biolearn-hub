@@ -5,9 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PublicLayout } from "@/components/site/PublicLayout";
+import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import { useApiQuery, useApiMutation } from "@/hooks/use-api";
 import { faNum } from "@/lib/format";
+import { useMutation, useQuery } from "convex/react";
 import { BookOpen, Loader2, Microscope, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -39,22 +40,7 @@ function ListField({ label, items }: { label: string; items: string[] }) {
   );
 }
 
-interface TermRow {
-  _id: string;
-  id: string;
-  term: string;
-  fullName: string;
-  gramStatus: string;
-  shape: string;
-  oxygen: string;
-  habitat: string;
-  diseases: string[];
-  virulence: string[];
-  diagnosis: string;
-  characteristics: string[];
-  examNotes: string[];
-  sources: string[];
-}
+type TermRow = NonNullable<ReturnType<typeof useQuery<typeof api.content.searchDictionary>>>[number];
 
 // Editors: instructors, content managers, site admins and system admins.
 const EDITOR_ROLES = ["instructor", "content_manager", "site_admin", "admin"];
@@ -113,8 +99,8 @@ function TermDialog({
   onClose: () => void;
   editing: TermRow | null;
 }) {
-  const { mutate: createTerm } = useApiMutation<any, any>("/api/content/dictionary", "POST");
-  const { mutate: updateTerm } = useApiMutation<any, any>((args: any) => `/api/content/dictionary/${args.id}`, "PUT");
+  const create = useMutation(api.content.createDictionaryTerm);
+  const update = useMutation(api.content.updateDictionaryTerm);
   const [form, setForm] = useState<TermForm>(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -167,10 +153,10 @@ function TermDialog({
         sources: toLines(form.sources),
       };
       if (editing) {
-        await updateTerm({ id: editing.id, ...payload });
+        await update({ id: editing._id, ...payload });
         toast.success("اصطلاح ویرایش شد.");
       } else {
-        await createTerm(payload);
+        await create(payload);
         toast.success("اصطلاح به دیکشنری اضافه شد.");
       }
       onClose();
@@ -250,28 +236,28 @@ export default function Dictionary() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<TermRow | null>(null);
   const [deleting, setDeleting] = useState<TermRow | null>(null);
-  const terms = useApiQuery<TermRow[]>(`/api/content/dictionary${query ? `?q=${encodeURIComponent(query)}` : ""}`);
-  const { mutate: removeTerm } = useApiMutation<any, any>((args: any) => `/api/content/dictionary/${args.id}`, "DELETE");
+  const terms = useQuery(api.content.searchDictionary, { query: query || undefined });
+  const removeTerm = useMutation(api.content.deleteDictionaryTerm);
   const [removing, setRemoving] = useState(false);
 
   useEffect(() => {
     if (terms && terms.length > 0 && !selected) {
-      setSelected(terms[0].id);
+      setSelected(terms[0]._id);
     }
-    if (terms && terms.length > 0 && selected && !terms.some((t) => t.id === selected)) {
-      setSelected(terms[0].id);
+    if (terms && terms.length > 0 && selected && !terms.some((t) => t._id === selected)) {
+      setSelected(terms[0]._id);
     }
   }, [terms, selected]);
 
-  const active = terms?.find((t) => t.id === selected);
+  const active = terms?.find((t) => t._id === selected);
 
   const handleDelete = async () => {
     if (!deleting) return;
     setRemoving(true);
     try {
-      await removeTerm({ id: deleting.id });
+      await removeTerm({ id: deleting._id });
       toast.success("اصطلاح حذف شد.");
-      if (selected === deleting.id) setSelected(null);
+      if (selected === deleting._id) setSelected(null);
       setDeleting(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا در حذف");
@@ -329,12 +315,12 @@ export default function Dictionary() {
             </p>
             {(terms ?? []).map((t) => (
               <button
-                key={t.id}
+                key={t._id}
                 type="button"
-                onClick={() => setSelected(t.id)}
+                onClick={() => setSelected(t._id)}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-right transition-all",
-                  active?.id === t.id
+                  active?._id === t._id
                     ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                     : "border-border/70 bg-card/60 hover:border-primary/30",
                 )}

@@ -8,9 +8,10 @@ import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { iconFor } from "@/components/site/icons";
-import { useApiQuery } from "@/hooks/use-api";
+import { api } from "@/convex/_generated/api";
 import { accent, BUNDLE_LABELS, faNum, formatDate, formatPrice, MODE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useMutation, useQuery } from "convex/react";
 import {
   Bookmark,
   CheckCircle2,
@@ -59,11 +60,11 @@ const BUNDLE_DESC: Record<string, string> = {
 
 export default function CourseDetail() {
   const { slug = "" } = useParams();
-  const course = useApiQuery<any>(slug ? `/api/content/courses/${slug}` : null);
-  const testimonials = useApiQuery<any[]>("/api/content/testimonials");
+  const course = useQuery(api.content.getCourseBySlug, { slug });
+  const testimonials = useQuery(api.content.listTestimonials);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
-  // markLesson is not yet migrated — keep for future Phase
+  const markLesson = useMutation(api.enroll.markLessonComplete);
 
   if (course === undefined) {
     return (
@@ -92,13 +93,12 @@ export default function CourseDetail() {
   const effective = course.discountPrice ?? course.price;
   const hasDiscount = !!course.discountPrice && course.discountPrice < course.price;
   const isEnrolled = !!course.enrollment;
-  const totalMin = course.syllabus.reduce((acc: number, l: any) => acc + l.durationMin, 0);
+  const totalMin = course.syllabus.reduce((acc, l) => acc + l.durationMin, 0);
   const completedCount = course.enrollment?.completedLessons.length ?? 0;
   const percent = course.syllabus.length === 0 ? 0 : Math.round((completedCount / course.syllabus.length) * 100);
 
   const toggleLesson = async (lessonId: string, completed: boolean) => {
-    // TODO: migrate to REST API in Phase 9C
-    console.log("toggleLesson", lessonId, completed);
+    await markLesson({ courseId: course._id, lessonId, completed });
   };
 
   const courseReviews = (testimonials ?? []).filter((t) => t.course === course.title);
@@ -285,7 +285,7 @@ export default function CourseDetail() {
                     مناسب چه کسانی است؟
                   </h3>
                   <ul className="mt-3 space-y-2 text-[13px] text-muted-foreground">
-                    {course.audience.map((item: string) => (
+                    {course.audience.map((item) => (
                       <li key={item} className="flex items-start gap-2">
                         <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
                         {item}
@@ -299,7 +299,7 @@ export default function CourseDetail() {
                     پیش‌نیازها
                   </h3>
                   <ul className="mt-3 space-y-2 text-[13px] text-muted-foreground">
-                    {course.prerequisites.map((item: string) => (
+                    {course.prerequisites.map((item) => (
                       <li key={item} className="flex items-start gap-2">
                         <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
                         {item}
@@ -321,7 +321,7 @@ export default function CourseDetail() {
                 )}
               </div>
               <Accordion type="single" collapsible className="mt-4 space-y-2">
-                {course.syllabus.map((lesson: any, index: number) => {
+                {course.syllabus.map((lesson, index) => {
                   const done = course.enrollment?.completedLessons.includes(lesson.id) ?? false;
                   return (
                     <AccordionItem
@@ -378,7 +378,7 @@ export default function CourseDetail() {
             <div>
               <h2 className="text-xl font-extrabold">این پکیج شامل چه چیزهایی است؟</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {course.includes.map((item: string) => (
+                {course.includes.map((item) => (
                   <div key={item} className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
                     <ListChecks className="mt-0.5 size-4 shrink-0 text-primary" />
                     <span className="text-sm leading-6">{item}</span>
@@ -395,7 +395,7 @@ export default function CourseDetail() {
                   فایل‌های دوره
                 </h2>
                 <div className="mt-4 space-y-2">
-                  {course.files.map((file: any) => (
+                  {course.files.map((file) => (
                     <div
                       key={file.name}
                       className="flex items-center justify-between rounded-xl border border-border/70 bg-card/60 px-4 py-3"

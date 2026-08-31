@@ -8,9 +8,10 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { iconFor } from "@/components/site/icons";
+import { api } from "@/convex/_generated/api";
 import { accent, faNum, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useApiQuery } from "@/hooks/use-api";
+import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -40,22 +41,25 @@ import {
   Zap,
 } from "lucide-react";
 import { Link } from "react-router";
+import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 
 export default function Landing() {
-  const categories = useApiQuery<any[]>("/api/content/categories");
-  const popularCourses = useApiQuery<any[]>("/api/content/courses?popularOnly=true&limit=4");
-  const featuredCourses = useApiQuery<any[]>("/api/content/courses?featuredOnly=true&limit=4");
-  const products = useApiQuery<any[]>("/api/content/products?featuredOnly=true");
-  const articles = useApiQuery<any[]>("/api/content/articles?limit=3");
-  const instructors = useApiQuery<any[]>("/api/content/instructors");
-  const testimonials = useApiQuery<any[]>("/api/content/testimonials");
-  const dailyQuiz = useApiQuery<any>("/api/exams/daily");
-  const exams = useApiQuery<any[]>("/api/exams?featuredOnly=true&freeOnly=true");
+  const categories = useQuery(api.content.listCategories);
+  const popularCourses = useQuery(api.content.listCourses, { popularOnly: true, limit: 4 });
+  const featuredCourses = useQuery(api.content.listCourses, { featuredOnly: true, limit: 4 });
+  const products = useQuery(api.content.listProducts, { featuredOnly: true });
+  const articles = useQuery(api.content.listArticles, { limit: 3 });
+  const instructors = useQuery(api.content.listInstructors);
+  const testimonials = useQuery(api.content.listTestimonials);
+  const dailyQuiz = useQuery(api.tests.getDailyQuiz);
+  const exams = useQuery(api.tests.listExams, { featuredOnly: true, freeOnly: true });
 
   const heroCourses = popularCourses ?? featuredCourses ?? [];
 
   return (
     <PublicLayout>
+      <SeedBootstrap />
+
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-lab-grid [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent)]" />
@@ -264,7 +268,7 @@ export default function Landing() {
             const Icon = iconFor(cat.icon);
             return (
               <Link
-                key={cat.id}
+                key={cat._id}
                 to={`/courses?category=${cat.slug}`}
                 className={cn(
                   "group flex items-start gap-3 rounded-2xl border border-border/70 bg-card/70 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5",
@@ -296,7 +300,7 @@ export default function Landing() {
           />
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {(heroCourses ?? []).map((course) => (
-              <CourseCard key={course.id} course={course as any} />
+              <CourseCard key={course._id} course={course as any} />
             ))}
           </div>
         </div>
@@ -344,7 +348,7 @@ export default function Landing() {
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
               {(exams ?? []).slice(0, 3).map((exam) => (
                 <Link
-                  key={exam.id}
+                  key={exam._id}
                   to={`/tests/${exam.slug}`}
                   className="group flex items-center justify-between rounded-2xl bg-white/10 px-5 py-4 backdrop-blur transition-colors hover:bg-white/15"
                 >
@@ -399,7 +403,7 @@ export default function Landing() {
                       {dailyQuiz.question.text}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {dailyQuiz.question.options.slice(0, 2).map((opt: string, i: number) => (
+                      {dailyQuiz.question.options.slice(0, 2).map((opt, i) => (
                         <span key={i} className="rounded-lg bg-muted px-3 py-1.5 text-xs text-muted-foreground">
                           {opt}
                         </span>
@@ -434,7 +438,7 @@ export default function Landing() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {(instructors ?? []).slice(0, 5).map((ins) => (
             <Link
-              key={ins.id}
+              key={ins._id}
               to={`/instructors/${ins.slug}`}
               className="group rounded-2xl border border-border/70 bg-card/70 p-5 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5"
             >
@@ -460,7 +464,7 @@ export default function Landing() {
           />
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {(products ?? []).map((product) => (
-              <ProductCard key={product.id} product={product as any} />
+              <ProductCard key={product._id} product={product as any} />
             ))}
           </div>
         </div>
@@ -477,7 +481,7 @@ export default function Landing() {
         />
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {(articles ?? []).map((article) => (
-            <ArticleCard key={article.id} article={article as any} />
+            <ArticleCard key={article._id} article={article as any} />
           ))}
         </div>
       </section>
@@ -544,7 +548,7 @@ export default function Landing() {
           />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {(testimonials ?? []).map((t) => (
-              <Card key={t.id} className="border-border/70 bg-background shadow-sm">
+              <Card key={t._id} className="border-border/70 bg-background shadow-sm">
                 <CardContent className="p-6">
                   <div className="flex gap-0.5 text-amber-400">
                     {Array.from({ length: t.rating }).map((_, i) => (
