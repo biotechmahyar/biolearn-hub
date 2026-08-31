@@ -134,7 +134,8 @@ type Section =
   | "comments"
   | "payments"
   | "classRequests"
-  | "studentReports";
+  | "studentReports"
+  | "backup";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -153,6 +154,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
       { key: "comments", label: "دیدگاه‌ها", icon: MessageSquare },
+      { key: "backup", label: "بکاپ و خروجی", icon: Download },
     ],
   },
   {
@@ -618,6 +620,7 @@ export default function Admin() {
             {section === "studentReports" && <AdminStudentReports />}
             {section === "profiles" && <AdminProfiles />}
             {section === "inbox" && <AdminInbox />}
+            {section === "backup" && <AdminBackup />}
           </div>
         </main>
       </div>
@@ -3653,6 +3656,111 @@ function AdminOfflinePayments() {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+// ── Backup ──────────────────────────────────────────────────────────────────
+function AdminBackup() {
+  const backup = useQuery(api.admin.exportBackup);
+  const [downloading, setDownloading] = useState(false);
+  const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
+
+  const tables = backup?.tables ?? {};
+  const tableNames = Object.keys(tables).sort();
+
+  const toggleTable = (name: string) => {
+    const next = new Set(selectedTables);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    setSelectedTables(next);
+  };
+
+  const selectAll = () => setSelectedTables(new Set(tableNames));
+  const selectNone = () => setSelectedTables(new Set());
+
+  const handleDownload = () => {
+    if (!backup) return;
+    setDownloading(true);
+    try {
+      const exportData: Record<string, any[]> = {};
+      const tablesToExport = selectedTables.size > 0 ? selectedTables : new Set(tableNames);
+      for (const name of tablesToExport) {
+        exportData[name] = tables[name] ?? [];
+      }
+      const payload = {
+        exportedAt: backup.exportedAt,
+        site: "nibrc.ir",
+        tables: exportData,
+        tableCount: Object.keys(exportData).length,
+        recordCount: Object.values(exportData).reduce((sum, arr) => sum + arr.length, 0),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nibrc-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const totalRecords = tableNames.reduce((sum, name) => sum + (tables[name]?.length ?? 0), 0);
+  const selectedRecords = tableNames
+    .filter((name) => selectedTables.size === 0 || selectedTables.has(name))
+    .reduce((sum, name) => sum + (tables[name]?.length ?? 0), 0);
+
+  if (!backup) return <Loading />;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="بکاپ و خروجی" subtitle="backup / export" count={totalRecords} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card className="border-border/70 shadow-sm"><CardContent className="p-4"><p className="text-2xl font-extrabold">{tableNames.length}</p><p className="text-[11px] text-muted-foreground">جدول</p></CardContent></Card>
+        <Card className="border-border/70 shadow-sm"><CardContent className="p-4"><p className="text-2xl font-extrabold">{faNum(totalRecords)}</p><p className="text-[11px] text-muted-foreground">کل رکوردها</p></CardContent></Card>
+        <Card className="border-border/70 shadow-sm"><CardContent className="p-4"><p className="text-2xl font-extrabold">{faNum(selectedRecords)}</p><p className="text-[11px] text-muted-foreground">انتخاب شده</p></CardContent></Card>
+        <Card className="border-border/70 shadow-sm"><CardContent className="p-4"><p className="text-[11px] text-muted-foreground">آخرین خروجی</p><p className="mt-1 text-sm font-bold" dir="ltr">{backup.exportedAt?.slice(0, 19).replace("T", " ")}</p></CardContent></Card>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={handleDownload} disabled={downloading} className="rounded-lg">
+          {downloading ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Download className="ml-1.5 size-4" />}
+          دانلود فایل JSON
+        </Button>
+        <Button variant="outline" className="rounded-lg" onClick={selectAll}>انتخاب همه</Button>
+        <Button variant="outline" className="rounded-lg" onClick={selectNone}>حذف انتخاب</Button>
+      </div>
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10"></TableHead>
+                <TableHead>نام جدول</TableHead>
+                <TableHead className="text-left">تعداد رکورد</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tableNames.map((name) => (
+                <TableRow key={name}>
+                  <TableCell>
+                    <input type="checkbox" checked={selectedTables.size === 0 || selectedTables.has(name)} onChange={() => toggleTable(name)} className="size-4 rounded border-border accent-primary" />
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">{name}</TableCell>
+                  <TableCell className="text-left font-mono text-sm">{faNum(tables[name]?.length ?? 0)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+        <p className="font-bold text-primary">ساختار فایل بکاپ</p>
+        <pre className="mt-2 overflow-x-auto font-mono text-xs leading-6">{JSON.stringify({ exportedAt: "2024-01-01T00:00:00.000Z", site: "nibrc.ir", tableCount: 55, recordCount: 1234, tables: { users: "[...]", courses: "[...]", questions: "[...]" } }, null, 2)}</pre>
+        <p className="mt-2 text-xs">فایل JSON شامل تمام جداول و رکوردهای سایت هست. فقط ادمین‌ها می‌تونن از این بخش استفاده کنن.</p>
+      </div>
     </div>
   );
 }

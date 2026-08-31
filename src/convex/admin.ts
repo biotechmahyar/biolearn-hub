@@ -1493,3 +1493,47 @@ export const saveGeneratedQuestions = mutation({
     return { ok: true, saved };
   },
 });
+
+// ── Export / Backup ─────────────────────────────────────────────────────────
+// Returns all data from every table as a single JSON-friendly object.
+// Only admins can call this.
+export const exportBackup = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return null;
+
+    const TABLES = [
+      "users", "categories", "instructors", "courses", "products",
+      "workshops", "articles", "dictionaryTerms", "questions", "exams",
+      "examAttempts", "dailyQuiz", "dailyQuizAnswers", "orders",
+      "coupons", "enrollments", "announcements", "bookmarks",
+      "flashcards", "tickets", "comments", "courseResources",
+      "attendance", "instructorPayments", "directMessages", "testimonials",
+      "admins", "offlinePayments", "inboxMessages", "aiConfig",
+      "aiModels", "aiPrompts", "aiConversations", "aiMessages",
+      "aiUsage", "aiTokenQuotas", "classRooms", "classRequests",
+      "whiteboardStrokes", "roomMessages", "signals", "mentorGroups",
+      "mentorQuestions", "mentorSessions", "groupMembers",
+      "groupAnnouncements", "sitePages", "siteTexts", "mediaItems",
+      "articleVersions", "superAdminSessions", "telegramBot",
+      "telegramLinkingCodes", "telegramNotifPrefs", "telegramNotifLog",
+      "reminders", "presence", "examReports",
+    ] as const;
+
+    const backup: Record<string, any[]> = {};
+    for (const table of TABLES) {
+      try {
+        backup[table] = await ctx.db.query(table).collect();
+      } catch {
+        backup[table] = [];
+      }
+    }
+
+    return {
+      exportedAt: new Date().toISOString(),
+      tables: backup,
+      tableCount: Object.keys(backup).length,
+      recordCount: Object.values(backup).reduce((sum, arr) => sum + arr.length, 0),
+    };
+  },
+});
