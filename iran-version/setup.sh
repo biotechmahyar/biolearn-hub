@@ -16,9 +16,11 @@ echo ""
 echo "📦 Installing backend..."
 cd backend
 
-python3 -m venv venv 2>/dev/null || true
-source venv/bin/activate
-pip install -r requirements.txt -q
+python3 -m venv venv 2>/dev/null || python3 -m virtualenv venv 2>/dev/null || true
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+fi
+python3 -m pip install -r requirements.txt -q 2>/dev/null || pip3 install -r requirements.txt -q 2>/dev/null || echo "  ⚠️  Install deps manually: pip install -r requirements.txt"
 
 mkdir -p data
 

@@ -33,14 +33,19 @@ cd backend
 
 # Create venv if missing
 if [ ! -d "venv" ]; then
-    python3 -m venv venv
+    python3 -m venv venv 2>/dev/null || python3 -m virtualenv venv 2>/dev/null || echo "  ⚠️  Could not create venv — using system Python"
     echo "  ✅ Created virtual environment"
 fi
 
-source venv/bin/activate
+# Activate venv (skip if it failed)
+if [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+else
+    echo "  ⚠️  Using system Python (no venv)"
+fi
 
 # Install deps
-pip install -r requirements.txt -q 2>/dev/null
+python3 -m pip install -r requirements.txt -q 2>/dev/null || pip3 install -r requirements.txt -q 2>/dev/null || echo "  ⚠️  pip install failed — install manually: pip install -r requirements.txt"
 echo "  ✅ Backend dependencies ready"
 
 # Create .env if missing
