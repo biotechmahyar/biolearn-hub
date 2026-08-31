@@ -8,10 +8,9 @@ import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { iconFor } from "@/components/site/icons";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery } from "@/hooks/use-api";
 import { accent, BUNDLE_LABELS, faNum, formatDate, formatPrice, MODE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useMutation, useQuery } from "convex/react";
 import {
   Bookmark,
   CheckCircle2,
@@ -60,11 +59,11 @@ const BUNDLE_DESC: Record<string, string> = {
 
 export default function CourseDetail() {
   const { slug = "" } = useParams();
-  const course = useQuery(api.content.getCourseBySlug, { slug });
-  const testimonials = useQuery(api.content.listTestimonials);
+  const course = useApiQuery<any>(slug ? `/api/content/courses/${slug}` : null);
+  const testimonials = useApiQuery<any[]>("/api/content/testimonials");
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
-  const markLesson = useMutation(api.enroll.markLessonComplete);
+  // markLesson is not yet migrated — keep for future Phase
 
   if (course === undefined) {
     return (
@@ -98,7 +97,8 @@ export default function CourseDetail() {
   const percent = course.syllabus.length === 0 ? 0 : Math.round((completedCount / course.syllabus.length) * 100);
 
   const toggleLesson = async (lessonId: string, completed: boolean) => {
-    await markLesson({ courseId: course._id, lessonId, completed });
+    // TODO: migrate to REST API in Phase 9C
+    console.log("toggleLesson", lessonId, completed);
   };
 
   const courseReviews = (testimonials ?? []).filter((t) => t.course === course.title);

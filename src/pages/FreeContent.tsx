@@ -1,13 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { ArticleCard } from "@/components/site/ArticleCard";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery } from "@/hooks/use-api";
 import { faNum } from "@/lib/format";
-import { useQuery } from "convex/react";
 import { useState } from "react";
 
 export default function FreeContent() {
-  const articles = useQuery(api.content.listArticles, {});
+  const articles = useApiQuery<any[]>("/api/content/articles");
   const [category, setCategory] = useState<string>("");
 
   const cats = [...new Set((articles ?? []).map((a) => a.category))];

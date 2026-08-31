@@ -8,9 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "convex/react";
 import {
   BookOpen,
   Bot,
@@ -46,7 +44,6 @@ const NAV = [
 
 export function SiteHeader() {
   const { isAuthenticated, user, signOut } = useAuth();
-  const isAdmin = useQuery(api.admin.amIAdmin);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 

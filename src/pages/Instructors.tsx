@@ -1,15 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery } from "@/hooks/use-api";
 import { accent } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
 import { BadgeCheck, ChevronLeft } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Instructors() {
-  const instructors = useQuery(api.content.listInstructors);
+  const instructors = useApiQuery<any[]>("/api/content/instructors");
 
   return (
     <PublicLayout>

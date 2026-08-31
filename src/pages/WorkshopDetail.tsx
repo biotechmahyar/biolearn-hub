@@ -5,17 +5,16 @@ import { Progress } from "@/components/ui/progress";
 import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery } from "@/hooks/use-api";
 import { faNum, formatDate, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
 import { CalendarDays, CheckCircle2, ChevronLeft, Clock, Users } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
 export default function WorkshopDetail() {
   const { slug = "" } = useParams();
-  const workshop = useQuery(api.content.getWorkshopBySlug, { slug });
+  const workshop = useApiQuery<any>(slug ? `/api/content/workshops/${slug}` : null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   if (workshop === undefined) {

@@ -3,25 +3,22 @@ import { Button } from "@/components/ui/button";
 import { ArticleCard } from "@/components/site/ArticleCard";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery } from "@/hooks/use-api";
 import { useAuth } from "@/hooks/use-auth";
 import { accent, faNum, formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useMutation, useQuery } from "convex/react";
 import { ChevronLeft, Clock, MessageCircle, Send } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
 export default function ArticleDetail() {
   const { slug = "" } = useParams();
-  const article = useQuery(api.content.getArticleBySlug, { slug });
-  const articles = useQuery(api.content.listArticles, {});
+  const article = useApiQuery<any>(slug ? `/api/content/articles/${slug}` : null);
+  const articles = useApiQuery<any[]>("/api/content/articles");
   const { isAuthenticated } = useAuth();
-  const comments = useQuery(
-    api.comments.listComments,
-    article ? { contentType: "article", contentId: article._id } : "skip",
-  );
-  const addComment = useMutation(api.comments.addComment);
+  // Comments not yet migrated to REST — leave as TODO for Phase 9C
+  const comments: any[] | undefined = undefined;
+  const addComment = async (_args: any) => { console.log("TODO: migrate comments to REST"); };
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
 

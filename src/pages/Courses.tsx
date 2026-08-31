@@ -2,10 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CourseCard } from "@/components/site/CourseCard";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery } from "@/hooks/use-api";
 import { faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
 import { Search } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
@@ -15,11 +14,11 @@ export default function Courses() {
   const activeCategory = searchParams.get("category") ?? "";
   const [search, setSearch] = useState("");
 
-  const categories = useQuery(api.content.listCategories);
-  const courses = useQuery(api.content.listCourses, {
-    categorySlug: activeCategory || undefined,
-    search: search || undefined,
-  });
+  const categories = useApiQuery<any[]>("/api/content/categories");
+  const coursesQuery = activeCategory || search
+    ? `/api/content/courses?${new URLSearchParams({ ...(activeCategory ? { category: activeCategory } : {}), ...(search ? { search } : {}) }).toString()}`
+    : "/api/content/courses";
+  const courses = useApiQuery<any[]>(coursesQuery);
 
   return (
     <PublicLayout>

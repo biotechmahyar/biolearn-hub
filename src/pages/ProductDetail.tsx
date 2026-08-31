@@ -4,17 +4,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { productIconFor } from "@/components/site/icons";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery } from "@/hooks/use-api";
 import { accent, formatPrice, PRODUCT_TYPE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
 import { CheckCircle2, ChevronLeft, Package, ShoppingBag, Truck } from "lucide-react";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 
 export default function ProductDetail() {
   const { slug = "" } = useParams();
-  const product = useQuery(api.content.getProductBySlug, { slug });
+  const product = useApiQuery<any>(slug ? `/api/content/products/${slug}` : null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   if (product === undefined) {
