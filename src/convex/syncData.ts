@@ -1,4 +1,5 @@
 import { httpAction } from "./_generated/server";
+import { api } from "./_generated/api";
 
 /**
  * GET /sync/data — Serves all public data for the Iran mirror site.
@@ -17,7 +18,7 @@ export const handleSyncData = httpAction(async (ctx, request) => {
     });
   }
 
-  // Fetch all public tables in parallel
+  // Fetch all public tables in parallel using proper API references
   const [
     categories,
     instructors,
@@ -26,22 +27,16 @@ export const handleSyncData = httpAction(async (ctx, request) => {
     workshops,
     articles,
     dictionaryTerms,
-    questions,
-    exams,
-    dailyQuiz,
     testimonials,
   ] = await Promise.all([
-    ctx.runQuery("categories" as any, {}),
-    ctx.runQuery("instructors" as any, {}),
-    ctx.runQuery("courses" as any, { published: true }),
-    ctx.runQuery("products" as any, { published: true }),
-    ctx.runQuery("workshops" as any, { published: true }),
-    ctx.runQuery("articles" as any, { published: true }),
-    ctx.runQuery("dictionaryTerms" as any, {}),
-    ctx.runQuery("questions" as any, {}),
-    ctx.runQuery("exams" as any, { published: true }),
-    ctx.runQuery("dailyQuiz" as any, {}),
-    ctx.runQuery("testimonials" as any, {}),
+    ctx.runQuery(api.content.listCategories, {}),
+    ctx.runQuery(api.content.listInstructors, {}),
+    ctx.runQuery(api.content.listCourses, {}),
+    ctx.runQuery(api.content.listProducts, {}),
+    ctx.runQuery(api.content.listWorkshops, {}),
+    ctx.runQuery(api.content.listArticles, {}),
+    ctx.runQuery(api.content.searchDictionary, { query: "" }),
+    ctx.runQuery(api.content.listTestimonials, {}),
   ]);
 
   const data = {
@@ -52,9 +47,6 @@ export const handleSyncData = httpAction(async (ctx, request) => {
     workshops: workshops || [],
     articles: articles || [],
     dictionary_terms: dictionaryTerms || [],
-    questions: questions || [],
-    exams: exams || [],
-    daily_quiz: dailyQuiz || [],
     testimonials: testimonials || [],
     synced_at: new Date().toISOString(),
   };
@@ -63,7 +55,7 @@ export const handleSyncData = httpAction(async (ctx, request) => {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "public, max-age=300", // 5 min browser cache
+      "Cache-Control": "public, max-age=300",
       "Access-Control-Allow-Origin": "*",
     },
   });

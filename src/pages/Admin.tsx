@@ -3849,8 +3849,8 @@ function AdminSync() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  const syncEndpoint = "https://nibrc.ir/sync/data";
-  const pushEndpoint = "https://nibrc.ir/sync/push";
+  const syncEndpoint = "https://tough-goldfish-134.convex.site/sync/data";
+  const pushEndpoint = "https://tough-goldfish-134.convex.site/sync/push";
 
   const handleTestEndpoint = async () => {
     setTesting(true);
