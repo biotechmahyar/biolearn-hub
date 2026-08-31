@@ -8,9 +8,12 @@ cached data and queues offline changes for later sync.
 import os
 import threading
 import time
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.models.database import init_db, SessionLocal
 from app.routes.content import router as content_router
 from app.routes.sync import router as sync_router
@@ -19,6 +22,9 @@ from app.routes.offline import router as offline_router
 from app.services.sync_service import run_full_sync
 
 SYNC_INTERVAL = int(os.getenv("SYNC_INTERVAL", "1800"))  # 30 minutes default
+
+# Path to the frontend build directory
+FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
 
 def _background_sync_loop():
@@ -94,3 +100,26 @@ def root():
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+# ── Serve Frontend Static Files ──────────────────────────────────────────────
+# Mount the built frontend so everything runs from a single port.
+if FRONTEND_DIR.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="static-assets")
+
+    # SPA fallback — serve index.html for all non-API routes
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # API routes are handled above, so this only catches frontend routes
+        index_file = FRONTEND_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        return {"error": "Frontend not built. Run: cd frontend && npm run build"}
+else:
+    @app.get("/{full_path:path}")
+    async def no_frontend(full_path: str):
+        return {
+            "error": "Frontend not built",
+            "hint": "Run: cd frontend && npm install && npm run build",
+        }

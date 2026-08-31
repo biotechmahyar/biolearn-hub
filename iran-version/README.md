@@ -1,148 +1,97 @@
 # NIBRC Iran Mirror
 
-Read-only mirror of the NIBRC biological sciences platform, designed for
-availability when international internet connectivity is disrupted.
+نسخه آینه‌ای سایت اصلی NIBRC برای کاربران ایرانی.
 
-## Architecture
+## شروع سریع
 
-```
-Main Site (Convex) ─── sync/data ──→ Iran Mirror (FastAPI + SQLite/PostgreSQL)
-                                          │
-                                    every 30 min
-                                          │
-                                    React Frontend
+### روش ۱: یک دستور
+```bash
+bash start.sh
 ```
 
-### How it works
+### روش 2: دستی
+```bash
+# بک‌اند
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env  # یا .env خودت رو بساز
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
-1. **Normal mode**: The Iran site mirrors the main site's public data, syncing every 30 minutes
-2. **Offline mode**: When the main site is unreachable, the Iran site continues serving cached data
-3. **Offline writes**: Users can register, enroll, and purchase locally when offline
-4. **Reconnection**: Offline changes are queued and synced back to the main site when connectivity returns
+# فرانت (اگه Node.js داری)
+cd ../frontend
+npm install
+npm run build
+```
 
-## Project Structure
+## تنظیم `.env`
+
+```bash
+# آدرس سایت اصلی
+MAIN_SITE_URL=https://nibrc.ir
+
+# رمز سینک (باید با سایت اصلی یکی باشه)
+SYNC_API_KEY=your-secret-key
+
+# دیتابیس
+DATABASE_URL=sqlite:///./data/genova.db
+```
+
+## ساختار
 
 ```
 iran-version/
-├── backend/
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py              # FastAPI application
-│   │   ├── models/
-│   │   │   └── database.py      # SQLAlchemy models
-│   │   ├── routes/
-│   │   │   ├── content.py       # Public content API
-│   │   │   └── sync.py          # Sync management
-│   │   └── services/
-│   │       └── sync_service.py  # Sync worker logic
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/                     # React frontend (to be added)
-└── README.md
+├── backend/          ← Python (FastAPI)
+│   ├── app/          ← کد اصلی
+│   ├── data/         ← دیتابیس SQLite
+│   └── requirements.txt
+├── frontend/         ← React (Vite)
+│   ├── src/          ← کد فرانت
+│   └── dist/         ← فایل build شده
+├── start.sh          ← اجرای ساده
+└── docker-compose.yml
 ```
-
-## Setup
-
-### Backend
-
-```bash
-cd iran-version/backend
-pip install -r requirements.txt
-cp .env.example .env
-# Edit .env with your values
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MAIN_SITE_URL` | `https://nibrc.ir` | Main site URL |
-| `SYNC_API_KEY` | `changeme-sync-secret-key` | Must match main site |
-| `SYNC_INTERVAL` | `1800` | Sync interval (seconds) |
-| `DATABASE_URL` | `sqlite:///./iran_mirror.db` | Database connection |
-| `SYNC_TIMEOUT` | `60` | HTTP timeout (seconds) |
 
 ## API Endpoints
 
-### Content (read-only)
+### محتوا
+- `GET /api/content/courses` — لیست دوره‌ها
+- `GET /api/content/courses/:slug` — جزئیات دوره
+- `GET /api/content/instructors` — لیست اساتید
+- `GET /api/content/articles` — لیست مقالات
+- `GET /api/content/products` — لیست محصولات
+- `GET /api/content/workshops` — لیست کارگاه‌ها
+- `GET /api/content/dictionary` — جستجوی دیکشنری
+- `GET /api/content/exams` — لیست آزمون‌ها
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/content/categories` | List categories |
-| GET | `/api/content/courses` | List courses |
-| GET | `/api/content/courses/:slug` | Course detail |
-| GET | `/api/content/instructors` | List instructors |
-| GET | `/api/content/instructors/:slug` | Instructor detail |
-| GET | `/api/content/products` | List products |
-| GET | `/api/content/products/:slug` | Product detail |
-| GET | `/api/content/workshops` | List workshops |
-| GET | `/api/content/workshops/:slug` | Workshop detail |
-| GET | `/api/content/articles` | List articles |
-| GET | `/api/content/articles/:slug` | Article detail |
-| GET | `/api/content/dictionary` | Search dictionary |
-| GET | `/api/content/exams` | List exams |
-| GET | `/api/content/daily-quiz` | Today's quiz |
-| GET | `/api/content/testimonials` | Testimonials |
+### احراز هویت
+- `POST /api/auth/register` — ثبت‌نام
+- `POST /api/auth/login` — ورود
+- `GET /api/auth/me` — اطلاعات کاربر
 
-### Sync Management
+### آفلاین
+- `POST /api/offline/enroll` — ثبت‌نام در دوره
+- `GET /api/offline/enrollments` — لیست ثبت‌نام‌ها
+- `POST /api/offline/sync-back` — ارسال تغییرات به سایت اصلی
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/sync/trigger` | Trigger manual sync |
-| GET | `/api/sync/status` | View sync history |
+### سینک
+- `POST /api/sync/trigger` — سینک دستی
+- `GET /api/sync/status` — وضعیت سینک
 
-### Health
+## هاست‌های پیشنهادی ایران
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/` | Root info |
-| GET | `/health` | Health check |
+| هاست | نوع | هزینه |
+|------|-----|-------|
+| ابرآروان | VPS | ۲۰۰-۴۰۰ هزار تومان/ماه |
+| پارس‌پک | VPS | ۲۰۰-۴۰۰ هزار تومان/ماه |
+| چابکان | Python | رایگان تا پولید |
+| ریکتوم | React | رایگان |
 
-## Main Site Changes
+## نکات فنی
 
-A single sync endpoint was added to the main Convex site:
-
-- **File**: `src/convex/syncData.ts`
-- **Route**: `GET /sync/data`
-- **Auth**: `X-Sync-Key` header
-- **Returns**: All public data as JSON
-
-## Deployment (Iran VPS)
-
-### Recommended: Docker
-
-```bash
-docker-compose up -d
-```
-
-### Manual
-
-```bash
-# Install Python 3.11+
-# Install dependencies
-pip install -r requirements.txt
-
-# Set environment variables
-export MAIN_SITE_URL=https://nibrc.ir
-export SYNC_API_KEY=your-key
-export DATABASE_URL=postgresql://user:pass@localhost/nibrc_mirror
-
-# Run
-uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-### Nginx Reverse Proxy
-
-```nginx
-server {
-    listen 80;
-    server_name iran.nibrc.ir;
-
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
+- **دیتابیس:** SQLite (پیش‌فرض) یا PostgreSQL
+- **سینک:** هر ۳۰ دقیقه خودکار از سایت اصلی
+- **آفلاین:** تغییرات در صف `offline_changes` ذخیره میشه
+- **امنیت:** رمز عبور با PBKDF2 رمزنگاری میشه
+- **توکن:** در فایل `data/tokens.json` ذخیره میشه

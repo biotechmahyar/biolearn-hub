@@ -1,23 +1,23 @@
 version: "3.8"
 
 services:
-  backend:
+  app:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
     environment:
       - MAIN_SITE_URL=${MAIN_SITE_URL:-https://nibrc.ir}
       - SYNC_API_KEY=${SYNC_API_KEY:-changeme-sync-secret-key}
       - SYNC_INTERVAL=${SYNC_INTERVAL:-1800}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./iran_mirror.db}
-      - SYNC_TIMEOUT=${SYNC_TIMEOUT:-60}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/genova.db}
+      - JWT_SECRET=${JWT_SECRET:-change-me}
     volumes:
-      - ./data:/app/data
+      - ./data:/app/backend/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 60s
+      interval: 30s
       timeout: 10s
       retries: 3
