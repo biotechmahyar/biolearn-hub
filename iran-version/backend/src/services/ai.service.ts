@@ -106,36 +106,41 @@ export async function getRawConfig(modelId?: string): Promise<{
   maxTokensPerRequest: number;
   systemPrompt: string;
 } | null> {
-  const db = getDb();
+  try {
+    const db = getDb();
 
-  // If modelId provided, use that specific model
-  if (modelId) {
-    const [model] = await db.select().from(aiModels).where(eq(aiModels.id, modelId)).limit(1);
-    if (model && model.active) {
-      return {
-        apiKey: model.apiKey,
-        baseUrl: model.baseUrl,
-        model: model.model,
-        provider: model.provider,
-        temperature: model.temperature,
-        maxTokensPerRequest: model.maxTokens,
-        systemPrompt: model.systemPrompt || "شما یک دستیار تخصصی علوم زیستی هستید.",
-      };
+    // If modelId provided, use that specific model
+    if (modelId) {
+      const [model] = await db.select().from(aiModels).where(eq(aiModels.id, modelId)).limit(1);
+      if (model && model.active) {
+        return {
+          apiKey: model.apiKey,
+          baseUrl: model.baseUrl,
+          model: model.model,
+          provider: model.provider,
+          temperature: model.temperature,
+          maxTokensPerRequest: model.maxTokens,
+          systemPrompt: model.systemPrompt || "شما یک دستیار تخصصی علوم زیستی هستید.",
+        };
+      }
     }
-  }
 
-  // Fallback to legacy single config
-  const [config] = await db.select().from(aiConfig).limit(1);
-  if (!config || !config.apiKeyEncrypted) return null;
-  return {
-    apiKey: config.apiKeyEncrypted,
-    baseUrl: config.baseUrl,
-    model: config.model,
-    provider: config.provider,
-    temperature: config.temperature,
-    maxTokensPerRequest: config.maxTokensPerRequest,
-    systemPrompt: config.systemPrompt,
-  };
+    // Fallback to legacy single config
+    const [config] = await db.select().from(aiConfig).limit(1);
+    if (!config || !config.apiKeyEncrypted) return null;
+    return {
+      apiKey: config.apiKeyEncrypted,
+      baseUrl: config.baseUrl,
+      model: config.model,
+      provider: config.provider,
+      temperature: config.temperature,
+      maxTokensPerRequest: config.maxTokensPerRequest,
+      systemPrompt: config.systemPrompt,
+    };
+  } catch {
+    // DB unavailable — graceful degradation
+    return null;
+  }
 }
 
 export async function saveConfig(data: {
