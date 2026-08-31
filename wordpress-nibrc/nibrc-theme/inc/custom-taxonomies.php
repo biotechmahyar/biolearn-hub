@@ -1,34 +1,55 @@
 <?php
 /**
- * NIBRC Custom Taxonomies
+ * Custom Taxonomies for NIBRC
  */
 
 if (!defined('ABSPATH')) exit;
 
 function nibrc_register_taxonomies() {
-
-    // ──── Category (shared across courses & articles) ────
-    register_taxonomy('nibrc_category', ['nibrc_course', 'nibrc_article'], [
+    
+    // === دسته‌بندی دوره‌ها ===
+    register_taxonomy('course_category', ['course'], [
         'labels' => [
-            'name'          => 'دسته‌بندی‌ها',
+            'name'          => 'دسته‌بندی دوره‌ها',
             'singular_name' => 'دسته‌بندی',
-            'add_new_item'  => 'افزودن دسته‌بندی',
+            'search_items'  => 'جستجوی دسته‌بندی‌ها',
+            'all_items'     => 'همه دسته‌بندی‌ها',
+            'edit_item'     => 'ویرایش دسته‌بندی',
+            'add_new_item'  => 'افزودن دسته‌بندی جدید',
         ],
-        'public'       => true,
         'hierarchical' => true,
-        'rewrite'      => ['slug' => 'category'],
+        'public'       => true,
+        'rewrite'      => ['slug' => 'course-category'],
         'show_in_rest' => true,
     ]);
-
-    // ──── Course Level ────
-    register_taxonomy('nibrc_level', ['nibrc_course'], [
+    
+    // === دسته‌بندی مقالات ===
+    register_taxonomy('article_category', ['article'], [
         'labels' => [
-            'name'          => 'سطح دوره',
-            'singular_name' => 'سطح',
+            'name'          => 'دسته‌بندی مقالات',
+            'singular_name' => 'دسته‌بندی',
+            'search_items'  => 'جستجوی دسته‌بندی‌ها',
+            'all_items'     => 'همه دسته‌بندی‌ها',
+            'edit_item'     => 'ویرایش دسته‌بندی',
+            'add_new_item'  => 'افزودن دسته‌بندی جدید',
         ],
-        'public'       => true,
         'hierarchical' => true,
-        'rewrite'      => ['slug' => 'level'],
+        'public'       => true,
+        'rewrite'      => ['slug' => 'article-category'],
+        'show_in_rest' => true,
+    ]);
+    
+    // === برچسب‌ها (Tags) ===
+    register_taxonomy('nibrc_tag', ['course', 'article', 'workshop'], [
+        'labels' => [
+            'name'          => 'برچسب‌ها',
+            'singular_name' => 'برچسب',
+            'search_items'  => 'جستجوی برچسب‌ها',
+            'add_new_item'  => 'افزودن برچسب جدید',
+        ],
+        'hierarchical' => false,
+        'public'       => true,
+        'rewrite'      => ['slug' => 'tag'],
         'show_in_rest' => true,
     ]);
 }

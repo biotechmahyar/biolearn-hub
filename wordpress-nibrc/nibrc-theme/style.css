@@ -1,11 +1,548 @@
 /*
-Theme Name: NIBRC Iran Mirror
+Theme Name: NIBRC Iran
 Theme URI: https://nibrc.ir
-Description: قالب سایت آینه‌ای NIBRC برای کاربران ایرانی — نمایش دوره‌ها، مقالات، اساتید، آزمون و پشتیبانی
+Description: قالب سایت آینه‌ای NIBRC برای کاربران ایرانی — کپی از سایت اصلی با قابلیت سینک و کار آفلاین
 Version: 1.0.0
 Author: NIBRC Team
 Author URI: https://nibrc.ir
 Text Domain: nibrc
-Tags: education, biology, responsive, rtl, persian
+Tags: education, biology, one-column, custom-menu, featured-images, theme-options, translation-ready
 License: GNU General Public License v2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 */
+
+/* === Reset & Base === */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --nibrc-primary: #059669;
+  --nibrc-primary-dark: #047857;
+  --nibrc-primary-light: #d1fae5;
+  --nibrc-secondary: #0ea5e9;
+  --nibrc-accent: #f59e0b;
+  --nibrc-bg: #f8fafc;
+  --nibrc-surface: #ffffff;
+  --nibrc-text: #1e293b;
+  --nibrc-text-muted: #64748b;
+  --nibrc-border: #e2e8f0;
+  --nibrc-radius: 12px;
+  --nibrc-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --nibrc-shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.06);
+  --nibrc-font: 'Vazirmatn', 'Tahoma', sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--nibrc-font);
+  background: var(--nibrc-bg);
+  color: var(--nibrc-text);
+  line-height: 1.7;
+  direction: rtl;
+  text-align: right;
+}
+
+a {
+  color: var(--nibrc-primary);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+a:hover {
+  color: var(--nibrc-primary-dark);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* === Container === */
+.nibrc-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* === Header === */
+.nibrc-header {
+  background: var(--nibrc-surface);
+  border-bottom: 1px solid var(--nibrc-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--nibrc-shadow);
+}
+
+.nibrc-header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.nibrc-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--nibrc-primary);
+}
+
+.nibrc-logo img {
+  height: 40px;
+}
+
+.nibrc-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.nibrc-nav a {
+  color: var(--nibrc-text-muted);
+  font-weight: 500;
+  font-size: 0.95rem;
+  padding: 6px 0;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.nibrc-nav a:hover,
+.nibrc-nav a.active {
+  color: var(--nibrc-primary);
+  border-bottom-color: var(--nibrc-primary);
+}
+
+.nibrc-auth-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* === Buttons === */
+.nibrc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: var(--nibrc-radius);
+  font-family: var(--nibrc-font);
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.nibrc-btn-primary {
+  background: var(--nibrc-primary);
+  color: white;
+}
+
+.nibrc-btn-primary:hover {
+  background: var(--nibrc-primary-dark);
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: var(--nibrc-shadow-lg);
+}
+
+.nibrc-btn-outline {
+  background: transparent;
+  color: var(--nibrc-primary);
+  border: 2px solid var(--nibrc-primary);
+}
+
+.nibrc-btn-outline:hover {
+  background: var(--nibrc-primary);
+  color: white;
+}
+
+.nibrc-btn-ghost {
+  background: transparent;
+  color: var(--nibrc-text-muted);
+}
+
+.nibrc-btn-ghost:hover {
+  background: var(--nibrc-border);
+  color: var(--nibrc-text);
+}
+
+/* === Hero === */
+.nibrc-hero {
+  background: linear-gradient(135deg, var(--nibrc-primary) 0%, #065f46 100%);
+  color: white;
+  padding: 80px 20px;
+  text-align: center;
+}
+
+.nibrc-hero h1 {
+  font-size: 2.5rem;
+  font-weight: 900;
+  margin-bottom: 16px;
+  line-height: 1.3;
+}
+
+.nibrc-hero p {
+  font-size: 1.15rem;
+  opacity: 0.9;
+  max-width: 700px;
+  margin: 0 auto 32px;
+}
+
+.nibrc-hero-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* === Stats Bar === */
+.nibrc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+  padding: 40px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.nibrc-stat {
+  text-align: center;
+  padding: 20px;
+  background: var(--nibrc-surface);
+  border-radius: var(--nibrc-radius);
+  box-shadow: var(--nibrc-shadow);
+}
+
+.nibrc-stat-number {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--nibrc-primary);
+}
+
+.nibrc-stat-label {
+  font-size: 0.9rem;
+  color: var(--nibrc-text-muted);
+  margin-top: 4px;
+}
+
+/* === Section === */
+.nibrc-section {
+  padding: 60px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.nibrc-section-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: var(--nibrc-text);
+}
+
+.nibrc-section-subtitle {
+  color: var(--nibrc-text-muted);
+  margin-bottom: 32px;
+  font-size: 1rem;
+}
+
+/* === Grid Cards === */
+.nibrc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.nibrc-card {
+  background: var(--nibrc-surface);
+  border-radius: var(--nibrc-radius);
+  box-shadow: var(--nibrc-shadow);
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.nibrc-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--nibrc-shadow-lg);
+}
+
+.nibrc-card-image {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  background: var(--nibrc-border);
+}
+
+.nibrc-card-body {
+  padding: 20px;
+}
+
+.nibrc-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.nibrc-card-excerpt {
+  color: var(--nibrc-text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.nibrc-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--nibrc-text-muted);
+}
+
+.nibrc-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--nibrc-primary-light);
+  color: var(--nibrc-primary);
+}
+
+.nibrc-badge-price {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* === Footer === */
+.nibrc-footer {
+  background: #0f172a;
+  color: #94a3b8;
+  padding: 60px 20px 30px;
+  margin-top: 60px;
+}
+
+.nibrc-footer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.nibrc-footer h4 {
+  color: white;
+  font-size: 1rem;
+  margin-bottom: 16px;
+}
+
+.nibrc-footer a {
+  color: #94a3b8;
+  display: block;
+  padding: 4px 0;
+  font-size: 0.9rem;
+}
+
+.nibrc-footer a:hover {
+  color: white;
+}
+
+.nibrc-footer-bottom {
+  text-align: center;
+  padding-top: 30px;
+  margin-top: 30px;
+  border-top: 1px solid #1e293b;
+  font-size: 0.85rem;
+}
+
+/* === Connection Status Bar === */
+.nibrc-status-bar {
+  padding: 8px 20px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.nibrc-status-online {
+  background: var(--nibrc-primary-light);
+  color: var(--nibrc-primary);
+}
+
+.nibrc-status-offline {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* === Forms === */
+.nibrc-form {
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.nibrc-form-group {
+  margin-bottom: 20px;
+}
+
+.nibrc-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.nibrc-form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid var(--nibrc-border);
+  border-radius: var(--nibrc-radius);
+  font-family: var(--nibrc-font);
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.nibrc-form-input:focus {
+  outline: none;
+  border-color: var(--nibrc-primary);
+}
+
+/* === Dashboard === */
+.nibrc-dashboard {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 60px);
+}
+
+.nibrc-sidebar {
+  background: var(--nibrc-surface);
+  border-left: 1px solid var(--nibrc-border);
+  padding: 24px 16px;
+}
+
+.nibrc-sidebar a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  color: var(--nibrc-text-muted);
+  font-weight: 500;
+  margin-bottom: 4px;
+  transition: all 0.2s;
+}
+
+.nibrc-sidebar a:hover,
+.nibrc-sidebar a.active {
+  background: var(--nibrc-primary-light);
+  color: var(--nibrc-primary);
+}
+
+.nibrc-main-content {
+  padding: 32px;
+}
+
+/* === Admin Table === */
+.nibrc-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--nibrc-surface);
+  border-radius: var(--nibrc-radius);
+  overflow: hidden;
+  box-shadow: var(--nibrc-shadow);
+}
+
+.nibrc-table th,
+.nibrc-table td {
+  padding: 12px 16px;
+  text-align: right;
+  border-bottom: 1px solid var(--nibrc-border);
+}
+
+.nibrc-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--nibrc-text-muted);
+}
+
+/* === Dictionary === */
+.nibrc-search-box {
+  position: relative;
+  max-width: 500px;
+  margin: 0 auto 32px;
+}
+
+.nibrc-search-box input {
+  width: 100%;
+  padding: 14px 48px 14px 16px;
+  border: 2px solid var(--nibrc-border);
+  border-radius: 50px;
+  font-family: var(--nibrc-font);
+  font-size: 1rem;
+}
+
+.nibrc-search-box input:focus {
+  outline: none;
+  border-color: var(--nibrc-primary);
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+  .nibrc-nav {
+    display: none;
+  }
+  
+  .nibrc-hero h1 {
+    font-size: 1.8rem;
+  }
+  
+  .nibrc-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .nibrc-dashboard {
+    grid-template-columns: 1fr;
+  }
+  
+  .nibrc-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* === Loading Spinner === */
+.nibrc-spinner {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  border: 3px solid var(--nibrc-border);
+  border-top-color: var(--nibrc-primary);
+  border-radius: 50%;
+  animation: nibrc-spin 0.6s linear infinite;
+}
+
+@keyframes nibrc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* === Empty State === */
+.nibrc-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--nibrc-text-muted);
+}
+
+.nibrc-empty-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+}

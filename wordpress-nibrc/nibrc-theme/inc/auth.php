@@ -1,190 +1,267 @@
 <?php
 /**
- * NIBRC Local Authentication — register, login, JWT, profile
+ * Authentication System for NIBRC Iran
+ * سیستم احراز هویت محلی
  */
 
 if (!defined('ABSPATH')) exit;
 
-/* ───────── REST API: Register ───────── */
-function nibrc_rest_register(WP_REST_Request $request) {
-    $email    = sanitize_email($request->get_param('email'));
-    $password = $request->get_param('password');
-    $name     = sanitize_text_field($request->get_param('name') ?? '');
-
-    if (empty($email) || empty($password)) {
-        return new WP_REST_Response(['ok' => false, 'error' => 'ایمیل و رمز عبور الزامی است'], 400);
+/**
+ * Simple JWT implementation (no external library needed)
+ */
+class Nibrc_JWT {
+    
+    private static $secret = '';
+    
+    private static function get_secret() {
+        if (empty(self::$secret)) {
+            self::$secret = defined('NIBRC_JWT_SECRET') ? NIBRC_JWT_SECRET : get_option('nibrc_jwt_secret', '');
+            if (empty(self::$secret)) {
+                self::$secret = wp_generate_password(64, false);
+                update_option('nibrc_jwt_secret', self::$secret);
+            }
+        }
+        return self::$secret;
     }
-
-    if (email_exists($email)) {
-        return new WP_REST_Response(['ok' => false, 'error' => 'ایمیل قبلاً ثبت شده'], 409);
+    
+    public static function encode($payload) {
+        $header = self::base64url_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
+        $payload['iat'] = time();
+        $payload['exp'] = time() + (7 * DAY_IN_SECONDS); // 7 days
+        $payload_encoded = self::base64url_encode(json_encode($payload));
+        $signature = self::base64url_encode(
+            hash_hmac('sha256', "$header.$payload_encoded", self::get_secret(), true)
+        );
+        return "$header.$payload_encoded.$signature";
     }
-
-    $user_id = wp_create_user($email, $password, $email);
-    if (is_wp_error($user_id)) {
-        return new WP_REST_Response(['ok' => false, 'error' => $user_id->get_error_message()], 500);
+    
+    public static function decode($token) {
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) return false;
+        
+        [$header, $payload, $signature] = $parts;
+        
+        $expected = self::base64url_encode(
+            hash_hmac('sha256', "$header.$payload", self::get_secret(), true)
+        );
+        
+        if (!hash_equals($expected, $signature)) return false;
+        
+        $data = json_decode(self::base64url_decode($payload), true);
+        
+        if (!$data || !isset($data['exp']) || $data['exp'] < time()) return false;
+        
+        return $data;
     }
-
-    wp_update_user([
-        'ID'           => $user_id,
-        'display_name' => $name ?: $email,
-        'role'         => 'subscriber',
-    ]);
-
-    // Generate JWT
-    $token = nibrc_generate_jwt($user_id);
-
-    return new WP_REST_Response([
-        'ok'   => true,
-        'data' => [
-            'user'  => nibrc_user_json($user_id),
-            'token' => $token,
-        ],
-    ], 201);
+    
+    private static function base64url_encode($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+    
+    private static function base64url_decode($data) {
+        return base64_decode(strtr($data, '-_', '+/') . str_repeat('=', 3 - (3 + strlen($data)) % 4));
+    }
 }
 
-/* ───────── REST API: Login ───────── */
-function nibrc_rest_login(WP_REST_Request $request) {
-    $email    = sanitize_email($request->get_param('email'));
-    $password = $request->get_param('password');
-
-    if (empty($email) || empty($password)) {
-        return new WP_REST_Response(['ok' => false, 'error' => 'ایمیل و رمز عبور الزامی است'], 400);
-    }
-
-    $user = wp_authenticate($email, $password);
-    if (is_wp_error($user)) {
-        return new WP_REST_Response(['ok' => false, 'error' => 'ایمیل یا رمز عبور اشتباه است'], 401);
-    }
-
-    $token = nibrc_generate_jwt($user->ID);
-
-    return new WP_REST_Response([
-        'ok'   => true,
-        'data' => [
-            'user'  => nibrc_user_json($user->ID),
-            'token' => $token,
-        ],
-    ]);
-}
-
-/* ───────── REST API: Get Current User ───────── */
-function nibrc_rest_me(WP_REST_Request $request) {
-    $user_id = nibrc_get_user_from_jwt($request);
-    if (!$user_id) {
-        return new WP_REST_Response(['ok' => false, 'error' => 'Unauthorized'], 401);
-    }
-    return new WP_REST_Response([
-        'ok'   => true,
-        'data' => nibrc_user_json($user_id),
-    ]);
-}
-
-/* ───────── REST API: Update Profile ───────── */
-function nibrc_rest_update_profile(WP_REST_Request $request) {
-    $user_id = nibrc_get_user_from_jwt($request);
-    if (!$user_id) {
-        return new WP_REST_Response(['ok' => false, 'error' => 'Unauthorized'], 401);
-    }
-
-    $updates = [];
-    if ($name = $request->get_param('name')) {
-        $updates['display_name'] = sanitize_text_field($name);
-    }
-    if ($phone = $request->get_param('phone')) {
-        update_user_meta($user_id, 'phone', sanitize_text_field($phone));
-    }
-    if ($university = $request->get_param('university')) {
-        update_user_meta($user_id, 'university', sanitize_text_field($university));
-    }
-    if ($field = $request->get_param('field')) {
-        update_user_meta($user_id, 'field', sanitize_text_field($field));
-    }
-
-    if (!empty($updates)) {
-        $updates['ID'] = $user_id;
-        wp_update_user($updates);
-    }
-
-    return new WP_REST_Response([
-        'ok'   => true,
-        'data' => nibrc_user_json($user_id),
-    ]);
-}
-
-/* ───────── JWT Helpers (Simple HMAC-based JWT) ───────── */
-function nibrc_generate_jwt($user_id) {
-    $secret = nibrc_get_jwt_secret();
-    $header = nibrc_base64url(json_encode(['typ' => 'JWT', 'alg' => 'HS256']));
-    $payload = nibrc_base64url(json_encode([
-        'sub' => $user_id,
-        'iat' => time(),
-        'exp' => time() + (7 * DAY_IN_SECONDS), // 7 days
-    ]));
-    $signature = nibrc_base64url(hash_hmac('sha256', "{$header}.{$payload}", $secret, true));
-    return "{$header}.{$payload}.{$signature}";
-}
-
-function nibrc_validate_jwt($token) {
-    $secret = nibrc_get_jwt_secret();
-    $parts = explode('.', $token);
-    if (count($parts) !== 3) return null;
-
-    [$header, $payload, $signature] = $parts;
-    $expected = nibrc_base64url(hash_hmac('sha256', "{$header}.{$payload}", $secret, true));
-
-    if (!hash_equals($expected, $signature)) return null;
-
-    $data = json_decode(base64_decode(strtr($payload, '-_', '+/')), true);
-    if (!$data || empty($data['sub'])) return null;
-    if (!empty($data['exp']) && $data['exp'] < time()) return null;
-
-    return (int) $data['sub'];
-}
-
-function nibrc_get_jwt_secret() {
-    $secret = get_option('nibrc_jwt_secret', '');
-    if (empty($secret)) {
-        $secret = wp_generate_password(64, false);
-        update_option('nibrc_jwt_secret', $secret);
-    }
-    return $secret;
-}
-
-function nibrc_base64url($data) {
-    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
-}
-
-/* ───────── Extract User from JWT in Request ───────── */
-function nibrc_get_user_from_jwt($request) {
-    $auth = $request->get_header('Authorization');
-    if (empty($auth) || !preg_match('/Bearer\s+(.+)/i', $auth, $m)) {
-        return null;
-    }
-    return nibrc_validate_jwt($m[1]);
-}
-
-/* ───────── User JSON Helper ───────── */
-function nibrc_user_json($user_id) {
+/**
+ * Create JWT for user
+ */
+function nibrc_create_token($user_id) {
     $user = get_userdata($user_id);
     if (!$user) return null;
-    return [
-        'id'        => $user->ID,
-        'name'      => $user->display_name,
-        'email'     => $user->user_email,
-        'role'      => $user->roles[0] ?? 'subscriber',
-        'avatar'    => get_avatar_url($user->ID, ['size' => 96]),
-        'phone'     => get_user_meta($user_id, 'phone', true),
-        'university'=> get_user_meta($user_id, 'university', true),
-        'field'     => get_user_meta($user_id, 'field', true),
-        'created_at'=> $user->user_registered,
-    ];
-}
-
-/* ───────── Enqueue JWT auth AJAX ───────── */
-function nibrc_auth_local_script() {
-    wp_localize_script('nibrc-main-js', 'nibrcAuth', [
-        'isLoggedIn' => is_user_logged_in(),
-        'currentUser'=> nibrc_get_current_user_json(),
+    
+    return Nibrc_JWT::encode([
+        'user_id' => $user_id,
+        'email'   => $user->user_email,
+        'name'    => $user->display_name,
+        'role'    => $user->roles[0] ?? 'subscriber',
     ]);
 }
-add_action('wp_enqueue_scripts', 'nibrc_auth_local_script');
+
+/**
+ * Verify JWT token
+ */
+function nibrc_verify_token($token) {
+    return Nibrc_JWT::decode($token);
+}
+
+/**
+ * Get current user from JWT
+ */
+function nibrc_get_user_from_token($token) {
+    $data = nibrc_verify_token($token);
+    if (!$data || !isset($data['user_id'])) return null;
+    
+    return get_userdata($data['user_id']);
+}
+
+/**
+ * REST API: Login with email/password, return JWT
+ */
+function nibrc_api_login($request) {
+    $email = sanitize_email($request->get_param('email'));
+    $password = $request->get_param('password');
+    
+    if (!$email || !$password) {
+        return new WP_REST_Response([
+            'ok'    => false,
+            'error' => 'ایمیل و رمز عبور الزامی است',
+        ], 400);
+    }
+    
+    $user = wp_authenticate($email, $password);
+    
+    if (is_wp_error($user)) {
+        return new WP_REST_Response([
+            'ok'    => false,
+            'error' => 'ایمیل یا رمز عبور اشتباه است',
+        ], 401);
+    }
+    
+    $token = nibrc_create_token($user->ID);
+    
+    return new WP_REST_Response([
+        'ok'   => true,
+        'data' => [
+            'token' => $token,
+            'user'  => [
+                'id'    => $user->ID,
+                'name'  => $user->display_name,
+                'email' => $user->user_email,
+                'role'  => $user->roles[0] ?? 'subscriber',
+            ],
+        ],
+    ], 200);
+}
+
+/**
+ * AJAX: Handle login from frontend
+ */
+function nibrc_ajax_login() {
+    check_ajax_referer('nibrc_nonce');
+    
+    $email = sanitize_email($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    
+    $user = wp_authenticate($email, $password);
+    
+    if (is_wp_error($user)) {
+        wp_send_json_error(['message' => 'ایمیل یا رمز عبور اشتباه است']);
+    }
+    
+    wp_set_current_user($user->ID);
+    wp_set_auth_cookie($user->ID, true);
+    
+    $token = nibrc_create_token($user->ID);
+    
+    wp_send_json_success([
+        'token' => $token,
+        'user'  => [
+            'id'    => $user->ID,
+            'name'  => $user->display_name,
+            'email' => $user->user_email,
+            'role'  => $user->roles[0] ?? 'subscriber',
+        ],
+    ]);
+}
+add_action('wp_ajax_nibrc_login', 'nibrc_ajax_login');
+add_action('wp_ajax_nopriv_nibrc_login', 'nibrc_ajax_login');
+
+/**
+ * AJAX: Handle registration
+ */
+function nibrc_ajax_register() {
+    check_ajax_referer('nibrc_nonce');
+    
+    $email = sanitize_email($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $name = sanitize_text_field($_POST['name'] ?? '');
+    
+    if (!$email || !$password || !$name) {
+        wp_send_json_error(['message' => 'فیلدهای الزامی پر نشده']);
+    }
+    
+    if (email_exists($email)) {
+        wp_send_json_error(['message' => 'این ایمیل قبلاً ثبت‌نام شده']);
+    }
+    
+    $user_id = wp_create_user($email, $password, $email);
+    
+    if (is_wp_error($user_id)) {
+        wp_send_json_error(['message' => $user_id->get_error_message()]);
+    }
+    
+    wp_update_user([
+        'ID'           => $user_id,
+        'display_name' => $name,
+        'role'         => 'subscriber',
+    ]);
+    
+    update_user_meta($user_id, 'registered_source', 'iran_site');
+    
+    // Auto login
+    wp_set_current_user($user_id);
+    wp_set_auth_cookie($user_id, true);
+    
+    $token = nibrc_create_token($user_id);
+    
+    wp_send_json_success([
+        'token' => $token,
+        'user'  => [
+            'id'    => $user_id,
+            'name'  => $name,
+            'email' => $email,
+            'role'  => 'subscriber',
+        ],
+    ]);
+}
+add_action('wp_ajax_nibrc_register', 'nibrc_ajax_register');
+add_action('wp_ajax_nopriv_nibrc_register', 'nibrc_ajax_register');
+
+/**
+ * AJAX: Logout
+ */
+function nibrc_ajax_logout() {
+    check_ajax_referer('nibrc_nonce');
+    
+    wp_logout();
+    wp_send_json_success(['message' => 'با موفقیت خارج شدید']);
+}
+add_action('wp_ajax_nibrc_logout', 'nibrc_ajax_logout');
+
+/**
+ * AJAX: Get current user
+ */
+function nibrc_ajax_me() {
+    check_ajax_referer('nibrc_nonce');
+    
+    if (!is_user_logged_in()) {
+        wp_send_json_error(['message' => 'ورود نکرده‌اید']);
+    }
+    
+    $user = wp_get_current_user();
+    
+    wp_send_json_success([
+        'id'    => $user->ID,
+        'name'  => $user->display_name,
+        'email' => $user->user_email,
+        'role'  => $user->roles[0] ?? 'subscriber',
+    ]);
+}
+add_action('wp_ajax_nibrc_me', 'nibrc_ajax_me');
+add_action('wp_ajax_nopriv_nibrc_me', 'nibrc_ajax_me');
+
+/**
+ * Check if user is admin/instructor
+ */
+function nibrc_is_admin($user_id = null) {
+    $user_id = $user_id ?: get_current_user_id();
+    $user = get_userdata($user_id);
+    return $user && in_array('administrator', (array) $user->roles);
+}
+
+function nibrc_is_instructor($user_id = null) {
+    $user_id = $user_id ?: get_current_user_id();
+    $user = get_userdata($user_id);
+    return $user && in_array('instructor', (array) $user->roles);
+}
