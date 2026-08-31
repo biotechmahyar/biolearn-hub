@@ -3,6 +3,7 @@ import { successResponse } from "../lib/errors.js";
 import { validateBody, z } from "../lib/validate.js";
 import { authenticate } from "../middleware/auth.js";
 import * as authService from "../services/auth.service.js";
+import * as otpService from "../services/otp.service.js";
 
 const auth = new Hono();
 
@@ -44,6 +45,29 @@ auth.get("/me", authenticate, async (c) => {
   const user = c.get("user");
   const profile = await authService.getCurrentUser(user.userId);
   return c.json(successResponse(profile));
+});
+
+// ── OTP (Email Verification) ─────────────────────────────────────────────
+
+auth.post("/otp/send", async (c) => {
+  const body = await validateBody(
+    c,
+    z.object({ email: z.string().email() })
+  );
+  const result = await otpService.sendOtp(body.email);
+  return c.json(successResponse(result));
+});
+
+auth.post("/otp/verify", async (c) => {
+  const body = await validateBody(
+    c,
+    z.object({
+      email: z.string().email(),
+      code: z.string().length(6),
+    })
+  );
+  await otpService.verifyOtp(body.email, body.code);
+  return c.json(successResponse({ verified: true }));
 });
 
 auth.get("/is-admin", async (c) => {

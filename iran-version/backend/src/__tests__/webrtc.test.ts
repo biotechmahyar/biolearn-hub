@@ -2,7 +2,7 @@
 // Phase 6C — Tests for WebRTC signaling service, Socket.IO events, RBAC,
 // peer tracking, signal persistence, and disconnect cleanup.
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 
 // ─── Module Structure Tests ──────────────────────────────────────────────────
 
