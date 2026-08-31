@@ -9,6 +9,13 @@ import {
   users,
   groupMembers,
 } from "../db/schema.js";
+import {
+  saveStroke,
+  getRoomStrokes,
+  clearRoomStrokes,
+  isUserAuthorizedForRoom,
+  type StrokeData,
+} from "../services/whiteboard.service.js";
 import { eq, and } from "drizzle-orm";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -229,6 +236,117 @@ export function setupSocketIO(httpServer: HttpServer): Server {
         s.emit("room:history", { roomId, messages });
       } catch (err) {
         console.error("[Socket.IO] room:history error:", err);
+      }
+    });
+
+    // ─── Whiteboard: New Stroke ────────────────────────────────────────────
+
+    s.on(
+      "whiteboard:stroke",
+      async (data: {
+        roomId: string;
+        points: Array<{ x: number; y: number }>;
+        color: string;
+        width: number;
+        tool: "pen" | "eraser";
+      }) => {
+        try {
+          const { roomId, points, color, width, tool } = data;
+          if (!roomId || !points || points.length === 0) return;
+
+          // Permission check: must be in the room
+          const authorized = await isUserAuthorizedForRoom(roomId, userId, role);
+          if (!authorized) {
+            s.emit("whiteboard:error", {
+              message: "Not authorized to draw in this room",
+            });
+            return;
+          }
+
+          // Save to DB
+          const saved = await saveStroke({
+            roomId,
+            userId,
+            points,
+            color,
+            width,
+            tool,
+          });
+
+          // Broadcast to all users in the room
+          io.to(roomId).emit("whiteboard:stroke:new", {
+            _id: saved.id,
+            roomId: saved.roomId,
+            userId: saved.userId,
+            points: saved.points,
+            color: saved.color,
+            width: saved.width,
+            tool: saved.tool,
+            createdAt: saved.createdAt,
+          });
+        } catch (err) {
+          console.error("[Whiteboard] stroke error:", err);
+          s.emit("whiteboard:error", { message: "Failed to save stroke" });
+        }
+      }
+    );
+
+    // ─── Whiteboard: Join & Get History ─────────────────────────────────────
+
+    s.on("whiteboard:join", async (data: { roomId: string }) => {
+      try {
+        const { roomId } = data;
+        if (!roomId) return;
+
+        // Permission check
+        const authorized = await isUserAuthorizedForRoom(roomId, userId, role);
+        if (!authorized) {
+          s.emit("whiteboard:error", {
+            message: "Not authorized to view whiteboard",
+          });
+          return;
+        }
+
+        // Send all existing strokes to this client
+        const strokes = await getRoomStrokes(roomId);
+        s.emit("whiteboard:strokes", { roomId, strokes });
+      } catch (err) {
+        console.error("[Whiteboard] join error:", err);
+        s.emit("whiteboard:error", {
+          message: "Failed to load whiteboard history",
+        });
+      }
+    });
+
+    // ─── Whiteboard: Clear (instructor/admin only) ──────────────────────────
+
+    s.on("whiteboard:clear", async (data: { roomId: string }) => {
+      try {
+        const { roomId } = data;
+        if (!roomId) return;
+
+        // Only instructor or admin can clear
+        const authorized = await isUserAuthorizedForRoom(roomId, userId, role);
+        if (!authorized) {
+          s.emit("whiteboard:error", {
+            message: "Only instructor or admin can clear whiteboard",
+          });
+          return;
+        }
+
+        // Clear all strokes
+        const count = await clearRoomStrokes(roomId);
+
+        // Broadcast clear event to all users in the room
+        io.to(roomId).emit("whiteboard:cleared", {
+          roomId,
+          clearedBy: userId,
+          clearedCount: count,
+          timestamp: Date.now(),
+        });
+      } catch (err) {
+        console.error("[Whiteboard] clear error:", err);
+        s.emit("whiteboard:error", { message: "Failed to clear whiteboard" });
       }
     });
 
