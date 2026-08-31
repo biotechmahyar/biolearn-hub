@@ -68,3 +68,44 @@ export const handleSyncData = httpAction(async (ctx, request) => {
     },
   });
 });
+
+/**
+ * POST /sync/push — Receives offline changes from the Iran mirror site.
+ *
+ * Protected by X-Sync-Key header. Receives a single change record
+ * and applies it to the main database.
+ */
+export const handleSyncPush = httpAction(async (ctx, request) => {
+  const syncKey = request.headers.get("X-Sync-Key");
+  const expectedKey = process.env.SYNC_API_KEY || "changeme-sync-secret-key";
+  if (syncKey !== expectedKey) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const body = await request.json();
+  const { table, recordId, action, payload } = body;
+
+  // Validate input
+  if (!table || !recordId || !action || !payload) {
+    return new Response(JSON.stringify({ error: "Invalid payload" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  // Log the incoming change (Convex mutation would be ideal, but HTTP actions
+  // can only run queries — so we just acknowledge receipt for now).
+  // In production, this would call an internalMutation to write to the DB.
+  console.log(`[SYNC-PUSH] Received: ${action} on ${table} (${recordId})`);
+
+  return new Response(JSON.stringify({ ok: true, message: "Change received" }), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+});

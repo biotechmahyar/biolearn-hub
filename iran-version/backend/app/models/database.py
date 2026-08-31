@@ -244,6 +244,45 @@ class SyncLog(Base):
     error_message = Column(Text, nullable=True)
 
 
+# ── Iran Users (local auth for offline mode) ──────────────────────────────
+class IranUser(Base):
+    __tablename__ = "iran_users"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, default="user")
+    main_site_user_id = Column(String, nullable=True)  # linked to main site user
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Iran Enrollments (offline purchases) ───────────────────────────────────
+class IranEnrollment(Base):
+    __tablename__ = "iran_enrollments"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False)
+    course_id = Column(String, nullable=False)
+    course_title = Column(String, default="")
+    tier = Column(String, default="basic")
+    amount = Column(Integer, default=0)
+    status = Column(String, default="pending")  # pending | confirmed | synced
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Iran Exam Attempts (offline quiz) ──────────────────────────────────────
+class IranExamAttempt(Base):
+    __tablename__ = "iran_exam_attempts"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False)
+    exam_id = Column(String, nullable=False)
+    answers = Column(JSON, default=list)
+    score = Column(Integer, default=0)
+    total = Column(Integer, default=0)
+    percent = Column(Float, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    synced = Column(Boolean, default=False)
+
+
 # ── Offline Changes (queued when main site unreachable) ────────────────────
 class OfflineChange(Base):
     __tablename__ = "offline_changes"

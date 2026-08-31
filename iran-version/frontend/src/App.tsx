@@ -10,6 +10,8 @@ import ArticleDetail from "@/pages/ArticleDetail";
 import Products from "@/pages/Products";
 import Workshops from "@/pages/Workshops";
 import Dictionary from "@/pages/Dictionary";
+import Auth from "@/pages/Auth";
+import Dashboard from "@/pages/Dashboard";
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
           <Route path="/products" element={<Products />} />
           <Route path="/workshops" element={<Workshops />} />
           <Route path="/dictionary" element={<Dictionary />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="*" element={<div className="flex min-h-[60vh] items-center justify-center text-muted-foreground">صفحه پیدا نشد</div>} />
         </Route>
       </Routes>

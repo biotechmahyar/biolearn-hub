@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.models.database import init_db, SessionLocal
 from app.routes.content import router as content_router
 from app.routes.sync import router as sync_router
+from app.routes.auth import router as auth_router
+from app.routes.offline import router as offline_router
 from app.services.sync_service import run_full_sync
 
 SYNC_INTERVAL = int(os.getenv("SYNC_INTERVAL", "1800"))  # 30 minutes default
@@ -76,6 +78,8 @@ app.add_middleware(
 # Routes
 app.include_router(content_router)
 app.include_router(sync_router)
+app.include_router(auth_router)
+app.include_router(offline_router)
 
 
 @app.get("/")

@@ -1,11 +1,17 @@
-import { Dna, Wifi, WifiOff } from "lucide-react";
-import { Link, Outlet } from "react-router";
+import { Dna, Wifi, WifiOff, User, LogOut } from "lucide-react";
+import { Link, Outlet, useNavigate } from "react-router";
 import { useState, useEffect } from "react";
 
 export function Layout() {
   const [online, setOnline] = useState(navigator.onLine);
+  const [user, setUser] = useState<{ name: string } | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
+    const stored = localStorage.getItem("iran_user");
+    if (stored) {
+      try { setUser(JSON.parse(stored)); } catch {}
+    }
     const handleOnline = () => setOnline(true);
     const handleOffline = () => setOnline(false);
     window.addEventListener("online", handleOnline);
@@ -15,6 +21,13 @@ export function Layout() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("iran_token");
+    localStorage.removeItem("iran_user");
+    setUser(null);
+    navigate("/");
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -41,7 +54,7 @@ export function Layout() {
             <Link to="/workshops" className="hover:text-primary transition-colors">کارگاه‌ها</Link>
             <Link to="/dictionary" className="hover:text-primary transition-colors">دیکشنری</Link>
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {online ? (
               <span className="flex items-center gap-1 text-xs text-success">
                 <Wifi className="size-3.5" /> آنلاین
@@ -50,6 +63,20 @@ export function Layout() {
               <span className="flex items-center gap-1 text-xs text-amber-600">
                 <WifiOff className="size-3.5" /> آفلاین
               </span>
+            )}
+            {user ? (
+              <div className="flex items-center gap-2">
+                <Link to="/dashboard" className="flex items-center gap-1 text-sm hover:text-primary">
+                  <User className="size-4" /> {user.name}
+                </Link>
+                <button onClick={handleLogout} className="text-muted-foreground hover:text-destructive">
+                  <LogOut className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <Link to="/auth" className="rounded-full bg-primary px-4 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90">
+                ورود
+              </Link>
             )}
           </div>
         </div>
