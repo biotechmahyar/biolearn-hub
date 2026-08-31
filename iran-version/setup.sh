@@ -50,7 +50,7 @@ if [ ! -f ".env" ]; then
 DATABASE_URL=sqlite:///./data/genova.db
 
 # ── Main Site Sync ────────────────────────────────────────────────────
-MAIN_SITE_URL=https://genova.nibrc.ir
+MAIN_SITE_URL=https://nibrc.ir
 SYNC_API_KEY=your-sync-secret-key-here
 SYNC_INTERVAL=1800
 

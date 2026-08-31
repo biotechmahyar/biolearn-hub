@@ -57,7 +57,7 @@ python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MAIN_SITE_URL` | `https://genova.nibrc.ir` | Main site URL |
+| `MAIN_SITE_URL` | `https://nibrc.ir` | Main site URL |
 | `SYNC_API_KEY` | `changeme-sync-secret-key` | Must match main site |
 | `SYNC_INTERVAL` | `1800` | Sync interval (seconds) |
 | `DATABASE_URL` | `sqlite:///./iran_mirror.db` | Database connection |
@@ -124,9 +124,9 @@ docker-compose up -d
 pip install -r requirements.txt
 
 # Set environment variables
-export MAIN_SITE_URL=https://genova.nibrc.ir
+export MAIN_SITE_URL=https://nibrc.ir
 export SYNC_API_KEY=your-key
-export DATABASE_URL=postgresql://user:pass@localhost/genova_mirror
+export DATABASE_URL=postgresql://user:pass@localhost/nibrc_mirror
 
 # Run
 uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -137,7 +137,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```nginx
 server {
     listen 80;
-    server_name iran.genova.ir;
+    server_name iran.nibrc.ir;
 
     location / {
         proxy_pass http://127.0.0.1:8000;

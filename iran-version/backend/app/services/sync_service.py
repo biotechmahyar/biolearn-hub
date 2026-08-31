@@ -13,7 +13,7 @@ from app.models.database import (
 )
 
 # Main site URL — where the Convex deployment lives
-MAIN_SITE_URL = os.getenv("MAIN_SITE_URL", "https://genova.nibrc.ir")
+MAIN_SITE_URL = os.getenv("MAIN_SITE_URL", "https://nibrc.ir")
 SYNC_API_KEY = os.getenv("SYNC_API_KEY", "changeme-sync-secret-key")
 SYNC_TIMEOUT = int(os.getenv("SYNC_TIMEOUT", "60"))
 
@@ -22,7 +22,7 @@ def _fetch_main_site_data() -> dict | None:
     """Fetch all public data from the main site's sync endpoint."""
     try:
         resp = httpx.get(
-            f"{MAIN_SITE_URL}/api/sync/data",
+            f"{MAIN_SITE_URL}/sync/data",
             headers={"X-Sync-Key": SYNC_API_KEY},
             timeout=SYNC_TIMEOUT,
             follow_redirects=True,

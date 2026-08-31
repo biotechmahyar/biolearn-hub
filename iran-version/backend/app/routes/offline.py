@@ -176,7 +176,7 @@ def sync_back(authorization: str | None = None, db: Session = Depends(get_db)):
     import httpx
     import os
 
-    MAIN_SITE_URL = os.getenv("MAIN_SITE_URL", "https://genova.nibrc.ir")
+    MAIN_SITE_URL = os.getenv("MAIN_SITE_URL", "https://nibrc.ir")
     SYNC_API_KEY = os.getenv("SYNC_API_KEY", "changeme-sync-secret-key")
 
     synced_count = 0
@@ -185,7 +185,7 @@ def sync_back(authorization: str | None = None, db: Session = Depends(get_db)):
     for change in pending:
         try:
             resp = httpx.post(
-                f"{MAIN_SITE_URL}/api/sync/push",
+                f"{MAIN_SITE_URL}/sync/push",
                 headers={"X-Sync-Key": SYNC_API_KEY},
                 json={
                     "table": change.table_name,

@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MAIN_SITE_URL=${MAIN_SITE_URL:-https://genova.nibrc.ir}
+      - MAIN_SITE_URL=${MAIN_SITE_URL:-https://nibrc.ir}
       - SYNC_API_KEY=${SYNC_API_KEY:-changeme-sync-secret-key}
       - SYNC_INTERVAL=${SYNC_INTERVAL:-1800}
       - DATABASE_URL=${DATABASE_URL:-sqlite:///./iran_mirror.db}
