@@ -16,6 +16,7 @@ import commentRoutes from "./routes/comments.js";
 import instructorRoutes from "./routes/instructor.js";
 import notificationRoutes from "./routes/notifications.js";
 import mediaRoutes from "./routes/media.js";
+import aiRoutes from "./routes/ai.js";
 
 // Services
 import { isDbAvailable, closeDb } from "./db/index.js";
@@ -80,6 +81,7 @@ app.route("/api/comments", commentRoutes);
 app.route("/api/instructor", instructorRoutes);
 app.route("/api/notifications", notificationRoutes);
 app.route("/api/media", mediaRoutes);
+app.route("/api/ai", aiRoutes);
 
 // ─── 404 Fallback ────────────────────────────────────────────────────────────
 
