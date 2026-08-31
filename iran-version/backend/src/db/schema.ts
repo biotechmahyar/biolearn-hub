@@ -786,66 +786,97 @@ export const testimonials = pgTable("testimonials", {
 });
 
 // ─── AI System ───────────────────────────────────────────────────────────────
+// Schema matches original NIBRC Convex AI tables exactly.
 
+// Legacy single-provider config (admin can still manage this alongside multi-model)
 export const aiConfig = pgTable("ai_config", {
   id: uuid("id").defaultRandom().primaryKey(),
-  enabled: boolean("enabled").default(false),
-  model: text("model"),
-  apiKey: text("api_key"),
-  systemPrompt: text("system_prompt"),
+  provider: varchar("provider", { length: 50 }).notNull().default("openai"),
+  model: varchar("model", { length: 100 }).notNull().default("gpt-4o-mini"),
+  baseUrl: text("base_url").notNull().default("https://api.openai.com/v1"),
+  apiKeyEncrypted: text("api_key_encrypted").notNull().default(""),
+  maxTokensPerRequest: integer("max_tokens_per_request").notNull().default(2048),
+  temperature: integer("temperature").notNull().default(7).$defaultFn(() => 7), // stored as int*10 for precision: 7 = 0.7
+  systemPrompt: text("system_prompt").notNull().default("شما یک دستیار تخصصی علوم زیستی هستید."),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  updatedBy: uuid("updated_by").references(() => users.id),
 });
 
+// Multi-model AI configuration — each model has its own API key, provider, limits
 export const aiModels = pgTable("ai_models", {
   id: uuid("id").defaultRandom().primaryKey(),
-  name: text("name").notNull(),
-  provider: text("provider"),
-  enabled: boolean("enabled").default(true),
-  config: jsonb("config"),
+  name: varchar("name", { length: 100 }).notNull(),           // Display name e.g. "GPT-4o Mini"
+  provider: varchar("provider", { length: 50 }).notNull(),     // "openai" | "anthropic" | "google" | "custom"
+  model: varchar("model", { length: 100 }).notNull(),           // Model ID e.g. "gpt-4o-mini"
+  baseUrl: text("base_url").notNull().default("https://api.openai.com/v1"),
+  apiKey: text("api_key").notNull().default(""),                // Server-side only
+  isFree: boolean("is_free").notNull().default(true),           // Free or paid?
+  dailyLimit: integer("daily_limit").notNull().default(3),      // Daily message limit per user
+  pricePerMessage: integer("price_per_message").notNull().default(0), // Cost per message (0 = free)
+  description: text("description").notNull().default(""),        // What this model is good for
+  systemPrompt: text("system_prompt"),                           // Custom system prompt (optional)
+  maxTokens: integer("max_tokens").notNull().default(2048),     // Max tokens per request
+  temperature: integer("temperature").notNull().default(7),     // Temperature * 10
+  active: boolean("active").notNull().default(true),            // Enabled/disabled
+  sortOrder: integer("sort_order").notNull().default(0),        // Display order
+  createdBy: uuid("created_by").references(() => users.id),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+// Admin-managed prompt templates with categories
 export const aiPrompts = pgTable("ai_prompts", {
   id: uuid("id").defaultRandom().primaryKey(),
-  key: varchar("key", { length: 100 }).notNull().unique(),
-  template: text("template"),
-  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  content: text("content").notNull(),
+  category: varchar("category", { length: 50 }).notNull().default("general"),
+  isDefault: boolean("is_default").notNull().default(false),
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+// AI conversations per user (with optional model/prompt binding)
 export const aiConversations = pgTable("ai_conversations", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  title: text("title"),
+  title: varchar("title", { length: 200 }).notNull().default("چت جدید"),
+  promptId: uuid("prompt_id").references(() => aiPrompts.id),
+  modelId: uuid("model_id").references(() => aiModels.id),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
 });
 
+// Individual messages in a conversation
 export const aiMessages = pgTable("ai_messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   conversationId: uuid("conversation_id")
     .notNull()
     .references(() => aiConversations.id, { onDelete: "cascade" }),
-  role: varchar("role", { length: 20 }).notNull(),
-  content: text("content"),
-  tokens: integer("tokens"),
+  role: varchar("role", { length: 20 }).notNull(),  // "user" | "assistant" | "system"
+  content: text("content").notNull().default(""),
+  tokensUsed: integer("tokens_used").notNull().default(0),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
+// Daily usage tracking per user (resets each day)
 export const aiUsage = pgTable("ai_usage", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id),
-  date: varchar("date", { length: 10 }).notNull(),
-  tokens: integer("tokens").default(0),
-  requests: integer("requests").default(0),
+  date: varchar("date", { length: 10 }).notNull(),   // "YYYY-MM-DD"
+  messagesSent: integer("messages_sent").notNull().default(0),
+  tokensUsed: integer("tokens_used").notNull().default(0),
 });
 
+// Per-user token quota overrides (admin can grant extra daily messages)
 export const aiTokenQuotas = pgTable("ai_token_quotas", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id),
-  dailyLimit: integer("daily_limit").default(10000),
-  used: integer("used").default(0),
-  resetAt: bigint("reset_at", { mode: "number" }),
+  dailyLimit: integer("daily_limit").notNull(),      // Override daily message limit
+  extraTokens: integer("extra_tokens").notNull().default(0), // Bonus tokens beyond free quota
+  grantedAt: bigint("granted_at", { mode: "number" }).notNull(),
+  grantedBy: uuid("granted_by").references(() => users.id),
+  note: text("note"),
 });
 
 // ─── Telegram ────────────────────────────────────────────────────────────────

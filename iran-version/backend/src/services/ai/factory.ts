@@ -12,7 +12,6 @@ const providerRegistry = new Map<string, () => Promise<AIProvider>>();
 providerRegistry.set("console", async () => new ConsoleAIProvider());
 
 // Register external providers — they are only loaded when actually needed.
-// Each adapter is a dynamic import so the module is not required to exist.
 providerRegistry.set("openai", async () => {
   const { OpenAIProvider } = await import("./openai.provider.js");
   return new OpenAIProvider();
@@ -28,26 +27,25 @@ providerRegistry.set("lmstudio", async () => {
   return new LMStudioProvider();
 });
 
-// Singleton provider instance
+// Internal provider is created dynamically with DB config — not a singleton
+// It is created per-request in the chat flow, so it's registered but not cached.
+
+// Singleton provider instance (for env-based fallback only)
 let _activeProvider: AIProvider | null = null;
 let _providerLoadAttempted = false;
 
 /**
- * Get the active AI provider.
+ * Get the active AI provider from env configuration.
  * Uses environment variable AI_PROVIDER to select, defaults to "console".
- * If the configured provider module is not available, falls back to console.
  */
 export async function getAIProvider(): Promise<AIProvider> {
   if (_activeProvider) return _activeProvider;
 
-  const providerName =
-    process.env.AI_PROVIDER?.toLowerCase() || "console";
+  const providerName = process.env.AI_PROVIDER?.toLowerCase() || "console";
 
   const factory = providerRegistry.get(providerName);
   if (!factory) {
-    console.warn(
-      `[AI] Unknown provider "${providerName}" — falling back to console`
-    );
+    console.warn(`[AI] Unknown provider "${providerName}" — falling back to console`);
     _activeProvider = new ConsoleAIProvider();
     return _activeProvider;
   }
@@ -58,10 +56,7 @@ export async function getAIProvider(): Promise<AIProvider> {
     return _activeProvider;
   } catch (err) {
     if (!_providerLoadAttempted) {
-      console.warn(
-        `[AI] Failed to load provider "${providerName}" — falling back to console`,
-        err
-      );
+      console.warn(`[AI] Failed to load provider "${providerName}" — falling back to console`, err);
       _providerLoadAttempted = true;
     }
     _activeProvider = new ConsoleAIProvider();
@@ -70,7 +65,7 @@ export async function getAIProvider(): Promise<AIProvider> {
 }
 
 /**
- * Reset the cached provider (useful for testing or config changes).
+ * Reset the cached provider (for testing or config changes).
  */
 export function resetAIProvider(): void {
   _activeProvider = null;
@@ -80,9 +75,7 @@ export function resetAIProvider(): void {
 /**
  * Get a provider by name (for multi-model support).
  */
-export async function getProviderByName(
-  name: string
-): Promise<AIProvider> {
+export async function getProviderByName(name: string): Promise<AIProvider> {
   const factory = providerRegistry.get(name);
   if (!factory) {
     return new ConsoleAIProvider();
@@ -95,6 +88,20 @@ export async function getProviderByName(
 }
 
 /**
+ * Create an InternalAIProvider from DB config.
+ */
+export async function createInternalProvider(config: {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  temperature?: number;
+  maxTokens?: number;
+}): Promise<AIProvider> {
+  const { InternalAIProvider } = await import("./internal.provider.js");
+  return new InternalAIProvider(config);
+}
+
+/**
  * Check if a provider is configured and available.
  */
 export async function isAIConfigured(): Promise<boolean> {
@@ -103,11 +110,8 @@ export async function isAIConfigured(): Promise<boolean> {
 }
 
 /**
- * Register a custom provider (for testing or dynamic registration).
+ * Register a custom provider.
  */
-export function registerProvider(
-  name: string,
-  factory: () => Promise<AIProvider>
-): void {
+export function registerProvider(name: string, factory: () => Promise<AIProvider>): void {
   providerRegistry.set(name, factory);
 }
