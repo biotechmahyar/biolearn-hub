@@ -1,36 +1,27 @@
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema.js";
 
-const { Pool } = pg;
+const connectionString = process.env.DATABASE_URL!;
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://nibrc:nibrc_secret@localhost:5432/nibrc_iran",
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+// Disable SSL for local development; enable in production
+const isProduction = process.env.NODE_ENV === "production";
+const client = postgres(connectionString, {
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
+  max: 10,
 });
 
-pool.on("error", (err) => {
-  console.error("Unexpected error on idle client:", err);
-});
-
-export const db = drizzle(pool, { schema });
+export const db = drizzle(client, { schema });
 
 export async function isDbAvailable(): Promise<boolean> {
   try {
-    const client = await pool.connect();
-    try {
-      await client.query("SELECT 1");
-      return true;
-    } finally {
-      client.release();
-    }
+    await client`SELECT 1`;
+    return true;
   } catch {
     return false;
   }
 }
 
-export async function closeDb(): Promise<void> {
-  await pool.end();
+export async function closeDb() {
+  await client.end();
 }

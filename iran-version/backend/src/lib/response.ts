@@ -1,26 +1,29 @@
-/**
- * Unified API response utilities for NIBRC Iran Backend.
- */
+import { Context } from "hono";
 
-export interface ApiSuccess<T = unknown> {
-  ok: true;
-  data: T;
+export function ok<T>(c: Context, data: T, status = 200) {
+  return c.json({ ok: true, data }, status as any);
 }
 
-export interface ApiError {
-  ok: false;
-  error: string;
-  code?: string;
+export function created<T>(c: Context, data: T) {
+  return ok(c, data, 201);
 }
 
-export function success<T>(data: T): ApiSuccess<T> {
-  return { ok: true, data };
+export function fail(c: Context, error: string, status = 400, code?: string) {
+  return c.json({ ok: false, error, code }, status as any);
 }
 
-export function created<T>(data: T): ApiSuccess<T> {
-  return { ok: true, data };
+export function unauthorized(c: Context, error = "احراز هویت لازم است.") {
+  return fail(c, error, 401, "UNAUTHORIZED");
 }
 
-export function errorResponse(message: string, code?: string): ApiError {
-  return { ok: false, error: message, code };
+export function forbidden(c: Context, error = "دسترسی غیرمجاز.") {
+  return fail(c, error, 403, "FORBIDDEN");
+}
+
+export function notFound(c: Context, error = "یافت نشد.") {
+  return fail(c, error, 404, "NOT_FOUND");
+}
+
+export function serverError(c: Context, error = "خطای سرور.") {
+  return fail(c, error, 500, "INTERNAL_ERROR");
 }
