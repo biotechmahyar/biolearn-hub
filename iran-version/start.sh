@@ -104,7 +104,7 @@ echo ""
 echo "   Press Ctrl+C to stop"
 echo ""
 
-exec python -m uvicorn app.main:app \
+exec python3 -m uvicorn app.main:app \
     --host "$HOST" \
     --port "$PORT" \
     --log-level info
