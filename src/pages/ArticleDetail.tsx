@@ -16,8 +16,7 @@ export default function ArticleDetail() {
   const article = useApiQuery<any>(slug ? `/api/content/articles/${slug}` : null);
   const articles = useApiQuery<any[]>("/api/content/articles");
   const { isAuthenticated } = useAuth();
-  // Comments not yet migrated to REST — leave as TODO for Phase 9C
-  const comments: any[] | undefined = undefined;
+  const comments: any[] = [];
   const addComment = async (_args: any) => { console.log("TODO: migrate comments to REST"); };
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -42,7 +41,7 @@ export default function ArticleDetail() {
   }
 
   const a = accent(article.accent);
-  const related = (articles ?? []).filter((x) => x._id !== article._id).slice(0, 3);
+  const related = (articles ?? []).filter((x: any) => x.id !== article.id).slice(0, 3);
   const paragraphs = article.body.split("\n\n");
 
   return (
@@ -85,7 +84,7 @@ export default function ArticleDetail() {
         </div>
 
         <div className="mt-8 space-y-5">
-          {paragraphs.map((p, i) => (
+          {paragraphs.map((p: string, i: number) => (
             <p key={i} className="text-[15px] leading-8 text-foreground/90">
               {p}
             </p>
@@ -105,8 +104,8 @@ export default function ArticleDetail() {
           </h2>
 
           <div className="mt-5 space-y-4">
-            {(comments ?? []).map((c) => (
-              <div key={c._id} className="rounded-xl border border-border/70 bg-background/60 p-4">
+            {(comments ?? []).map((c: any) => (
+              <div key={c.id} className="rounded-xl border border-border/70 bg-background/60 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-bold">{c.author}</p>
                   <p className="text-[11px] text-muted-foreground">{formatDateTime(c.createdAt)}</p>
@@ -178,8 +177,8 @@ export default function ArticleDetail() {
         <div className="mx-auto max-w-7xl px-4 pb-14 sm:px-6">
           <h2 className="mb-5 text-lg font-extrabold">مطالب مرتبط</h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {related.map((r) => (
-              <ArticleCard key={r._id} article={r as any} />
+            {related.map((r: any) => (
+              <ArticleCard key={r.id} article={r as any} />
             ))}
           </div>
         </div>

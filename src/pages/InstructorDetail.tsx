@@ -74,7 +74,7 @@ export default function InstructorDetail() {
                 تحصیلات
               </h3>
               <ul className="mt-3 space-y-2 text-[13px] text-muted-foreground">
-                {instructor.education.map((e) => (
+                {instructor.education.map((e: string) => (
                   <li key={e} className="flex items-start gap-2">
                     <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
                     {e}
@@ -88,7 +88,7 @@ export default function InstructorDetail() {
                 تخصص‌ها
               </h3>
               <div className="mt-3 flex flex-wrap gap-2">
-                {instructor.specialties.map((s) => (
+                {instructor.specialties.map((s: string) => (
                   <span key={s} className="rounded-full bg-primary/10 px-3 py-1.5 text-[13px] font-medium text-primary">
                     {s}
                   </span>
@@ -105,7 +105,7 @@ export default function InstructorDetail() {
               دوره‌های این مدرس
             </h2>
             <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {instructor.courses.map((course) => (
+              {instructor.courses.map((course: any) => (
                 <CourseCard key={course._id} course={course as any} />
               ))}
             </div>
@@ -119,7 +119,7 @@ export default function InstructorDetail() {
               کارگاه‌ها و نشست‌ها
             </h2>
             <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {instructor.workshops.map((w) => (
+              {instructor.workshops.map((w: any) => (
                 <WorkshopCard key={w._id} workshop={w as any} />
               ))}
             </div>

@@ -92,7 +92,7 @@ export default function CourseDetail() {
   const effective = course.discountPrice ?? course.price;
   const hasDiscount = !!course.discountPrice && course.discountPrice < course.price;
   const isEnrolled = !!course.enrollment;
-  const totalMin = course.syllabus.reduce((acc, l) => acc + l.durationMin, 0);
+  const totalMin = course.syllabus.reduce((acc: number, l: any) => acc + l.durationMin, 0);
   const completedCount = course.enrollment?.completedLessons.length ?? 0;
   const percent = course.syllabus.length === 0 ? 0 : Math.round((completedCount / course.syllabus.length) * 100);
 
@@ -285,7 +285,7 @@ export default function CourseDetail() {
                     مناسب چه کسانی است؟
                   </h3>
                   <ul className="mt-3 space-y-2 text-[13px] text-muted-foreground">
-                    {course.audience.map((item) => (
+                    {course.audience.map((item: string) => (
                       <li key={item} className="flex items-start gap-2">
                         <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
                         {item}
@@ -299,7 +299,7 @@ export default function CourseDetail() {
                     پیش‌نیازها
                   </h3>
                   <ul className="mt-3 space-y-2 text-[13px] text-muted-foreground">
-                    {course.prerequisites.map((item) => (
+                    {course.prerequisites.map((item: string) => (
                       <li key={item} className="flex items-start gap-2">
                         <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
                         {item}
@@ -321,7 +321,7 @@ export default function CourseDetail() {
                 )}
               </div>
               <Accordion type="single" collapsible className="mt-4 space-y-2">
-                {course.syllabus.map((lesson, index) => {
+                {course.syllabus.map((lesson: any, index: number) => {
                   const done = course.enrollment?.completedLessons.includes(lesson.id) ?? false;
                   return (
                     <AccordionItem
@@ -378,7 +378,7 @@ export default function CourseDetail() {
             <div>
               <h2 className="text-xl font-extrabold">این پکیج شامل چه چیزهایی است؟</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {course.includes.map((item) => (
+                {course.includes.map((item: string) => (
                   <div key={item} className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
                     <ListChecks className="mt-0.5 size-4 shrink-0 text-primary" />
                     <span className="text-sm leading-6">{item}</span>
@@ -395,7 +395,7 @@ export default function CourseDetail() {
                   فایل‌های دوره
                 </h2>
                 <div className="mt-4 space-y-2">
-                  {course.files.map((file) => (
+                  {course.files.map((file: any) => (
                     <div
                       key={file.name}
                       className="flex items-center justify-between rounded-xl border border-border/70 bg-card/60 px-4 py-3"

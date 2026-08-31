@@ -85,7 +85,7 @@ export default function WorkshopDetail() {
               <div className="mt-8">
                 <h2 className="text-lg font-extrabold">سرفصل‌های کارگاه</h2>
                 <div className="mt-4 space-y-2.5">
-                  {workshop.agenda.map((item, i) => (
+                  {workshop.agenda.map((item: string, i: number) => (
                     <div key={i} className="flex items-start gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
                         {faNum(i + 1)}

@@ -17,7 +17,7 @@ type SignInFn = (
 ) => Promise<any>;
 
 export function useAuth() {
-  const { isLoading, isAuthenticated, user, signIn: rawSignIn, signOut } = useAuthContext();
+  const { isLoading, isAuthenticated, user, signIn: rawSignIn, signUp: rawSignUp, signOut } = useAuthContext();
 
   const signIn: SignInFn = async (emailOrMethod, passwordOrData?) => {
     // New pattern: signIn("user@example.com", "password123")
@@ -80,5 +80,9 @@ export function useAuth() {
     throw new Error(`روش ورود پشتیبانی نمی‌شود: ${emailOrMethod}`);
   };
 
-  return { isLoading, isAuthenticated, user, signIn, signOut };
+  const signUp = async (name: string, email: string, password: string) => {
+    return rawSignUp(name, email, password);
+  };
+
+  return { isLoading, isAuthenticated, user, signIn, signUp, signOut };
 }

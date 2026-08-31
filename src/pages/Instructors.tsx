@@ -51,7 +51,7 @@ export default function Instructors() {
                   {ins.bio}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {ins.specialties.slice(0, 3).map((s) => (
+                  {ins.specialties.slice(0, 3).map((s: string) => (
                     <span key={s} className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
                       {s}
                     </span>

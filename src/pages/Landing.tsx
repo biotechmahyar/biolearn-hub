@@ -399,7 +399,7 @@ export default function Landing() {
                       {dailyQuiz.question.text}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      {dailyQuiz.question.options.slice(0, 2).map((opt, i) => (
+                      {dailyQuiz.question.options.slice(0, 2).map((opt: string, i: number) => (
                         <span key={i} className="rounded-lg bg-muted px-3 py-1.5 text-xs text-muted-foreground">
                           {opt}
                         </span>
