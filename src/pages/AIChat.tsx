@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "@/convex/_generated/api";
+import { useApiQuery, useApiMutation } from "@/hooks/use-api";
 import { useAuth } from "@/hooks/use-auth";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
@@ -24,6 +23,31 @@ import { BrandMark } from "@/components/site/BrandLogo";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+interface Conversation {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
+interface ActiveModel {
+  id: string;
+  name: string;
+  isFree: boolean;
+}
+
+interface Usage {
+  dailyLimit: number;
+  messagesSent: number;
+  remaining: number;
+}
+
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  createdAt: string;
+}
+
 export default function AIChat() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -33,7 +57,7 @@ export default function AIChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState<any>(null);
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
   // Delete mode state
   const [deleteMode, setDeleteMode] = useState(false);
@@ -45,33 +69,32 @@ export default function AIChat() {
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  const conversations = useQuery(
-    api.aiChat.listMyConversations,
-    isAuthenticated ? {} : "skip"
+  const conversations = useApiQuery<Conversation[]>(
+    isAuthenticated ? "/api/ai/conversations" : null,
   );
-  const activeModels = useQuery(
-    api.aiChat.listActiveModels,
-    isAuthenticated ? {} : "skip"
+  const activeModels = useApiQuery<ActiveModel[]>(
+    isAuthenticated ? "/api/ai/models/active" : null,
   );
-  const usage = useQuery(
-    api.aiChat.getMyUsage,
-    isAuthenticated ? {} : "skip"
+  const usage = useApiQuery<Usage>(
+    isAuthenticated ? "/api/ai/usage/me" : null,
   );
-  const messages = useQuery(
-    api.aiChat.getConversationMessages,
-    selectedConvo ? { conversationId: selectedConvo as any } : "skip"
+  const messages = useApiQuery<ChatMessage[]>(
+    selectedConvo ? `/api/ai/conversations/${selectedConvo}/messages` : null,
   );
 
   // Auto-select if only 1 model
   useEffect(() => {
     if (!selectedModelId && activeModels && activeModels.length === 1) {
-      setSelectedModelId(activeModels[0]._id);
+      setSelectedModelId(activeModels[0].id);
     }
   }, [activeModels, selectedModelId]);
 
-  const createConvo = useMutation(api.aiChat.createConversation);
-  const sendMessageMut = useMutation(api.aiChat.sendMessage);
-  const deleteConvo = useMutation(api.aiChat.deleteConversation);
+  const { mutate: createConvo } = useApiMutation<any, any>("/api/ai/conversations", "POST");
+  const { mutate: sendMessageMut } = useApiMutation<any, any>("/api/ai/chat", "POST");
+  const { mutate: deleteConvo } = useApiMutation<any, any>(
+    (args: any) => `/api/ai/conversations/${args.conversationId}`,
+    "DELETE",
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -79,8 +102,8 @@ export default function AIChat() {
 
   const handleNewChat = async () => {
     try {
-      const id = await createConvo({ title: "چت جدید", modelId: selectedModelId ?? undefined });
-      setSelectedConvo(id as string);
+      const res = await createConvo({ title: "چت جدید", modelId: selectedModelId ?? undefined });
+      setSelectedConvo(res.id as string);
       setSidebarOpen(false);
       inputRef.current?.focus();
     } catch (e) {
@@ -95,8 +118,9 @@ export default function AIChat() {
     setIsSending(true);
     try {
       await sendMessageMut({
-        conversationId: selectedConvo as any,
+        conversationId: selectedConvo,
         content,
+        modelId: selectedModelId ?? undefined,
       });
     } catch (e: any) {
       console.error("Send failed:", e);
@@ -122,7 +146,7 @@ export default function AIChat() {
     if (!confirm(`${selectedForDelete.size} چت حذف شود؟`)) return;
     for (const id of selectedForDelete) {
       try {
-        await deleteConvo({ conversationId: id as any });
+        await deleteConvo({ conversationId: id });
         if (selectedConvo === id) setSelectedConvo(null);
       } catch (e) {
         console.error("Delete failed:", e);
@@ -207,15 +231,15 @@ export default function AIChat() {
               </div>
             )}
             {conversations?.map((c) => {
-              const isSelected = selectedForDelete.has(c._id);
+              const isSelected = selectedForDelete.has(c.id);
               return (
                 <button
-                  key={c._id}
+                  key={c.id}
                   onClick={() => {
                     if (deleteMode) {
-                      toggleSelect(c._id);
+                      toggleSelect(c.id);
                     } else {
-                      setSelectedConvo(c._id);
+                      setSelectedConvo(c.id);
                       setSidebarOpen(false);
                     }
                   }}
@@ -225,7 +249,7 @@ export default function AIChat() {
                       ? isSelected
                         ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30"
                         : "text-muted-foreground hover:bg-accent/50"
-                      : selectedConvo === c._id
+                      : selectedConvo === c.id
                         ? "bg-accent text-foreground"
                         : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                   )}
@@ -370,12 +394,12 @@ export default function AIChat() {
                 {(activeModels ?? []).length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap justify-center">
                     <span className="text-xs text-muted-foreground">مدل:</span>
-                    {(activeModels ?? []).map((m: any) => (
+                    {(activeModels ?? []).map((m) => (
                       <button
-                        key={m._id}
-                        onClick={() => setSelectedModelId(m._id)}
+                        key={m.id}
+                        onClick={() => setSelectedModelId(m.id)}
                         className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                          selectedModelId === m._id
+                          selectedModelId === m.id
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground hover:text-foreground"
                         }`}
@@ -401,14 +425,16 @@ export default function AIChat() {
                       key={q}
                       onClick={async () => {
                         try {
-                          const id = await createConvo({ title: q, modelId: selectedModelId ?? undefined });
-                          setSelectedConvo(id as string);
+                          const res = await createConvo({ title: q, modelId: selectedModelId ?? undefined });
+                          const id = res.id as string;
+                          setSelectedConvo(id);
                           setSidebarOpen(false);
                           setTimeout(async () => {
                             try {
                               await sendMessageMut({
-                                conversationId: id as any,
+                                conversationId: id,
                                 content: q,
+                                modelId: selectedModelId ?? undefined,
                               });
                             } catch (e) {
                               console.error("Auto-send failed:", e);
@@ -435,7 +461,7 @@ export default function AIChat() {
                 )}
                 {messages?.map((m) => (
                   <motion.div
-                    key={m._id}
+                    key={m.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={cn(
@@ -496,12 +522,12 @@ export default function AIChat() {
               {(activeModels ?? []).length > 0 && (
                 <div className="mb-2 flex items-center gap-1.5 flex-wrap">
                   <span className="text-[10px] text-muted-foreground">مدل:</span>
-                  {(activeModels ?? []).map((m: any) => (
+                  {(activeModels ?? []).map((m) => (
                     <button
-                      key={m._id}
-                      onClick={() => setSelectedModelId(m._id)}
+                      key={m.id}
+                      onClick={() => setSelectedModelId(m.id)}
                       className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                        selectedModelId === m._id
+                        selectedModelId === m.id
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground hover:text-foreground"
                       }`}

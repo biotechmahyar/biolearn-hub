@@ -10,8 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { BrandMark } from "@/components/site/BrandLogo";
 import { useAuth } from "@/hooks/use-auth";
-import { api } from "@/convex/_generated/api";
-import { useMutation } from "convex/react";
+import { apiClient } from "@/lib/api-client";
 import { Dna, Loader2, Save, User } from "lucide-react";
 import { Suspense, useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -20,14 +19,12 @@ import { toast } from "sonner";
 function ProfileCompletionInner() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [firstName, setFirstName] = useState(user?.firstName ?? "");
-  const [lastName, setLastName] = useState(user?.lastName ?? "");
+  const [firstName, setFirstName] = useState(user?.name?.split(" ")[0] ?? "");
+  const [lastName, setLastName] = useState(user?.name?.split(" ").slice(1).join(" ") ?? "");
   const [isSaving, setIsSaving] = useState(false);
 
-  const updateProfile = useMutation(api.profiles.updateMyProfile);
-
-  // If user already has profile completed, skip to dashboard
-  if (user?.firstName && user?.lastName) {
+  // If user already has a full name, skip to dashboard
+  if (user?.name && user.name.trim().length > 1) {
     navigate("/dashboard", { replace: true });
     return null;
   }
@@ -40,11 +37,10 @@ function ProfileCompletionInner() {
     }
     setIsSaving(true);
     try {
-      await updateProfile({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
+      await apiClient.put("/api/users/me", {
+        name: `${firstName.trim()} ${lastName.trim()}`,
       });
-      toast.success("مشخصات شما ثبت شد و در انتظار تأیید مدیر سایت است.");
+      toast.success("مشخصات شما ثبت شد.");
       navigate("/dashboard");
     } catch (err: any) {
       toast.error(err?.message ?? "خطا در ثبت مشخصات.");

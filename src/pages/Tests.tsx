@@ -2,15 +2,26 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { api } from "@/convex/_generated/api";
 import { accent, faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
+import { useApiQuery } from "@/hooks/use-api";
 import { ArrowLeft, ClipboardList, Clock, HelpCircle, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 
+interface Exam {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  questionCount: number;
+  durationMinutes: number;
+  free: boolean;
+  diagnostic: boolean;
+  accent: string;
+}
+
 export default function Tests() {
-  const exams = useQuery(api.tests.listExams, {});
+  const exams = useApiQuery<Exam[]>("/api/exams");
 
   return (
     <PublicLayout>
@@ -44,7 +55,7 @@ export default function Tests() {
                 </div>
               </div>
               {(() => {
-                const diag = exams.find((e) => e.diagnostic);
+                const diag = exams!.find((e) => e.diagnostic);
                 return (
                   <Button asChild size="lg" className="h-11 shrink-0 rounded-full bg-white px-6 text-primary hover:bg-white/90">
                     <Link to={`/tests/${diag!.slug}`}>
@@ -62,7 +73,7 @@ export default function Tests() {
           {(exams ?? []).map((exam) => {
             const a = accent(exam.accent);
             return (
-              <Card key={exam._id} className="border-border/70 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5">
+              <Card key={exam.id} className="border-border/70 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <Badge variant="secondary" className={cn("rounded-full ring-1", a.chip)}>

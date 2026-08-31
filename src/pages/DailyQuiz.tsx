@@ -2,18 +2,39 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { api } from "@/convex/_generated/api";
 import { accent, faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useMutation, useQuery } from "convex/react";
+import { useApiQuery, useApiMutation } from "@/hooks/use-api";
 import { CheckCircle2, Loader2, Trophy, XCircle, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
+interface DailyQuizData {
+  question: {
+    id: string;
+    text: string;
+    options: string[];
+    explanation: string;
+    topic: { name: string; accent: string } | null;
+  };
+  points: number;
+  date: string;
+  myAnswer: {
+    chosenIndex: number;
+    correct: boolean;
+    correctIndex: number;
+    points: number;
+  } | null;
+}
+
+interface LearningProfile {
+  totalPoints: number;
+}
+
 export default function DailyQuiz() {
-  const quiz = useQuery(api.tests.getDailyQuiz);
-  const profile = useQuery(api.tests.getMyLearningProfile);
-  const answer = useMutation(api.tests.answerDailyQuiz);
+  const quiz = useApiQuery<DailyQuizData>("/api/exams/daily/auth");
+  const profile = useApiQuery<LearningProfile>("/api/exams/my-attempts", { enabled: false }); // Optional: no endpoint yet
+  const { mutate: answerQuiz } = useApiMutation<any, any>("/api/exams/daily/answer", "POST");
 
   const [chosen, setChosen] = useState<number | null>(null);
   const [result, setResult] = useState<{ correct: boolean; correctIndex: number; points: number } | null>(null);
@@ -37,7 +58,7 @@ export default function DailyQuiz() {
     setLoading(true);
     setError(null);
     try {
-      const res = await answer({ questionId: quiz.question._id, chosenIndex: index });
+      const res = await answerQuiz({ questionId: quiz.question.id, chosenIndex: index });
       setResult(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در ثبت پاسخ");
