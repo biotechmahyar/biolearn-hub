@@ -73,6 +73,7 @@ import {
   Plus,
   Receipt,
   Repeat,
+  RefreshCw,
   Save,
   Send,
   Shield,
@@ -135,7 +136,8 @@ type Section =
   | "payments"
   | "classRequests"
   | "studentReports"
-  | "backup";
+  | "backup"
+  | "sync";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -155,6 +157,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
       { key: "comments", label: "دیدگاه‌ها", icon: MessageSquare },
       { key: "backup", label: "بکاپ و خروجی", icon: Download },
+      { key: "sync", label: "مدیریت سینک", icon: RefreshCw },
     ],
   },
   {
@@ -621,6 +624,7 @@ export default function Admin() {
             {section === "profiles" && <AdminProfiles />}
             {section === "inbox" && <AdminInbox />}
             {section === "backup" && <AdminBackup />}
+            {section === "sync" && <AdminSync />}
           </div>
         </main>
       </div>
@@ -3837,3 +3841,99 @@ function AdminBackup() {
     </div>
   );
 }
+
+// ── Sync Management ────────────────────────────────────────────────────────
+function AdminSync() {
+  const [syncKey, setSyncKey] = useState("nibrc-sync-secret-2024");
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  const syncEndpoint = "https://nibrc.ir/sync/data";
+  const pushEndpoint = "https://nibrc.ir/sync/push";
+
+  const handleTestEndpoint = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(syncEndpoint, {
+        headers: { "X-Sync-Key": syncKey },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const tableCount = Object.keys(data).filter(k => k !== "synced_at").length;
+        setTestResult(`✅ اتصال موفق! ${tableCount} جدول داده موجود است.`);
+      } else {
+        setTestResult(`❌ خطا: HTTP ${res.status}`);
+      }
+    } catch (e) {
+      setTestResult(`❌ خطا در اتصال: ${e instanceof Error ? e.message : "خطای ناشناخته"}`);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="مدیریت سینک" subtitle="تنظیمات سینک با سایت ایرانی" />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-4 py-4">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+            <p className="font-bold text-primary text-sm">📌 آدرس‌های سینک</p>
+            <div className="mt-3 space-y-2 font-mono text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">GET</span>
+                <span className="rounded bg-muted px-2 py-1">{syncEndpoint}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">POST</span>
+                <span className="rounded bg-muted px-2 py-1">{pushEndpoint}</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-bold">کلید سینک (SYNC_API_KEY)</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              این کلید باید در Convex Dashboard → Settings → Environment Variables تنظیم شود.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                type={showKey ? "text" : "password"}
+                value={syncKey}
+                onChange={(e) => setSyncKey(e.target.value)}
+                className="font-mono text-sm"
+              />
+              <Button variant="outline" size="sm" onClick={() => setShowKey(!showKey)}>
+                {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <Button onClick={handleTestEndpoint} disabled={testing} className="rounded-lg">
+              {testing ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <RefreshCw className="ml-1.5 size-4" />}
+              تست اتصال
+            </Button>
+            {testResult && (
+              <p className="mt-2 text-sm">{testResult}</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border/50 p-4 text-sm text-muted-foreground space-y-2">
+            <p className="font-bold text-foreground">راهنمای تنظیم سینک</p>
+            <ol className="list-decimal list-inside space-y-1 text-xs">
+              <li>وارد Convex Dashboard شوید (console.convex.dev)</li>
+              <li>پروژه NIBRC را انتخاب کنید</li>
+              <li>Settings → Environment Variables</li>
+              <li>متغیر <code className="bg-muted px-1 rounded">SYNC_API_KEY</code> را با مقدار بالا تنظیم کنید</li>
+              <li>همین کلید را در سایت ایرانی (وردپرس) هم وارد کنید</li>
+            </ol>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
