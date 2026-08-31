@@ -20,6 +20,18 @@ from datetime import datetime
 import os
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./iran_mirror.db")
+
+# Validate DATABASE_URL — if it looks like an HTTP URL, fall back to SQLite
+if DATABASE_URL.startswith("http://") or DATABASE_URL.startswith("https://"):
+    print(f"[WARN] DATABASE_URL looks like an HTTP URL ({DATABASE_URL}), falling back to SQLite")
+    DATABASE_URL = "sqlite:///./data/genova.db"
+
+# Ensure data directory exists for SQLite
+if "sqlite" in DATABASE_URL:
+    import pathlib
+    db_path = DATABASE_URL.replace("sqlite:///", "")
+    pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
