@@ -45,7 +45,23 @@ echo "  Installed Python dependencies"
 
 # Create .env if not exists
 if [ ! -f ".env" ]; then
-    cp .env.example .env
+    cat > .env << 'ENVEOF'
+# ── Database ──────────────────────────────────────────────────────────
+DATABASE_URL=sqlite:///./data/genova.db
+
+# ── Main Site Sync ────────────────────────────────────────────────────
+MAIN_SITE_URL=https://genova.nibrc.ir
+SYNC_API_KEY=your-sync-secret-key-here
+SYNC_INTERVAL=1800
+
+# ── JWT Auth ──────────────────────────────────────────────────────────
+JWT_SECRET=change-me-to-a-random-secret-key
+JWT_ACCESS_EXPIRE_MINUTES=30
+
+# ── Server ────────────────────────────────────────────────────────────
+HOST=0.0.0.0
+PORT=8000
+ENVEOF
     echo "  Created .env — edit it with your values!"
 fi
 
