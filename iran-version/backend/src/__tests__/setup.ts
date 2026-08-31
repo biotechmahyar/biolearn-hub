@@ -1,74 +1,106 @@
-/**
- * Test setup — starts a real Hono server for integration tests.
- * Uses an in-memory/test database configured via env vars.
- */
-import { afterAll, beforeAll } from "vitest";
-import { serve } from "@hono/node-server";
-import { Hono } from "hono";
-import { cors } from "hono/cors";
-import { sign } from "jsonwebtoken";
-import { api } from "../routes/index.js";
+import { createServer } from "node:http";
+import app from "../index.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-change-me";
+// Suppress console logs in tests
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
 
-let server: ReturnType<typeof serve> | null = null;
-let _port = 0;
-
-export function getBaseUrl(): string {
-  return `http://localhost:${_port}`;
+export function suppressLogs() {
+  console.log = () => {};
+  console.error = () => {};
 }
 
-/**
- * Generate a valid JWT token for testing.
- * The token is accepted by authMiddleware but the DB may not have the user.
- */
-export function makeToken(userId: string, role?: string): string {
-  const payload: Record<string, any> = { sub: userId };
-  if (role) payload.role = role;
-  return sign(payload, JWT_SECRET, { expiresIn: "1h" });
+export function restoreLogs() {
+  console.log = originalConsoleLog;
+  console.error = originalConsoleError;
 }
 
-export const TEST_USER_TOKEN = makeToken("test-user-id-00000000-0000-0000-0000-000000000001");
-export const TEST_ADMIN_TOKEN = makeToken("test-admin-id-00000000-0000-0000-0000-000000000002");
-export const TEST_INSTRUCTOR_TOKEN = makeToken("test-instructor-id-00000000-0000-0000-0000-000000000003");
+// ─── API Test Client ─────────────────────────────────────────────────────────
 
-/**
- * Build the Hono app — same structure as src/index.ts but without Socket.IO.
- */
-function buildTestApp(): Hono {
-  const app = new Hono();
+export interface TestUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  accessToken: string;
+  refreshToken: string;
+}
 
-  app.use("*", cors({ origin: "*", credentials: true }));
+export async function apiRequest(
+  method: string,
+  path: string,
+  body?: unknown,
+  headers?: Record<string, string>
+): Promise<{ status: number; data: any }> {
+  const url = `http://localhost${path}`;
+  const reqHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...headers,
+  };
 
-  // Health
-  app.get("/api/health", (c) => c.json({ status: "ok" }));
+  const response = await app.fetch(
+    new Request(url, {
+      method,
+      headers: reqHeaders,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  );
 
-  // All API routes
-  app.route("/api", api);
+  const data = await response.json().catch(() => null);
+  return { status: response.status, data };
+}
 
-  // 404
-  app.notFound((c) => c.json({ error: "Not Found" }, 404));
-
-  // Error handler
-  app.onError((err, c) => {
-    console.error("Test server error:", err);
-    return c.json({ error: "Internal Server Error" }, 500);
+export async function registerUser(
+  name: string,
+  email: string,
+  password: string
+): Promise<TestUser> {
+  const { data } = await apiRequest("POST", "/api/auth/register", {
+    name,
+    email,
+    password,
   });
-
-  return app;
+  const result = data.data;
+  return {
+    id: result.user.id,
+    name: result.user.name,
+    email: result.user.email,
+    role: result.user.role,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+  };
 }
 
-beforeAll(async () => {
-  const app = buildTestApp();
-  server = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (info) => {
-    _port = info.port;
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<TestUser> {
+  const { data } = await apiRequest("POST", "/api/auth/login", {
+    email,
+    password,
   });
-  // Wait for server to be ready
-  await new Promise((resolve) => setTimeout(resolve, 200));
-});
+  const result = data.data;
+  return {
+    id: result.user.id,
+    name: result.user.name,
+    email: result.user.email,
+    role: result.user.role,
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+  };
+}
 
-afterAll(async () => {
-  if (server) {
-    server.close();
-  }
-});
+export function authHeaders(user: TestUser): Record<string, string> {
+  return { Authorization: `Bearer ${user.accessToken}` };
+}
+
+export function randomEmail(): string {
+  return `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
+}
+
+// ─── Health Check ────────────────────────────────────────────────────────────
+
+export async function healthCheck(): Promise<boolean> {
+  const { status } = await apiRequest("GET", "/api/health");
+  return status === 200;
+}

@@ -1,234 +1,160 @@
 import { Hono } from "hono";
-import { db } from "../db/index.js";
-import {
-  classRooms, attendance, courseResources, directMessages,
-  instructorPayments, courses, users,
-} from "../db/schema.js";
-import { eq, and, desc } from "drizzle-orm";
-import { requireAuth, getCurrentUser } from "../middleware/auth.js";
-import { requireInstructor } from "../middleware/rbac.js";
-import { successResponse, errorResponse } from "../types/index.js";
+import { successResponse } from "../lib/errors.js";
+import { validateBody, z } from "../lib/validate.js";
+import { authenticate } from "../middleware/auth.js";
+import * as instructorService from "../services/instructor.service.js";
 
 const instructor = new Hono();
 
-instructor.use("*", requireAuth, requireInstructor);
+instructor.use("*", authenticate);
 
-// ── Attendance ──────────────────────────────────────────────────────────────
+// ─── Attendance ──────────────────────────────────────────────────────────────
 
 instructor.get("/attendance/rooms", async (c) => {
-  const user = getCurrentUser(c);
-  const rows = await db.select().from(classRooms).where(eq(classRooms.instructorId, user!.id)).orderBy(desc(classRooms.createdAt));
-  return c.json(successResponse(rows));
+  const user = c.get("user");
+  const data = await instructorService.listInstructorRooms(user.userId);
+  return c.json(successResponse(data));
 });
 
 instructor.get("/attendance/rooms/:roomId/students", async (c) => {
-  const user = getCurrentUser(c);
-  const roomId = c.req.param("roomId");
-  // Verify room belongs to instructor
-  const roomRows = await db.select().from(classRooms).where(and(eq(classRooms.id, roomId), eq(classRooms.instructorId, user!.id))).limit(1);
-  if (roomRows.length === 0) return c.json(errorResponse("کلاس یافت نشد."), 404);
-  const rows = await db.select().from(attendance).where(eq(attendance.roomId, roomId));
-  return c.json(successResponse(rows));
+  const data = await instructorService.getRoomStudents(c.req.param("roomId")!!);
+  return c.json(successResponse(data));
 });
 
 instructor.get("/attendance/rooms/:roomId", async (c) => {
-  const user = getCurrentUser(c);
-  const roomId = c.req.param("roomId");
-  const roomRows = await db.select().from(classRooms).where(and(eq(classRooms.id, roomId), eq(classRooms.instructorId, user!.id))).limit(1);
-  if (roomRows.length === 0) return c.json(errorResponse("کلاس یافت نشد."), 404);
-  const rows = await db.select().from(attendance).where(eq(attendance.roomId, roomId));
-  return c.json(successResponse(rows));
+  const data = await instructorService.getRoomStudents(c.req.param("roomId")!!);
+  return c.json(successResponse(data));
 });
 
 instructor.post("/attendance/rooms/:roomId/mark", async (c) => {
-  const user = getCurrentUser(c);
-  const roomId = c.req.param("roomId");
-  const body = await c.req.json();
-  const roomRows = await db.select().from(classRooms).where(and(eq(classRooms.id, roomId), eq(classRooms.instructorId, user!.id))).limit(1);
-  if (roomRows.length === 0) return c.json(errorResponse("کلاس یافت نشد."), 404);
-
-  const { studentId, studentName, present, note } = body;
-  // Upsert attendance
-  const existing = await db.select().from(attendance).where(
-    and(eq(attendance.roomId, roomId), eq(attendance.studentId, studentId))
-  ).limit(1);
-
-  if (existing.length > 0) {
-    const [updated] = await db.update(attendance).set({ present, note, markedAt: Date.now() }).where(eq(attendance.id, existing[0].id)).returning();
-    return c.json(successResponse(updated));
-  }
-
-  const [record] = await db.insert(attendance).values({
-    roomId,
-    instructorId: user!.id,
-    studentId,
-    studentName: studentName || "",
-    present,
-    note,
-    markedAt: Date.now(),
-  }).returning();
-
-  return c.json(successResponse(record), 201);
+  const body = await validateBody(
+    c,
+    z.object({
+      userId: z.string(),
+      status: z.string(),
+    })
+  );
+  const user = c.get("user");
+  const data = await instructorService.markAttendance(
+    c.req.param("roomId")!!,
+    body.userId,
+    body.status,
+    user.userId
+  );
+  return c.json(successResponse(data));
 });
 
-// ── Course Resources ────────────────────────────────────────────────────────
+// ─── Resources ───────────────────────────────────────────────────────────────
 
 instructor.get("/resources/:courseId", async (c) => {
-  const user = getCurrentUser(c);
-  const courseId = c.req.param("id");
-  // Verify course belongs to instructor
-  const courseRows = await db.select().from(courses).where(and(eq(courses.id, courseId), eq(courses.authorId, user!.id))).limit(1);
-  if (courseRows.length === 0) {
-    // Also check if user has a linked instructor profile
-    return c.json(errorResponse("دوره یافت نشد."), 404);
-  }
-  const rows = await db.select().from(courseResources).where(eq(courseResources.courseId, courseId));
-  return c.json(successResponse(rows));
+  const data = await instructorService.listCourseResources(
+    c.req.param("courseId")
+  );
+  return c.json(successResponse(data));
 });
 
 instructor.post("/resources", async (c) => {
-  const user = getCurrentUser(c);
-  const body = await c.req.json();
-  const [resource] = await db.insert(courseResources).values({
-    courseId: body.courseId,
-    instructorId: user!.id,
-    title: body.title || "",
-    description: body.description,
-    fileUrl: body.fileUrl || "",
-    fileName: body.fileName || "",
-    fileSize: body.fileSize || 0,
-    fileType: body.fileType || "",
-    isFree: body.isFree || false,
-  }).returning();
-  return c.json(successResponse(resource), 201);
+  const body = await validateBody(
+    c,
+    z.object({
+      courseId: z.string(),
+      title: z.string().min(1),
+      url: z.string().optional(),
+      storageId: z.string().optional(),
+      type: z.string().optional(),
+      size: z.number().optional(),
+    })
+  );
+  const { courseId, ...data } = body;
+  const result = await instructorService.addCourseResource(courseId, data);
+  return c.json(successResponse(result), 201);
 });
 
 instructor.delete("/resources/:resourceId", async (c) => {
-  const user = getCurrentUser(c);
-  const resourceId = c.req.param("resourceId");
-  const rows = await db.select().from(courseResources).where(eq(courseResources.id, resourceId)).limit(1);
-  if (rows.length === 0) return c.json(errorResponse("منبع یافت نشد."), 404);
-  if (rows[0].instructorId !== user!.id && !["admin", "site_admin"].includes(user!.role!)) {
-    return c.json(errorResponse("دسترسی غیرمجاز."), 403);
-  }
-  await db.delete(courseResources).where(eq(courseResources.id, resourceId));
-  return c.json(successResponse({ message: "حذف شد." }));
+  await instructorService.deleteCourseResource(c.req.param("resourceId")!);
+  return c.json(successResponse({ deleted: true }));
 });
 
-// ── Direct Messages ─────────────────────────────────────────────────────────
+// ─── Direct Messages ─────────────────────────────────────────────────────────
 
 instructor.post("/messages", async (c) => {
-  const user = getCurrentUser(c);
-  const body = await c.req.json();
-  if (!body.receiverId || !body.text) return c.json(errorResponse("ورودی نامعتبر است."), 400);
-
-  const [message] = await db.insert(directMessages).values({
-    senderId: user!.id,
-    receiverId: body.receiverId,
-    text: body.text,
-    read: false,
-  }).returning();
-
-  return c.json(successResponse(message), 201);
+  const body = await validateBody(
+    c,
+    z.object({
+      receiverId: z.string(),
+      text: z.string().min(1),
+    })
+  );
+  const user = c.get("user");
+  const data = await instructorService.sendDirectMessage(
+    user.userId,
+    body.receiverId,
+    body.text
+  );
+  return c.json(successResponse(data), 201);
 });
 
 instructor.get("/messages/conversations", async (c) => {
-  const user = getCurrentUser(c);
-  // Get unique partners
-  const sent = await db.select().from(directMessages).where(eq(directMessages.senderId, user!.id));
-  const received = await db.select().from(directMessages).where(eq(directMessages.receiverId, user!.id));
-  const allMessages = [...sent, ...received].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-  const partners = new Map<string, { lastMessage: any; unread: number }>();
-  for (const msg of allMessages) {
-    const partnerId = msg.senderId === user!.id ? msg.receiverId : msg.senderId;
-    if (!partners.has(partnerId)) {
-      partners.set(partnerId, { lastMessage: msg, unread: 0 });
-    }
-    if (msg.receiverId === user!.id && !msg.read) {
-      partners.get(partnerId)!.unread++;
-    }
-  }
-
-  const result = [];
-  for (const [partnerId, data] of partners) {
-    const partnerRows = await db.select().from(users).where(eq(users.id, partnerId)).limit(1);
-    result.push({
-      partnerId,
-      partner: partnerRows[0] ? { name: partnerRows[0].name, email: partnerRows[0].email } : null,
-      lastMessage: data.lastMessage,
-      unread: data.unread,
-    });
-  }
-
-  return c.json(successResponse(result));
+  const user = c.get("user");
+  const data = await instructorService.listConversations(user.userId);
+  return c.json(successResponse(data));
 });
 
 instructor.get("/messages/:partnerId", async (c) => {
-  const user = getCurrentUser(c);
-  const partnerId = c.req.param("partnerId");
-
-  const sent = await db.select().from(directMessages).where(
-    and(eq(directMessages.senderId, user!.id), eq(directMessages.receiverId, partnerId))
+  const user = c.get("user");
+  const data = await instructorService.getConversation(
+    user.userId,
+    c.req.param("partnerId")!
   );
-  const received = await db.select().from(directMessages).where(
-    and(eq(directMessages.senderId, partnerId), eq(directMessages.receiverId, user!.id))
-  );
-
-  const messages = [...sent, ...received].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  return c.json(successResponse(messages));
+  return c.json(successResponse(data));
 });
 
 instructor.post("/messages/:partnerId/read", async (c) => {
-  const user = getCurrentUser(c);
-  const partnerId = c.req.param("partnerId");
-
-  await db.update(directMessages).set({ read: true }).where(
-    and(eq(directMessages.senderId, partnerId), eq(directMessages.receiverId, user!.id), eq(directMessages.read, false))
+  const user = c.get("user");
+  await instructorService.markConversationRead(
+    user.userId,
+    c.req.param("partnerId")!
   );
-
-  return c.json(successResponse({ message: "خوانده شد." }));
+  return c.json(successResponse({ read: true }));
 });
 
-// ── Payments ────────────────────────────────────────────────────────────────
+// ─── Payments ────────────────────────────────────────────────────────────────
 
 instructor.get("/payments", async (c) => {
-  const user = getCurrentUser(c);
-  const rows = await db.select().from(instructorPayments).where(eq(instructorPayments.instructorId, user!.id)).orderBy(desc(instructorPayments.createdAt));
-  return c.json(successResponse(rows));
+  const user = c.get("user");
+  const data = await instructorService.listInstructorPayments(user.userId);
+  return c.json(successResponse(data));
 });
+
+// ─── Performance ─────────────────────────────────────────────────────────────
 
 instructor.get("/performance", async (c) => {
-  const user = getCurrentUser(c);
-  const courseRows = await db.select().from(courses).where(eq(courses.authorId, user!.id));
-  return c.json(successResponse({ courses: courseRows.length }));
+  const user = c.get("user");
+  const data = await instructorService.getStudentPerformance(user.userId);
+  return c.json(successResponse(data));
 });
 
-// ── Bank Account ────────────────────────────────────────────────────────────
+// ─── Bank Account ────────────────────────────────────────────────────────────
 
 instructor.get("/bank-account", async (c) => {
-  const user = getCurrentUser(c);
-  const rows = await db.select().from(users).where(eq(users.id, user!.id)).limit(1);
-  if (rows.length === 0) return c.json(errorResponse("کاربر یافت نشد."), 404);
-  const u = rows[0];
-  return c.json(successResponse({
-    bankName: u.bankName,
-    bankAccountNumber: u.bankAccountNumber,
-    bankCardNumber: u.bankCardNumber,
-    bankSheba: u.bankSheba,
-  }));
+  const user = c.get("user");
+  const data = await instructorService.getBankAccount(user.userId);
+  return c.json(successResponse(data));
 });
 
 instructor.put("/bank-account", async (c) => {
-  const user = getCurrentUser(c);
-  const body = await c.req.json();
-  await db.update(users).set({
-    bankName: body.bankName,
-    bankAccountNumber: body.bankAccountNumber,
-    bankCardNumber: body.bankCardNumber,
-    bankSheba: body.bankSheba,
-  }).where(eq(users.id, user!.id));
-  return c.json(successResponse({ message: "بروزرسانی شد." }));
+  const body = await validateBody(
+    c,
+    z.object({
+      bankName: z.string().optional(),
+      bankAccountNumber: z.string().optional(),
+      bankCardNumber: z.string().optional(),
+      bankSheba: z.string().optional(),
+    })
+  );
+  const user = c.get("user");
+  const data = await instructorService.updateBankAccount(user.userId, body);
+  return c.json(successResponse(data));
 });
 
 export default instructor;

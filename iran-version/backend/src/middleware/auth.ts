@@ -1,71 +1,92 @@
 import { Context, Next } from "hono";
-import { getUserFromToken } from "../lib/auth.js";
-import { unauthorized, forbidden } from "../lib/response.js";
-import type { users } from "../db/schema.js";
+import { verifyToken, JwtPayload } from "../lib/jwt.js";
+import { UnauthorizedError, ForbiddenError } from "../lib/errors.js";
 
-type UserRow = typeof users.$inferSelect;
+export interface UserContext {
+  userId: string;
+  email: string;
+  role: string;
+}
 
+// Extend Hono context to carry user info
 declare module "hono" {
   interface ContextVariableMap {
-    user: UserRow;
+    user: UserContext;
   }
 }
 
 /**
- * Require a valid JWT Bearer token. Sets `c.var.user`.
+ * Authentication middleware — extracts and verifies JWT from Authorization header.
+ * Sets c.set("user", ...) on success.
  */
-export function requireAuth() {
-  return async (c: Context, next: Next) => {
-    const header = c.req.header("Authorization");
-    if (!header?.startsWith("Bearer ")) return unauthorized(c);
-    const token = header.slice(7);
-    const user = await getUserFromToken(token);
-    if (!user) return unauthorized(c, "توکن نامعتبر یا منقضی شده است.");
-    c.set("user", user);
-    await next();
-  };
+export async function authenticate(c: Context, next: Next): Promise<void> {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    throw new UnauthorizedError("Missing or invalid Authorization header");
+  }
+  const token = authHeader.slice(7);
+  const payload: JwtPayload | null = verifyToken(token);
+  if (!payload) {
+    throw new UnauthorizedError("Invalid or expired token");
+  }
+  c.set("user", {
+    userId: payload.sub,
+    email: payload.email,
+    role: payload.role,
+  });
+  await next();
 }
 
 /**
- * Require one of the given roles on `user.role` or `user.secondaryRole`.
+ * Optional authentication — sets user if valid token present, continues otherwise.
+ */
+export async function optionalAuth(c: Context, next: Next): Promise<void> {
+  const authHeader = c.req.header("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const payload = verifyToken(token);
+    if (payload) {
+      c.set("user", {
+        userId: payload.sub,
+        email: payload.email,
+        role: payload.role,
+      });
+    }
+  }
+  await next();
+}
+
+/**
+ * Require specific roles. Must be used after `authenticate`.
  */
 export function requireRole(...roles: string[]) {
-  return async (c: Context, next: Next) => {
+  return async (c: Context, next: Next): Promise<void> => {
     const user = c.get("user");
-    if (!user) return unauthorized(c);
-    const hasRole =
-      (user.role && roles.includes(user.role)) ||
-      (user.secondaryRole && roles.includes(user.secondaryRole));
-    if (!hasRole) return forbidden(c, "شما اجازه دسترسی به این بخش را ندارید.");
-    await next();
-  };
-}
-
-/**
- * Require admin role (admin, site_admin).
- */
-export function requireAdmin() {
-  return requireRole("admin", "site_admin");
-}
-
-/**
- * Require content staff role (admin, site_admin, content_manager, instructor).
- */
-export function requireContentStaff() {
-  return requireRole("admin", "site_admin", "content_manager", "instructor");
-}
-
-/**
- * Optional auth — sets `c.var.user` if valid token present, but doesn't block.
- */
-export function optionalAuth() {
-  return async (c: Context, next: Next) => {
-    const header = c.req.header("Authorization");
-    if (header?.startsWith("Bearer ")) {
-      const token = header.slice(7);
-      const user = await getUserFromToken(token);
-      if (user) c.set("user", user);
+    if (!user) throw new UnauthorizedError();
+    if (!roles.includes(user.role)) {
+      throw new ForbiddenError(
+        `Requires one of: ${roles.join(", ")}`
+      );
     }
     await next();
   };
 }
+
+/**
+ * Require admin role (admin, site_admin, content_manager, super_admin).
+ */
+export const requireAdmin = requireRole(
+  "admin",
+  "site_admin",
+  "content_manager",
+  "super_admin"
+);
+
+/**
+ * Require instructor role.
+ */
+export const requireInstructor = requireRole(
+  "instructor",
+  "admin",
+  "site_admin"
+);
