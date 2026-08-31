@@ -166,12 +166,9 @@ export function useStudentReceiver(roomId: string, instructorId?: string, myId?:
           const pc = new RTCPeerConnection(RTC_CONFIG);
           pcRef.current = pc;
           pc.ontrack = (e) => {
-            setRemoteStream((prev) => {
-              if (prev) return prev;
-              const stream = e.streams[0] ?? new MediaStream([e.track]);
-              setStatus("live");
-              return stream;
-            });
+            const stream = e.streams[0] ?? new MediaStream([e.track]);
+            setRemoteStream(stream);
+            setStatus("live");
           };
           pc.onicecandidate = (e) => {
             if (e.candidate && myId) {
@@ -215,5 +212,12 @@ export function useStudentReceiver(roomId: string, instructorId?: string, myId?:
     };
   }, []);
 
-  return { status, remoteStream, error, reset };
+  // Allow reconnection when instructor restarts broadcast (e.g., screen share)
+  const reconnect = useCallback(() => {
+    reset();
+    answeredRef.current = false;
+    processedRef.current = new Set();
+  }, [reset]);
+
+  return { status, remoteStream, error, reset, reconnect };
 }

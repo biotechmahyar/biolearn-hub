@@ -641,9 +641,30 @@ function formatTimestampToShamsi(ts: number): string {
 
 function CalendarView() {
   const rooms = useQuery(api.collab.listRooms) ?? [];
+  const deleteRoom = useMutation(api.collab.deleteRoom);
+  const setRoomStatus = useMutation(api.collab.setRoomStatus);
   const myRooms = rooms.filter((r) => r.instructorName === useAuth().user?.name);
   const live = myRooms.filter((r) => r.status === "live");
   const past = myRooms.filter((r) => r.status === "ended");
+
+  async function handleDeletePast(roomId: string) {
+    if (!confirm("آیا از حذف این کلاس مطمئنید؟ این عمل قابل بازگشت نیست.")) return;
+    try {
+      await deleteRoom({ roomId: roomId as any });
+      toast.success("کلاس حذف شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در حذف");
+    }
+  }
+
+  async function handleEndLive(roomId: string) {
+    try {
+      await setRoomStatus({ roomId: roomId as any, status: "ended" });
+      toast.success("کلاس پایان یافت");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -663,7 +684,10 @@ function CalendarView() {
                   <p className="text-xs text-slate-400">{r.topic}</p>
                   <p className="mt-1 text-[11px] text-cyan-300/70">⏱ شروع: {formatTimestampToShamsi(r.createdAt)}</p>
                 </div>
-                <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold text-red-300">LIVE</span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold text-red-300">LIVE</span>
+                  <button onClick={() => handleEndLive(r._id)} className="rounded-md bg-amber-500/15 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/25">پایان کلاس</button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -681,7 +705,10 @@ function CalendarView() {
                   <p className="text-xs text-slate-500">{r.topic}</p>
                   <p className="mt-1 text-[11px] text-slate-500">📅 {formatTimestampToShamsi(r.createdAt)}</p>
                 </div>
-                <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-slate-400">پایان‌یافته</span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-slate-400">پایان‌یافته</span>
+                  <button onClick={() => handleDeletePast(r._id)} className="rounded-md bg-red-500/15 px-2 py-1 text-[10px] font-bold text-red-300 hover:bg-red-500/25">حذف</button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -2042,6 +2069,36 @@ function RoomView({
 }
 
 // ── Live broadcast section: camera / mic / screen share + annotation ───────
+
+// ── Student list in a live room ─────────────────────────────────────────────
+function RoomStudentList({ roomId }: { roomId: string }) {
+  const participants = useQuery(api.collab.listRoomParticipants, { roomId: roomId as any }) ?? [];
+  const students = participants.filter((p) => p.role === "user" || p.role === "member");
+
+  return (
+    <Card className="border-white/5 bg-white/[0.02]">
+      <CardContent className="py-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-bold text-slate-300">دانشجویان حاضر ({students.length})</p>
+        </div>
+        {students.length === 0 ? (
+          <p className="text-[11px] text-slate-500">هنوز دانشجویی وارد کلاس نشده است.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {students.map((s) => (
+              <div key={s.userId} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                <span className={`size-1.5 rounded-full ${s.isRecent ? "bg-emerald-400" : "bg-amber-400"}`} />
+                <span className="text-[11px] text-slate-300">{s.name}</span>
+                <Mic className="size-3 text-slate-500" />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function LiveSection({
   broadcast,
   localVideoRef,
@@ -2147,6 +2204,9 @@ function LiveSection({
             {broadcast.error}
           </p>
         )}
+        {/* Student list in room */}
+        <RoomStudentList roomId={roomId} />
+
         {(broadcast.status === "live" || broadcast.localStream) && (
           <div className="relative w-full">
             <video

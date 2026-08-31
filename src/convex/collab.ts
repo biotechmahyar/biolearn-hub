@@ -61,6 +61,26 @@ export const listOnline = query({
 });
 
 // All users with their presence status — for admin panel online/offline list
+
+export const listRoomParticipants = query({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db.query("presence").withIndex("by_lastSeen").order("desc").take(200);
+    const now = Date.now();
+    const roomLoc = `room:${args.roomId}`;
+    return rows
+      .filter((p) => now - p.lastSeen < PRESENCE_WINDOW && p.location === roomLoc)
+      .map((p) => ({
+        userId: p.userId,
+        name: p.name ?? "دانشجو",
+        role: p.role ?? "user",
+        lastSeen: p.lastSeen,
+        isRecent: now - p.lastSeen < 30_000,
+      }));
+  },
+});
+
+
 export const listAllUsersWithPresence = query({
   args: {},
   handler: async (ctx) => {

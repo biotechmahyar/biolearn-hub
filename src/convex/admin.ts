@@ -1537,3 +1537,12 @@ export const exportBackup = query({
     };
   },
 });
+
+// ── Admin: list all instructor payments ─────────────────────────────────────
+export const adminListPayments = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("instructorPayments").order("desc").collect();
+  },
+});

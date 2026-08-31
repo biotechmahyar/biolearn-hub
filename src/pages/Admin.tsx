@@ -2201,44 +2201,51 @@ function AdminComments() {
 // ── Instructor payments (admin) ──────────────────────────────────────────────
 function AdminPayments() {
   const users = useQuery(api.admin.adminGetUsers);
+  const payments = useQuery(api.admin.adminListPayments);
   const createPayment = useMutation(api.instructorTools.adminCreatePayment);
   const markPaid = useMutation(api.instructorTools.adminMarkPaid);
   const [targetUser, setTargetUser] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState("");
 
   const instructors = (users ?? []).filter((u: any) => u.role === "instructor" || u.secondaryRole === "instructor");
+  const instructorMap = Object.fromEntries((instructors ?? []).map((u: any) => [u._id, u.name ?? u.email]));
 
   const handleCreate = async () => {
     if (!targetUser || !amount.trim()) return;
     setBusy(true);
     try {
-      await createPayment({
-        instructorId: targetUser as any,
-        amount: Number(amount),
-        description: description || "دستمزد مدرس",
-      });
+      await createPayment({ instructorId: targetUser as any, amount: Number(amount), description: description || "دستمزد مدرس" });
       toast.success("پرداخت ثبت شد");
       setTargetUser(""); setAmount(""); setDescription("");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "خطا");
-    } finally {
-      setBusy(false);
-    }
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setBusy(false); }
   };
+
+  const handleConfirmPaid = async (id: string) => {
+    setBusy(true);
+    try {
+      await markPaid({ id: id as any, receiptUrl: receiptUrl || undefined });
+      toast.success("پرداخت تأیید شد");
+      setConfirmingId(null); setReceiptUrl("");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setBusy(false); }
+  };
+
+  const pending = (payments ?? []).filter((p: any) => p.status === "pending");
+  const paid = (payments ?? []).filter((p: any) => p.status === "paid");
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="پرداخت دستمزد" subtitle="ثبت و مدیریت پرداختی‌ها به مدرسان" />
+      <SectionHeader title="پرداخت دستمزد" subtitle="ثبت و مدیریت پرداختی‌ها به مدرسان" count={(payments ?? []).length} />
       <Card className="border-border/70 shadow-sm">
-        <CardContent className="space-y-3 py-4">
+        <CardHeader><CardTitle className="text-sm">ثبت پرداخت جدید</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
           <Select value={targetUser} onValueChange={setTargetUser}>
             <SelectTrigger><SelectValue placeholder="انتخاب مدرس" /></SelectTrigger>
             <SelectContent>
-              {instructors.map((u: any) => (
-                <SelectItem key={u._id} value={u._id}>{u.name ?? u.email}</SelectItem>
-              ))}
+              {instructors.map((u: any) => (<SelectItem key={u._id} value={u._id}>{u.name ?? u.email}</SelectItem>))}
             </SelectContent>
           </Select>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2246,11 +2253,77 @@ function AdminPayments() {
             <Input placeholder="توضیح" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
           <Button onClick={handleCreate} disabled={busy || !targetUser || !amount}>
-            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
-            ثبت پرداخت
+            {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}ثبت پرداخت
           </Button>
         </CardContent>
       </Card>
+      {pending.length > 0 && (
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader><CardTitle className="text-sm">در انتظار تأیید ({faNum(pending.length)})</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow><TableHead>مدرس</TableHead><TableHead>مبلغ</TableHead><TableHead>توضیح</TableHead><TableHead>تاریخ</TableHead><TableHead className="text-left">عملیات</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {pending.map((p: any) => (
+                  <TableRow key={p._id}>
+                    <TableCell className="text-sm font-medium">{instructorMap[p.instructorId] ?? "—"}</TableCell>
+                    <TableCell className="text-sm">{formatPrice(p.amount)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{p.description}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDateTime(p.createdAt)}</TableCell>
+                    <TableCell>
+                      {confirmingId === p._id ? (
+                        <div className="flex items-center gap-2">
+                          <Input placeholder="لینک فیش (اختیاری)" value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)} className="h-7 w-48 text-xs" />
+                          <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 text-xs" onClick={() => handleConfirmPaid(p._id)} disabled={busy}>تأیید پرداخت</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setConfirmingId(null); setReceiptUrl(""); }}>لغو</Button>
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setConfirmingId(p._id)}>
+                          <CheckCircle2 className="ml-1 size-3.5" />تأیید و پرداخت
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+      {paid.length > 0 && (
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader><CardTitle className="text-sm">سوابق پرداخت شده ({faNum(paid.length)})</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow><TableHead>مدرس</TableHead><TableHead>مبلغ</TableHead><TableHead>توضیح</TableHead><TableHead>تاریخ ثبت</TableHead><TableHead>تاریخ پرداخت</TableHead><TableHead>وضعیت</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {paid.map((p: any) => (
+                  <TableRow key={p._id}>
+                    <TableCell className="text-sm font-medium">{instructorMap[p.instructorId] ?? "—"}</TableCell>
+                    <TableCell className="text-sm">{formatPrice(p.amount)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{p.description}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDateTime(p.createdAt)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{p.paidAt ? formatDateTime(p.paidAt) : "—"}</TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
+                        <span className="size-1.5 rounded-full bg-emerald-500" />پرداخت شده
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+      {(payments ?? []).length === 0 && (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Receipt className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز پرداختی ثبت نشده است.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
