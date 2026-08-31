@@ -40,7 +40,7 @@ export default function Dictionary() {
             <div className="mt-3 space-y-1 text-xs text-muted-foreground">
               <p><span className="font-medium">وضعیت گرم:</span> {term.gramStatus}</p>
               <p><span className="font-medium">شکل:</span> {term.shape}</p>
-              <p><span className="fontien:</span> {term.oxygen}</p>
+              <p><span className="font-medium">اکسیژن:</span> {term.oxygen}</p>
               <p><span className="font-medium">زیستگاه:</span> {term.habitat}</p>
             </div>
             {term.diseases && term.diseases.length > 0 && (
