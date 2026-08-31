@@ -16,6 +16,14 @@ import {
   isUserAuthorizedForRoom,
   type StrokeData,
 } from "../services/whiteboard.service.js";
+import {
+  saveSignal,
+  getSignalsForUser,
+  addPeerToRoom,
+  removePeerFromRoom,
+  removeUserFromAllRooms,
+  getPeersInRoom,
+} from "../services/webrtc.service.js";
 import { eq, and } from "drizzle-orm";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -356,10 +364,270 @@ export function setupSocketIO(httpServer: HttpServer): Server {
       await updatePresence(userId, s.id, true);
     });
 
+    // ─── WebRTC: Join signaling session ──────────────────────────────────
+
+    s.on("webrtc:join", async (data: { roomId: string }) => {
+      try {
+        const { roomId } = data;
+        if (!roomId) {
+          s.emit("webrtc:error", { message: "roomId is required" });
+          return;
+        }
+
+        // Verify room exists and check authorization
+        const db = getDb();
+        const [room] = await db
+          .select()
+          .from(classRooms)
+          .where(eq(classRooms.id, roomId))
+          .limit(1);
+        if (!room) {
+          s.emit("webrtc:error", { message: "Room not found" });
+          return;
+        }
+
+        const isAdminRole = ["admin", "site_admin", "super_admin"].includes(role);
+        const isInstructor = room.instructorId === userId;
+        let isEnrolled = false;
+        if (!isAdminRole && !isInstructor) {
+          const [member] = await db
+            .select()
+            .from(groupMembers)
+            .where(
+              and(
+                eq(groupMembers.userId, userId),
+                eq(groupMembers.groupId, roomId)
+              )
+            )
+            .limit(1);
+          isEnrolled = !!member;
+        }
+
+        if (!isAdminRole && !isInstructor && !isEnrolled) {
+          s.emit("webrtc:error", { message: "Unauthorized for this room" });
+          return;
+        }
+
+        s.join(roomId);
+
+        // Track this peer
+        const peersBefore = getPeersInRoom(roomId);
+        addPeerToRoom(roomId, userId);
+
+        // Notify existing peers about the new participant
+        s.to(roomId).emit("webrtc:peer-joined", {
+          roomId,
+          userId,
+          name,
+          role,
+          timestamp: Date.now(),
+        });
+
+        // Send the current peer list to the joining user
+        s.emit("webrtc:peer-list", {
+          roomId,
+          peers: peersBefore.map((pid) => ({ userId: pid })),
+          timestamp: Date.now(),
+        });
+
+        console.log(`[WebRTC] ${name} joined signaling in room ${roomId}`);
+      } catch (err) {
+        console.error("[WebRTC] join error:", err);
+        s.emit("webrtc:error", { message: "Failed to join signaling" });
+      }
+    });
+
+    // ─── WebRTC: Leave signaling session ────────────────────────────────
+
+    s.on("webrtc:leave", (data: { roomId: string }) => {
+      try {
+        const { roomId } = data;
+        if (!roomId) return;
+
+        removePeerFromRoom(roomId, userId);
+        s.leave(roomId);
+
+        io.to(roomId).emit("webrtc:peer-left", {
+          roomId,
+          userId,
+          name,
+          timestamp: Date.now(),
+        });
+
+        console.log(`[WebRTC] ${name} left signaling in room ${roomId}`);
+      } catch (err) {
+        console.error("[WebRTC] leave error:", err);
+      }
+    });
+
+    // ─── WebRTC: Send SDP Offer ─────────────────────────────────────────
+
+    s.on(
+      "webrtc:offer",
+      async (data: {
+        roomId: string;
+        toUserId: string;
+        sdp: string;
+      }) => {
+        try {
+          const { roomId, toUserId, sdp } = data;
+          if (!roomId || !toUserId || !sdp) {
+            s.emit("webrtc:error", {
+              message: "roomId, toUserId, and sdp are required",
+            });
+            return;
+          }
+
+          // Persist signal for recovery
+          const saved = await saveSignal({
+            fromUserId: userId,
+            toUserId,
+            roomId,
+            type: "offer",
+            data: sdp,
+          });
+
+          // Forward to target user's sockets
+          const targetSockets = userSocketsMap.get(toUserId);
+          if (targetSockets) {
+            for (const targetSocketId of targetSockets) {
+              io.to(targetSocketId).emit("webrtc:offer", {
+                signalId: saved.id,
+                roomId,
+                fromUserId: userId,
+                fromName: name,
+                fromRole: role,
+                sdp,
+                timestamp: Date.now(),
+              });
+            }
+          }
+
+          console.log(`[WebRTC] Offer sent from ${name} to ${toUserId}`);
+        } catch (err) {
+          console.error("[WebRTC] offer error:", err);
+          s.emit("webrtc:error", { message: "Failed to send offer" });
+        }
+      }
+    );
+
+    // ─── WebRTC: Send SDP Answer ────────────────────────────────────────
+
+    s.on(
+      "webrtc:answer",
+      async (data: {
+        roomId: string;
+        toUserId: string;
+        sdp: string;
+      }) => {
+        try {
+          const { roomId, toUserId, sdp } = data;
+          if (!roomId || !toUserId || !sdp) {
+            s.emit("webrtc:error", {
+              message: "roomId, toUserId, and sdp are required",
+            });
+            return;
+          }
+
+          const saved = await saveSignal({
+            fromUserId: userId,
+            toUserId,
+            roomId,
+            type: "answer",
+            data: sdp,
+          });
+
+          const targetSockets = userSocketsMap.get(toUserId);
+          if (targetSockets) {
+            for (const targetSocketId of targetSockets) {
+              io.to(targetSocketId).emit("webrtc:answer", {
+                signalId: saved.id,
+                roomId,
+                fromUserId: userId,
+                fromName: name,
+                sdp,
+                timestamp: Date.now(),
+              });
+            }
+          }
+
+          console.log(`[WebRTC] Answer sent from ${name} to ${toUserId}`);
+        } catch (err) {
+          console.error("[WebRTC] answer error:", err);
+          s.emit("webrtc:error", { message: "Failed to send answer" });
+        }
+      }
+    );
+
+    // ─── WebRTC: Send ICE Candidate ─────────────────────────────────────
+
+    s.on(
+      "webrtc:ice-candidate",
+      async (data: {
+        roomId: string;
+        toUserId: string;
+        candidate: string;
+      }) => {
+        try {
+          const { roomId, toUserId, candidate } = data;
+          if (!roomId || !toUserId || !candidate) {
+            s.emit("webrtc:error", {
+              message: "roomId, toUserId, and candidate are required",
+            });
+            return;
+          }
+
+          await saveSignal({
+            fromUserId: userId,
+            toUserId,
+            roomId,
+            type: "candidate",
+            data: candidate,
+          });
+
+          const targetSockets = userSocketsMap.get(toUserId);
+          if (targetSockets) {
+            for (const targetSocketId of targetSockets) {
+              io.to(targetSocketId).emit("webrtc:ice-candidate", {
+                roomId,
+                fromUserId: userId,
+                candidate,
+                timestamp: Date.now(),
+              });
+            }
+          }
+        } catch (err) {
+          console.error("[WebRTC] ice-candidate error:", err);
+          s.emit("webrtc:error", { message: "Failed to send ICE candidate" });
+        }
+      }
+    );
+
+    // ─── WebRTC: Get peer list ──────────────────────────────────────────
+
+    s.on("webrtc:get-peers", (data: { roomId: string }) => {
+      try {
+        const { roomId } = data;
+        if (!roomId) return;
+
+        const peers = getPeersInRoom(roomId);
+        s.emit("webrtc:peer-list", {
+          roomId,
+          peers: peers.map((pid) => ({ userId: pid })),
+          timestamp: Date.now(),
+        });
+      } catch (err) {
+        console.error("[WebRTC] get-peers error:", err);
+      }
+    });
+
     // ─── Disconnect ────────────────────────────────────────────────────────
 
     s.on("disconnect", async (reason) => {
       console.log(`[Socket.IO] User disconnected: ${name} (${reason})`);
+
+      // Clean up WebRTC peer tracking — notify all rooms
+      removeUserFromAllRooms(userId);
 
       // Remove from tracking
       socketUserMap.delete(s.id);
