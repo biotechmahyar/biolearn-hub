@@ -201,6 +201,11 @@ export const apiClient = {
   delete<T>(endpoint: string, options?: Omit<ApiRequestOptions, "method" | "body">) {
     return request<T>(endpoint, { ...options, method: "DELETE" });
   },
+
+  /** Generic request method — used by useApiMutation for dynamic method/URL combos */
+  request<T>(endpoint: string, options: ApiRequestOptions) {
+    return request<T>(endpoint, options);
+  },
 };
 
 export default apiClient;

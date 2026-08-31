@@ -26,14 +26,21 @@ import {
 
 interface User {
   id: string;
+  /** Alias for id — backward compat with Convex _id usage in unmigrated pages */
+  _id: string;
   name: string | null;
   email: string | null;
   role: string | null;
   secondaryRole: string | null;
   image: string | null;
+  /** Alias for name — backward compat with Convex firstName in unmigrated pages */
+  firstName: string | null;
+  /** Empty string for backward compat — unmigrated pages may reference lastName */
+  lastName: string;
   university: string | null;
   major: string | null;
   createdAt: string;
+  [key: string]: unknown;
 }
 
 interface AuthContextValue {
@@ -97,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setTokens(data.data.accessToken, data.data.refreshToken);
               // Fetch user with new token
               const me = await apiClient.get<User>("/api/auth/me", { skipRefresh: true });
-              if (!cancelled) setUser(me);
+              if (!cancelled) setUser(enrichUser(me));
             } else {
               clearTokens();
             }
@@ -114,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // We have an access token — fetch user
       try {
         const me = await apiClient.get<User>("/api/auth/me", { skipRefresh: false });
-        if (!cancelled) setUser(me);
+        if (!cancelled) setUser(enrichUser(me));
       } catch {
         // Token invalid — try refresh
         const refresh = getRefreshToken();
@@ -130,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (data.ok) {
                 setTokens(data.data.accessToken, data.data.refreshToken);
                 const me = await apiClient.get<User>("/api/auth/me", { skipRefresh: true });
-                if (!cancelled) setUser(me);
+                if (!cancelled) setUser(enrichUser(me));
               } else {
                 clearTokens();
               }
@@ -158,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken: string;
     }>("/api/auth/login", { email, password });
     setTokens(data.accessToken, data.refreshToken);
-    setUser(data.user);
+    setUser(enrichUser(data.user));
   }, []);
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
@@ -168,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshToken: string;
     }>("/api/auth/register", { name, email, password });
     setTokens(data.accessToken, data.refreshToken);
-    setUser(data.user);
+    setUser(enrichUser(data.user));
   }, []);
 
   const signOut = useCallback(() => {
@@ -183,4 +190,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+/**
+ * Ensure backward-compatible fields are populated on the User object.
+ * This lets unmigrated Convex pages continue using user._id, user.firstName, etc.
+ */
+function enrichUser(raw: any): User {
+  const id = raw.id ?? raw._id ?? "";
+  const name = raw.name ?? null;
+  return {
+    id,
+    _id: raw._id ?? id,
+    name,
+    email: raw.email ?? null,
+    role: raw.role ?? null,
+    secondaryRole: raw.secondaryRole ?? null,
+    image: raw.image ?? null,
+    firstName: raw.firstName ?? name?.split(" ")[0] ?? null,
+    lastName: raw.lastName ?? name?.split(" ").slice(1).join(" ") ?? "",
+    university: raw.university ?? null,
+    major: raw.major ?? null,
+    createdAt: raw.createdAt ?? "",
+    ...raw,
+  };
 }
