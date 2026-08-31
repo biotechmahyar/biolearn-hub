@@ -4,6 +4,9 @@ Queues changes for later sync-back when connectivity returns.
 """
 
 import time
+import os
+from datetime import datetime
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -173,9 +176,6 @@ def sync_back(authorization: str | None = None, db: Session = Depends(get_db)):
     if not pending:
         return {"ok": True, "message": "تغییری برای ارسال وجود ندارد.", "count": 0}
 
-    import httpx
-    import os
-
     MAIN_SITE_URL = os.getenv("MAIN_SITE_URL", "https://nibrc.ir")
     SYNC_API_KEY = os.getenv("SYNC_API_KEY", "changeme-sync-secret-key")
 
@@ -197,7 +197,7 @@ def sync_back(authorization: str | None = None, db: Session = Depends(get_db)):
             )
             if resp.status_code == 200:
                 change.synced = True
-                change.synced_at = __import__("datetime").datetime.utcnow()
+                change.synced_at = datetime.utcnow()
                 synced_count += 1
             else:
                 errors.append(f"{change.table_name}: {resp.status_code}")

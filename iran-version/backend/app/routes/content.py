@@ -142,14 +142,14 @@ def search_dictionary(
     limit: int = 20,
     db: Session = Depends(get_db),
 ):
-    query = db.query(DictionaryTerm)
+    db_query = db.query(DictionaryTerm)
     if q:
-        s = q.strip().lower()
-        query = query.filter(
-            DictionaryTerm.term.ilike(f"%{s}%") |
-            DictionaryTerm.full_name.ilike(f"%{s}%")
+        search_term = q.strip().lower()
+        db_query = db_query.filter(
+            DictionaryTerm.term.ilike(f"%{search_term}%") |
+            DictionaryTerm.full_name.ilike(f"%{search_term}%")
         )
-    terms = query.limit(limit).all()
+    terms = db_query.limit(limit).all()
     return [term_to_dict(t) for t in terms]
 
 

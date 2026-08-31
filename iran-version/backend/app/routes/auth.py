@@ -6,6 +6,8 @@ Used when the main site is unreachable (offline mode).
 import hashlib
 import secrets
 import time
+import json
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -13,17 +15,50 @@ from app.models.database import get_db, IranUser
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# Simple JWT-like token (for demo — use proper JWT in production)
+# Token storage — persisted to a JSON file so tokens survive server restarts
+_TOKENS_FILE = Path("data/tokens.json")
 _tokens: dict[str, dict] = {}
 
 
+def _load_tokens():
+    global _tokens
+    if _TOKENS_FILE.exists():
+        try:
+            _tokens = json.loads(_TOKENS_FILE.read_text())
+        except Exception:
+            _tokens = {}
+
+
+def _save_tokens():
+    _TOKENS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _TOKENS_FILE.write_text(json.dumps(_tokens))
+
+
+# Load tokens on startup
+_load_tokens()
+
+
 def _hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password with salt using PBKDF2 (much safer than plain SHA256)."""
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+    return f"{salt}:{dk.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    """Verify password against stored salt:hash."""
+    try:
+        salt, hash_hex = stored.split(":", 1)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100_000)
+        return dk.hex() == hash_hex
+    except Exception:
+        return False
 
 
 def _create_token(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
     _tokens[token] = {"user_id": user_id, "created_at": time.time()}
+    _save_tokens()
     return token
 
 
@@ -34,6 +69,7 @@ def _verify_token(token: str) -> dict | None:
     # Expire after 7 days
     if time.time() - data["created_at"] > 7 * 86400:
         _tokens.pop(token, None)
+        _save_tokens()
         return None
     return data
 
@@ -87,7 +123,7 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login")
 def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(IranUser).filter(IranUser.email == req.email).first()
-    if not user or user.password_hash != _hash_password(req.password):
+    if not user or not _verify_password(req.password, user.password_hash):
         raise HTTPException(401, "ایمیل یا رمز عبور اشتباه است.")
 
     token = _create_token(user.id)
