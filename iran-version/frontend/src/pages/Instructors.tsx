@@ -14,7 +14,7 @@ export default function Instructors() {
         <p className="text-sm font-semibold text-primary">مدرس‌ها و تیم</p>
         <h1 className="mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">اساتید ما</h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          تیم اصلی Genova چهار دانشجوی میکروبیولوژی و یک دانشجوی بیوتکنولوژی است.
+          تیم اصلی NIBRC چهار دانشجوی میکروبیولوژی و یک دانشجوی بیوتکنولوژی است.
         </p>
       </div>
 

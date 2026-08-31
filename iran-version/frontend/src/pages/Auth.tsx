@@ -55,7 +55,7 @@ export default function Auth() {
         <div className="mb-8 text-center">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-extrabold">
             <Dna className="size-8 text-primary" />
-            Genova
+            NIBRC
           </Link>
           <p className="mt-2 text-sm text-muted-foreground">
             نسخه ایران — {mode === "login" ? "ورود به حساب" : "ساخت حساب جدید"}

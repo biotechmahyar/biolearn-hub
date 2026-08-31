@@ -1,6 +1,6 @@
-# Genova Iran Mirror
+# NIBRC Iran Mirror
 
-Read-only mirror of the Genova biological sciences platform, designed for
+Read-only mirror of the NIBRC biological sciences platform, designed for
 availability when international internet connectivity is disrupted.
 
 ## Architecture

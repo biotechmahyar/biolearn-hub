@@ -4,7 +4,7 @@
 
 set -e
 
-echo "=== Genova Iran Mirror — Setup ==="
+echo "=== NIBRC Iran Mirror — Setup ==="
 echo ""
 
 # Check Python

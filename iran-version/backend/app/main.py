@@ -60,8 +60,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Genova Iran Mirror",
-    description="Read-only mirror of Genova biological sciences platform",
+    title="NIBRC Iran Mirror",
+    description="Read-only mirror of NIBRC biological sciences platform",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -85,7 +85,7 @@ app.include_router(offline_router)
 @app.get("/")
 def root():
     return {
-        "name": "Genova Iran Mirror",
+        "name": "NIBRC Iran Mirror",
         "status": "running",
         "description": "Read-only mirror of the main NIBRC site",
     }

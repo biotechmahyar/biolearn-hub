@@ -3,7 +3,7 @@
  * All requests go to /api/* which is proxied to the FastAPI backend.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_BASE = import.meta.env.VITE_API_URL || "https://react-4k9h04.chbkn.dev";
 
 export async function apiGet<T>(path: string): Promise<T | undefined> {
   try {

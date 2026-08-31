@@ -44,7 +44,7 @@ export function Layout() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <Link to="/" className="flex items-center gap-2 text-xl font-extrabold">
             <Dna className="size-7 text-primary" />
-            Genova
+            NIBRC
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium md:flex">
             <Link to="/courses" className="hover:text-primary transition-colors">دوره‌ها</Link>
@@ -90,7 +90,7 @@ export function Layout() {
       {/* Footer */}
       <footer className="border-t border-border/70 bg-muted/50 py-8 text-center text-sm text-muted-foreground">
         <div className="mx-auto max-w-7xl px-4">
-          <p className="font-bold text-foreground">Genova — پلتفرم تخصصی علوم زیستی</p>
+          <p className="font-bold text-foreground">NIBRC — پلتفرم تخصصی علوم زیستی</p>
           <p className="mt-1">نسخه آینه‌ای ایران | بروزرسانی خودکار هر ۳۰ دقیقه</p>
         </div>
       </footer>

@@ -208,7 +208,7 @@ nano /etc/systemd/system/nibrc-backend.service
 محتوا:
 ```ini
 [Unit]
-Description=Genova Iran Backend
+Description=NIBRC Iran Backend
 After=network.target
 
 [Service]
