@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { useAuth } from "@/hooks/use-auth";
 import { useNavigate } from "react-router";
 import { formatPriceNumber } from "@/lib/format";
@@ -48,11 +48,25 @@ export default function CartPage() {
   const [showCheckout, setShowCheckout] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
 
-  const cartItems = useQuery(api.marketplace.getCart);
-  const wallet = useQuery(api.marketplace.getMyWallet);
-  const updateItem = useMutation(api.marketplace.updateCartItem);
-  const removeItem = useMutation(api.marketplace.removeFromCart);
-  const checkout = useMutation(api.marketplace.checkoutCart);
+  const { isIran } = useMode();
+
+  // Convex queries (global mode)
+  const cartItemsConvex = useQuery(api.marketplace.getCart);
+  const walletConvex = useQuery(api.marketplace.getMyWallet);
+  const updateItemConvex = useMutation(api.marketplace.updateCartItem);
+  const removeItemConvex = useMutation(api.marketplace.removeFromCart);
+  const checkoutConvex = useMutation(api.marketplace.checkoutCart);
+
+  // Iran server queries
+  const { data: cartItemsIran } = useApiQuery<any[]>(isIran ? "/api/marketplace/cart" : "");
+  const { data: walletIran } = useApiQuery<any>(isIran ? "/api/wallet" : "");
+  const { mutate: updateItemIran } = useApiMutation("/api/marketplace/cart", "PATCH");
+  const { mutate: removeItemIran } = useApiMutation("/api/marketplace/cart", "DELETE");
+  const { mutate: checkoutIran } = useApiMutation("/api/marketplace/checkout", "POST");
+
+  // Merge dual mode data
+  const cartItems = isIran ? cartItemsIran : cartItemsConvex;
+  const wallet = isIran ? walletIran : walletConvex;
 
   const subtotal = (cartItems ?? []).reduce(
     (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
@@ -155,7 +169,11 @@ export default function CartPage() {
                           className="size-8 text-slate-500 hover:text-red-400"
                           onClick={async () => {
                             try {
-                              await removeItem({ cartItemId: item._id });
+                              if (isIran) {
+                                  await removeItemIran({ id: item._id });
+                                } else {
+                                  await removeItemConvex({ cartItemId: item._id });
+                                }
                               toast.success("حذف شد");
                             } catch (e: any) {
                               toast.error(e.message);
@@ -178,9 +196,17 @@ export default function CartPage() {
                               className="px-2 py-1 text-slate-400 hover:text-white"
                               onClick={async () => {
                                 if (item.quantity <= 1) {
-                                  await removeItem({ cartItemId: item._id });
+                                  if (isIran) {
+                                  await removeItemIran({ id: item._id });
                                 } else {
-                                  await updateItem({ cartItemId: item._id, quantity: item.quantity - 1 });
+                                  await removeItemConvex({ cartItemId: item._id });
+                                }
+                                } else {
+                                  if (isIran) {
+                                  await updateItemIran({ id: item._id, quantity: item.quantity - 1 });
+                                } else {
+                                  await updateItemConvex({ cartItemId: item._id, quantity: item.quantity - 1 });
+                                }
                                 }
                               }}
                             >
@@ -191,7 +217,11 @@ export default function CartPage() {
                               className="px-2 py-1 text-slate-400 hover:text-white"
                               onClick={async () => {
                                 if (item.quantity < (item.product?.stock ?? 0)) {
-                                  await updateItem({ cartItemId: item._id, quantity: item.quantity + 1 });
+                                  if (isIran) {
+                                  await updateItemIran({ id: item._id, quantity: item.quantity + 1 });
+                                } else {
+                                  await updateItemConvex({ cartItemId: item._id, quantity: item.quantity + 1 });
+                                }
                                 }
                               }}
                             >
@@ -319,12 +349,21 @@ export default function CartPage() {
               onClick={async () => {
                 setCheckingOut(true);
                 try {
-                  await checkout({
-                    deliveryCity,
-                    deliveryAddress: deliveryAddress || undefined,
-                    deliveryNote: deliveryNote || undefined,
-                    couponCode: couponCode || undefined,
-                  });
+                  if (isIran) {
+                    await checkoutIran({
+                      deliveryCity,
+                      deliveryAddress: deliveryAddress || undefined,
+                      deliveryNote: deliveryNote || undefined,
+                      couponCode: couponCode || undefined,
+                    });
+                  } else {
+                    await checkoutConvex({
+                      deliveryCity,
+                      deliveryAddress: deliveryAddress || undefined,
+                      deliveryNote: deliveryNote || undefined,
+                      couponCode: couponCode || undefined,
+                    });
+                  }
                   setOrderComplete(true);
                   setShowCheckout(false);
                   toast.success("سفارش با موفقیت ثبت شد!");

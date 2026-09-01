@@ -1,7 +1,8 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
+import { api as iranApi } from "@/lib/apiClient";
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { formatPriceNumber } from "@/lib/format";
@@ -55,14 +56,34 @@ export default function SellerPanel() {
   const [tags, setTags] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const myProducts = useQuery(api.marketplace.getMyProducts);
-  const mySales = useQuery(api.marketplace.getMySales);
-  const wallet = useQuery(api.marketplace.getMyWallet);
-  const walletTransactions = useQuery(api.marketplace.getMyTransactions, { limit: 30 });
-  const createProduct = useMutation(api.marketplace.createProduct);
-  const deleteProduct = useMutation(api.marketplace.deleteProduct);
-  const confirmShipment = useMutation(api.marketplace.confirmShipment);
-  const boostProduct = useMutation(api.marketplace.boostProduct);
+  const { isIran } = useMode();
+
+  // Convex queries (global mode)
+  const myProductsConvex = useQuery(api.marketplace.getMyProducts);
+  const mySalesConvex = useQuery(api.marketplace.getMySales);
+  const walletConvex = useQuery(api.marketplace.getMyWallet);
+  const walletTransactionsConvex = useQuery(api.marketplace.getMyTransactions, { limit: 30 });
+  const createProductConvex = useMutation(api.marketplace.createProduct);
+  const deleteProductConvex = useMutation(api.marketplace.deleteProduct);
+  const confirmShipmentConvex = useMutation(api.marketplace.confirmShipment);
+  const boostProductConvex = useMutation(api.marketplace.boostProduct);
+
+  // Iran server queries
+  const { data: myProductsIran } = useApiQuery<any[]>(isIran ? "/api/marketplace/seller/products" : "");
+  const { data: mySalesIran } = useApiQuery<any[]>(isIran ? "/api/marketplace/seller/orders" : "");
+  const { data: walletIran } = useApiQuery<any>(isIran ? "/api/marketplace/seller/wallet" : "");
+  const { data: walletTransactionsIran } = useApiQuery<any[]>(isIran ? "/api/marketplace/seller/transactions?limit=30" : "");
+
+  const { mutate: createProductIran } = useApiMutation("/api/marketplace/seller/products", "POST");
+  const { mutate: deleteProductIran } = useApiMutation("/api/marketplace/seller/products", "DELETE");
+  const { mutate: confirmShipmentIran } = useApiMutation("/api/marketplace/seller/orders", "POST");
+  const { mutate: boostProductIran } = useApiMutation("/api/marketplace/seller/products", "POST");
+
+  // Merge dual mode data
+  const myProducts = isIran ? myProductsIran : myProductsConvex;
+  const mySales = isIran ? mySalesIran : mySalesConvex;
+  const wallet = isIran ? walletIran : walletConvex;
+  const walletTransactions = isIran ? walletTransactionsIran : walletTransactionsConvex;
 
   const totalEarnings = mySales
     ?.filter((s: any) => s.status === "completed")
@@ -78,16 +99,29 @@ export default function SellerPanel() {
     if (isNaN(priceNum) || priceNum < 1000) { toast.error("حداقل قیمت ۱,۰۰۰ تومان."); return; }
     setBusy(true);
     try {
-      await createProduct({
-        title: title.trim(),
-        description: description.trim(),
-        category: category as any,
-        condition: condition as any,
-        price: priceNum,
-        stock: Number(stock) || 1,
-        images: [],
-        tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
-      });
+      if (isIran) {
+        await createProductIran({
+          title: title.trim(),
+          description: description.trim(),
+          category,
+          condition,
+          price: priceNum,
+          stock: Number(stock) || 1,
+          images: [],
+          tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+        });
+      } else {
+        await createProductConvex({
+          title: title.trim(),
+          description: description.trim(),
+          category: category as any,
+          condition: condition as any,
+          price: priceNum,
+          stock: Number(stock) || 1,
+          images: [],
+          tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+        });
+      }
       toast.success("محصول ثبت شد و منتظر تأیید مدیر است.");
       setShowCreate(false);
       setTitle(""); setDescription(""); setPrice(""); setStock("1"); setTags("");
@@ -101,7 +135,11 @@ export default function SellerPanel() {
   const handleDelete = async (id: string) => {
     if (!confirm("آیا از حذف این محصول مطمئنید؟")) return;
     try {
-      await deleteProduct({ productId: id as any });
+      if (isIran) {
+        await deleteProductIran({ productId: id });
+      } else {
+        await deleteProductConvex({ productId: id as any });
+      }
       toast.success("محصول حذف شد.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
@@ -110,7 +148,11 @@ export default function SellerPanel() {
 
   const handleShipment = async (orderId: string) => {
     try {
-      await confirmShipment({ orderId: orderId as any });
+      if (isIran) {
+        await confirmShipmentIran({ orderId });
+      } else {
+        await confirmShipmentConvex({ orderId: orderId as any });
+      }
       toast.success("ارسال تأیید شد.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
@@ -119,7 +161,11 @@ export default function SellerPanel() {
 
   const handleBoost = async (productId: string, level: "silver" | "gold") => {
     try {
-      await boostProduct({ productId: productId as any, boostLevel: level });
+      if (isIran) {
+        await boostProductIran({ productId, boostLevel: level });
+      } else {
+        await boostProductConvex({ productId: productId as any, boostLevel: level });
+      }
       toast.success(level === "gold" ? "تبلیغ طلایی ۳۰ روزه فعال شد! 🏆" : "تبلیغ نقره‌ای ۱ هفته فعال شد! ⚡");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");

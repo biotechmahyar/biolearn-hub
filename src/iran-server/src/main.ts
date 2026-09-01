@@ -10,7 +10,7 @@ import { getCourses, getCourseBySlug, getCategories, getInstructors, getInstruct
 import { getArticles, getArticleBySlug } from "./routes/articles.js";
 import { getProducts, getProductBySlug, getWorkshops, getDictionaryTerms, getExams, getExamBySlug } from "./routes/products.js";
 import { getProfile, updateProfile, getMyClasses, getMyStudents, getBookmarks, addBookmark, removeBookmark, getFlashcards, addFlashcard, removeFlashcard, getAnnouncements } from "./routes/users.js";
-import { getWallet, getWalletTransactions, getMarketplaceProducts, getMarketplaceProduct, addToCart, getCart, removeFromCart, toggleWishlist, addReview, getSellerStats, getSellerProducts, createSellerProduct, updateSellerProduct, deleteSellerProduct } from "./routes/wallet.js";
+import { getWallet, getWalletTransactions, getMarketplaceProducts, getMarketplaceProduct, addToCart, getCart, removeFromCart, toggleWishlist, addReview, getSellerStats, getSellerProducts, createSellerProduct, updateSellerProduct, deleteSellerProduct, boostSellerProduct, confirmSellerShipment, getSellerOrders, checkoutCart, getMarketplaceCategories, updateCartItem, getSellerWallet, getSellerTransactions } from "./routes/wallet.js";
 import { getClasses, getClass, requestClass } from "./routes/classes.js";
 import { getModels, aiChat, getConversations, getConversationMessages, deleteConversation } from "./routes/ai.js";
 
@@ -106,6 +106,14 @@ app.get("/api/marketplace/seller/products", authMiddleware, getSellerProducts);
 app.post("/api/marketplace/seller/products", authMiddleware, createSellerProduct);
 app.patch("/api/marketplace/seller/products/:id", authMiddleware, updateSellerProduct);
 app.delete("/api/marketplace/seller/products/:id", authMiddleware, deleteSellerProduct);
+app.post("/api/marketplace/seller/products/:id/boost", authMiddleware, boostSellerProduct);
+app.post("/api/marketplace/seller/orders/:id/ship", authMiddleware, confirmSellerShipment);
+app.get("/api/marketplace/seller/orders", authMiddleware, getSellerOrders);
+app.post("/api/marketplace/checkout", authMiddleware, checkoutCart);
+app.get("/api/marketplace/categories", getMarketplaceCategories);
+app.patch("/api/marketplace/cart/:id", authMiddleware, updateCartItem);
+app.get("/api/marketplace/seller/wallet", authMiddleware, getSellerWallet);
+app.get("/api/marketplace/seller/transactions", authMiddleware, getSellerTransactions);
 
 // Classes
 app.get("/api/classes", authMiddleware, getClasses);

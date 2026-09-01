@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { formatPriceNumber } from "@/lib/format";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -80,12 +81,29 @@ export default function AdminMarketplacePanel() {
   const [couponMinPurchase, setCouponMinPurchase] = useState(10000);
   const [couponMaxUses, setCouponMaxUses] = useState(100);
 
-  // Queries
-  const allProducts = useQuery(api.marketplace.adminListAllProducts, { status: statusFilter ?? undefined });
-  const walletData = useQuery(api.marketplace.adminGetUserWallet, user?._id ? { userId: user._id } : "skip");
+  // Convex queries (global mode)
+  const allProductsConvex = useQuery(api.marketplace.adminListAllProducts, { status: statusFilter ?? undefined });
+  const walletDataConvex = useQuery(api.marketplace.adminGetUserWallet, user?._id ? { userId: user._id } : "skip");
+  const approveProductConvex = useMutation(api.marketplace.adminReviewProduct);
+  const deleteProductConvex = useMutation(api.marketplace.deleteProduct);
 
-  const approveProduct = useMutation(api.marketplace.adminReviewProduct);
-  const deleteProduct = useMutation(api.marketplace.deleteProduct);
+  // Iran server queries
+  const productsUrl = isIran ? `/api/admin/store-products${statusFilter ? `?status=${statusFilter}` : ""}` : "";
+  const { data: allProductsIran } = useApiQuery<any[]>(productsUrl);
+  const { mutate: approveProductIran } = useApiMutation("/api/admin/store-products", "PATCH");
+
+  // Merge dual mode data
+  const allProducts = isIran ? allProductsIran : allProductsConvex;
+  const walletData = isIran ? null : walletDataConvex;
+
+  // Dual-mode approve helper
+  const handleApprove = async (productId: string, status: string, rejectionReason?: string) => {
+    if (isIran) {
+      await approveProductIran({ productId, status, rejectionReason });
+    } else {
+      await approveProductConvex({ productId: productId as any, status: status as any, rejectionReason });
+    }
+  };
 
   const isStaff = user?.role === "admin" || user?.role === "site_admin";
 
@@ -222,7 +240,7 @@ export default function AdminMarketplacePanel() {
                           variant="ghost"
                           className="size-7 text-emerald-400 hover:text-emerald-300"
                           onClick={async () => {
-                            await approveProduct({ productId: p._id, status: "approved" });
+                            await handleApprove(p._id, "approved");
                             toast.success("تأیید شد");
                           }}
                         >
@@ -233,7 +251,7 @@ export default function AdminMarketplacePanel() {
                           variant="ghost"
                           className="size-7 text-red-400 hover:text-red-300"
                           onClick={async () => {
-                            await approveProduct({ productId: p._id, status: "rejected", rejectionReason: "تأیید نشد" });
+                            await handleApprove(p._id, "rejected", "تأیید نشد");
                             toast.success("رد شد");
                           }}
                         >
@@ -414,7 +432,7 @@ export default function AdminMarketplacePanel() {
                                 variant="ghost"
                                 className="size-8 text-emerald-400 hover:text-emerald-300"
                                 onClick={async () => {
-                                  await approveProduct({ productId: p._id, status: "approved" });
+                                  await handleApprove(p._id, "approved");
                                   toast.success("تأیید شد ✓");
                                 }}
                               >
@@ -425,7 +443,7 @@ export default function AdminMarketplacePanel() {
                                 variant="ghost"
                                 className="size-8 text-red-400 hover:text-red-300"
                                 onClick={async () => {
-                                  await approveProduct({ productId: p._id, status: "rejected", rejectionReason: rejectReason || "تأیید نشد" });
+                                  await handleApprove(p._id, "rejected", rejectReason || "تأیید نشد");
                                   toast.success("رد شد");
                                 }}
                               >
@@ -556,7 +574,7 @@ export default function AdminMarketplacePanel() {
                   <Button
                     className="flex-1 bg-emerald-600 text-white"
                     onClick={async () => {
-                      await approveProduct({ productId: showProductDetail._id, status: "approved" });
+                      await handleApprove(showProductDetail._id, "approved");
                       toast.success("تأیید شد");
                       setShowProductDetail(null);
                     }}
@@ -567,7 +585,7 @@ export default function AdminMarketplacePanel() {
                     variant="outline"
                     className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10"
                     onClick={async () => {
-                      await approveProduct({ productId: showProductDetail._id, status: "rejected", rejectionReason: "تأیید نشد" });
+                      await handleApprove(showProductDetail._id, "rejected", "تأیید نشد");
                       toast.success("رد شد");
                       setShowProductDetail(null);
                     }}

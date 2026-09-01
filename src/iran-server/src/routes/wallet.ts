@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { Context } from "hono";
 import { db, generateId, now } from "../db.js";
-import { wallet, walletTransactions, storeProducts, storeOrders, storeReviews, storeCart, storeWishlists } from "../schema.js";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { wallet, walletTransactions, storeProducts, storeOrders, storeReviews, storeCart, storeWishlists, storeCoupons, users } from "../schema.js";
+import { eq, desc, and, sql, count as drizzleCount } from "drizzle-orm";
 
 // ── WALLET ────────────────────────────────────────────────────────────────
 
@@ -276,3 +276,299 @@ export async function deleteSellerProduct(c: Context) {
     return c.json({ ok: false, error: "خطا" }, 500);
   }
 }
+
+// ── SELLER BOOST ─────────────────────────────────────────────────────────
+
+// POST /api/marketplace/seller/products/:id/boost
+export async function boostSellerProduct(c: Context) {
+  const userId = c.get("userId") as string;
+  const id = c.req.param("id");
+  try {
+    const { boostLevel } = await c.req.json(); // "silver" | "gold"
+    const existing = await db.select().from(storeProducts).where(eq(storeProducts.id, id)).limit(1);
+    if (!existing.length || existing[0].sellerId !== userId) {
+      return c.json({ ok: false, error: "دسترسی غیرمجاز" }, 403);
+    }
+    const durationDays = boostLevel === "gold" ? 30 : 7;
+    const boostCost = boostLevel === "gold" ? Math.round(existing[0].price * 0.09) : Math.round(existing[0].price * 0.045);
+    const expiresAt = Math.floor(Date.now() / 1000) + durationDays * 86400;
+
+    // Check wallet balance
+    const w = await db.select().from(wallet).where(eq(wallet.userId, userId)).limit(1);
+    if (!w.length || w[0].balance < boostCost) {
+      return c.json({ ok: false, error: "موجودی کیف پول کافی نیست" }, 400);
+    }
+
+    // Deduct from wallet
+    await db.update(wallet).set({
+      balance: w[0].balance - boostCost,
+      totalSpent: w[0].totalSpent + boostCost,
+      updatedAt: now(),
+    }).where(eq(wallet.userId, userId));
+
+    // Record transaction
+    await db.insert(walletTransactions).values({
+      id: generateId(),
+      userId,
+      type: "boost",
+      amount: -boostCost,
+      description: `نردبان ${boostLevel === "gold" ? "طلایی" : "نقره‌ای"} محصول ${existing[0].title}`,
+      relatedProductId: id,
+      createdAt: now(),
+    } as any);
+
+    // Apply boost
+    await db.update(storeProducts).set({
+      boostLevel,
+      boostExpiresAt: expiresAt,
+      updatedAt: now(),
+    }).where(eq(storeProducts.id, id));
+
+    return c.json({ ok: true, data: { boostCost, expiresAt } });
+  } catch (error) {
+    return c.json({ ok: false, error: "خطا" }, 500);
+  }
+}
+
+// ── SELLER SHIPMENT CONFIRM ──────────────────────────────────────────────
+
+// POST /api/marketplace/seller/orders/:id/ship
+export async function confirmSellerShipment(c: Context) {
+  const userId = c.get("userId") as string;
+  const id = c.req.param("id");
+  try {
+    const existing = await db.select().from(storeOrders).where(eq(storeOrders.id, id)).limit(1);
+    if (!existing.length || existing[0].sellerId !== userId) {
+      return c.json({ ok: false, error: "دسترسی غیرمجاز" }, 403);
+    }
+    if (existing[0].status !== "paid") {
+      return c.json({ ok: false, error: "این سفارش قابل ارسال نیست" }, 400);
+    }
+    await db.update(storeOrders).set({
+      status: "shipped",
+      updatedAt: now(),
+    }).where(eq(storeOrders.id, id));
+    return c.json({ ok: true });
+  } catch (error) {
+    return c.json({ ok: false, error: "خطا" }, 500);
+  }
+}
+
+// ── SELLER ORDERS (list orders for seller's products) ────────────────────
+
+// GET /api/marketplace/seller/orders
+export async function getSellerOrders(c: Context) {
+  const userId = c.get("userId") as string;
+  try {
+    const result = await db.select().from(storeOrders)
+      .where(eq(storeOrders.sellerId, userId))
+      .orderBy(desc(storeOrders.createdAt));
+    return c.json({ ok: true, data: result });
+  } catch (error) {
+    return c.json({ ok: false, error: "خطا" }, 500);
+  }
+}
+
+// ── CART CHECKOUT ────────────────────────────────────────────────────────
+
+// POST /api/marketplace/checkout
+export async function checkoutCart(c: Context) {
+  const userId = c.get("userId") as string;
+  try {
+    const { deliveryCity = "تبریز", deliveryAddress, deliveryNote, couponCode } = await c.req.json();
+
+    // Get cart items
+    const cartItems = await db.select().from(storeCart).where(eq(storeCart.userId, userId));
+    if (cartItems.length === 0) {
+      return c.json({ ok: false, error: "سبد خرید خالی است" }, 400);
+    }
+
+    // Get wallet
+    const w = await db.select().from(wallet).where(eq(wallet.userId, userId)).limit(1);
+    if (!w.length) {
+      return c.json({ ok: false, error: "کیف پول یافت نشد" }, 400);
+    }
+
+    // Calculate total
+    let subtotal = 0;
+    const orderItems: any[] = [];
+    for (const item of cartItems) {
+      const product = await db.select().from(storeProducts).where(eq(storeProducts.id, item.productId)).limit(1);
+      if (product.length === 0 || product[0].stock < (item.quantity || 1)) continue;
+      const unitPrice = product[0].price;
+      subtotal += unitPrice * (item.quantity || 1);
+      orderItems.push({
+        productId: product[0].id,
+        sellerId: product[0].sellerId,
+        quantity: item.quantity || 1,
+        unitPrice,
+      });
+    }
+
+    // Apply coupon if provided
+    let discount = 0;
+    if (couponCode) {
+      const coupons = await db.select().from(storeCoupons).where(eq(storeCoupons.code, couponCode)).limit(1);
+      if (coupons.length > 0 && coupons[0].active && subtotal >= coupons[0].minPurchase) {
+        discount = Math.min(Math.round(subtotal * coupons[0].percent / 100), coupons[0].maxDiscount);
+      }
+    }
+
+    const total = subtotal - discount;
+    if (w[0].balance < total) {
+      return c.json({ ok: false, error: "موجودی کیف پول کافی نیست" }, 400);
+    }
+
+    // Deduct from wallet
+    await db.update(wallet).set({
+      balance: w[0].balance - total,
+      totalSpent: w[0].totalSpent + total,
+      updatedAt: now(),
+    }).where(eq(wallet.userId, userId));
+
+    // Create orders for each seller product
+    const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
+    for (const item of orderItems) {
+      const commission = Math.round(item.unitPrice * item.quantity * 0.09);
+      const sellerEarning = item.unitPrice * item.quantity - commission;
+      const orderId = generateId();
+
+      await db.insert(storeOrders).values({
+        id: orderId,
+        buyerId: userId,
+        sellerId: item.sellerId,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        commission,
+        total: item.unitPrice * item.quantity,
+        sellerEarning,
+        status: "paid",
+        deliveryCity,
+        deliveryAddress: deliveryAddress || null,
+        deliveryNote: deliveryNote || null,
+        paidWithWallet: true,
+        invoiceNumber,
+        createdAt: now(),
+        updatedAt: now(),
+      } as any);
+
+      // Update stock and sold count
+      const prod = await db.select().from(storeProducts).where(eq(storeProducts.id, item.productId)).limit(1);
+      if (prod.length > 0) {
+        await db.update(storeProducts).set({
+          stock: Math.max(0, (prod[0].stock || 0) - item.quantity),
+          soldCount: (prod[0].soldCount || 0) + item.quantity,
+          updatedAt: now(),
+        }).where(eq(storeProducts.id, item.productId));
+      }
+
+      // Credit seller wallet
+      const sellerW = await db.select().from(wallet).where(eq(wallet.userId, item.sellerId)).limit(1);
+      if (sellerW.length > 0) {
+        await db.update(wallet).set({
+          balance: sellerW[0].balance + sellerEarning,
+          totalEarned: sellerW[0].totalEarned + sellerEarning,
+          updatedAt: now(),
+        }).where(eq(wallet.userId, item.sellerId));
+
+        await db.insert(walletTransactions).values({
+          id: generateId(),
+          userId: item.sellerId,
+          type: "sale",
+          amount: sellerEarning,
+          description: `فروش محصول - سفارش ${invoiceNumber}`,
+          relatedOrderId: orderId,
+          relatedProductId: item.productId,
+          createdAt: now(),
+        } as any);
+      }
+    }
+
+    // Record buyer transaction
+    await db.insert(walletTransactions).values({
+      id: generateId(),
+      userId,
+      type: "purchase",
+      amount: -total,
+      description: `خرید از بازارچه - سفارش ${invoiceNumber}`,
+      relatedOrderId: invoiceNumber,
+      createdAt: now(),
+    } as any);
+
+    // Clear cart
+    await db.delete(storeCart).where(eq(storeCart.userId, userId));
+
+    return c.json({ ok: true, data: { invoiceNumber, total, discount } });
+  } catch (error) {
+    console.error("[CHECKOUT] Error:", error);
+    return c.json({ ok: false, error: "خطا در ثبت سفارش" }, 500);
+  }
+}
+
+// ── MARKETPLACE CATEGORIES (counts) ─────────────────────────────────────
+
+// GET /api/marketplace/categories
+export async function getMarketplaceCategories(c: Context) {
+  try {
+    const categories = ["notes", "flashcards", "book", "package", "other"];
+    const result: Record<string, number> = {};
+    for (const cat of categories) {
+      const rows = await db.select({ value: drizzleCount() }).from(storeProducts)
+        .where(and(eq(storeProducts.status, "approved"), eq(storeProducts.category, cat)));
+      result[cat] = rows[0]?.value ?? 0;
+    }
+    return c.json({ ok: true, data: result });
+  } catch (error) {
+    return c.json({ ok: false, error: "خطا" }, 500);
+  }
+}
+
+// ── UPDATE CART ITEM QUANTITY ────────────────────────────────────────────
+
+// PATCH /api/marketplace/cart/:id
+export async function updateCartItem(c: Context) {
+  const userId = c.get("userId") as string;
+  const id = c.req.param("id");
+  try {
+    const { quantity } = await c.req.json();
+    await db.update(storeCart).set({ quantity }).where(eq(storeCart.id, id));
+    return c.json({ ok: true });
+  } catch (error) {
+    return c.json({ ok: false, error: "خطا" }, 500);
+  }
+}
+
+// ── SELLER WALLET (get specific seller's wallet) ────────────────────────
+
+// GET /api/marketplace/seller/wallet
+export async function getSellerWallet(c: Context) {
+  const userId = c.get("userId") as string;
+  try {
+    const result = await db.select().from(wallet).where(eq(wallet.userId, userId)).limit(1);
+    if (result.length === 0) {
+      const id = generateId();
+      await db.insert(wallet).values({ id, userId, balance: 0, frozenBalance: 0, totalEarned: 0, totalSpent: 0, updatedAt: now() } as any);
+      return c.json({ ok: true, data: { id, balance: 0, frozenBalance: 0, totalEarned: 0, totalSpent: 0 } });
+    }
+    return c.json({ ok: true, data: result[0] });
+  } catch (error) {
+    return c.json({ ok: false, error: "خطا" }, 500);
+  }
+}
+
+// GET /api/marketplace/seller/transactions
+export async function getSellerTransactions(c: Context) {
+  const userId = c.get("userId") as string;
+  try {
+    const limit = parseInt(c.req.query("limit") || "30");
+    const result = await db.select().from(walletTransactions)
+      .where(eq(walletTransactions.userId, userId))
+      .orderBy(desc(walletTransactions.createdAt))
+      .limit(limit);
+    return c.json({ ok: true, data: result });
+  } catch (error) {
+    return c.json({ ok: false, error: "خطا" }, 500);
+  }
+}
+
