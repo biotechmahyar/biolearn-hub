@@ -91,6 +91,9 @@ export default defineSchema({
     slug: v.string(),
     description: v.optional(v.string()),
     published: v.boolean(),
+    order: v.optional(v.number()),
+    icon: v.optional(v.string()),
+    accent: v.optional(v.string()),
   }),
 
   instructors: defineTable({
@@ -133,6 +136,19 @@ export default defineSchema({
     ogImage: v.optional(v.string()),
     rating: v.optional(v.number()),
     studentCount: v.optional(v.number()),
+    createdAt: v.optional(v.number()),
+    popular: v.optional(v.boolean()),
+    accent: v.optional(v.string()),
+    audience: v.optional(v.array(v.string())),
+    durationText: v.optional(v.string()),
+    mode: v.optional(v.string()),
+    rating: v.optional(v.number()),
+    ratingCount: v.optional(v.number()),
+    studentsCount: v.optional(v.number()),
+    bundle: v.optional(v.any()),
+    packagePrices: v.optional(v.any()),
+    learningObjectives: v.optional(v.array(v.string())),
+    status: v.optional(v.string()),
   })
     .index("by_slug", ["slug"])
     .index("by_published", ["published"])
@@ -155,6 +171,12 @@ export default defineSchema({
     ogImage: v.optional(v.string()),
     accent: v.optional(v.string()),
     createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+    status: v.optional(v.string()),
+    seoTitle: v.optional(v.string()),
+    seoDescription: v.optional(v.string()),
+    seoKeywords: v.optional(v.array(v.string())),
+    seoCanonical: v.optional(v.string()),
   })
     .index("by_slug", ["slug"])
     .index("by_published", ["published"]),
@@ -172,6 +194,7 @@ export default defineSchema({
     featured: v.optional(v.boolean()),
     coverUrl: v.optional(v.string()),
     createdAt: v.optional(v.number()),
+    topic: v.optional(v.string()),
   })
     .index("by_slug", ["slug"]),
 
@@ -191,6 +214,8 @@ export default defineSchema({
     topic: v.optional(v.string()),
     capacity: v.optional(v.number()),
     registeredCount: v.optional(v.number()),
+    agenda: v.optional(v.string()),
+    free: v.optional(v.boolean()),
   })
     .index("by_slug", ["slug"]),
 
@@ -251,6 +276,7 @@ export default defineSchema({
     diagnostic: v.optional(v.boolean()),
     published: v.boolean(),
     featured: v.optional(v.boolean()),
+    accent: v.optional(v.string()),
   }),
 
   questions: defineTable({
@@ -317,11 +343,10 @@ export default defineSchema({
   comments: defineTable({
     userId: v.id("users"),
     itemType: v.string(),
-    itemId: v.string(),
-    text: v.string(),
+    itemId: v.string(),    text: v.string(),
+    userName: v.optional(v.string()),
     createdAt: v.number(),
-  })
-    .index("by_item", ["itemType", "itemId"])
+  }).index("by_item", ["itemType", "itemId"])
     .index("by_user", ["userId"]),
 
   // ── Notifications ───────────────────────────────────────────────────────
@@ -522,8 +547,17 @@ export default defineSchema({
 
   // ── AI ──────────────────────────────────────────────────────────────────
   aiConfig: defineTable({
-    key: v.string(),
-    value: v.string(),
+    key: v.optional(v.string()),
+    value: v.optional(v.string()),
+    provider: v.optional(v.string()),
+    model: v.optional(v.string()),
+    baseUrl: v.optional(v.string()),
+    apiKeyEncrypted: v.optional(v.string()),
+    temperature: v.optional(v.number()),
+    maxTokensPerRequest: v.optional(v.number()),
+    systemPrompt: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
+    updatedBy: v.optional(v.id("users")),
   }).index("by_key", ["key"]),
 
   aiModels: defineTable({
@@ -540,6 +574,10 @@ export default defineSchema({
     pricePerMessage: v.optional(v.number()),
     order: v.number(),
     createdAt: v.number(),
+    model: v.optional(v.string()),
+    systemPrompt: v.optional(v.string()),
+    dailyLimit: v.optional(v.number()),
+    description: v.optional(v.string()),
   }),
 
   aiPrompts: defineTable({
@@ -573,6 +611,7 @@ export default defineSchema({
     modelId: v.string(),
     tokensUsed: v.number(),
     messagesCount: v.number(),
+    messagesSent: v.optional(v.number()),
     date: v.string(),
     createdAt: v.number(),
   }).index("by_user_date", ["userId", "date"]),
@@ -596,9 +635,12 @@ export default defineSchema({
   // ── Mentor ─────────────────────────────────────────────────────────────
   mentorGroups: defineTable({
     name: v.string(),
+    title: v.optional(v.string()),
     description: v.optional(v.string()),
     instructorId: v.id("users"),
+    mentorId: v.optional(v.id("users")),
     memberCount: v.optional(v.number()),
+    capacity: v.optional(v.number()),
     createdAt: v.number(),
   }).index("by_instructor", ["instructorId"]),
 
@@ -612,7 +654,9 @@ export default defineSchema({
 
   mentorSessions: defineTable({
     mentorId: v.id("users"),
+    mentorName: v.optional(v.string()),
     studentId: v.id("users"),
+    title: v.optional(v.string()),
     date: v.string(),
     time: v.string(),
     topic: v.optional(v.string()),

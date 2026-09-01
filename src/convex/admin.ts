@@ -342,7 +342,7 @@ export const adminDeleteUser = mutation({
     for (const row of await ctx.db.query("presence").withIndex("by_user", (q) => q.eq("userId", args.userId)).collect()) {
       deletes.push(ctx.db.delete(row._id));
     }
-    for (const row of await ctx.db.query("mentorQuestions").withIndex("by_student", (q) => q.eq("studentId", args.userId)).collect()) {
+    for (const row of await ctx.db.query("mentorQuestions").withIndex("by_student", (q) => q.eq("userId", args.userId)).collect()) {
       deletes.push(ctx.db.delete(row._id));
     }
     for (const row of await ctx.db.query("mentorSessions").withIndex("by_student", (q) => q.eq("studentId", args.userId)).collect()) {
@@ -530,11 +530,13 @@ export const adminCreateCoupon = mutation({
     if (args.percent <= 0 || args.percent > 100) throw new Error("درصد نامعتبر است.");
     await ctx.db.insert("coupons", {
       code,
+      discount: 0,
       percent: args.percent,
       active: true,
       maxUses: args.maxUses,
       usedCount: 0,
       expiresAt: args.expiresAt,
+      createdAt: Date.now(),
     });
     return { ok: true };
   },
@@ -569,8 +571,8 @@ export const adminListCourses = query({
     return Promise.all(
       courses.map(async (c) => ({
         ...c,
-        category: (await ctx.db.get(c.categoryId))?.name ?? null,
-        instructor: (await ctx.db.get(c.instructorId))?.name ?? null,
+        category: (await ctx.db.get(c.categoryId!))?.name ?? null,
+        instructor: (await ctx.db.get(c.instructorId!))?.name ?? null,
       })),
     );
   },
@@ -612,7 +614,7 @@ export const adminCreateCourse = mutation({
       description: args.summary.trim(),
       audience: args.audience ?? [],
       prerequisites: args.prerequisites ?? [],
-      syllabus: (args.syllabus ?? []).map((s, i) => ({ ...s, id: `s${i}` })),
+      syllabus: (args.syllabus ?? []).map((s: any) => s.title ?? String(s)),
       durationText: "به‌زودی",
       mode: args.mode as any,
       price: args.price,
@@ -723,7 +725,7 @@ export const adminListExams = query({
     if (!(await isContentStaff(ctx))) return [];
     return (await ctx.db.query("exams").order("desc").collect()).map((e) => ({
       ...e,
-      questionCount: e.questionIds.length,
+      questionCount: e.questionIds?.length ?? 0,
       kindLabel: e.diagnostic
         ? "تعیین سطح"
         : e.free
@@ -771,7 +773,7 @@ export const adminCreateExam = mutation({
       featured: false,
       diagnostic: args.diagnostic,
       accent: "teal",
-      order: Date.now(),
+      slug: args.slug ?? args.title.replace(/\s+/g, "-").toLowerCase(),
     });
     return { ok: true, questionCount: picked.length };
   },
@@ -1103,9 +1105,9 @@ export const adminDeleteCategory = mutation({
       // Also remove from any exams
       const exams = await ctx.db.query("exams").collect();
       for (const exam of exams) {
-        if (exam.questionIds.includes(q._id)) {
+        if (exam.questionIds?.includes(q._id)) {
           await ctx.db.patch(exam._id, {
-            questionIds: exam.questionIds.filter((qid) => qid !== q._id),
+            questionIds: (exam.questionIds ?? []).filter((qid) => qid !== q._id),
           });
         }
       }
@@ -1160,9 +1162,9 @@ export const adminDeleteQuestion = mutation({
     // Also pull the question out of any exam that references it.
     const exams = await ctx.db.query("exams").collect();
     for (const exam of exams) {
-      if (exam.questionIds.includes(args.id)) {
+      if (exam.questionIds?.includes(args.id)) {
         await ctx.db.patch(exam._id, {
-          questionIds: exam.questionIds.filter((qid) => qid !== args.id),
+          questionIds: (exam.questionIds ?? []).filter((qid) => qid !== args.id),
         });
       }
     }
@@ -1238,9 +1240,6 @@ export const adminCreateArticle = mutation({
       readTime: args.readTime || 5,
       published: args.published,
       featured: false,
-      status: args.published ? "published" : "draft",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
       ...(args.seoTitle && { seoTitle: args.seoTitle }),
       ...(args.seoDescription && { seoDescription: args.seoDescription }),
       ...(args.seoKeywords && args.seoKeywords.length > 0 && { seoKeywords: args.seoKeywords }),
@@ -1321,9 +1320,7 @@ export const adminSaveGeneratedArticles = mutation({
         readTime: Math.max(1, Math.round(art.body.split(/\s+/).length / 250)),
         published: args.published,
         featured: false,
-        status: args.published ? "published" : "draft",
         createdAt: Date.now(),
-        updatedAt: Date.now(),
       });
     }
     return { ok: true, count: args.articles.length };
@@ -1339,7 +1336,7 @@ export const adminListWorkshops = query({
     return Promise.all(
       workshops.map(async (w) => ({
         ...w,
-        instructor: (await ctx.db.get(w.instructorId))?.name ?? null,
+        instructor: (await ctx.db.get(w.instructorId!))?.name ?? null,
       })),
     );
   },
@@ -1373,9 +1370,8 @@ export const adminCreateWorkshop = mutation({
       registeredCount: 0,
       price: args.price,
       description: args.description,
-      agenda: [],
+      agenda: "",
       free: args.free,
-      expertTalk: args.expertTalk,
       published: args.published,
     });
     return { ok: true };
@@ -1409,7 +1405,6 @@ export const adminUpdateWorkshop = mutation({
       price: args.price,
       description: args.description,
       free: args.free,
-      expertTalk: args.expertTalk,
       published: args.published,
     });
     return { ok: true };
@@ -1505,8 +1500,8 @@ export const exportBackup = query({
     const TABLES = [
       "users", "categories", "instructors", "courses", "products",
       "workshops", "articles", "dictionaryTerms", "questions", "exams",
-      "examAttempts", "dailyQuiz", "dailyQuizAnswers", "orders",
-      "coupons", "enrollments", "announcements", "bookmarks",
+      "examAttempts", "dailyQuizConfig", "dailyQuizAnswers", "orders",
+      "coupons", "enrollments",      "notifications", "bookmarks",
       "flashcards", "tickets", "comments", "courseResources",
       "attendance", "instructorPayments", "directMessages", "testimonials",
       "admins", "offlinePayments", "inboxMessages", "aiConfig",
@@ -1517,7 +1512,7 @@ export const exportBackup = query({
       "groupAnnouncements", "sitePages", "siteTexts", "mediaItems",
       "articleVersions", "superAdminSessions", "telegramBot",
       "telegramLinkingCodes", "telegramNotifPrefs", "telegramNotifLog",
-      "reminders", "presence", "examReports",
+      "reminders", "presence", "examReports", "dailyQuizAnswers",
     ] as const;
 
     const backup: Record<string, any[]> = {};
