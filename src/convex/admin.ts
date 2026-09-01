@@ -624,8 +624,6 @@ export const adminCreateCourse = mutation({
       accent: "teal",
       bundle: args.bundle as any,
       packagePrices: args.packagePrices,
-      hasSampleVideo: false,
-      files: [],
       published: args.published,
       featured: false,
       popular: false,
@@ -772,6 +770,7 @@ export const adminCreateExam = mutation({
       featured: false,
       diagnostic: args.diagnostic,
       accent: args.accent ?? "teal",
+      questionCount: picked.length,
     });
     return { ok: true, questionCount: picked.length };
   },

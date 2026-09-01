@@ -473,6 +473,8 @@ export default defineSchema({
     roomId: v.id("classRooms"),
     senderId: v.id("users"),
     targetId: v.optional(v.id("users")),
+    from: v.optional(v.string()),
+    to: v.optional(v.string()),
     type: v.string(),
     payload: v.optional(v.any()),
     createdAt: v.number(),
@@ -567,13 +569,13 @@ export default defineSchema({
     sortOrder: v.optional(v.number()),
     baseUrl: v.optional(v.string()),
     apiKey: v.optional(v.string()),
-    modelId: v.string(),
+    modelId: v.optional(v.string()),
     maxTokens: v.number(),
     temperature: v.number(),
     active: v.boolean(),
     isFree: v.boolean(),
     pricePerMessage: v.optional(v.number()),
-    order: v.number(),
+    order: v.optional(v.number()),
     createdAt: v.number(),
     model: v.optional(v.string()),
     systemPrompt: v.optional(v.string()),
@@ -647,7 +649,8 @@ export default defineSchema({
     memberCount: v.optional(v.number()),
     capacity: v.optional(v.number()),
     createdAt: v.number(),
-  }).index("by_instructor", ["instructorId"]),
+  }).index("by_instructor", ["instructorId"])
+    .index("by_mentor", ["mentorId"]),
 
   mentorQuestions: defineTable({
     userId: v.id("users"),
@@ -667,7 +670,8 @@ export default defineSchema({
     topic: v.optional(v.string()),
     status: v.string(),
     createdAt: v.number(),
-  }).index("by_student", ["studentId"]),
+  }).index("by_student", ["studentId"])
+    .index("by_created", ["createdAt"]),
 
   // ── Reminders ──────────────────────────────────────────────────────────
   reminders: defineTable({
@@ -693,7 +697,7 @@ export default defineSchema({
   // ── Class Enroll Requests ──────────────────────────────────────────────
   classEnrollRequests: defineTable({
     userId: v.id("users"),
-    courseId: v.id("courses"),
+    courseId: v.optional(v.id("courses")),
     roomId: v.optional(v.id("classRooms")),
     status: v.string(),
     createdAt: v.number(),
@@ -725,16 +729,20 @@ export default defineSchema({
   groupAnnouncements: defineTable({
     groupId: v.id("mentorGroups"),
     authorId: v.id("users"),
+    mentorId: v.optional(v.id("users")),
     title: v.string(),
     body: v.optional(v.string()),
     createdAt: v.number(),
-  }),
+  }).index("by_group", ["groupId"]),
 
   groupMembers: defineTable({
     groupId: v.id("mentorGroups"),
     userId: v.id("users"),
+    userName: v.optional(v.string()),
     joinedAt: v.number(),
-  }),
+  }).index("by_group_user", ["groupId", "userId"])
+    .index("by_group", ["groupId"])
+    .index("by_user", ["userId"]),
 
   // ── Inbox Messages ─────────────────────────────────────────────────────
   inboxMessages: defineTable({
@@ -809,8 +817,9 @@ export default defineSchema({
   telegramNotifLog: defineTable({
     userId: v.id("users"),
     title: v.string(),
+    key: v.optional(v.string()),
     sentAt: v.number(),
-  }),
+  }).index("by_key", ["key"]),
 
   telegramNotifPrefs: defineTable({
     userId: v.id("users"),

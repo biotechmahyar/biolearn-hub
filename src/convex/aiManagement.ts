@@ -65,7 +65,7 @@ export const getFullConfig = query({
       apiKeyMasked: (config.apiKeyEncrypted ?? "").length > 4
         ? "••••••" + (config.apiKeyEncrypted ?? "").slice(-4)
         : "••••",
-      hasApiKey: config.apiKeyEncrypted.length > 0,
+      hasApiKey: (config.apiKeyEncrypted ?? "").length > 0,
       maxTokensPerRequest: config.maxTokensPerRequest,
       temperature: config.temperature,
       systemPrompt: config.systemPrompt,
@@ -323,6 +323,7 @@ export const grantTokens = mutation({
         extraTokens: 0,
         grantedAt: Date.now(),
         grantedBy: admin._id,
+        createdAt: Date.now(),
         note: args.note,
       });
     }
