@@ -52,6 +52,7 @@ const AIChat = lazy(() => import("./pages/AIChat.tsx"));
 const AIManagementPanel = lazy(() => import("./pages/panels/AIManagementPanel.tsx"));
 const SuperAdminPanel = lazy(() => import("./pages/panels/SuperAdminPanel.tsx"));
 const Rules = lazy(() => import("./pages/Rules.tsx"));
+const About = lazy(() => import("./pages/About.tsx"));
 const Marketplace = lazy(() => import("./pages/Marketplace.tsx"));
 const StoreProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
 const SellerPanel = lazy(() => import("./pages/SellerPanel.tsx"));
@@ -131,6 +132,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/free-content/:slug" element={<ArticleDetail />} />
               <Route path="/dictionary" element={<Dictionary />} />
               <Route path="/rules" element={<Rules />} />
+              <Route path="/about" element={<About />} />
 
               {/* Marketplace */}
               <Route path="/marketplace" element={<Marketplace />} />

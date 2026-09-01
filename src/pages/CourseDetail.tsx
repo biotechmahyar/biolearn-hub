@@ -527,6 +527,42 @@ export default function CourseDetail() {
         </div>
       </section>
 
+      {/* Group discount CTA */}
+      {course.price > 0 && !isEnrolled && (
+        <section className="mx-auto max-w-7xl px-4 pb-12 sm:px-6">
+          <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-6 sm:p-8">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg font-extrabold">تخفیف گروهی</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  با دوستان هم‌رشته‌ای‌ات ثبت‌نام کن و هزینهٔ کمتری بپرداز.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {[
+                    { count: 2, percent: 10 },
+                    { count: 3, percent: 15 },
+                    { count: 4, percent: 20 },
+                  ].map((g) => (
+                    <span
+                      key={g.count}
+                      className="rounded-xl border border-border/70 bg-card px-3 py-2 text-xs font-bold"
+                    >
+                      {faNum(g.count)} نفر: {faNum(g.percent)}٪ تخفیف
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <Button asChild variant="outline" className="rounded-full">
+                <Link to="/auth?returnTo=%2Fdashboard">
+                  <Users className="ml-2 size-4" />
+                  ثبت‌نام گروهی
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
       <CheckoutDialog
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}

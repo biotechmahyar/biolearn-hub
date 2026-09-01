@@ -66,7 +66,7 @@ export default function Workshops() {
             <p className="font-bold text-foreground">مدرس یا متخصص هستی؟</p>
             <p className="mt-1">
               اگر در حوزهٔ علوم زیستی تخصص داری و می‌خواهی کارگاه برگزار کنی، با
-              تیم زیست‌آکادمی در تماس باش:{" "}
+              تیم Genova در تماس باش:{" "}
               <Link to="/rules" className="underline hover:text-foreground">صفحهٔ تماس</Link>
             </p>
           </div>

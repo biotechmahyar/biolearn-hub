@@ -46,6 +46,7 @@ const NAV = [
   { to: "/dictionary", label: "دیکشنری" },
   { to: "/ai-chat", label: "چت هوشمند" },
   { to: "/marketplace", label: "بازارچه" },
+  { to: "/about", label: "درباره ما" },
 ];
 
 export function SiteHeader() {

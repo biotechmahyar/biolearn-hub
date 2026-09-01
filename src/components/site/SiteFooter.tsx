@@ -51,6 +51,7 @@ export function SiteFooter() {
               <li><Link to="/instructors" className="transition-colors hover:text-foreground">مدرس‌ها و تیم</Link></li>
               <li><Link to="/workshops" className="transition-colors hover:text-foreground">کارگاه‌ها و نشست‌ها</Link></li>
               <li><Link to="/products" className="transition-colors hover:text-foreground">محصولات آموزشی</Link></li>
+              <li><Link to="/about" className="transition-colors hover:text-foreground">درباره تیم Genova</Link></li>
               <li><Link to="/dashboard" className="transition-colors hover:text-foreground">پنل دانشجویی</Link></li>
               <li>
                 <Link to="/rules" className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground">
