@@ -8,6 +8,7 @@ import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanva
 import { useAuth } from "@/hooks/use-auth";
 import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
+import { formatPriceNumber, formatCardNumber } from "@/lib/format";
 import { gregorianToJalali, toPersianDigits } from "@/lib/jalali";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -38,6 +39,7 @@ import {
   Home,
   Hourglass,
   Layers,
+  LinkIcon,
   LayoutDashboard,
   Loader2,
   MessageSquare,
@@ -604,18 +606,215 @@ function CoursesMineView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function ResourcesView() {
+  const { user } = useAuth();
+  const myCourses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const resources = useQuery(
+    api.instructorTools.listCourseResources,
+    selectedCourse ? { courseId: selectedCourse as any } : "skip"
+  ) ?? [];
+  const addResource = useMutation(api.instructorTools.addCourseResource);
+  const deleteResource = useMutation(api.instructorTools.deleteCourseResource);
+  const getUploadUrl = useMutation(api.collab.getUploadUrl);
+
+  const [showAdd, setShowAdd] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [isFree, setIsFree] = useState(true);
+  const [price, setPrice] = useState("");
+  const [resourceType, setResourceType] = useState<"file" | "link">("file");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const COMMISSION_RATE = 0.04;
+  const basePrice = Number(price) || 0;
+  const commission = isFree ? 0 : Math.round(basePrice * COMMISSION_RATE);
+  const totalPrice = basePrice + commission;
+
+  const handleUploadFile = async (file: File) => {
+    const url = await getUploadUrl();
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    const { storageId } = await resp.json();
+    return storageId;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedCourse) return;
+    setUploading(true);
+    try {
+      const storageId = await handleUploadFile(file);
+      await addResource({
+        courseId: selectedCourse as any,
+        title: title || file.name,
+        description: description || undefined,
+        fileUrl: storageId,
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        isFree,
+        price: isFree ? 0 : basePrice,
+        resourceType: "file",
+      });
+      toast.success("فایل آپلود شد");
+      setShowAdd(false); setTitle(""); setDescription(""); setPrice("");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setUploading(false); }
+  };
+
+  const handleSaveLink = async () => {
+    if (!selectedCourse || !title.trim()) { toast.error("عنوان و دوره الزامی است"); return; }
+    if (!linkUrl.trim()) { toast.error("لینک را وارد کنید"); return; }
+    setBusy(true);
+    try {
+      await addResource({
+        courseId: selectedCourse as any,
+        title,
+        description: description || undefined,
+        fileUrl: linkUrl,
+        fileName: title,
+        fileSize: 0,
+        fileType: "link",
+        isFree,
+        price: isFree ? 0 : basePrice,
+        resourceType: "link",
+        linkUrl,
+      });
+      toast.success("لینک اضافه شد");
+      setShowAdd(false); setTitle(""); setDescription(""); setPrice(""); setLinkUrl("");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setBusy(false); }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-white">منابع آموزشی</h2>
-        <p className="mt-1 text-sm text-slate-400">فایل‌ها و منابع آموزشی دوره‌ها.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white">منابع آموزشی</h2>
+          <p className="mt-1 text-sm text-slate-400">آپلود فایل یا لینک برای دوره‌ها.</p>
+        </div>
       </div>
+
       <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <Layers className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش منابع به‌زودی فعال خواهد شد.</p>
+        <CardContent className="py-4">
+          <label className="text-xs font-bold text-slate-300 mb-2 block">انتخاب دوره</label>
+          <Select value={selectedCourse ?? ""} onValueChange={(v) => setSelectedCourse(v)}>
+            <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+              <SelectValue placeholder="دوره مورد نظر را انتخاب کنید" />
+            </SelectTrigger>
+            <SelectContent>
+              {myCourses.map((c: any) => (
+                <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
+
+      {selectedCourse && (
+        <>
+          <div className="flex justify-end">
+            <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => setShowAdd(true)}>
+              <Plus className="ml-1.5 size-4" />افزودن منبع
+            </Button>
+          </div>
+
+          {resources.length > 0 ? (
+            <div className="space-y-2">
+              {resources.map((r: any) => (
+                <Card key={r._id} className="border-white/5 bg-white/[0.02]">
+                  <CardContent className="flex items-center justify-between py-3 px-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-cyan-400/10">
+                        {r.resourceType === "link" ? <LinkIcon className="size-4 text-cyan-300" /> : <FileText className="size-4 text-cyan-300" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{r.title}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {r.resourceType === "link" ? "لینک خارجی" : `فایل · ${formatFileSize(r.fileSize)}`}
+                          {r.isFree ? (
+                            <span className="mr-2 text-emerald-400">رایگان</span>
+                          ) : (
+                            <span className="mr-2 text-amber-400">{formatPriceNumber(r.price ?? 0)} تومان + {formatPriceNumber(r.commission ?? 0)} کارمزد</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => { if (confirm("حذف شود؟")) deleteResource({ id: r._id }); }}>
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="border-white/5 bg-white/[0.02]">
+              <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+                <Layers className="size-8 text-slate-600" />
+                <p className="text-sm text-slate-400">هنوز منبعی اضافه نشده است.</p>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>افزودن منبع آموزشی</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="flex gap-2">
+              <Button size="sm" variant={resourceType === "file" ? "default" : "outline"} onClick={() => setResourceType("file")} className="text-xs">
+                <Upload className="ml-1 size-3.5" />آپلود فایل
+              </Button>
+              <Button size="sm" variant={resourceType === "link" ? "default" : "outline"} onClick={() => setResourceType("link")} className="text-xs">
+                <LinkIcon className="ml-1 size-3.5" />افزودن لینک
+              </Button>
+            </div>
+            <Input placeholder="عنوان منبع" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input placeholder="توضیحات (اختیاری)" value={description} onChange={(e) => setDescription(e.target.value)} />
+
+            {resourceType === "file" ? (
+              <div>
+                <label className="text-xs text-slate-400 mb-1 block">انتخاب فایل</label>
+                <input type="file" onChange={handleFileUpload} disabled={uploading} className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-400/10 file:px-4 file:py-2 file:text-xs file:text-cyan-200 hover:file:bg-cyan-400/20" />
+                {uploading && <p className="mt-1 text-xs text-cyan-300 animate-pulse">در حال آپلود...</p>}
+              </div>
+            ) : (
+              <Input placeholder="لینک خارجی (URL)" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
+            )}
+
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button size="sm" variant={isFree ? "default" : "outline"} onClick={() => setIsFree(true)} className="text-xs">رایگان</Button>
+                <Button size="sm" variant={!isFree ? "default" : "outline"} onClick={() => setIsFree(false)} className="text-xs">پولی</Button>
+              </div>
+              {!isFree && (
+                <>
+                  <Input type="number" placeholder="قیمت پایه (تومان)" value={price} onChange={(e) => setPrice(e.target.value)} />
+                  <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs space-y-1">
+                    <p className="text-amber-300 font-bold">قیمت با کارمزد سایت (۴٪):</p>
+                    <p className="text-slate-300">قیمت پایه: {formatPriceNumber(basePrice)} تومان</p>
+                    <p className="text-slate-300">کارمزد سایت (۴٪): {formatPriceNumber(commission)} تومان</p>
+                    <p className="text-white font-bold">قیمت نهایی برای خریدار: {formatPriceNumber(totalPrice)} تومان</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => { setShowAdd(false); setTitle(""); setPrice(""); setLinkUrl(""); }}>انصراف</Button>
+              {resourceType === "link" && (
+                <Button size="sm" onClick={handleSaveLink} disabled={busy || !title.trim()}>
+                  {busy ? <Loader2 className="ml-1 size-3 animate-spin" /> : null}ذخیره لینک
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -3181,10 +3380,10 @@ function BankAccountSection() {
       <CardContent className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Input placeholder="نام بانک" value={bankName} onChange={(e) => setBankName(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
-          <Input placeholder="شماره حساب" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+          <Input placeholder="شماره حساب" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 font-mono" />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input placeholder="شماره کارت" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+          <Input placeholder="شماره کارت (۱۲۳۴ ۵۶۷۸ ...)" value={formatCardNumber(cardNumber)} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))} className="border-white/10 bg-white/5 text-slate-100 font-mono" />
           <Input placeholder="شماره شبا (IR...)" value={sheba} onChange={(e) => setSheba(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
         </div>
         <Button size="sm" onClick={handleSave} className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20">

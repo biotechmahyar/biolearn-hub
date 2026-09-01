@@ -4,9 +4,34 @@ export function faNum(n: number | string): string {
   return Number(n).toLocaleString("fa-IR");
 }
 
+/** Format a number with comma separators for price display (e.g. ۱,۲۳۴,۵۶۷) */
+export function formatPriceNumber(n: number | string): string {
+  return Number(n).toLocaleString("en-US");
+}
+
+/** Format price with comma separators + "تومان" */
 export function formatPrice(toman: number): string {
   if (toman === 0) return "رایگان";
-  return `${faNum(toman)} تومان`;
+  return `${formatPriceNumber(toman)} تومان`;
+}
+
+/** Add platform commission (4%) and return total price */
+export function addCommission(price: number): number {
+  return Math.round(price * 1.04);
+}
+
+/** Format price with 4% commission included */
+export function formatPriceWithCommission(price: number): string {
+  if (price === 0) return "رایگان";
+  const total = addCommission(price);
+  return `${formatPriceNumber(total)} تومان`;
+}
+
+/** Format card number in groups of 4 (e.g. ۱۲۳۴ ۵۶۷۸ ۹۰۱۲ ۳۴۵۶) */
+export function formatCardNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 16);
+  const groups = digits.match(/.{1,4}/g);
+  return groups ? groups.join(" ") : digits;
 }
 
 export function formatDate(ts: number | string): string {

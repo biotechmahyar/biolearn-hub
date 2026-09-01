@@ -671,6 +671,10 @@ const schema = defineSchema(
       fileSize: v.number(),
       fileType: v.string(),
       isFree: v.boolean(),
+      price: v.optional(v.number()), // base price in toman (0 = free)
+      commission: v.optional(v.number()), // 4% platform commission
+      resourceType: v.optional(v.union(v.literal("file"), v.literal("link"))), // file upload or external link
+      linkUrl: v.optional(v.string()), // external link URL
       createdAt: v.number(),
     }).index("by_course", ["courseId"]),
 

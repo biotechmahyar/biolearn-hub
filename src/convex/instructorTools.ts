@@ -117,10 +117,15 @@ export const addCourseResource = mutation({
     fileSize: v.number(),
     fileType: v.string(),
     isFree: v.boolean(),
+    price: v.optional(v.number()),
+    resourceType: v.optional(v.union(v.literal("file"), v.literal("link"))),
+    linkUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد شوید.");
+    const basePrice = args.price ?? 0;
+    const commission = args.isFree ? 0 : Math.round(basePrice * 0.04);
     await ctx.db.insert("courseResources", {
       courseId: args.courseId,
       instructorId: user._id,
@@ -131,6 +136,10 @@ export const addCourseResource = mutation({
       fileSize: args.fileSize,
       fileType: args.fileType,
       isFree: args.isFree,
+      price: basePrice,
+      commission,
+      resourceType: args.resourceType ?? "file",
+      linkUrl: args.linkUrl,
       createdAt: Date.now(),
     });
     return { ok: true };
