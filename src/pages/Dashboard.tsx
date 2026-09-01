@@ -11,6 +11,8 @@ import TelegramAccount from "@/components/site/TelegramAccount";
 import TelegramNotifications from "@/components/site/TelegramNotifications";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useStudentReceiver } from "@/hooks/use-live";
 import { accent, faNum, formatDate, formatDateTime, formatPrice } from "@/lib/format";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
@@ -91,11 +93,13 @@ const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
 ];
 
 export default function Dashboard() {
+  const { isIran } = useMode();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const myInbox = useQuery(api.inbox.listMyInbox) ?? [];
-  const unreadCount = myInbox.filter((m) => m.unread).length;
+  const myInboxConvex = useQuery(api.inbox.listMyInbox);
+  const myInbox = isIran ? [] : (myInboxConvex ?? []);
+  const unreadCount = myInbox.filter((m: any) => m.unread).length;
 
   // Staff members belong to their own panel, not the student dashboard.
   const role = user?.role;

@@ -3,6 +3,8 @@ import { api } from "@/convex/_generated/api";
 import { useState } from "react";
 import { Link } from "react-router";
 import { useAuth } from "@/hooks/use-auth";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { formatPriceNumber } from "@/lib/format";
 import {
   Search,
@@ -48,6 +50,7 @@ const CONDITION_COLORS: Record<string, string> = {
 };
 
 export default function Marketplace() {
+  const { isIran } = useMode();
   const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
@@ -55,14 +58,20 @@ export default function Marketplace() {
   const [showFilters, setShowFilters] = useState(false);
   const recentlyViewed = useMemo(() => getRecentlyViewed(), []);
 
-  const products = useQuery(api.marketplace.listProducts, {
+  const productsConvex = useQuery(api.marketplace.listProducts, {
     category: (category as any) || undefined,
     search: search || undefined,
     sort,
     limit: 48,
   });
+  const productsIranUrl = `/api/marketplace/products?${new URLSearchParams({ ...(category ? { category } : {}), ...(search ? { search } : {}), sort, limit: "48" }).toString()}`;
+  const { data: productsIranRaw } = useApiQuery(productsIranUrl);
+  const productsIran = Array.isArray(productsIranRaw) ? productsIranRaw : (productsIranRaw as any)?.items ?? [];
+  const products = isIran ? productsIran : productsConvex;
 
-  const categoryCounts = useQuery(api.marketplace.getCategoryCounts);
+  const categoryCountsConvex = useQuery(api.marketplace.getCategoryCounts);
+  const { data: categoryCountsIran } = useApiQuery(isIran ? "/api/marketplace/categories" : "") as { data?: Record<string, number> | null };
+  const categoryCounts = isIran ? (categoryCountsIran ?? undefined) : categoryCountsConvex;
 
   const isBoosted = (p: any) => {
     const now = Date.now();

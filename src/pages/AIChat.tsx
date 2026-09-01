@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +27,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export default function AIChat() {
+  const { isIran } = useMode();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
