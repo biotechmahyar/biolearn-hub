@@ -55,6 +55,7 @@ const Rules = lazy(() => import("./pages/Rules.tsx"));
 const Marketplace = lazy(() => import("./pages/Marketplace.tsx"));
 const StoreProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
 const SellerPanel = lazy(() => import("./pages/SellerPanel.tsx"));
+const CartPage = lazy(() => import("./pages/CartPage.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -151,6 +152,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RequireAuth>
                     <SellerPanel />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/cart"
+                element={
+                  <RequireAuth>
+                    <CartPage />
                   </RequireAuth>
                 }
               />

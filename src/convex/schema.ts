@@ -1143,6 +1143,42 @@ const schema = defineSchema(
       createdAt: v.number(),
     }).index("by_code", ["code"]),
 
+    // Shopping cart items
+    storeCart: defineTable({
+      userId: v.id("users"),
+      productId: v.id("storeProducts"),
+      quantity: v.number(),
+      createdAt: v.number(),
+    }).index("by_user", ["userId"]).index("by_user_product", ["userId", "productId"]),
+
+    // Wishlists / favorites
+    storeWishlists: defineTable({
+      userId: v.id("users"),
+      productId: v.id("storeProducts"),
+      createdAt: v.number(),
+    }).index("by_user", ["userId"]).index("by_user_product", ["userId", "productId"]),
+
+    // Buyer-Seller messages
+    storeMessages: defineTable({
+      senderId: v.id("users"),
+      receiverId: v.id("users"),
+      productId: v.optional(v.id("storeProducts")),
+      orderId: v.optional(v.id("storeOrders")),
+      text: v.string(),
+      read: v.boolean(),
+      createdAt: v.number(),
+    }).index("by_receiver", ["receiverId"]).index("by_sender", ["senderId"]).index("by_product", ["productId"]),
+
+    // Seller verification (blue tick)
+    sellerProfiles: defineTable({
+      userId: v.id("users"),
+      verified: v.boolean(),
+      bio: v.optional(v.string()),
+      totalSales: v.number(),
+      avgRating: v.number(),
+      joinedAt: v.number(),
+    }).index("by_user", ["userId"]),
+
   },
   {
     schemaValidation: false,

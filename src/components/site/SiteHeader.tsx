@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "convex/react";
+import { ShoppingCart } from "lucide-react";
 import {
   BookOpen,
   Bot,
@@ -103,6 +104,12 @@ export function SiteHeader() {
           >
             {isDark ? <Sun className="size-5" /> : <Moon className="size-5" />}
           </button>
+          {/* Cart */}
+          {isAuthenticated && (
+            <Link to="/cart" className="relative flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+              <ShoppingCart className="size-5" />
+            </Link>
+          )}
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

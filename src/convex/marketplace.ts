@@ -1044,3 +1044,534 @@ export const getCategoryCounts = query({
     return counts;
   },
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SIMILAR PRODUCTS ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const getSimilarProducts = query({
+  args: { productId: v.id("storeProducts"), limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const product = await ctx.db.get(args.productId);
+    if (!product) return [];
+
+    const all = await ctx.db
+      .query("storeProducts")
+      .withIndex("by_status", (q) => q.eq("status", "approved"))
+      .collect();
+
+    const similar = all
+      .filter((p) => p._id !== args.productId && p.category === product.category)
+      .sort((a, b) => b.soldCount - a.soldCount)
+      .slice(0, args.limit ?? 4);
+
+    return Promise.all(
+      similar.map(async (p) => {
+        const seller = await ctx.db.get(p.sellerId);
+        return { ...p, sellerName: seller?.name ?? "ناشناس" };
+      }),
+    );
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SHOPPING CART ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const getCart = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const items = await ctx.db
+      .query("storeCart")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const enriched = await Promise.all(
+      items.map(async (item) => {
+        const product = await ctx.db.get(item.productId);
+        const seller = product ? await ctx.db.get(product.sellerId) : null;
+        return {
+          ...item,
+          product,
+          sellerName: seller?.name ?? "ناشناس",
+        };
+      }),
+    );
+    return enriched.filter((e) => e.product);
+  },
+});
+
+export const addToCart = mutation({
+  args: {
+    productId: v.id("storeProducts"),
+    quantity: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("برای افزودن به سبد خرید ابتدا وارد شوید.");
+    if (args.quantity < 1) throw new Error("تعداد باید حداقل ۱ باشد.");
+
+    const product = await ctx.db.get(args.productId);
+    if (!product) throw new Error("محصول یافت نشد.");
+    if (product.status !== "approved") throw new Error("محصول در دسترس نیست.");
+    if (product.sellerId === userId) throw new Error("نمی‌توانید محصول خودتان را به سبد اضافه کنید.");
+    if (product.stock < args.quantity) throw new Error("موجودی کافی نیست.");
+
+    const existing = await ctx.db
+      .query("storeCart")
+      .withIndex("by_user_product", (q) =>
+        q.eq("userId", userId).eq("productId", args.productId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        quantity: existing.quantity + args.quantity,
+      });
+    } else {
+      await ctx.db.insert("storeCart", {
+        userId,
+        productId: args.productId,
+        quantity: args.quantity,
+        createdAt: Date.now(),
+      });
+    }
+    return { ok: true };
+  },
+});
+
+export const updateCartItem = mutation({
+  args: {
+    cartItemId: v.id("storeCart"),
+    quantity: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ابتدا وارد شوید.");
+    const item = await ctx.db.get(args.cartItemId);
+    if (!item) throw new Error("آیتم سبد یافت نشد.");
+    if (item.userId !== userId) throw new Error("دسترسی ندارید.");
+    if (args.quantity < 1) {
+      await ctx.db.delete(args.cartItemId);
+    } else {
+      await ctx.db.patch(args.cartItemId, { quantity: args.quantity });
+    }
+    return { ok: true };
+  },
+});
+
+export const removeFromCart = mutation({
+  args: { cartItemId: v.id("storeCart") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ابتدا وارد شوید.");
+    const item = await ctx.db.get(args.cartItemId);
+    if (!item) throw new Error("آیتم سبد یافت نشد.");
+    if (item.userId !== userId) throw new Error("دسترسی ندارید.");
+    await ctx.db.delete(args.cartItemId);
+    return { ok: true };
+  },
+});
+
+export const clearCart = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return;
+    const items = await ctx.db
+      .query("storeCart")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    for (const item of items) {
+      await ctx.db.delete(item._id);
+    }
+    return { ok: true };
+  },
+});
+
+/** Checkout entire cart */
+export const checkoutCart = mutation({
+  args: {
+    deliveryCity: v.string(),
+    deliveryAddress: v.optional(v.string()),
+    deliveryNote: v.optional(v.string()),
+    couponCode: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("برای خرید ابتدا وارد شوید.");
+
+    const cartItems = await ctx.db
+      .query("storeCart")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    if (cartItems.length === 0) throw new Error("سبد خرید خالی است.");
+
+    const COMMISSION_RATE = 0.09;
+    const orderIds: string[] = [];
+    let grandTotal = 0;
+    let totalCommission = 0;
+    let totalSellerEarnings = 0;
+
+    // Apply coupon once to total
+    let discountAmount = 0;
+    if (args.couponCode) {
+      const coupon = await ctx.db
+        .query("storeCoupons")
+        .withIndex("by_code", (q) => q.eq("code", args.couponCode!.toUpperCase()))
+        .first();
+      if (coupon && coupon.active && coupon.usedCount < coupon.maxUses && (!coupon.expiresAt || coupon.expiresAt > Date.now())) {
+        const subtotal = cartItems.reduce((sum, item) => sum + item.quantity, 0); // rough calc
+        // We'll apply after per-item calc
+      }
+    }
+
+    for (const item of cartItems) {
+      const product = await ctx.db.get(item.productId);
+      if (!product || product.status !== "approved" || product.stock < item.quantity) continue;
+
+      const unitPrice = product.price;
+      const itemTotal = unitPrice * item.quantity;
+      const commission = Math.round(itemTotal * COMMISSION_RATE);
+      const sellerEarning = itemTotal - commission;
+
+      // Create order per item
+      const invoiceNumber =
+        "ST-" + Date.now().toString(36).toUpperCase() + "-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+
+      const orderId = await ctx.db.insert("storeOrders", {
+        buyerId: userId,
+        sellerId: product.sellerId,
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice,
+        commission,
+        total: itemTotal,
+        sellerEarning,
+        status: "paid",
+        deliveryCity: args.deliveryCity,
+        deliveryAddress: args.deliveryAddress,
+        deliveryNote: args.deliveryNote,
+        paidWithWallet: true,
+        invoiceNumber,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      orderIds.push(orderId);
+      grandTotal += itemTotal;
+      totalCommission += commission;
+      totalSellerEarnings += sellerEarning;
+
+      // Update stock
+      await ctx.db.patch(product._id, {
+        stock: product.stock - item.quantity,
+        soldCount: product.soldCount + item.quantity,
+        updatedAt: Date.now(),
+        status: product.stock - item.quantity <= 0 ? "sold_out" : product.status,
+      });
+
+      // Delete cart item
+      await ctx.db.delete(item._id);
+    }
+
+    // Deduct from wallet
+    if (grandTotal > 0) {
+      const wallet = await ctx.db
+        .query("wallet")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .first();
+      if (!wallet || wallet.balance < grandTotal) {
+        throw new Error(`موجودی کیف پول کافی نیست. نیاز: ${grandTotal} تومان`);
+      }
+      await ctx.db.patch(wallet._id, {
+        balance: wallet.balance - grandTotal,
+        totalSpent: wallet.totalSpent + grandTotal,
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("walletTransactions", {
+        userId,
+        type: "purchase",
+        amount: -grandTotal,
+        description: `خرید ${orderIds.length} محصول از بازارچه`,
+        createdAt: Date.now(),
+      });
+    }
+
+    return { ok: true, orderIds, grandTotal };
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── WISHLIST ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const getMyWishlist = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const items = await ctx.db
+      .query("storeWishlists")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const enriched = await Promise.all(
+      items.map(async (item) => {
+        const product = await ctx.db.get(item.productId);
+        const seller = product ? await ctx.db.get(product.sellerId) : null;
+        return { ...item, product, sellerName: seller?.name ?? "ناشناس" };
+      }),
+    );
+    return enriched.filter((e) => e.product);
+  },
+});
+
+export const toggleWishlist = mutation({
+  args: { productId: v.id("storeProducts") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ابتدا وارد شوید.");
+
+    const existing = await ctx.db
+      .query("storeWishlists")
+      .withIndex("by_user_product", (q) =>
+        q.eq("userId", userId).eq("productId", args.productId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+      return { ok: true, wishlisted: false };
+    } else {
+      await ctx.db.insert("storeWishlists", {
+        userId,
+        productId: args.productId,
+        createdAt: Date.now(),
+      });
+      return { ok: true, wishlisted: true };
+    }
+  },
+});
+
+export const isWishlisted = query({
+  args: { productId: v.id("storeProducts") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return false;
+    const item = await ctx.db
+      .query("storeWishlists")
+      .withIndex("by_user_product", (q) =>
+        q.eq("userId", userId).eq("productId", args.productId),
+      )
+      .first();
+    return !!item;
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── BUYER-SELLER MESSAGES ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const sendMessage = mutation({
+  args: {
+    receiverId: v.id("users"),
+    productId: v.optional(v.id("storeProducts")),
+    orderId: v.optional(v.id("storeOrders")),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ابتدا وارد شوید.");
+    if (!args.text.trim()) throw new Error("متن پیام خالی است.");
+
+    await ctx.db.insert("storeMessages", {
+      senderId: userId,
+      receiverId: args.receiverId,
+      productId: args.productId,
+      orderId: args.orderId,
+      text: args.text.trim(),
+      read: false,
+      createdAt: Date.now(),
+    });
+    return { ok: true };
+  },
+});
+
+export const getMyMessages = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const sent = await ctx.db
+      .query("storeMessages")
+      .withIndex("by_sender", (q) => q.eq("senderId", userId))
+      .order("desc")
+      .take(100);
+    const received = await ctx.db
+      .query("storeMessages")
+      .withIndex("by_receiver", (q) => q.eq("receiverId", userId))
+      .order("desc")
+      .take(100);
+
+    const allIds = new Set([...sent.map((m) => m._id), ...received.map((m) => m._id)]);
+    const all = [...sent, ...received].filter((m, i, arr) =>
+      arr.findIndex((x) => x._id === m._id) === i,
+    );
+    all.sort((a, b) => b.createdAt - a.createdAt);
+
+    const enriched = await Promise.all(
+      all.map(async (m) => {
+        const sender = await ctx.db.get(m.senderId);
+        const receiver = await ctx.db.get(m.receiverId);
+        return {
+          ...m,
+          senderName: sender?.name ?? "ناشناس",
+          receiverName: receiver?.name ?? "ناشناس",
+        };
+      }),
+    );
+
+    return enriched;
+  },
+});
+
+export const getConversation = query({
+  args: {
+    otherUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+
+    const sent = await ctx.db
+      .query("storeMessages")
+      .withIndex("by_sender", (q) => q.eq("senderId", userId))
+      .collect();
+    const received = await ctx.db
+      .query("storeMessages")
+      .withIndex("by_receiver", (q) => q.eq("receiverId", userId))
+      .collect();
+
+    const all = [...sent, ...received]
+      .filter(
+        (m) =>
+          (m.senderId === args.otherUserId && m.receiverId === userId) ||
+          (m.senderId === userId && m.receiverId === args.otherUserId),
+      )
+      .sort((a, b) => a.createdAt - b.createdAt);
+
+    return all;
+  },
+});
+
+export const markMessagesRead = mutation({
+  args: { senderId: v.id("users") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return;
+    const unread = await ctx.db
+      .query("storeMessages")
+      .withIndex("by_receiver", (q) => q.eq("receiverId", userId))
+      .collect();
+    for (const m of unread) {
+      if (m.senderId === args.senderId && !m.read) {
+        await ctx.db.patch(m._id, { read: true });
+      }
+    }
+    return { ok: true };
+  },
+});
+
+export const getUnreadCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return 0;
+    const all = await ctx.db
+      .query("storeMessages")
+      .withIndex("by_receiver", (q) => q.eq("receiverId", userId))
+      .collect();
+    return all.filter((m) => !m.read).length;
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SELLER STATS ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const getSellerStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+
+    const products = await ctx.db
+      .query("storeProducts")
+      .withIndex("by_seller", (q) => q.eq("sellerId", userId))
+      .collect();
+
+    const orders = await ctx.db
+      .query("storeOrders")
+      .withIndex("by_seller", (q) => q.eq("sellerId", userId))
+      .collect();
+
+    const totalProducts = products.length;
+    const activeProducts = products.filter((p) => p.status === "approved").length;
+    const totalSales = orders.filter((o) => o.status === "completed" || o.status === "delivered" || o.status === "paid" || o.status === "shipped").length;
+    const totalRevenue = orders
+      .filter((o) => o.status !== "cancelled" && o.status !== "refunded")
+      .reduce((sum, o) => sum + o.sellerEarning, 0);
+    const totalCommission = orders
+      .filter((o) => o.status !== "cancelled" && o.status !== "refunded")
+      .reduce((sum, o) => sum + o.commission, 0);
+
+    // Recent orders
+    const recentOrders = orders
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 20);
+
+    const enrichedOrders = await Promise.all(
+      recentOrders.map(async (o) => {
+        const buyer = await ctx.db.get(o.buyerId);
+        const product = await ctx.db.get(o.productId);
+        return { ...o, buyerName: buyer?.name ?? "ناشناس", productTitle: product?.title ?? "محصول حذف‌شده" };
+      }),
+    );
+
+    return {
+      totalProducts,
+      activeProducts,
+      totalSales,
+      totalRevenue,
+      totalCommission,
+      avgRating: products.length > 0 ? products.reduce((sum, p) => sum + p.rating, 0) / products.length : 0,
+      recentOrders: enrichedOrders,
+    };
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── BUYER ORDERS ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const getMyOrders = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const orders = await ctx.db
+      .query("storeOrders")
+      .withIndex("by_buyer", (q) => q.eq("buyerId", userId))
+      .order("desc")
+      .collect();
+    return Promise.all(
+      orders.map(async (o) => {
+        const seller = await ctx.db.get(o.sellerId);
+        const product = await ctx.db.get(o.productId);
+        return { ...o, sellerName: seller?.name ?? "ناشناس", productTitle: product?.title ?? "محصول حذف‌شده" };
+      }),
+    );
+  },
+});

@@ -49,6 +49,17 @@ export default function ProductDetail() {
   const product = useQuery(api.marketplace.getProduct, { slug: slug ?? "" });
   const wallet = useQuery(api.marketplace.getMyWallet);
   const purchase = useMutation(api.marketplace.purchaseProduct);
+  const toggleWishlist = useMutation(api.marketplace.toggleWishlist);
+  const addToCart = useMutation(api.marketplace.addToCart);
+  const isWishlisted = useQuery(api.marketplace.isWishlisted, product ? { productId: product._id as any } : "skip");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+  const submitReview = useMutation(api.marketplace.addReview);
+  const similarProducts = useQuery(
+    api.marketplace.getSimilarProducts,
+    product ? { productId: product._id as any, limit: 4 } : "skip",
+  );
 
   if (product === undefined) {
     return (
@@ -189,6 +200,51 @@ export default function ProductDetail() {
               <h3 className="text-sm font-bold text-white">
                 نظرات خریداران ({product.reviews?.length ?? 0})
               </h3>
+
+              {/* Review Form */}
+              {user && !isOwner && (
+                <Card className="border-white/10 bg-white/[0.02]">
+                  <CardContent className="p-4 space-y-3">
+                    <p className="text-xs font-bold text-slate-400">نظر شما</p>
+                    <div className="flex items-center gap-1">
+                      {[1,2,3,4,5].map((s) => (
+                        <button key={s} onClick={() => setReviewRating(s)}>
+                          <Star className={cn("size-5 cursor-pointer", s <= reviewRating ? "fill-amber-400 text-amber-400" : "text-slate-600")} />
+                        </button>
+                      ))}
+                    </div>
+                    <Textarea
+                      placeholder="نظر خود را بنویسید..."
+                      value={reviewText}
+                      onChange={(e) => setReviewText(e.target.value)}
+                      className="min-h-[60px] border-white/10 bg-white/5 text-sm text-slate-100"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={reviewing}
+                      onClick={async () => {
+                        setReviewing(true);
+                        try {
+                          await submitReview({
+                            productId: product._id as any,
+                            rating: reviewRating,
+                            text: reviewText || undefined,
+                          });
+                          toast.success("نظر شما ثبت شد");
+                          setReviewText("");
+                          setReviewRating(5);
+                        } catch (e: any) {
+                          toast.error(e.message);
+                        } finally {
+                          setReviewing(false);
+                        }
+                      }}
+                    >
+                      ارسال نظر
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
               {product.reviews && product.reviews.length > 0 ? (
                 product.reviews.map((review: any) => (
                   <Card key={review._id} className="border-white/5 bg-white/[0.02]">
@@ -220,6 +276,34 @@ export default function ProductDetail() {
                 <p className="text-sm text-slate-500">هنوز نظری ثبت نشده است.</p>
               )}
             </div>
+
+            {/* Similar Products */}
+            {similarProducts && similarProducts.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-white">محصولات مشابه</h3>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {similarProducts.map((sp: any) => (
+                      <Link key={sp._id} to={`/marketplace/${sp.slug}`}>
+                        <Card className="group overflow-hidden border-white/5 bg-white/[0.02] transition-all hover:-translate-y-0.5 hover:border-cyan-400/20">
+                          <div className="relative aspect-square overflow-hidden bg-white/5">
+                            {sp.coverImage ? (
+                              <img src={sp.coverImage} alt={sp.title} className="size-full object-cover" />
+                            ) : (
+                              <div className="flex size-full items-center justify-center">
+                                <ShoppingBag className="size-8 text-slate-700" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="p-3">
+                            <h4 className="line-clamp-2 text-xs font-bold text-white group-hover:text-cyan-200">{sp.title}</h4>
+                            <p className="mt-1 text-sm font-extrabold text-cyan-300">{formatPriceNumber(sp.price)} <span className="text-[10px] font-normal text-slate-500">ت</span></p>
+                          </div>
+                        </Card>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+            )}
           </div>
 
           {/* Sidebar */}
@@ -252,13 +336,46 @@ export default function ProductDetail() {
 
                 {canBuy ? (
                   !showPurchase ? (
-                    <Button
-                      className="w-full bg-gradient-to-l from-cyan-500 to-cyan-600 text-white hover:from-cyan-400 hover:to-cyan-500 shadow-lg shadow-cyan-500/20"
-                      onClick={() => setShowPurchase(true)}
-                    >
-                      <ShoppingBag className="ml-2 size-4" />
-                      خرید آنلاین
-                    </Button>
+                    <div className="space-y-2">
+                      <Button
+                        className="w-full bg-gradient-to-l from-cyan-500 to-cyan-600 text-white hover:from-cyan-400 hover:to-cyan-500 shadow-lg shadow-cyan-500/20"
+                        onClick={() => setShowPurchase(true)}
+                      >
+                        <ShoppingBag className="ml-2 size-4" />
+                        خرید آنلاین
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                        onClick={async () => {
+                          try {
+                            await addToCart({ productId: product._id as any, quantity: 1 });
+                            toast.success("به سبد خرید اضافه شد");
+                          } catch (e: any) {
+                            toast.error(e.message);
+                          }
+                        }}
+                      >
+                        <ShoppingBag className="ml-2 size-4" />
+                        افزودن به سبد
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-slate-400 hover:text-pink-400"
+                        onClick={async () => {
+                          if (!user) { navigate("/auth"); return; }
+                          try {
+                            const res = await toggleWishlist({ productId: product._id as any });
+                            toast.success(res.wishlisted ? "به علاقه‌مندی‌ها اضافه شد" : "از علاقه‌مندی‌ها حذف شد");
+                          } catch (e: any) {
+                            toast.error(e.message);
+                          }
+                        }}
+                      >
+                        {isWishlisted ? "❤️ حذف از علاقه‌مندی‌ها" : "🤍 افزودن به علاقه‌مندی‌ها"}
+                      </Button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       {/* Quantity */}
