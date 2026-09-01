@@ -8,11 +8,18 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { accent, faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
+import { useMemo } from "react";
 import { ArrowLeft, ClipboardList, Clock, HelpCircle, Sparkles } from "lucide-react";
 import { Link } from "react-router";
 
 export default function Tests() {
-  const exams = useQuery(api.tests.listExams, {});
+  const { isIran } = useMode();
+  const examsConvex = useQuery(api.tests.listExams, {});
+  const { data: examsIran } = useApiQuery<any[]>(isIran ? "/api/content/exams" : "");
+  const exams = useMemo(() => {
+    if (isIran && examsIran) return examsIran.map((e: any) => ({ ...e, _id: e.id }));
+    return examsConvex;
+  }, [isIran, examsIran, examsConvex]);
 
   return (
     <PublicLayout>

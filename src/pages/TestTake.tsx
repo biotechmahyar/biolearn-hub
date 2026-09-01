@@ -4,7 +4,8 @@ import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
+import { api as iranApi } from "@/lib/apiClient";
 import { faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
@@ -16,9 +17,15 @@ import { useNavigate, useParams } from "react-router";
 export default function TestTake() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
-  const exam = useQuery(api.tests.getExam, { slug });
-  const submit = useMutation(api.tests.submitExam);
-
+  const { isIran } = useMode();
+  const examConvex = useQuery(api.tests.getExam, { slug });
+  const submitConvex = useMutation(api.tests.submitExam);
+  const { data: examIran } = useApiQuery<any>(isIran ? `/api/content/exams/${slug}` : "");
+  const { mutate: submitIran } = useApiMutation("/api/exams", "POST");
+  const exam = useMemo(() => {
+    if (isIran && examIran) return { ...examIran, _id: examIran.id };
+    return examConvex;
+  }, [isIran, examIran, examConvex]);
   const questions = useMemo(() => exam?.questions ?? [], [exam]);
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -46,13 +53,24 @@ export default function TestTake() {
     submittedRef.current = true;
     setSubmitting(true);
     try {
-      const attempt = await submit({
-        examId: exam._id,
-        answers: Object.entries(answers).map(([questionId, chosenIndex]) => ({
-          questionId: questionId as any,
-          chosenIndex,
-        })),
-      });
+      let attempt;
+      if (isIran) {
+        const res = await iranApi.post(`/api/exams/${exam._id}/submit`, {
+          answers: Object.entries(answers).map(([questionId, chosenIndex]) => ({ questionId, chosenIndex })),
+        });
+        if (res.ok && res.data) {
+          navigate(`/tests/result/${(res.data as any).id}`);
+          return;
+        }
+      } else {
+        attempt = await submitConvex({
+          examId: exam._id,
+          answers: Object.entries(answers).map(([questionId, chosenIndex]) => ({
+            questionId: questionId as any,
+            chosenIndex,
+          })),
+        });
+      }
       if (attempt?._id) {
         navigate(`/tests/result/${attempt._id}`);
       }
@@ -68,7 +86,7 @@ export default function TestTake() {
         toast.error(msg);
       }
     }
-  }, [exam, answers, submit, navigate, slug]);
+  }, [exam, answers, submitConvex, navigate, slug, isIran]);
 
   useEffect(() => {
     if (timeUp && !submitting) {
@@ -144,12 +162,11 @@ export default function TestTake() {
             </div>
             <p className="mt-5 text-base font-bold leading-8 sm:text-lg">{q.text}</p>
 
-            <div className="mt-6 space-y-2.5">
-              {q.options.map((opt, i) => {
-                const selected = answers[q._id] === i;
-                return (
-                  <button
-                    key={i}
+            <div className="mt-6 space-y-2.5">                  {q.options.map((opt: string, i: number) => {
+                    const selected = answers[q._id] === i;
+                    return (
+                      <button
+                        key={i}
                     type="button"
                     onClick={() => setAnswers((a) => ({ ...a, [q._id]: i }))}
                     className={cn(

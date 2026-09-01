@@ -6,6 +6,7 @@ import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery } from "@/hooks/useApiQuery";
+import { useMemo } from "react";
 import { requestNotificationPermission } from "@/components/site/NotificationCenter";
 import { faNum, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -33,10 +34,16 @@ import { toast } from "sonner";
 
 export default function TestResult() {
   const { attemptId = "" } = useParams();
-  const attempt = useQuery(api.tests.getAttempt, { attemptId: attemptId as any });
+  const { isIran } = useMode();
+  const attemptConvex = useQuery(api.tests.getAttempt, { attemptId: attemptId as any });
   const armNextExam = useMutation(api.notifications.armNextExamReminder);
   const [reminderState, setReminderState] = useState<"idle" | "busy" | "armed">("idle");
   const reportExam = useMutation(api.examReports.submitExamReport);
+  const { data: attemptIran } = useApiQuery<any>(isIran ? `/api/exams/results/${attemptId}` : "");
+  const attempt = useMemo(() => {
+    if (isIran && attemptIran) return { ...attemptIran, _id: attemptIran.id };
+    return attemptConvex;
+  }, [isIran, attemptIran, attemptConvex]);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportQuestionId, setReportQuestionId] = useState("");
   const [reportComment, setReportComment] = useState("");
@@ -116,7 +123,7 @@ export default function TestResult() {
     return { r, c, off };
   };
   const { r, c, off } = ring(attempt.percent);
-  const weakTopics = attempt.topicBreakdown.filter((t) => t.percent < 40);
+  const weakTopics = attempt.topicBreakdown.filter((t: any) => t.percent < 40);
 
   return (
     <PublicLayout>
@@ -221,7 +228,7 @@ export default function TestResult() {
           <h2 className="text-lg font-extrabold">تحلیل عملکرد موضوعی</h2>
           <Card className="mt-4 border-border/70 shadow-sm">
             <CardContent className="space-y-5 p-6">
-              {attempt.topicBreakdown.map((t) => {
+              {attempt.topicBreakdown.map((t: any) => {
                 const level =
                   t.percent >= 70 ? "strong" : t.percent >= 40 ? "medium" : "weak";
                 return (
@@ -258,7 +265,7 @@ export default function TestResult() {
                 <p className="text-sm font-bold text-amber-800">نقاط ضعف پیشنهادی برای تمرین</p>
                 <p className="mt-1 text-sm leading-6 text-amber-800/80">
                   روی این مباحث بیشتر وقت بگذار:{" "}
-                  {weakTopics.map((t) => t.topicName).join("، ")}. پیشنهاد ما: مرور
+                  {weakTopics.map((t: any) => t.topicName).join("، ")}. پیشنهاد ما: مرور
                   جزوه + حل ۲۰ تست از هر مبحث + استفاده از فلش‌کارت‌ها.
                 </p>
               </div>

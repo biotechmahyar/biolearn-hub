@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
+import { api as iranApi } from "@/lib/apiClient";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,22 +49,23 @@ export default function AIChat() {
     }
   }, [isAuthenticated, authLoading, navigate]);
 
-  const conversations = useQuery(
-    api.aiChat.listMyConversations,
-    isAuthenticated ? {} : "skip"
-  );
-  const activeModels = useQuery(
-    api.aiChat.listActiveModels,
-    isAuthenticated ? {} : "skip"
-  );
-  const usage = useQuery(
-    api.aiChat.getMyUsage,
-    isAuthenticated ? {} : "skip"
-  );
-  const messages = useQuery(
-    api.aiChat.getConversationMessages,
-    selectedConvo ? { conversationId: selectedConvo as any } : "skip"
-  );
+  // Convex queries (global mode)
+  const conversationsConvex = useQuery(api.aiChat.listMyConversations, isAuthenticated ? {} : "skip");
+  const activeModelsConvex = useQuery(api.aiChat.listActiveModels, isAuthenticated ? {} : "skip");
+  const usageConvex = useQuery(api.aiChat.getMyUsage, isAuthenticated ? {} : "skip");
+  const messagesConvex = useQuery(api.aiChat.getConversationMessages, selectedConvo ? { conversationId: selectedConvo as any } : "skip");
+
+  // Iran server queries
+  const { data: conversationsIran } = useApiQuery<any[]>(isIran && isAuthenticated ? "/api/ai/conversations" : "");
+  const { data: activeModelsIran } = useApiQuery<any[]>(isIran && isAuthenticated ? "/api/ai/models" : "");
+  const { data: usageIran } = useApiQuery<any>(isIran && isAuthenticated ? "/api/ai/my-usage" : "");
+  const { data: messagesIran } = useApiQuery<any[]>(isIran && isAuthenticated && selectedConvo ? `/api/ai/conversations/${selectedConvo}/messages` : "");
+
+  // Merge dual mode data
+  const conversations = isIran ? conversationsIran : conversationsConvex;
+  const activeModels = isIran ? activeModelsIran : activeModelsConvex;
+  const usage = isIran ? usageIran : usageConvex;
+  const messages = isIran ? messagesIran : messagesConvex;
 
   // Auto-select if only 1 model
   useEffect(() => {
@@ -72,9 +74,14 @@ export default function AIChat() {
     }
   }, [activeModels, selectedModelId]);
 
-  const createConvo = useMutation(api.aiChat.createConversation);
-  const sendMessageMut = useMutation(api.aiChat.sendMessage);
-  const deleteConvo = useMutation(api.aiChat.deleteConversation);
+  // Convex mutations (global mode)
+  const createConvoConvex = useMutation(api.aiChat.createConversation);
+  const sendMessageConvex = useMutation(api.aiChat.sendMessage);
+  const deleteConvoConvex = useMutation(api.aiChat.deleteConversation);
+  // Iran mutations
+  const { mutate: createConvoIran } = useApiMutation("/api/ai/conversations", "POST");
+  const { mutate: sendMessageIran } = useApiMutation("/api/ai/chat", "POST");
+  const { mutate: deleteConvoIran } = useApiMutation("/api/ai/conversations", "DELETE");
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -82,8 +89,15 @@ export default function AIChat() {
 
   const handleNewChat = async () => {
     try {
-      const id = await createConvo({ title: "چت جدید", modelId: selectedModelId ?? undefined });
-      setSelectedConvo(id as string);
+      if (isIran) {
+        const res = await iranApi.post("/api/ai/conversations", { title: "چت جدید", modelId: selectedModelId ?? undefined });
+        if (res.ok && res.data) {
+          setSelectedConvo((res.data as any).id);
+        }
+      } else {
+        const id = await createConvoConvex({ title: "چت جدید", modelId: selectedModelId ?? undefined });
+        setSelectedConvo(id as string);
+      }
       setSidebarOpen(false);
       inputRef.current?.focus();
     } catch (e) {
@@ -97,10 +111,11 @@ export default function AIChat() {
     setInput("");
     setIsSending(true);
     try {
-      await sendMessageMut({
-        conversationId: selectedConvo as any,
-        content,
-      });
+      if (isIran) {
+        await iranApi.post("/api/ai/chat", { conversationId: selectedConvo, content });
+      } else {
+        await sendMessageConvex({ conversationId: selectedConvo as any, content });
+      }
     } catch (e: any) {
       console.error("Send failed:", e);
     } finally {
@@ -125,7 +140,11 @@ export default function AIChat() {
     if (!confirm(`${selectedForDelete.size} چت حذف شود؟`)) return;
     for (const id of selectedForDelete) {
       try {
-        await deleteConvo({ conversationId: id as any });
+        if (isIran) {
+          await iranApi.delete(`/api/ai/conversations/${id}`);
+        } else {
+          await deleteConvoConvex({ conversationId: id as any });
+        }
         if (selectedConvo === id) setSelectedConvo(null);
       } catch (e) {
         console.error("Delete failed:", e);
@@ -404,15 +423,22 @@ export default function AIChat() {
                       key={q}
                       onClick={async () => {
                         try {
-                          const id = await createConvo({ title: q, modelId: selectedModelId ?? undefined });
-                          setSelectedConvo(id as string);
-                          setSidebarOpen(false);
-                          setTimeout(async () => {
-                            try {
-                              await sendMessageMut({
-                                conversationId: id as any,
-                                content: q,
-                              });
+                        let newId: string;
+                        if (isIran) {
+                          const res = await iranApi.post("/api/ai/conversations", { title: q, modelId: selectedModelId ?? undefined });
+                          newId = (res.data as any)?.id;
+                        } else {
+                          newId = await createConvoConvex({ title: q, modelId: selectedModelId ?? undefined }) as string;
+                        }
+                        setSelectedConvo(newId);
+                        setSidebarOpen(false);
+                        setTimeout(async () => {
+                          try {
+                            if (isIran) {
+                              await iranApi.post("/api/ai/chat", { conversationId: newId, content: q });
+                            } else {
+                              await sendMessageConvex({ conversationId: newId as any, content: q });
+                            }
                             } catch (e) {
                               console.error("Auto-send failed:", e);
                             }

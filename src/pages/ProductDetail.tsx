@@ -1,7 +1,9 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
+import { api as iranApi } from "@/lib/apiClient";
+import { useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { useState, useEffect } from "react";
 import { addToRecentlyViewed } from "@/lib/recentlyViewed";
@@ -49,12 +51,25 @@ export default function ProductDetail() {
   const [note, setNote] = useState("");
   const [purchasing, setPurchasing] = useState(false);
 
-  const product = useQuery(api.marketplace.getProduct, { slug: slug ?? "" });
-  const wallet = useQuery(api.marketplace.getMyWallet);
-  const purchase = useMutation(api.marketplace.purchaseProduct);
-  const toggleWishlist = useMutation(api.marketplace.toggleWishlist);
-  const addToCart = useMutation(api.marketplace.addToCart);
-  const isWishlisted = useQuery(api.marketplace.isWishlisted, product ? { productId: product._id as any } : "skip");
+  const { isIran } = useMode();
+  const productConvex = useQuery(api.marketplace.getProduct, { slug: slug ?? "" });
+  const walletConvex = useQuery(api.marketplace.getMyWallet);
+  const purchaseConvex = useMutation(api.marketplace.purchaseProduct);
+  const toggleWishlistConvex = useMutation(api.marketplace.toggleWishlist);
+  const addToCartConvex = useMutation(api.marketplace.addToCart);
+  const isWishlistedConvex = useQuery(api.marketplace.isWishlisted, productConvex ? { productId: productConvex._id as any } : "skip");
+  // Iran server
+  const { data: productIran } = useApiQuery<any>(isIran && slug ? `/api/marketplace/products/${slug}` : "");
+  const { data: walletIran } = useApiQuery<any>(isIran ? "/api/wallet" : "");
+  const { mutate: purchaseIran } = useApiMutation("/api/marketplace/checkout", "POST");
+  const { mutate: addToCartIran } = useApiMutation("/api/marketplace/cart", "POST");
+  const { mutate: toggleWishlistIran } = useApiMutation("/api/marketplace/wishlist", "POST");
+  const product = useMemo(() => {
+    if (isIran && productIran) return { ...productIran, _id: productIran.id };
+    return productConvex;
+  }, [isIran, productIran, productConvex]);
+  const wallet = isIran ? walletIran : walletConvex;
+  const isWishlisted = isIran ? false : isWishlistedConvex;
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
   const [reviewing, setReviewing] = useState(false);
@@ -120,17 +135,31 @@ export default function ProductDetail() {
 
     setPurchasing(true);
     try {
-      const result = await purchase({
-        productId: product._id as any,
-        quantity,
-        deliveryCity: "tabriz",
-        deliveryAddress: address || undefined,
-        deliveryNote: note || undefined,
-        payWithWallet: true,
-      });
-      if (result.ok) {
-        toast.success("خرید با موفقیت ثبت شد! 🎉");
-        setShowPurchase(false);
+      if (isIran) {
+        const res = await iranApi.post("/api/marketplace/checkout", {
+          deliveryCity: "tabriz",
+          deliveryAddress: address || undefined,
+          deliveryNote: note || undefined,
+        });
+        if (res.ok) {
+          toast.success("خرید با موفقیت ثبت شد! 🎉");
+          setShowPurchase(false);
+        } else {
+          throw new Error(res.error || "خطا در خرید");
+        }
+      } else {
+        const result = await purchaseConvex({
+          productId: product._id as any,
+          quantity,
+          deliveryCity: "tabriz",
+          deliveryAddress: address || undefined,
+          deliveryNote: note || undefined,
+          payWithWallet: true,
+        });
+        if (result.ok) {
+          toast.success("خرید با موفقیت ثبت شد! 🎉");
+          setShowPurchase(false);
+        }
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا در خرید");
@@ -203,7 +232,7 @@ export default function ProductDetail() {
             {/* Tags */}
             {product.tags && product.tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {product.tags.map((tag, i) => (
+                {product.tags.map((tag: any, i: number) => (
                   <Badge key={i} variant="outline" className="border-white/10 text-[10px] text-slate-400">
                     {tag}
                   </Badge>
@@ -223,7 +252,7 @@ export default function ProductDetail() {
                   <CardContent className="p-4 space-y-3">
                     <p className="text-xs font-bold text-slate-400">نظر شما</p>
                     <div className="flex items-center gap-1">
-                      {[1,2,3,4,5].map((s) => (
+                      {[1,2,3,4,5].map((s: any) => (
                         <button key={s} onClick={() => setReviewRating(s)}>
                           <Star className={cn("size-5 cursor-pointer", s <= reviewRating ? "fill-amber-400 text-amber-400" : "text-slate-600")} />
                         </button>
@@ -365,7 +394,11 @@ export default function ProductDetail() {
                         className="w-full border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
                         onClick={async () => {
                           try {
-                            await addToCart({ productId: product._id as any, quantity: 1 });
+                            if (isIran) {
+                              await addToCartIran({ productId: product._id, quantity: 1 });
+                            } else {
+                              await addToCartConvex({ productId: product._id as any, quantity: 1 });
+                            }
                             toast.success("به سبد خرید اضافه شد");
                           } catch (e: any) {
                             toast.error(e.message);
@@ -382,7 +415,13 @@ export default function ProductDetail() {
                         onClick={async () => {
                           if (!user) { navigate("/auth"); return; }
                           try {
-                            const res = await toggleWishlist({ productId: product._id as any });
+                            let res: any;
+                            if (isIran) {
+                              res = await iranApi.post("/api/marketplace/wishlist", { productId: product._id });
+                              res = res.ok ? res.data : { wishlisted: false };
+                            } else {
+                              res = await toggleWishlistConvex({ productId: product._id as any });
+                            }
                             toast.success(res.wishlisted ? "به علاقه‌مندی‌ها اضافه شد" : "از علاقه‌مندی‌ها حذف شد");
                           } catch (e: any) {
                             toast.error(e.message);

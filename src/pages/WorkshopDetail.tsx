@@ -12,12 +12,21 @@ import { faNum, formatDate, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { CalendarDays, CheckCircle2, ChevronLeft, Clock, Users } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
 export default function WorkshopDetail() {
   const { slug = "" } = useParams();
-  const workshop = useQuery(api.content.getWorkshopBySlug, { slug });
+  const { isIran } = useMode();
+  const workshopConvex = useQuery(api.content.getWorkshopBySlug, { slug });
+  const { data: workshopsIran } = useApiQuery<any[]>(isIran ? "/api/content/workshops" : "");
+  const workshop = useMemo(() => {
+    if (isIran && workshopsIran) {
+      const found = workshopsIran.find((w: any) => w.slug === slug);
+      return found ? { ...found, _id: found.id } : null;
+    }
+    return workshopConvex;
+  }, [isIran, workshopsIran, workshopConvex, slug]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   if (workshop === undefined) {
@@ -88,7 +97,7 @@ export default function WorkshopDetail() {
               <div className="mt-8">
                 <h2 className="text-lg font-extrabold">سرفصل‌های کارگاه</h2>
                 <div className="mt-4 space-y-2.5">
-                  {workshop.agenda.map((item, i) => (
+                  {workshop.agenda.map((item: any, i: number) => (
                     <div key={i} className="flex items-start gap-3 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
                       <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
                         {faNum(i + 1)}
