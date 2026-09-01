@@ -52,6 +52,9 @@ const AIChat = lazy(() => import("./pages/AIChat.tsx"));
 const AIManagementPanel = lazy(() => import("./pages/panels/AIManagementPanel.tsx"));
 const SuperAdminPanel = lazy(() => import("./pages/panels/SuperAdminPanel.tsx"));
 const Rules = lazy(() => import("./pages/Rules.tsx"));
+const Marketplace = lazy(() => import("./pages/Marketplace.tsx"));
+const StoreProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
+const SellerPanel = lazy(() => import("./pages/SellerPanel.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -127,6 +130,10 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/dictionary" element={<Dictionary />} />
               <Route path="/rules" element={<Rules />} />
 
+              {/* Marketplace */}
+              <Route path="/marketplace" element={<Marketplace />} />
+              <Route path="/marketplace/:slug" element={<StoreProductDetail />} />
+
               {/* AI Chat — requires auth, redirects to /auth if not logged in */}
               <Route path="/ai-chat" element={<AIChat />} />
 
@@ -136,6 +143,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RequireAuth>
                     <Dashboard />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/dashboard/store/sell"
+                element={
+                  <RequireAuth>
+                    <SellerPanel />
                   </RequireAuth>
                 }
               />

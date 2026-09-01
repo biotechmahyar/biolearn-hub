@@ -26,6 +26,7 @@ import type * as googleAuth from "../googleAuth.js";
 import type * as http from "../http.js";
 import type * as inbox from "../inbox.js";
 import type * as instructorTools from "../instructorTools.js";
+import type * as marketplace from "../marketplace.js";
 import type * as mentor from "../mentor.js";
 import type * as notifications from "../notifications.js";
 import type * as offlinePayments from "../offlinePayments.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   inbox: typeof inbox;
   instructorTools: typeof instructorTools;
+  marketplace: typeof marketplace;
   mentor: typeof mentor;
   notifications: typeof notifications;
   offlinePayments: typeof offlinePayments;

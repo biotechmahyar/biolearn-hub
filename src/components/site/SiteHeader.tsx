@@ -23,6 +23,7 @@ import {
   Microscope,
   Moon,
   ShieldCheck,
+  Store,
   Sun,
   Users,
 } from "lucide-react";
@@ -42,6 +43,7 @@ const NAV = [
   { to: "/instructors", label: "اساتید" },
   { to: "/dictionary", label: "دیکشنری" },
   { to: "/ai-chat", label: "چت هوشمند" },
+  { to: "/marketplace", label: "بازارچه" },
 ];
 
 export function SiteHeader() {
@@ -218,4 +220,5 @@ export const NAV_ICONS: Record<string, typeof BookOpen> = {
   "/instructors": Users,
   "/dictionary": BookOpen,
   "/ai-chat": Bot,
+  "/marketplace": Store,
 };

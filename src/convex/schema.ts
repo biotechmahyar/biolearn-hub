@@ -988,6 +988,161 @@ const schema = defineSchema(
       createdAt: v.number(),
     }).index("by_article", ["articleId"]),
 
+    // ══════════════════════════════════════════════════════════════════════
+    // ── MARKETPLACE / ONLINE STORE ──────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════
+
+    // Digital wallet for all users
+    wallet: defineTable({
+      userId: v.id("users"),
+      balance: v.number(),          // available balance in toman
+      frozenBalance: v.number(),    // escrowed for pending orders
+      totalEarned: v.number(),      // lifetime earnings from sales
+      totalSpent: v.number(),       // lifetime purchases
+      updatedAt: v.number(),
+    }).index("by_user", ["userId"]),
+
+    // Wallet transaction history
+    walletTransactions: defineTable({
+      userId: v.id("users"),
+      type: v.union(
+        v.literal("deposit"),       // admin deposited / top-up
+        v.literal("withdrawal"),    // user withdrew
+        v.literal("purchase"),      // bought from store
+        v.literal("sale"),          // earned from selling
+        v.literal("refund"),        // refund from cancelled order
+        v.literal("commission"),    // platform commission deducted
+        v.literal("boost"),         // paid for listing boost
+      ),
+      amount: v.number(),           // positive = credit, negative = debit
+      description: v.string(),
+      relatedOrderId: v.optional(v.string()),
+      relatedProductId: v.optional(v.string()),
+      createdAt: v.number(),
+    }).index("by_user", ["userId"]).index("by_user_date", ["userId", "createdAt"]),
+
+    // Marketplace products (notes, flashcards, books, packages)
+    storeProducts: defineTable({
+      sellerId: v.id("users"),
+      title: v.string(),
+      slug: v.string(),
+      description: v.string(),
+      category: v.union(
+        v.literal("notes"),         // جزوه
+        v.literal("flashcards"),    // فلش کارت
+        v.literal("book"),          // کتاب
+        v.literal("package"),       // بسته آموزشی
+        v.literal("other"),         // سایر
+      ),
+      condition: v.union(
+        v.literal("new"),           // نو
+        v.literal("like_new"),      // تقریباً نو
+        v.literal("used"),          // کارکرده
+      ),
+      price: v.number(),           // price in toman
+      images: v.array(v.string()), // storage IDs of product images
+      coverImage: v.optional(v.string()),
+      stock: v.number(),           // available stock count
+      soldCount: v.number(),
+      rating: v.number(),          // average rating 0-5
+      ratingCount: v.number(),
+      status: v.union(
+        v.literal("draft"),         // seller editing
+        v.literal("pending"),       // awaiting admin approval
+        v.literal("approved"),      // live on store
+        v.literal("rejected"),      // rejected by admin
+        v.literal("sold_out"),      // out of stock
+      ),
+      rejectionReason: v.optional(v.string()),
+      // Boost/promotion system
+      boostLevel: v.union(
+        v.literal("none"),          // no boost
+        v.literal("silver"),        // 1 week boosted (+4.5%)
+        v.literal("gold"),          // 1 month boosted (+9%)
+      ),
+      boostExpiresAt: v.optional(v.number()),
+      // Delivery
+      deliveryCities: v.array(v.string()),  // e.g. ["tabriz"]
+      // Tags and search
+      tags: v.optional(v.array(v.string())),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_seller", ["sellerId"])
+      .index("by_status", ["status"])
+      .index("by_category", ["category"])
+      .index("by_boost", ["boostLevel", "boostExpiresAt"]),
+
+    // Store product reviews/ratings
+    storeReviews: defineTable({
+      productId: v.id("storeProducts"),
+      userId: v.id("users"),
+      rating: v.number(),          // 1-5 stars
+      text: v.optional(v.string()),
+      createdAt: v.number(),
+    }).index("by_product", ["productId"]).index("by_user_product", ["userId", "productId"]),
+
+    // Store orders
+    storeOrders: defineTable({
+      buyerId: v.id("users"),
+      sellerId: v.id("users"),
+      productId: v.id("storeProducts"),
+      quantity: v.number(),
+      unitPrice: v.number(),
+      commission: v.number(),      // platform commission in toman
+      total: v.number(),           // buyer pays this
+      sellerEarning: v.number(),   // seller receives this
+      status: v.union(
+        v.literal("pending_payment"),
+        v.literal("paid"),
+        v.literal("shipped"),
+        v.literal("delivered"),
+        v.literal("completed"),    // buyer confirmed receipt
+        v.literal("cancelled"),
+        v.literal("refunded"),
+      ),
+      // Delivery info
+      deliveryCity: v.string(),
+      deliveryAddress: v.optional(v.string()),
+      deliveryNote: v.optional(v.string()),
+      // Payment
+      paidWithWallet: v.boolean(),
+      invoiceNumber: v.string(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_buyer", ["buyerId"])
+      .index("by_seller", ["sellerId"])
+      .index("by_product", ["productId"])
+      .index("by_status", ["status"]),
+
+    // Boost transactions (for tracking boost payments)
+    boostTransactions: defineTable({
+      productId: v.id("storeProducts"),
+      sellerId: v.id("users"),
+      boostLevel: v.union(
+        v.literal("silver"),
+        v.literal("gold"),
+      ),
+      amount: v.number(),          // boost cost in toman
+      durationDays: v.number(),    // 7 or 30
+      expiresAt: v.number(),
+      createdAt: v.number(),
+    }).index("by_product", ["productId"]).index("by_seller", ["sellerId"]),
+
+    // Admin store discount codes (separate from course coupons)
+    storeCoupons: defineTable({
+      code: v.string(),
+      percent: v.number(),
+      maxDiscount: v.number(),     // max discount cap in toman
+      minPurchase: v.number(),     // minimum purchase to apply
+      active: v.boolean(),
+      maxUses: v.number(),
+      usedCount: v.number(),
+      expiresAt: v.optional(v.number()),
+      createdAt: v.number(),
+    }).index("by_code", ["code"]),
+
   },
   {
     schemaValidation: false,
