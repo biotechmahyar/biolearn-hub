@@ -645,3 +645,154 @@ export const rewriteText = action({
     }
   },
 });
+
+// ── AI Course Design Generation ───────────────────────────────────────────
+
+export interface GeneratedCourseDesign {
+  title: string;
+  summary: string;
+  description: string;
+  audience: string[];
+  prerequisites: string[];
+  syllabus: { title: string; durationMin: number; free: boolean }[];
+  pkgEconomy: number;
+  pkgBasic: number;
+  pkgPlus: number;
+  pkgPremium: number;
+  pkgEconomyFeatures: string[];
+  pkgBasicFeatures: string[];
+  pkgPlusFeatures: string[];
+  pkgPremiumFeatures: string[];
+}
+
+export const generateCourseDesign = action({
+  args: {
+    skill: v.string(),
+    modelId: v.optional(v.id("aiModels")),
+  },
+  handler: async (ctx, args): Promise<{ course: GeneratedCourseDesign; raw: string }> => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
+
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی پیکربندی نشده است. ابتدا API key را تنظیم کنید.");
+    }
+
+    const { apiKey, baseUrl, model, provider, temperature } = rawConfig;
+
+    const systemPrompt = `شما یک طراح دوره آموزشی متخصص در حوزه علوم زیستی هستید.
+
+قوانین:
+- دوره باید علمی، کاربردی و جذاب باشد.
+- قیمت‌ها باید واقع‌بینانه و مناسب بازار ایران باشند (تومان).
+- سرفصل‌ها باید منطقی و پیش‌رونده باشند.
+- هر پکیج باید ارزش افزوده مشخصی نسبت به پکیج قبلی داشته باشد.
+
+پاسخ را دقیقاً به این فرمت JSON برگردانید (بدون متن اضافی):
+{
+  "title": "عنوان جذاب و حرفه‌ای دوره",
+  "summary": "خلاصه ۲-۳ جمله‌ای دوره",
+  "description": "توضیحات کامل ۳-۵ پاراگرافی دوره",
+  "audience": ["مخاطب ۱", "mpeg2"],
+  "prerequisites": ["پیش‌نیاز ۱"],
+  "syllabus": [{"title": "جلسه ۱: عنوان", "durationMin": 60, "free": true}],
+  "pkgEconomy": 299000,
+  "pkgBasic": 499000,
+  "pkgPlus": 799000,
+  "pkgPremium": 1299000,
+  "pkgEconomyFeatures": ["ویژگی ۱"],
+  "pkgBasicFeatures": ["ویژگی ۱", "ویژگی ۲"],
+  "pkgPlusFeatures": ["ویژگی ۱", "ویژگی ۲", "ویژگی ۳"],
+  "pkgPremiumFeatures": ["همه ویژگی‌ها", "پشتیبانی ویژه", "گواهینامه"]
+}
+
+فقط آبجکت JSON برگردانید، هیچ متن دیگری اضافه نکنید.`;
+
+    const userPrompt = `موضوع/مهارت دوره: ${args.skill}`;
+
+    let responseText = "";
+
+    try {
+      if (provider === "anthropic") {
+        const resp = await fetch(`${baseUrl}/v1/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 4096,
+            temperature: temperature ?? 0.7,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+          }),
+        });
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.content?.[0]?.text ?? "";
+      } else if (provider === "google") {
+        const resp = await fetch(
+          `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+              generationConfig: { temperature: temperature ?? 0.7, maxOutputTokens: 4096 },
+            }),
+          }
+        );
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+      } else {
+        const resp = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: temperature ?? 0.7,
+            max_tokens: 4096,
+          }),
+        });
+        const data = await resp.json() as any;
+        if (data.error) throw new Error(data.error.message ?? "AI error");
+        responseText = data.choices?.[0]?.message?.content ?? "";
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "خطای ناشناخته";
+      throw new Error(`خطا در فراخوانی هوش مصنوعی: ${msg}`);
+    }
+
+    // Parse JSON response
+    try {
+      let jsonStr = responseText.trim();
+      // Extract JSON object from response (may be wrapped in markdown code block)
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+      const course: GeneratedCourseDesign = JSON.parse(jsonStr);
+
+      // Validate required fields
+      if (!course.title || !course.summary || !course.description) {
+        throw new Error("پاسخ هوش مصنوعی ناقص است.");
+      }
+
+      return { course, raw: responseText };
+    } catch (parseError) {
+      if (parseError instanceof SyntaxError) {
+        throw new Error("پاسخ هوش مصنوعی قابل پردازش نیست. لطفاً دوباره تلاش کنید.");
+      }
+      throw parseError;
+    }
+  },
+});

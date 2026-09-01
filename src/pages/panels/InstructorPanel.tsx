@@ -3076,7 +3076,7 @@ function CourseStudioView() {
   const [aiSkill, setAiSkill] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
-  const generateArticles = useAction(api.aiActions.generateArticles);
+  const generateCourseDesign = useAction(api.aiActions.generateCourseDesign);
 
   const openCreate = () => { setForm(emptyForm); setErr(null); setActiveSection("basic"); setDialog({ mode: "create" }); };
   const openEdit = (c: any) => {
@@ -3111,44 +3111,8 @@ function CourseStudioView() {
     if (!aiSkill.trim()) { toast.error("موضوع/مهارت را وارد کنید"); return; }
     setAiGenerating(true);
     try {
-      const prompt = `یک دوره آموزشی کامل در حوزه "${aiSkill}" برای دانشجویان علوم زیستی طراحی کن.
- شامل موارد زیر باش:
- 1. عنوان جذاب و حرفه‌ای دوره
- 2. خلاصه کوتاه (۲-۳ جمله)
- 3. توضیحات کامل دوره (۳-۵ پاراگراف)
- 4. مخاطبان هدف
- 5. پیش‌نیازها
- 6. سرفصل‌ها (۵-۸ جلسه با عنوان و مدت زمان)
- 7. قیمت پیشنهادی برای هر پکیج (اقتصادی، پایه، پلاس، پرمیوم) به تومان
- 8. ویژگی‌های هر پکیج
-
-پاسخ را دقیقاً به این فرمت JSON برگردان:
-{
-  "title": "عنوان دوره",
-  "summary": "خلاصه",
-  "description": "توضیحات کامل",
-  "audience": ["مخاطب ۱", "مخاطب ۲"],
-  "prerequisites": ["پیش‌نیاز ۱"],
-  "syllabus": [{"title": "جلسه ۱", "durationMin": 60, "free": true}],
-  "pkgEconomy": 299000,
-  "pkgBasic": 499000,
-  "pkgPlus": 799000,
-  "pkgPremium": 1299000,
-  "pkgEconomyFeatures": ["ویژگی ۱"],
-  "pkgBasicFeatures": ["ویژگی ۱", "ویژگی ۲"],
-  "pkgPlusFeatures": ["ویژگی ۱", "ویژگی ۲", "ویژگی ۳"],
-  "pkgPremiumFeatures": ["همه ویژگی‌ها", "پشتیبانی ویژه"]
-}`;
-      const result = await generateArticles({ prompt, count: 1, category: "دوره" });
-      const body = result.articles?.[0]?.body ?? "";
-      // Try to parse JSON from the response
-      const jsonMatch = body.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0]);
-        setAiResult(data);
-      } else {
-        toast.error("پاسخ AI قابل پردازش نبود. دوباره تلاش کنید.");
-      }
+      const result = await generateCourseDesign({ skill: aiSkill });
+      setAiResult(result.course);
     } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setAiGenerating(false); }
   };
 
