@@ -23,6 +23,8 @@ import { api } from "@/convex/_generated/api";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { panelForRole } from "@/components/RoleGate";
+import { useMode } from "@/hooks/useMode";
+import { authApi } from "@/lib/apiClient";
 
 declare global {
   interface Window {
@@ -45,6 +47,7 @@ function resolveRedirectAfterAuth(
 }
 
 function Auth({ redirectAfterAuth }: AuthProps = {}) {
+  const { isIran } = useMode();
   const { isLoading: authLoading, isAuthenticated, signIn, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -111,13 +114,27 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     setError(null);
     try {
       const formData = new FormData(event.currentTarget);
-      const res = await signIn("password", formData);
-      if (res.signingIn) {
-        navigate(redirect);
+      if (isIran) {
+        // Iran mode: use local JWT auth
+        const email = formData.get("email") as string;
+        const password = formData.get("password") as string;
+        const res = await authApi.login(email, password);
+        if (res.ok) {
+          navigate(redirect);
+        } else {
+          setError(res.error || "ورود ناموفق بود.");
+        }
+      } else {
+        // Global mode: use Convex auth
+        const res = await signIn("password", formData);
+        if (res.signingIn) {
+          navigate(redirect);
+        }
       }
     } catch (error) {
       console.error("Password sign-in error:", error);
       setError("ورود ناموفق بود. ایمیل یا رمز عبور را بررسی کنید.");
+    } finally {
       setIsLoading(false);
     }
   };
@@ -197,11 +214,23 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     setIsLoading(true);
     setError(null);
     try {
-      await signIn("anonymous");
-      navigate(redirect);
+      if (isIran) {
+        // Iran mode: register as guest with temp email
+        const tempEmail = `guest-${Date.now()}@genova.local`;
+        const res = await authApi.register(tempEmail, "guest-" + Date.now(), "مهمان");
+        if (res.ok) {
+          navigate(redirect);
+        } else {
+          setError("ورود مهمان ناموفق بود.");
+        }
+      } else {
+        await signIn("anonymous");
+        navigate(redirect);
+      }
     } catch (error) {
       console.error("Guest login error:", error);
       setError("ورود مهمان ناموفق بود. دوباره تلاش کنید.");
+    } finally {
       setIsLoading(false);
     }
   };
