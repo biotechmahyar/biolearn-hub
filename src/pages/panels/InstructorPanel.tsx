@@ -3071,6 +3071,13 @@ function CourseStudioView() {
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<"basic" | "detail" | "packages">("basic");
 
+  // AI course generation
+  const [aiDialog, setAiDialog] = useState(false);
+  const [aiSkill, setAiSkill] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const generateArticles = useAction(api.aiActions.generateArticles);
+
   const openCreate = () => { setForm(emptyForm); setErr(null); setActiveSection("basic"); setDialog({ mode: "create" }); };
   const openEdit = (c: any) => {
     const pp = c.packagePrices ?? [];
@@ -3098,6 +3105,81 @@ function CourseStudioView() {
     setErr(null);
     setActiveSection("basic");
     setDialog({ mode: "edit", course: c });
+  };
+
+  const handleAIGenerate = async () => {
+    if (!aiSkill.trim()) { toast.error("موضوع/مهارت را وارد کنید"); return; }
+    setAiGenerating(true);
+    try {
+      const prompt = `یک دوره آموزشی کامل در حوزه "${aiSkill}" برای دانشجویان علوم زیستی طراحی کن.
+ شامل موارد زیر باش:
+ 1. عنوان جذاب و حرفه‌ای دوره
+ 2. خلاصه کوتاه (۲-۳ جمله)
+ 3. توضیحات کامل دوره (۳-۵ پاراگراف)
+ 4. مخاطبان هدف
+ 5. پیش‌نیازها
+ 6. سرفصل‌ها (۵-۸ جلسه با عنوان و مدت زمان)
+ 7. قیمت پیشنهادی برای هر پکیج (اقتصادی، پایه، پلاس، پرمیوم) به تومان
+ 8. ویژگی‌های هر پکیج
+
+پاسخ را دقیقاً به این فرمت JSON برگردان:
+{
+  "title": "عنوان دوره",
+  "summary": "خلاصه",
+  "description": "توضیحات کامل",
+  "audience": ["مخاطب ۱", "مخاطب ۲"],
+  "prerequisites": ["پیش‌نیاز ۱"],
+  "syllabus": [{"title": "جلسه ۱", "durationMin": 60, "free": true}],
+  "pkgEconomy": 299000,
+  "pkgBasic": 499000,
+  "pkgPlus": 799000,
+  "pkgPremium": 1299000,
+  "pkgEconomyFeatures": ["ویژگی ۱"],
+  "pkgBasicFeatures": ["ویژگی ۱", "ویژگی ۲"],
+  "pkgPlusFeatures": ["ویژگی ۱", "ویژگی ۲", "ویژگی ۳"],
+  "pkgPremiumFeatures": ["همه ویژگی‌ها", "پشتیبانی ویژه"]
+}`;
+      const result = await generateArticles({ prompt, count: 1, category: "دوره" });
+      const body = result.articles?.[0]?.body ?? "";
+      // Try to parse JSON from the response
+      const jsonMatch = body.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const data = JSON.parse(jsonMatch[0]);
+        setAiResult(data);
+      } else {
+        toast.error("پاسخ AI قابل پردازش نبود. دوباره تلاش کنید.");
+      }
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setAiGenerating(false); }
+  };
+
+  const handleAIApply = () => {
+    if (!aiResult) return;
+    const ppEco = aiResult.pkgEconomy ?? 0;
+    const ppBas = aiResult.pkgBasic ?? 0;
+    const ppPlu = aiResult.pkgPlus ?? 0;
+    const ppPre = aiResult.pkgPremium ?? 0;
+    setForm({
+      ...emptyForm,
+      title: aiResult.title ?? "",
+      summary: aiResult.summary ?? "",
+      description: aiResult.description ?? "",
+      price: String(ppBas || ppEco || 0),
+      audienceText: (aiResult.audience ?? []).join("\n"),
+      prerequisitesText: (aiResult.prerequisites ?? []).join("\n"),
+      syllabusItems: (aiResult.syllabus ?? []).map((s: any) => `${s.title} | ${s.durationMin} | ${s.free ? 'رایگان' : 'پولی'}`).join("\n"),
+      pkgEconomy: String(ppEco),
+      pkgBasic: String(ppBas),
+      pkgPlus: String(ppPlu),
+      pkgPremium: String(ppPre),
+      pkgEconomyFeatures: (aiResult.pkgEconomyFeatures ?? []).join("\n"),
+      pkgBasicFeatures: (aiResult.pkgBasicFeatures ?? []).join("\n"),
+      pkgPlusFeatures: (aiResult.pkgPlusFeatures ?? []).join("\n"),
+      pkgPremiumFeatures: (aiResult.pkgPremiumFeatures ?? []).join("\n"),
+    });
+    setAiDialog(false);
+    setActiveSection("basic");
+    setDialog({ mode: "create" });
+    toast.success("فرم با اطلاعات AI پر شد — بررسی و ویرایش کنید");
   };
 
   const parseLines = (t: string) => t.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -3174,7 +3256,7 @@ function CourseStudioView() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20" onClick={openCreate}>
+          <Button className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20" onClick={() => { setAiDialog(true); setAiSkill(""); setAiGenerating(false); setAiResult(null); }}>
             <Bot className="ml-1.5 size-4" />
             ساخت با هوش مصنوعی
           </Button>
@@ -3383,7 +3465,7 @@ function BankAccountSection() {
           <Input placeholder="شماره حساب" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 font-mono" />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input placeholder="شماره کارت (۱۲۳۴ ۵۶۷۸ ...)" value={formatCardNumber(cardNumber)} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))} className="border-white/10 bg-white/5 text-slate-100 font-mono" />
+          <Input dir="ltr" inputMode="numeric" placeholder="1234 5678 9012 3456" value={formatCardNumber(cardNumber)} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))} className="border-white/10 bg-white/5 text-left font-mono tracking-wider" />
           <Input placeholder="شماره شبا (IR...)" value={sheba} onChange={(e) => setSheba(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
         </div>
         <Button size="sm" onClick={handleSave} className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20">
