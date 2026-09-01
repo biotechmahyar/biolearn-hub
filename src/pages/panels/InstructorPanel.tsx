@@ -3071,7 +3071,7 @@ function CourseStudioView() {
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<"basic" | "detail" | "packages">("basic");
 
-  // AI course generation
+  // AI course generation  
   const [aiDialog, setAiDialog] = useState(false);
   const [aiSkill, setAiSkill] = useState("");
   const [aiGenerating, setAiGenerating] = useState(false);
@@ -3302,15 +3302,15 @@ function CourseStudioView() {
         )}
       </div>
 
-      {/* AI skill input dialog */}
-      <Dialog open={aiDialog} onOpenChange={setAiDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      {/* AI skill input — inline card */}
+      {aiDialog && (
+        <Card className="border-purple-400/20 bg-purple-400/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm text-purple-200">
               <Bot className="size-5 text-purple-400" />ساخت دوره با هوش مصنوعی
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <p className="text-sm text-slate-400">موضوع یا مهارتی که می‌خواهید تدریس کنید را توضیح دهید. هوش مصنوعی عنوان، توضیحات، سرفصل‌ها و قیمت‌ها را به صورت خودکار تولید می‌کند.</p>
             <Textarea
               placeholder="مثلاً: میکروبیولوژی پیشرفته — تکنیک‌های کشت و شناسایی باکتری‌ها"
@@ -3326,20 +3326,19 @@ function CourseStudioView() {
                 {aiGenerating ? "در حال تولید..." : "تولید دوره"}
               </Button>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* AI result preview dialog */}
-      <Dialog open={!!aiResult} onOpenChange={(o) => { if (!o) setAiResult(null); }}>
-        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+      {/* AI result preview — inline card */}
+      {aiResult && (
+        <Card className="border-purple-400/20 bg-purple-400/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm text-purple-200">
               <Bot className="size-5 text-purple-400" />پیش‌نمایش دوره تولیدشده
-            </DialogTitle>
-          </DialogHeader>
-          {aiResult && (
-            <div className="space-y-4 pt-2">
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 pt-2">
               <div className="rounded-lg border border-purple-400/20 bg-purple-400/5 p-4 space-y-3">
                 <div>
                   <p className="text-[10px] font-bold text-purple-300 uppercase">عنوان</p>
@@ -3380,10 +3379,9 @@ function CourseStudioView() {
                   <Bot className="ml-1 size-3.5" />اعمال و ویرایش
                 </Button>
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
