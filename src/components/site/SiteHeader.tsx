@@ -12,6 +12,7 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "convex/react";
 import { ShoppingCart } from "lucide-react";
+import { ModeSwitcher } from "./ModeSwitcher";
 import {
   BookOpen,
   Bot,
@@ -96,6 +97,8 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {/* Mode Switcher */}
+          <ModeSwitcher />
           {/* Theme toggle */}
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
