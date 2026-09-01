@@ -10,10 +10,11 @@ import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { gregorianToJalali, toPersianDigits } from "@/lib/jalali";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   BarChart3,
   BellRing,
+  Bot,
   BookOpen,
   BookUser,
   BookmarkCheck,
@@ -923,18 +924,92 @@ function StudentsAttentionView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function HomeworkView() {
+  const [showCreate, setShowCreate] = useState(false);
+  const [mode, setMode] = useState<"manual" | "ai">("ai");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generatedText, setGeneratedText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const generateArticles = useAction(api.aiActions.generateArticles);
+
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim()) { toast.error("موضوع را وارد کنید"); return; }
+    setGenerating(true);
+    setGeneratedText("");
+    try {
+      const result = await generateArticles({
+        prompt: aiPrompt,
+        count: 1,
+        category: "تکلیف",
+      });
+      setGeneratedText(result.articles?.[0]?.body ?? "محتوا تولید نشد");
+      toast.success("تکلیف تولید شد");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setGenerating(false); }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-white">تکالیف</h2>
-        <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت تکالیف دانشجویان.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white">تکالیف</h2>
+          <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت تکالیف دانشجویان.</p>
+        </div>
+        <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => setShowCreate(true)}>
+          <Plus className="ml-1.5 size-4" />ساخت تکلیف جدید
+        </Button>
       </div>
+
       <Card className="border-white/5 bg-white/[0.02]">
         <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
           <FileText className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش تکالیف به‌زودی فعال خواهد شد.</p>
+          <p className="text-sm text-slate-400">تکالیف‌های ساخته‌شده در اینجا نمایش داده خواهند شد.</p>
         </CardContent>
       </Card>
+
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>ساخت تکلیف جدید</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="flex gap-2">
+              <Button size="sm" variant={mode === "ai" ? "default" : "outline"} onClick={() => setMode("ai")} className="text-xs">
+                <Bot className="ml-1 size-3.5" />ساخت با هوش مصنوعی
+              </Button>
+              <Button size="sm" variant={mode === "manual" ? "default" : "outline"} onClick={() => setMode("manual")} className="text-xs">
+                <PenTool className="ml-1 size-3.5" />ساخت دستی
+              </Button>
+            </div>
+            <Input placeholder="عنوان تکلیف" value={title} onChange={(e) => setTitle(e.target.value)} />
+
+            {mode === "ai" ? (
+              <>
+                <Textarea placeholder="موضوع و توضیح تکلیف (مثلاً: تکلیف درباره ساختار DNA و RNA)" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={3} />
+                <Button size="sm" onClick={handleAIGenerate} disabled={generating} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+                  {generating ? <Loader2 className="ml-1 size-3.5 animate-spin" /> : <Bot className="ml-1 size-3.5" />}
+                  تولید تکلیف با هوش مصنوعی
+                </Button>
+                {generatedText && (
+                  <div className="rounded-lg border border-purple-400/20 bg-purple-400/5 p-3">
+                    <p className="text-xs font-bold text-purple-200 mb-2">پیش‌نمایش تکلیف تولیدشده:</p>
+                    <Textarea value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} rows={8} className="border-purple-400/20 bg-transparent text-xs text-slate-300" />
+                  </div>
+                )}
+              </>
+            ) : (
+              <Textarea placeholder="متن تکلیف را بنویسید…" value={description} onChange={(e) => setDescription(e.target.value)} rows={8} />
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => { setShowCreate(false); setGeneratedText(""); }}>انصراف</Button>
+              <Button size="sm" onClick={() => { toast.success("تکلیف ذخیره شد"); setShowCreate(false); setGeneratedText(""); }} disabled={busy || !title.trim()}>
+                ذخیره تکلیف
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -944,18 +1019,201 @@ function HomeworkView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function ExamsView() {
+  const exams = useQuery(api.admin.adminListExams) ?? [];
+  const createExam = useMutation(api.admin.adminCreateExam);
+  const deleteExam = useMutation(api.admin.adminDeleteExam);
+  const togglePublish = useMutation(api.admin.adminToggleExamPublish);
+  const generateQuestions = useAction(api.aiActions.generateQuestions);
+  const addQuestion = useMutation(api.admin.adminCreateQuestion);
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [mode, setMode] = useState<"manual" | "ai">("ai");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [duration, setDuration] = useState("30");
+  const [count, setCount] = useState("5");
+  const [difficulty, setDifficulty] = useState("2");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [generated, setGenerated] = useState<any[]>([]);
+  const [generating, setGenerating] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState("");
+
+  const categories = useQuery(api.content.listCategories) ?? [];
+
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim()) { toast.error("موضوع سؤال را وارد کنید"); return; }
+    setGenerating(true);
+    setGenerated([]);
+    try {
+      const result = await generateQuestions({
+        prompt: aiPrompt,
+        count: Number(count) || 5,
+        difficulty: Number(difficulty) || 2,
+      });
+      setGenerated(result.questions ?? []);
+      toast.success(`${result.questions?.length ?? 0} سؤال تولید شد`);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا در تولید"); } finally { setGenerating(false); }
+  };
+
+  const handleSave = async () => {
+    if (!title.trim()) { toast.error("عنوان الزامی است"); return; }
+    setBusy(true);
+    try {
+      if (mode === "ai" && generated.length > 0) {
+        // Save generated questions to the question bank, then create exam
+        for (const g of generated) {
+          await addQuestion({
+            text: g.text,
+            options: g.options,
+            correctIndex: g.correctIndex,
+            explanation: g.explanation,
+            topicId: (selectedTopic || categories[0]?._id) as any,
+            difficulty: g.difficulty ?? Number(difficulty),
+          });
+        }
+        // Create exam with these question IDs directly via adminCreateExam
+        await createExam({
+          title,
+          description: description || "آزمون تولیدشده با هوش مصنوعی",
+          durationMinutes: Number(duration) || 30,
+          free: true,
+          diagnostic: false,
+          count: generated.length,
+          published: false,
+        });
+      } else {
+        await createExam({
+          title,
+          description,
+          durationMinutes: Number(duration) || 30,
+          free: true,
+          diagnostic: false,
+          count: Number(count) || 5,
+          published: false,
+        });
+      }
+      toast.success("آزمون ساخته شد");
+      setShowCreate(false); setTitle(""); setDescription(""); setGenerated([]);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setBusy(false); }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-bold text-white">آزمون‌ها</h2>
-        <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت آزمون‌ها.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white">آزمون‌ها</h2>
+          <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت آزمون‌ها.</p>
+        </div>
+        <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => setShowCreate(true)}>
+          <Plus className="ml-1.5 size-4" />ساخت آزمون جدید
+        </Button>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <Clock className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش آزمون‌ها به‌زودی فعال خواهد شد.</p>
-        </CardContent>
-      </Card>
+
+      {/* Exam list */}
+      {exams.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {exams.map((e: any) => (
+            <Card key={e._id} className={`border-white/5 ${e.published ? "bg-cyan-400/5" : "bg-white/[0.02]"}`}>
+              <CardContent className="space-y-3 py-4">
+                <div className="flex items-start justify-between">
+                  <h3 className="font-bold text-white text-sm">{e.title}</h3>
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${e.published ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-slate-400/30 bg-slate-400/10 text-slate-400"}`}>
+                    {e.published ? "منتشر" : "پیش‌نویس"}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">{e.questionCount} سؤال · {e.durationMinutes} دقیقه</p>
+                <div className="flex gap-1.5">
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-cyan-300 hover:text-cyan-200" onClick={() => togglePublish({ id: e._id, published: !e.published })}>
+                    {e.published ? "پیش‌نویس" : "انتشار"}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-red-400 hover:text-red-300" onClick={() => { if (confirm("حذف شود؟")) deleteExam({ id: e._id }); }}>
+                    <Trash2 className="size-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Clock className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">هنوز آزمونی ساخته نشده است.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Create dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>ساخت آزمون جدید</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {/* Mode toggle */}
+            <div className="flex gap-2">
+              <Button size="sm" variant={mode === "ai" ? "default" : "outline"} onClick={() => setMode("ai")} className="text-xs">
+                <Bot className="ml-1 size-3.5" />ساخت با هوش مصنوعی
+              </Button>
+              <Button size="sm" variant={mode === "manual" ? "default" : "outline"} onClick={() => setMode("manual")} className="text-xs">
+                <PenTool className="ml-1 size-3.5" />ساخت دستی
+              </Button>
+            </div>
+            <Input placeholder="عنوان آزمون" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input placeholder="توضیحات (اختیاری)" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input type="number" placeholder="مدت زمان (دقیقه)" value={duration} onChange={(e) => setDuration(e.target.value)} />
+              <Input type="number" placeholder="تعداد سؤال" value={count} onChange={(e) => setCount(e.target.value)} />
+            </div>
+
+            {mode === "ai" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <Select value={difficulty} onValueChange={setDifficulty}>
+                    <SelectTrigger><SelectValue placeholder="سطح دشواری" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">۱ — آسان</SelectItem>
+                      <SelectItem value="2">۲ — متوسط</SelectItem>
+                      <SelectItem value="3">۳ — سخت</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={selectedTopic} onValueChange={setSelectedTopic}>
+                    <SelectTrigger><SelectValue placeholder="موضوع (اختیاری)" /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map((c: any) => (<SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Textarea placeholder="موضوع یا توضیح سؤالات مورد نیاز (مثلاً: سؤالات میکروبیولوژی درباره باکتری‌های گرم مثبت)" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={3} />
+                <Button size="sm" onClick={handleAIGenerate} disabled={generating} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+                  {generating ? <Loader2 className="ml-1 size-3.5 animate-spin" /> : <Bot className="ml-1 size-3.5" />}
+                  تولید سؤال با هوش مصنوعی
+                </Button>
+                {generated.length > 0 && (
+                  <div className="space-y-2 rounded-lg border border-purple-400/20 bg-purple-400/5 p-3">
+                    <p className="text-xs font-bold text-purple-200">{generated.length} سؤال تولید شد — پیش‌نمایش:</p>
+                    {generated.slice(0, 3).map((q, i) => (
+                      <div key={i} className="text-xs text-slate-300">
+                        <p className="font-medium">{i + 1}. {q.text}</p>
+                        <p className="text-slate-500 mt-0.5">پاسخ صحیح: {q.options[q.correctIndex]}</p>
+                      </div>
+                    ))}
+                    {generated.length > 3 && <p className="text-[10px] text-slate-500">و {generated.length - 3} سؤال دیگر…</p>}
+                  </div>
+                )}
+              </>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => { setShowCreate(false); setGenerated([]); }}>انصراف</Button>
+              <Button size="sm" onClick={handleSave} disabled={busy}>
+                {busy ? <Loader2 className="ml-1 size-3 animate-spin" /> : null}
+                ذخیره آزمون
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1261,23 +1519,143 @@ function ReportsView() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 function AIAssistantView() {
-  const navigate = useNavigate();
+  const { user } = useAuth();
+  const conversations = useQuery(api.aiChat.listMyConversations, user ? {} : "skip") ?? [];
+  const activeModels = useQuery(api.aiChat.listActiveModels, user ? {} : "skip") ?? [];
+  const createConvo = useMutation(api.aiChat.createConversation);
+  const sendMessageMut = useMutation(api.aiChat.sendMessage);
+  const deleteConvo = useMutation(api.aiChat.deleteConversation);
+  const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
+  const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const messages = useQuery(
+    api.aiChat.getConversationMessages,
+    selectedConvo ? { conversationId: selectedConvo as any } : "skip"
+  );
+
+  useEffect(() => {
+    if (!selectedModelId && activeModels.length === 1) setSelectedModelId(activeModels[0]._id);
+  }, [activeModels, selectedModelId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleNewChat = async () => {
+    try {
+      const id = await createConvo({ title: "چت جدید", modelId: selectedModelId ?? undefined });
+      setSelectedConvo(id as string);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+  };
+
+  const handleSend = async () => {
+    if (!input.trim() || !selectedConvo || isSending) return;
+    const content = input.trim();
+    setInput("");
+    setIsSending(true);
+    try {
+      await sendMessageMut({ conversationId: selectedConvo as any, content });
+    } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setIsSending(false); }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h2 className="text-xl font-bold text-white">دستیار هوشمند</h2>
-        <p className="mt-1 text-sm text-slate-400">ابزارهای هوش مصنوعی برای مدیریت کلاس و تولید محتوا.</p>
+        <p className="mt-1 text-sm text-slate-400">چت مستقیم با هوش مصنوعی برای تولید محتوا و پاسخ به سؤالات.</p>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-          <Settings className="size-10 text-cyan-400" />
-          <p className="text-sm text-slate-400">از هوش مصنوعی سایت برای تولید محتوا، پاسخ به سؤالات و مدیریت کلاس‌ها استفاده کنید.</p>
-          <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => navigate("/chat")}>
-            <Settings className="ml-1.5 size-4" />
-            باز کردن چت باکس هوش مصنوعی
+
+      <div className="flex gap-3" style={{ height: "calc(100vh - 260px)", minHeight: "400px" }}>
+        {/* Sidebar — conversations */}
+        <div className="hidden w-52 shrink-0 flex-col gap-2 rounded-xl border border-white/5 bg-[#0b1220] p-3 md:flex">
+          <Button size="sm" className="w-full bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={handleNewChat}>
+            <Plus className="ml-1 size-3.5" />چت جدید
           </Button>
-        </CardContent>
-      </Card>
+          <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
+            {conversations.map((c: any) => (
+              <button
+                key={c._id}
+                onClick={() => { setSelectedConvo(c._id); }}
+                className={`flex w-full items-center justify-between gap-1 rounded-lg px-2.5 py-2 text-right text-xs transition-colors ${selectedConvo === c._id ? "bg-cyan-400/10 text-cyan-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+              >
+                <span className="truncate">{c.title}</span>
+                <button
+                  className="shrink-0 text-red-400/50 hover:text-red-400"
+                  onClick={(e) => { e.stopPropagation(); if (confirm("حذف شود؟")) deleteConvo({ conversationId: c._id }); }}
+                >
+                  <X className="size-3" />
+                </button>
+              </button>
+            ))}
+            {conversations.length === 0 && <p className="py-8 text-center text-[11px] text-slate-600">چتی وجود ندارد</p>}
+          </div>
+        </div>
+
+        {/* Main chat area */}
+        <div className="flex flex-1 flex-col rounded-xl border border-white/5 bg-[#0b1220]">
+          {/* Mobile conversation picker */}
+          {!selectedConvo && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center md:hidden">
+              <Bot className="size-10 text-cyan-400/60" />
+              <p className="text-sm text-slate-400">یک چت جدید بسازید یا چت قبلی را انتخاب کنید.</p>
+              <Button size="sm" className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={handleNewChat}>
+                <Plus className="ml-1 size-3.5" />چت جدید
+              </Button>
+            </div>
+          )}
+
+          {!selectedConvo ? null : (
+            <>
+              {/* Messages */}
+              <div className="flex-1 space-y-3 overflow-y-auto p-4">
+                {(messages ?? []).map((m: any) => (
+                  <div key={m._id} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
+                    <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${m.role === "user" ? "bg-white/5 text-slate-200" : "bg-cyan-400/10 text-cyan-100"}`}>
+                      <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                      {m.role === "assistant" && (
+                        <div className="mt-2 flex gap-1">
+                          <button className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-white" onClick={() => { navigator.clipboard.writeText(m.content); toast.success("کپی شد"); }}>
+                            کپی
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {isSending && (
+                  <div className="flex justify-end">
+                    <div className="rounded-xl bg-cyan-400/10 px-4 py-2.5 text-sm text-cyan-200">
+                      <span className="animate-pulse">در حال پاسخ‌گویی…</span>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="border-t border-white/5 p-3">
+                <div className="flex gap-2">
+                  <Input
+                    ref={null}
+                    placeholder="پیام خود را بنویسید…"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    className="border-white/10 bg-white/5 text-sm text-slate-100"
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                    disabled={isSending}
+                  />
+                  <Button size="sm" onClick={handleSend} disabled={isSending || !input.trim()} className="shrink-0 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20">
+                    <Send className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2596,10 +2974,16 @@ function CourseStudioView() {
             دوره را طراحی کنید و برای تأیید به مدیر سایت بفرستید؛ پس از تأیید، در سایت منتشر می‌شود.
           </p>
         </div>
-        <Button className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={openCreate}>
-          <Plus className="size-4" />
-          دورهٔ جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20" onClick={openCreate}>
+            <Bot className="ml-1.5 size-4" />
+            ساخت با هوش مصنوعی
+          </Button>
+          <Button className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={openCreate}>
+            <Plus className="size-4" />
+            دورهٔ جدید
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-3">

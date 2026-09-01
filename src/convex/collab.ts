@@ -256,8 +256,26 @@ export const getRoom = query({
     if (!room) return null;
     if (room.status !== "live") {
       const user = await getCurrentUser(ctx);
-      const allowed = (await isInstructor(ctx)) && room.instructorId === user?._id;
-      if (!allowed && !(await isAdmin(ctx))) return null;
+      if (!user) return null;
+      const isRoomInstructor = room.instructorId === user._id;
+      const role = user.role ?? null;
+      const isSiteAdmin = role === "admin" || role === "site_admin";
+      // Check if student is enrolled in any course taught by this instructor
+      let isEnrolledStudent = false;
+      if (!isRoomInstructor && !isSiteAdmin) {
+        const userEnrollments = await ctx.db
+          .query("enrollments")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .collect();
+        for (const enrollment of userEnrollments) {
+          const course = await ctx.db.get(enrollment.courseId);
+          if (course && (course as any).instructorId === room.instructorId) {
+            isEnrolledStudent = true;
+            break;
+          }
+        }
+      }
+      if (!isRoomInstructor && !isSiteAdmin && !isEnrolledStudent) return null;
     }
     const messages = await ctx.db
       .query("roomMessages")

@@ -1546,3 +1546,24 @@ export const adminListPayments = query({
     return await ctx.db.query("instructorPayments").order("desc").collect();
   },
 });
+
+// ── Admin: delete an instructor payment record ──────────────────────────────
+export const adminDeletePayment = mutation({
+  args: { paymentId: v.id("instructorPayments") },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("فقط مدیر می‌تواند سابقه پرداخت را حذف کند.");
+    const payment = await ctx.db.get(args.paymentId);
+    if (!payment) throw new Error("سابقه پرداخت یافت نشد.");
+    await ctx.db.delete(args.paymentId);
+    return { ok: true };
+  },
+});
+
+// ── Admin: list all class rooms ─────────────────────────────────────────────
+export const adminListClassRooms = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("classRooms").order("desc").collect();
+  },
+});

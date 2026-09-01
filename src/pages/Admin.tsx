@@ -137,7 +137,8 @@ type Section =
   | "classRequests"
   | "studentReports"
   | "backup"
-  | "sync";
+  | "sync"
+  | "classManagement";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -158,6 +159,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "comments", label: "دیدگاه‌ها", icon: MessageSquare },
       { key: "backup", label: "بکاپ و خروجی", icon: Download },
       { key: "sync", label: "مدیریت سینک", icon: RefreshCw },
+      { key: "classManagement", label: "مدیریت کلاس‌ها", icon: Clock },
     ],
   },
   {
@@ -625,6 +627,7 @@ export default function Admin() {
             {section === "inbox" && <AdminInbox />}
             {section === "backup" && <AdminBackup />}
             {section === "sync" && <AdminSync />}
+            {section === "classManagement" && <AdminClasses />}
           </div>
         </main>
       </div>
@@ -2208,12 +2211,14 @@ function AdminPayments() {
   const payments = useQuery(api.admin.adminListPayments);
   const createPayment = useMutation(api.instructorTools.adminCreatePayment);
   const markPaid = useMutation(api.instructorTools.adminMarkPaid);
+  const deletePayment = useMutation(api.admin.adminDeletePayment);
   const [targetUser, setTargetUser] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [receiptUrl, setReceiptUrl] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const instructors = (users ?? []).filter((u: any) => u.role === "instructor" || u.secondaryRole === "instructor");
   const instructorMap = Object.fromEntries((instructors ?? []).map((u: any) => [u._id, u.name ?? u.email]));
@@ -2275,17 +2280,26 @@ function AdminPayments() {
                     <TableCell className="text-xs text-muted-foreground">{p.description}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{formatDateTime(p.createdAt)}</TableCell>
                     <TableCell>
-                      {confirmingId === p._id ? (
-                        <div className="flex items-center gap-2">
-                          <Input placeholder="لینک فیش (اختیاری)" value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)} className="h-7 w-48 text-xs" />
-                          <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 text-xs" onClick={() => handleConfirmPaid(p._id)} disabled={busy}>تأیید پرداخت</Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setConfirmingId(null); setReceiptUrl(""); }}>لغو</Button>
-                        </div>
-                      ) : (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setConfirmingId(p._id)}>
-                          <CheckCircle2 className="ml-1 size-3.5" />تأیید و پرداخت
+                      <div className="flex items-center gap-1">
+                        {confirmingId === p._id ? (
+                          <div className="flex items-center gap-2">
+                            <Input placeholder="لینک فیش (اختیاری)" value={receiptUrl} onChange={(e) => setReceiptUrl(e.target.value)} className="h-7 w-48 text-xs" />
+                            <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 text-xs" onClick={() => handleConfirmPaid(p._id)} disabled={busy}>تأیید پرداخت</Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setConfirmingId(null); setReceiptUrl(""); }}>لغو</Button>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setConfirmingId(p._id)}>
+                            <CheckCircle2 className="ml-1 size-3.5" />تأیید و پرداخت
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={async () => {
+                          if (!confirm("این سابقه پرداخت حذف شود؟")) return;
+                          setDeletingId(p._id);
+                          try { await deletePayment({ paymentId: p._id }); toast.success("سابقه حذف شد"); } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setDeletingId(null); }
+                        }} disabled={deletingId === p._id}>
+                          <Trash2 className="size-3" />
                         </Button>
-                      )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -2309,9 +2323,18 @@ function AdminPayments() {
                     <TableCell className="text-xs text-muted-foreground">{formatDateTime(p.createdAt)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{p.paidAt ? formatDateTime(p.paidAt) : "—"}</TableCell>
                     <TableCell>
-                      <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
-                        <span className="size-1.5 rounded-full bg-emerald-500" />پرداخت شده
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
+                          <span className="size-1.5 rounded-full bg-emerald-500" />پرداخت شده
+                        </span>
+                        <Button size="sm" variant="ghost" className="h-6 px-1.5 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={async () => {
+                          if (!confirm("این سابقه پرداخت حذف شود؟")) return;
+                          setDeletingId(p._id);
+                          try { await deletePayment({ paymentId: p._id }); toast.success("سابقه حذف شد"); } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setDeletingId(null); }
+                        }} disabled={deletingId === p._id}>
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -3933,6 +3956,96 @@ function AdminSync() {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+// ── Admin: Class Management ────────────────────────────────────────────────
+function AdminClasses() {
+  const rooms = useQuery(api.admin.adminListClassRooms) ?? [];
+  const deleteRoom = useMutation(api.collab.deleteRoom);
+  const setRoomStatus = useMutation(api.collab.setRoomStatus);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const live = rooms.filter((r: any) => r.status === "live");
+  const past = rooms.filter((r: any) => r.status === "ended");
+
+  const handleDelete = async (roomId: string) => {
+    if (!confirm("آیا از حذف این کلاس مطمئنید؟ تمام پیام‌ها و اطلاعات کلاس حذف خواهد شد.")) return;
+    setDeletingId(roomId);
+    try { await deleteRoom({ roomId: roomId as any }); toast.success("کلاس حذف شد"); } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setDeletingId(null); }
+  };
+
+  const handleEndLive = async (roomId: string) => {
+    try { await setRoomStatus({ roomId: roomId as any, status: "ended" }); toast.success("کلاس پایان یافت"); } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="مدیریت کلاس‌ها" subtitle="مشاهده، پایان و حذف کلاس‌های برگزارشده" count={rooms.length} />
+
+      {live.length > 0 && (
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader><CardTitle className="text-sm">کلاس‌های در حال برگزاری ({faNum(live.length)})</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow><TableHead>عنوان</TableHead><TableHead>موضوع</TableHead><TableHead>مدرس</TableHead><TableHead>وضعیت</TableHead><TableHead className="text-left">عملیات</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {live.map((r: any) => (
+                  <TableRow key={r._id}>
+                    <TableCell className="text-sm font-medium">{r.title}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.topic}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.instructorName}</TableCell>
+                    <TableCell><span className="rounded-full bg-red-500/15 px-2.5 py-0.5 text-[10px] font-bold text-red-500">LIVE</span></TableCell>
+                    <TableCell className="text-left">
+                      <Button size="sm" variant="outline" className="h-7 text-xs text-amber-500 border-amber-500/30 hover:bg-amber-500/10" onClick={() => handleEndLive(r._id)}>
+                        پایان کلاس
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {past.length > 0 && (
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader><CardTitle className="text-sm">سوابق کلاس‌ها ({faNum(past.length)})</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader><TableRow><TableHead>عنوان</TableHead><TableHead>موضوع</TableHead><TableHead>مدرس</TableHead><TableHead>تاریخ</TableHead><TableHead className="text-left">عملیات</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {past.map((r: any) => (
+                  <TableRow key={r._id}>
+                    <TableCell className="text-sm font-medium">{r.title}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.topic}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{r.instructorName}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatDateTime(r.createdAt)}</TableCell>
+                    <TableCell className="text-left">
+                      <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10" disabled={deletingId === r._id} onClick={() => handleDelete(r._id)}>
+                        {deletingId === r._id ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+                        <span className="mr-1">حذف</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {rooms.length === 0 && (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Clock className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز کلاسی ثبت نشده است.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
