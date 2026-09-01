@@ -1,7 +1,8 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams, Link, useNavigate } from "react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { addToRecentlyViewed } from "@/lib/recentlyViewed";
 import { useAuth } from "@/hooks/use-auth";
 import { formatPriceNumber } from "@/lib/format";
 import {
@@ -87,6 +88,19 @@ export default function ProductDetail() {
   }
 
   const isOwner = user?._id === product.sellerId;
+
+  // Track recently viewed
+  useEffect(() => {
+    if (product && product.status === "approved") {
+      addToRecentlyViewed({
+        slug: product.slug,
+        title: product.title,
+        price: product.price,
+        coverImage: product.coverImage,
+        category: product.category,
+      });
+    }
+  }, [product?.slug]);
 
   const handlePurchase = async () => {
     if (!user) {

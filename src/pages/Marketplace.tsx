@@ -24,6 +24,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { getRecentlyViewed } from "@/lib/recentlyViewed";
+import { useMemo } from "react";
 
 const CATEGORIES = [
   { key: "notes", label: "جزوه", icon: BookOpen, color: "text-cyan-400" },
@@ -51,6 +53,7 @@ export default function Marketplace() {
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<"newest" | "cheapest" | "expensive" | "popular" | "boosted">("newest");
   const [showFilters, setShowFilters] = useState(false);
+  const recentlyViewed = useMemo(() => getRecentlyViewed(), []);
 
   const products = useQuery(api.marketplace.listProducts, {
     category: (category as any) || undefined,
@@ -70,26 +73,26 @@ export default function Marketplace() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#071019] via-[#0a1520] to-[#071019] text-slate-200" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-b from-red-950/30 via-white to-red-50/30 text-slate-800 dark:from-[#071019] dark:via-[#0a1520] dark:to-[#071019] dark:text-slate-200" dir="rtl">
       {/* Hero Header */}
-      <div className="relative overflow-hidden border-b border-cyan-400/10 bg-[#0b1a2a]">
-        <div className="absolute inset-0 bg-gradient-to-l from-cyan-400/5 via-transparent to-purple-500/5" />
+      <div className="relative overflow-hidden border-b border-red-200/50 bg-red-600 dark:border-red-400/10 dark:bg-[#0b1a2a]">
+        <div className="absolute inset-0 bg-gradient-to-l from-red-500/10 via-transparent to-red-600/5 dark:from-red-400/5 dark:to-purple-500/5" />
         <div className="relative mx-auto max-w-7xl px-4 py-10 sm:py-14">
           <div className="flex flex-col items-center gap-4 text-center">
-            <div className="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400/20 to-purple-500/20 ring-1 ring-cyan-400/20">
-              <ShoppingBag className="size-7 text-cyan-300" />
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-white/20 ring-1 ring-white/30 dark:bg-gradient-to-br dark:from-cyan-400/20 dark:to-purple-500/20 dark:ring-cyan-400/20">
+              <ShoppingBag className="size-7 text-white dark:text-cyan-300" />
             </div>
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
                 بازارچه تخصصی علوم زیستی
               </h1>
-              <p className="mt-2 text-sm text-slate-400 sm:text-base">
+              <p className="mt-2 text-sm text-white/70 sm:text-base">
                 جزوه، فلش کارت، کتاب و بسته‌های آموزشی از دانشجویان و اساتید
               </p>
             </div>
             {user && (
               <Link to="/dashboard/store/sell">
-                <Button className="bg-gradient-to-l from-cyan-500 to-cyan-600 text-white hover:from-cyan-400 hover:to-cyan-500 shadow-lg shadow-cyan-500/20">
+                <Button className="bg-white text-red-600 hover:bg-red-50 shadow-lg shadow-red-500/20 dark:bg-gradient-to-l dark:from-cyan-500 dark:to-cyan-600 dark:text-white dark:hover:from-cyan-400 dark:hover:to-cyan-500">
                   <Flame className="ml-2 size-4" />
                   فروش محصول
                 </Button>
@@ -108,7 +111,7 @@ export default function Marketplace() {
               placeholder="جستجو در محصولات..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="h-11 border-white/10 bg-white/5 pr-10 text-sm text-slate-100 placeholder:text-slate-500"
+              className="h-11 border-red-200 bg-white pr-10 text-sm text-slate-800 placeholder:text-slate-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:placeholder:text-slate-500"
             />
             {search && (
               <button
@@ -122,7 +125,7 @@ export default function Marketplace() {
           <Button
             variant="outline"
             size="sm"
-            className="h-11 border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+            className="h-11 border-red-200 bg-white text-slate-600 hover:bg-red-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
             onClick={() => setShowFilters((s) => !s)}
           >
             <Filter className="ml-2 size-4" />
@@ -132,7 +135,7 @@ export default function Marketplace() {
 
         {/* Filters Panel */}
         {showFilters && (
-          <Card className="mb-6 border-white/10 bg-white/[0.02]">
+          <Card className="mb-6 border-red-100 bg-white dark:border-white/10 dark:bg-white/[0.02]">
             <CardContent className="space-y-4 py-4">
               {/* Categories */}
               <div>
@@ -143,8 +146,8 @@ export default function Marketplace() {
                     className={cn(
                       "rounded-full px-4 py-1.5 text-xs font-medium transition-all",
                       !category
-                        ? "bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30"
-                        : "bg-white/5 text-slate-400 hover:bg-white/10",
+                        ? "bg-red-100 text-red-600 ring-1 ring-red-300 dark:bg-cyan-400/20 dark:text-cyan-300 dark:ring-cyan-400/30"
+                        : "bg-red-50 text-slate-500 hover:bg-red-100 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10",
                     )}
                   >
                     همه ({(categoryCounts?.notes ?? 0) + (categoryCounts?.flashcards ?? 0) + (categoryCounts?.book ?? 0) + (categoryCounts?.package ?? 0) + (categoryCounts?.other ?? 0)})
@@ -156,8 +159,8 @@ export default function Marketplace() {
                       className={cn(
                         "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium transition-all",
                         category === cat.key
-                          ? "bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30"
-                          : "bg-white/5 text-slate-400 hover:bg-white/10",
+                          ? "bg-red-100 text-red-600 ring-1 ring-red-300 dark:bg-cyan-400/20 dark:text-cyan-300 dark:ring-cyan-400/30"
+                          : "bg-red-50 text-slate-500 hover:bg-red-100 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10",
                       )}
                     >
                       <cat.icon className={cn("size-3.5", cat.color)} />
@@ -183,8 +186,8 @@ export default function Marketplace() {
                       className={cn(
                         "rounded-full px-4 py-1.5 text-xs font-medium transition-all",
                         sort === s.key
-                          ? "bg-cyan-400/20 text-cyan-300 ring-1 ring-cyan-400/30"
-                          : "bg-white/5 text-slate-400 hover:bg-white/10",
+                          ? "bg-red-100 text-red-600 ring-1 ring-red-300 dark:bg-cyan-400/20 dark:text-cyan-300 dark:ring-cyan-400/30"
+                          : "bg-red-50 text-slate-500 hover:bg-red-100 dark:bg-white/5 dark:text-slate-400 dark:hover:bg-white/10",
                       )}
                     >
                       {s.label}
@@ -196,6 +199,34 @@ export default function Marketplace() {
           </Card>
         )}
 
+        {/* Recently Viewed */}
+        {!search && !category && recentlyViewed.length > 0 && (
+          <div className="mb-8">
+            <h2 className="mb-4 text-lg font-bold text-slate-800 dark:text-white">اخیراً مشاهده شده</h2>
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
+              {recentlyViewed.slice(0, 6).map((item) => (
+                <Link key={item.slug} to={`/marketplace/${item.slug}`} className="shrink-0">
+                  <Card className="w-40 border-red-100 bg-white transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-white/5 dark:bg-white/[0.02]">
+                    <div className="relative aspect-square overflow-hidden bg-red-50 dark:bg-white/5">
+                      {item.coverImage ? (
+                        <img src={item.coverImage} alt="" className="size-full object-cover" />
+                      ) : (
+                        <div className="flex size-full items-center justify-center">
+                          <BookOpen className="size-6 text-red-200 dark:text-slate-700" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      <p className="line-clamp-1 text-xs font-bold text-slate-800 dark:text-white">{item.title}</p>
+                      <p className="mt-0.5 text-[10px] font-bold text-red-600 dark:text-cyan-300">{formatPriceNumber(item.price)} ت</p>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Products Grid */}
         {products?.items && products.items.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -203,7 +234,7 @@ export default function Marketplace() {
               <Link key={p._id} to={`/marketplace/${p.slug}`}>
                 <Card
                   className={cn(
-                    "group overflow-hidden border-white/5 bg-white/[0.02] transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/20 hover:shadow-lg hover:shadow-cyan-500/5",
+                    "group overflow-hidden border-red-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:border-red-300 hover:shadow-lg hover:shadow-red-500/10 dark:border-white/5 dark:bg-white/[0.02] dark:hover:border-cyan-400/20 dark:hover:shadow-cyan-500/5",
                     isBoosted(p) && "border-amber-400/20 ring-1 ring-amber-400/10",
                   )}
                 >
@@ -247,10 +278,10 @@ export default function Marketplace() {
                   </div>
 
                   <CardContent className="space-y-2 p-4">
-                    <h3 className="line-clamp-2 text-sm font-bold text-white group-hover:text-cyan-200">
+                    <h3 className="line-clamp-2 text-sm font-bold text-slate-800 group-hover:text-red-600 dark:text-white dark:group-hover:text-cyan-200">
                       {p.title}
                     </h3>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
                       <span>{p.sellerName}</span>
                       <span>·</span>
                       <span>{CATEGORIES.find((c) => c.key === p.category)?.label}</span>
@@ -264,12 +295,12 @@ export default function Marketplace() {
                       </div>
                     )}
                     {/* Price */}
-                    <div className="flex items-center justify-between border-t border-white/5 pt-2">
-                      <span className="text-lg font-extrabold text-white">
+                    <div className="flex items-center justify-between border-t border-red-100 pt-2 dark:border-white/5">
+                      <span className="text-lg font-extrabold text-red-600 dark:text-white">
                         {formatPriceNumber(p.price)}
                         <span className="mr-1 text-xs font-normal text-slate-400">تومان</span>
                       </span>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">
                         {p.soldCount} فروش
                       </span>
                     </div>
@@ -279,17 +310,17 @@ export default function Marketplace() {
             ))}
           </div>
         ) : (
-          <Card className="border-white/5 bg-white/[0.02]">
+          <Card className="border-red-100 bg-white dark:border-white/5 dark:bg-white/[0.02]">
             <CardContent className="flex flex-col items-center gap-3 py-20 text-center">
-              <ShoppingBag className="size-12 text-slate-600" />
-              <p className="text-sm text-slate-400">
+              <ShoppingBag className="size-12 text-slate-300 dark:text-slate-600" />
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 {search
                   ? "محصولی با این عنوان یافت نشد."
                   : "هنوز محصولی در بازارچه وجود ندارد."}
               </p>
               {user && (
                 <Link to="/dashboard/store/sell">
-                  <Button size="sm" className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20">
+                  <Button size="sm" className="bg-red-100 text-red-600 hover:bg-red-200 dark:bg-cyan-400/10 dark:text-cyan-200 dark:hover:bg-cyan-400/20">
                     اولین محصول را بفروشید
                   </Button>
                 </Link>

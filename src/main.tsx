@@ -56,6 +56,7 @@ const Marketplace = lazy(() => import("./pages/Marketplace.tsx"));
 const StoreProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
 const SellerPanel = lazy(() => import("./pages/SellerPanel.tsx"));
 const CartPage = lazy(() => import("./pages/CartPage.tsx"));
+const AdminMarketplacePanel = lazy(() => import("./pages/panels/AdminMarketplacePanel.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -266,6 +267,16 @@ createRoot(document.getElementById("root")!).render(
 
                             {/* Telegram Mini App (public) */}
               <Route path="/mini" element={<TelegramMiniApp />} />
+
+              {/* Admin Marketplace Panel */}
+              <Route
+                path="/panel/admin-marketplace"
+                element={
+                  <RoleGate allowed={["admin", "site_admin"]} title="admin marketplace">
+                    <AdminMarketplacePanel />
+                  </RoleGate>
+                }
+              />
 
               <Route path="*" element={<NotFound />} />
             </Routes>
