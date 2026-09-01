@@ -21,6 +21,7 @@ import { getExamQuestions, submitExam, getMyExamResults, getExamResult, getDaily
 import * as notifRoutes from "./routes/notifications.js";
 import * as supportRoutes from "./routes/support.js";
 import * as aiMgmt from "./routes/aiManagement.js";
+import * as dashboard from "./routes/dashboard.js";
 
 const app = new Hono();
 
@@ -198,6 +199,23 @@ app.delete("/api/admin/payments/:id", authMiddleware, admin.deletePayment);
 app.get("/api/admin/store-products", authMiddleware, admin.listAllStoreProducts);
 app.patch("/api/admin/store-products/:id", authMiddleware, admin.approveStoreProduct);
 app.get("/api/admin/store-orders", authMiddleware, admin.listAllStoreOrders);
+
+// ── DASHBOARD ROUTES (student panel) ────────────────────────────────────
+
+app.get("/api/dashboard/enrollments", authMiddleware, dashboard.getMyEnrollments);
+app.get("/api/dashboard/exam-attempts", authMiddleware, dashboard.getMyExamAttempts);
+app.get("/api/dashboard/exams", authMiddleware, dashboard.getExamList);
+app.get("/api/dashboard/learning-profile", authMiddleware, dashboard.getLearningProfile);
+app.get("/api/dashboard/flashcards", authMiddleware, dashboard.getDashboardFlashcards);
+app.post("/api/dashboard/flashcards", authMiddleware, dashboard.addDashboardFlashcard);
+app.delete("/api/dashboard/flashcards/:id", authMiddleware, dashboard.deleteDashboardFlashcard);
+app.get("/api/dashboard/bookmarks", authMiddleware, dashboard.getDashboardBookmarks);
+app.get("/api/dashboard/tickets", authMiddleware, dashboard.getDashboardTickets);
+app.post("/api/dashboard/tickets", authMiddleware, dashboard.createDashboardTicket);
+app.post("/api/dashboard/tickets/:id/reply", authMiddleware, dashboard.replyDashboardTicket);
+app.get("/api/dashboard/announcements", authMiddleware, dashboard.getDashboardAnnouncements);
+app.get("/api/dashboard/downloads", authMiddleware, dashboard.getDashboardDownloads);
+app.get("/api/dashboard/daily-quiz", authMiddleware, dashboard.getDashboardDailyQuiz);
 
 // ── INSTRUCTOR ROUTES ──────────────────────────────────────────────────────
 

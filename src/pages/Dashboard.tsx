@@ -12,7 +12,7 @@ import TelegramNotifications from "@/components/site/TelegramNotifications";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { useStudentReceiver } from "@/hooks/use-live";
 import { accent, faNum, formatDate, formatDateTime, formatPrice } from "@/lib/format";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
@@ -191,10 +191,22 @@ export default function Dashboard() {
 // ── Overview ────────────────────────────────────────────────────────────────
 function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
   const { user } = useAuth();
-  const enrollments = useQuery(api.enroll.getMyEnrollments);
-  const attempts = useQuery(api.tests.getMyAttempts);
-  const profile = useQuery(api.tests.getMyLearningProfile);
-  const dailyQuiz = useQuery(api.tests.getDailyQuiz);
+  const { isIran } = useMode();
+  // Convex queries
+  const enrollmentsConvex = useQuery(api.enroll.getMyEnrollments);
+  const attemptsConvex = useQuery(api.tests.getMyAttempts);
+  const profileConvex = useQuery(api.tests.getMyLearningProfile);
+  const dailyQuizConvex = useQuery(api.tests.getDailyQuiz);
+  // Iran queries
+  const { data: enrollmentsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/enrollments" : "");
+  const { data: attemptsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/exam-attempts" : "");
+  const { data: profileIran } = useApiQuery<any>(isIran ? "/api/dashboard/learning-profile" : "");
+  const { data: dailyQuizIran } = useApiQuery<any>(isIran ? "/api/dashboard/daily-quiz" : "");
+  // Merge
+  const enrollments = (isIran ? enrollmentsIran : enrollmentsConvex) ?? [];
+  const attempts = (isIran ? attemptsIran : attemptsConvex) ?? [];
+  const profile = isIran ? profileIran : profileConvex;
+  const dailyQuiz = isIran ? dailyQuizIran : dailyQuizConvex;
 
   const totalLessons = useMemo(
     () => (enrollments ?? []).reduce((acc, e) => acc + (e.course?.syllabus.length ?? 0), 0),
@@ -251,7 +263,7 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {profile.topics.map((t) => (
+            {profile?.topics?.map((t: any) => (
               <div key={t.topicId}>
                 <div className="mb-1.5 flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2 font-medium">
@@ -401,9 +413,12 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
 
 // ── My courses ─────────────────────────────────────────────────────────────
 function MyCourses() {
-  const enrollments = useQuery(api.enroll.getMyEnrollments);
+  const { isIran } = useMode();
+  const enrollmentsConvex = useQuery(api.enroll.getMyEnrollments);
+  const { data: enrollmentsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/enrollments" : "");
+  const enrollments = (isIran ? enrollmentsIran : enrollmentsConvex) ?? [];
 
-  if (enrollments === undefined) return <Skeleton />;
+  if (enrollments === undefined && !isIran) return <Skeleton />;
   if (enrollments.length === 0) {
     return (
       <EmptyState
@@ -453,10 +468,15 @@ function MyCourses() {
 
 // ── Tests tab ──────────────────────────────────────────────────────────────
 function TestsTab() {
-  const attempts = useQuery(api.tests.getMyAttempts, {});
-  const exams = useQuery(api.tests.listExams, {});
+  const { isIran } = useMode();
+  const attemptsConvex = useQuery(api.tests.getMyAttempts, {});
+  const examsConvex = useQuery(api.tests.listExams, {});
+  const { data: attemptsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/exam-attempts" : "");
+  const { data: examsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/exams" : "");
+  const attempts = (isIran ? attemptsIran : attemptsConvex) ?? [];
+  const exams = (isIran ? examsIran : examsConvex) ?? [];
 
-  if (attempts === undefined) return <Skeleton />;
+  if (attempts === undefined && !isIran) return <Skeleton />;
 
   return (
     <div className="space-y-6">
@@ -519,8 +539,13 @@ function TestsTab() {
 
 // ── Progress tab ───────────────────────────────────────────────────────────
 function ProgressTab() {
-  const attempts = useQuery(api.tests.getMyAttempts);
-  const profile = useQuery(api.tests.getMyLearningProfile);
+  const { isIran } = useMode();
+  const attemptsConvex = useQuery(api.tests.getMyAttempts);
+  const profileConvex = useQuery(api.tests.getMyLearningProfile);
+  const { data: attemptsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/exam-attempts" : "");
+  const { data: profileIran } = useApiQuery<any>(isIran ? "/api/dashboard/learning-profile" : "");
+  const attempts = (isIran ? attemptsIran : attemptsConvex) ?? [];
+  const profile = isIran ? profileIran : profileConvex;
 
   const chartData = useMemo(
     () =>
@@ -577,7 +602,7 @@ function ProgressTab() {
             <CardTitle className="text-base">تسلط موضوعی</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {profile.topics.map((t) => (
+            {profile?.topics?.map((t: any) => (
               <div key={t.topicId}>
                 <div className="mb-1.5 flex items-center justify-between text-sm">
                   <span className="font-medium">{t.topicName}</span>
@@ -606,9 +631,14 @@ function ProgressTab() {
 
 // ── Flashcards tab ─────────────────────────────────────────────────────────
 function FlashcardsTab() {
-  const flashcards = useQuery(api.enroll.getMyFlashcards);
-  const addCard = useMutation(api.enroll.addFlashcard);
-  const deleteCard = useMutation(api.enroll.deleteFlashcard);
+  const { isIran } = useMode();
+  const flashcardsConvex = useQuery(api.enroll.getMyFlashcards);
+  const addCardConvex = useMutation(api.enroll.addFlashcard);
+  const deleteCardConvex = useMutation(api.enroll.deleteFlashcard);
+  const { data: flashcardsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/flashcards" : "");
+  const { mutate: addCardIran } = useApiMutation("/api/dashboard/flashcards", "POST");
+  const { mutate: deleteCardIran } = useApiMutation("/api/dashboard/flashcards", "DELETE");
+  const flashcards = (isIran ? flashcardsIran : flashcardsConvex) ?? [];
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
   const [category, setCategory] = useState("");
@@ -616,7 +646,11 @@ function FlashcardsTab() {
 
   const handleAdd = async () => {
     if (!front.trim() || !back.trim()) return;
-    await addCard({ front, back, category });
+    if (isIran) {
+      await addCardIran({ front, back, category });
+    } else {
+      await addCardConvex({ front, back, category });
+    }
     setFront("");
     setBack("");
   };
@@ -670,7 +704,11 @@ function FlashcardsTab() {
                     className="text-muted-foreground transition-colors hover:text-destructive"
                     onClick={(e) => {
                       e.stopPropagation();
-                      deleteCard({ id: card._id });
+                      if (isIran) {
+                        deleteCardIran({ id: card._id });
+                      } else {
+                        deleteCardConvex({ id: card._id as any });
+                      }
                     }}
                   >
                     <Trash2 className="size-4" />
@@ -697,9 +735,12 @@ function FlashcardsTab() {
 
 // ── Downloads tab ──────────────────────────────────────────────────────────
 function DownloadsTab() {
-  const downloads = useQuery(api.enroll.getMyDownloads);
+  const { isIran } = useMode();
+  const downloadsConvex = useQuery(api.enroll.getMyDownloads);
+  const { data: downloadsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/downloads" : "");
+  const downloads = (isIran ? downloadsIran : downloadsConvex) ?? [];
 
-  if (downloads === undefined) return <Skeleton />;
+  if (downloads === undefined && !isIran) return <Skeleton />;
 
   return (
     <div className="space-y-6">
@@ -724,7 +765,7 @@ function DownloadsTab() {
               <CardTitle className="text-base">{group.courseTitle}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {group.files.map((file) => (
+              {group.files.map((file: any) => (
                 <div key={file.name} className="flex items-center justify-between rounded-xl border border-border/70 bg-card/60 px-4 py-3">
                   <span className="flex items-center gap-3 text-sm font-medium">
                     <FileText className="size-4 text-primary" />
@@ -748,9 +789,12 @@ function DownloadsTab() {
 
 // ── Bookmarks tab ──────────────────────────────────────────────────────────
 function BookmarksTab() {
-  const bookmarks = useQuery(api.enroll.getMyBookmarks);
+  const { isIran } = useMode();
+  const bookmarksConvex = useQuery(api.enroll.getMyBookmarks);
+  const { data: bookmarksIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/bookmarks" : "");
+  const bookmarks = (isIran ? bookmarksIran : bookmarksConvex) ?? [];
 
-  if (bookmarks === undefined) return <Skeleton />;
+  if (bookmarks === undefined && !isIran) return <Skeleton />;
 
   const linkFor = (b: { contentType: string; item: any }) => {
     if (b.contentType === "course") return `/courses/${b.item.slug}`;
@@ -803,9 +847,14 @@ function BookmarksTab() {
 
 // ── Support tab ────────────────────────────────────────────────────────────
 function SupportTab() {
-  const tickets = useQuery(api.tickets.getMyTickets);
-  const createTicket = useMutation(api.tickets.createTicket);
-  const replyTicket = useMutation(api.tickets.replyTicket);
+  const { isIran } = useMode();
+  const ticketsConvex = useQuery(api.tickets.getMyTickets);
+  const createTicketConvex = useMutation(api.tickets.createTicket);
+  const replyTicketConvex = useMutation(api.tickets.replyTicket);
+  const { data: ticketsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/tickets" : "");
+  const { mutate: createTicketIran } = useApiMutation("/api/dashboard/tickets", "POST");
+  const { mutate: replyTicketIran } = useApiMutation("/api/dashboard/tickets", "POST");
+  const tickets = (isIran ? ticketsIran : ticketsConvex) ?? [];
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -813,14 +862,22 @@ function SupportTab() {
 
   const handleCreate = async () => {
     if (!subject.trim() || !message.trim()) return;
-    await createTicket({ subject, message });
+    if (isIran) {
+      await createTicketIran({ subject, message });
+    } else {
+      await createTicketConvex({ subject, message });
+    }
     setSubject("");
     setMessage("");
   };
 
   const handleReply = async (ticketId: string) => {
     if (!reply.trim()) return;
-    await replyTicket({ ticketId: ticketId as any, message: reply });
+    if (isIran) {
+      await replyTicketIran({ id: ticketId, message: reply });
+    } else {
+      await replyTicketConvex({ ticketId: ticketId as any, message: reply });
+    }
     setReply("");
   };
 
@@ -887,7 +944,7 @@ function SupportTab() {
 
                 {openId === t._id && (
                   <div className="mt-4 space-y-3 border-t border-border/60 pt-4">
-                    {t.messages.map((m, i) => (
+                    {t.messages.map((m: any, i: number) => (
                       <div
                         key={i}
                         className={cn(
