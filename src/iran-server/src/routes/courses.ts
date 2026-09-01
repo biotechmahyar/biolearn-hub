@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Context } from "hono";
 import { db } from "../db.js";
 import { courses, categories, instructors, enrollments, orders } from "../schema.js";

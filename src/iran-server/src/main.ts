@@ -14,6 +14,14 @@ import { getWallet, getWalletTransactions, getMarketplaceProducts, getMarketplac
 import { getClasses, getClass, requestClass } from "./routes/classes.js";
 import { getModels, aiChat, getConversations, getConversationMessages, deleteConversation } from "./routes/ai.js";
 
+// New routes
+import * as admin from "./routes/admin.js";
+import * as instructor from "./routes/instructor.js";
+import { getExamQuestions, submitExam, getMyExamResults, getExamResult, getDailyQuiz, submitDailyQuiz } from "./routes/examRoutes.js";
+import * as notifRoutes from "./routes/notifications.js";
+import * as supportRoutes from "./routes/support.js";
+import * as aiMgmt from "./routes/aiManagement.js";
+
 const app = new Hono();
 
 // ── MIDDLEWARE ────────────────────────────────────────────────────────────
@@ -110,6 +118,98 @@ app.post("/api/ai/chat", authMiddleware, aiChat);
 app.get("/api/ai/conversations", authMiddleware, getConversations);
 app.get("/api/ai/conversations/:id/messages", authMiddleware, getConversationMessages);
 app.delete("/api/ai/conversations/:id", authMiddleware, deleteConversation);
+
+// ── EXAM SUBMISSION ───────────────────────────────────────────────────────
+
+app.get("/api/exams/:id/questions", authMiddleware, getExamQuestions);
+app.post("/api/exams/:id/submit", authMiddleware, submitExam);
+app.get("/api/exams/my-results", authMiddleware, getMyExamResults);
+app.get("/api/exams/results/:id", authMiddleware, getExamResult);
+app.get("/api/daily-quiz", authMiddleware, getDailyQuiz);
+app.post("/api/daily-quiz/submit", authMiddleware, submitDailyQuiz);
+
+// ── NOTIFICATIONS ──────────────────────────────────────────────────────────
+
+app.get("/api/notifications", authMiddleware, notifRoutes.getMyNotifications);
+app.get("/api/notifications/unread", authMiddleware, notifRoutes.getUnreadCount);
+app.patch("/api/notifications/:id/read", authMiddleware, notifRoutes.markNotificationRead);
+app.patch("/api/notifications/read-all", authMiddleware, notifRoutes.markAllRead);
+app.delete("/api/notifications/:id", authMiddleware, notifRoutes.deleteNotification);
+app.post("/api/notifications", authMiddleware, notifRoutes.createNotification);
+
+// ── SUPPORT TICKETS ────────────────────────────────────────────────────────
+
+app.get("/api/support/tickets", authMiddleware, supportRoutes.getMyTickets);
+app.post("/api/support/tickets", authMiddleware, supportRoutes.createTicket);
+app.get("/api/support/tickets/:id/replies", authMiddleware, supportRoutes.getTicketReplies);
+app.post("/api/support/tickets/:id/reply", authMiddleware, supportRoutes.replyToTicket);
+app.patch("/api/support/tickets/:id/close", authMiddleware, supportRoutes.closeTicket);
+app.delete("/api/support/tickets/:id", authMiddleware, supportRoutes.deleteTicket);
+app.get("/api/support/all-tickets", authMiddleware, supportRoutes.getAllTickets);
+
+// ── AI MANAGEMENT (admin) ──────────────────────────────────────────────────
+
+app.get("/api/ai-admin/config", authMiddleware, aiMgmt.getAIConfig);
+app.put("/api/ai-admin/config", authMiddleware, aiMgmt.setAIConfig);
+app.get("/api/ai-admin/models", authMiddleware, aiMgmt.listAIModels);
+app.post("/api/ai-admin/models", authMiddleware, aiMgmt.createAIModel);
+app.patch("/api/ai-admin/models/:id", authMiddleware, aiMgmt.updateAIModel);
+app.delete("/api/ai-admin/models/:id", authMiddleware, aiMgmt.deleteAIModel);
+app.get("/api/ai-admin/quotas", authMiddleware, aiMgmt.listQuotas);
+app.post("/api/ai-admin/quotas", authMiddleware, aiMgmt.setQuota);
+app.get("/api/ai-admin/usage", authMiddleware, aiMgmt.getUsageStats);
+app.get("/api/ai/my-usage", authMiddleware, aiMgmt.getMyUsage);
+
+// ── ADMIN ROUTES ───────────────────────────────────────────────────────────
+
+app.get("/api/admin/stats", authMiddleware, admin.getDashboardStats);
+app.get("/api/admin/users", authMiddleware, admin.listUsers);
+app.patch("/api/admin/users/:id", authMiddleware, admin.updateUser);
+app.delete("/api/admin/users/:id", authMiddleware, admin.deleteUser);
+app.get("/api/admin/courses", authMiddleware, admin.listAllCourses);
+app.patch("/api/admin/courses/:id", authMiddleware, admin.updateCourse);
+app.get("/api/admin/articles", authMiddleware, admin.listAllArticles);
+app.patch("/api/admin/articles/:id", authMiddleware, admin.updateArticle);
+app.get("/api/admin/products", authMiddleware, admin.listAllProducts);
+app.patch("/api/admin/products/:id", authMiddleware, admin.updateProduct);
+app.get("/api/admin/workshops", authMiddleware, admin.listAllWorkshops);
+app.patch("/api/admin/workshops/:id", authMiddleware, admin.updateWorkshop);
+app.get("/api/admin/categories", authMiddleware, admin.listAllCategories);
+app.post("/api/admin/categories", authMiddleware, admin.createCategory);
+app.patch("/api/admin/categories/:id", authMiddleware, admin.updateCategory);
+app.delete("/api/admin/categories/:id", authMiddleware, admin.deleteCategory);
+app.get("/api/admin/orders", authMiddleware, admin.listAllOrders);
+app.patch("/api/admin/orders/:id", authMiddleware, admin.updateOrder);
+app.get("/api/admin/enrollments", authMiddleware, admin.listAllEnrollments);
+app.get("/api/admin/coupons", authMiddleware, admin.listCoupons);
+app.post("/api/admin/coupons", authMiddleware, admin.createCoupon);
+app.delete("/api/admin/coupons/:id", authMiddleware, admin.deleteCoupon);
+app.get("/api/admin/payments", authMiddleware, admin.listInstructorPayments);
+app.patch("/api/admin/payments/:id/approve", authMiddleware, admin.approvePayment);
+app.delete("/api/admin/payments/:id", authMiddleware, admin.deletePayment);
+app.get("/api/admin/store-products", authMiddleware, admin.listAllStoreProducts);
+app.patch("/api/admin/store-products/:id", authMiddleware, admin.approveStoreProduct);
+app.get("/api/admin/store-orders", authMiddleware, admin.listAllStoreOrders);
+
+// ── INSTRUCTOR ROUTES ──────────────────────────────────────────────────────
+
+app.get("/api/instructor/courses", authMiddleware, instructor.getMyCourses);
+app.get("/api/instructor/classes", authMiddleware, instructor.getInstructorClasses);
+app.post("/api/instructor/classes", authMiddleware, instructor.createClass);
+app.patch("/api/instructor/classes/:id", authMiddleware, instructor.updateClass);
+app.patch("/api/instructor/classes/:id/cancel", authMiddleware, instructor.cancelClass);
+app.delete("/api/instructor/classes/:id", authMiddleware, instructor.deleteClass);
+app.get("/api/instructor/resources", authMiddleware, instructor.getClassResources);
+app.post("/api/instructor/resources", authMiddleware, instructor.addClassResource);
+app.patch("/api/instructor/resources/:id", authMiddleware, instructor.updateClassResource);
+app.delete("/api/instructor/resources/:id", authMiddleware, instructor.deleteClassResource);
+app.get("/api/instructor/students", authMiddleware, instructor.getMyStudents);
+app.get("/api/instructor/payments", authMiddleware, instructor.getMyPayments);
+app.get("/api/instructor/announcements", authMiddleware, instructor.getInstructorAnnouncements);
+app.post("/api/instructor/announcements", authMiddleware, instructor.createAnnouncement);
+app.delete("/api/instructor/announcements/:id", authMiddleware, instructor.deleteAnnouncement);
+app.get("/api/instructor/suggested-courses", authMiddleware, instructor.getMySuggestedCourses);
+app.post("/api/instructor/suggested-courses", authMiddleware, instructor.toggleSuggestedCourse);
 
 // ── 404 ───────────────────────────────────────────────────────────────────
 

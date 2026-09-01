@@ -456,3 +456,179 @@ export const sitePages = pgTable("site_pages", {
   content: text("content"),
   updatedAt: integer("updated_at"),
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── NOTIFICATIONS ────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const notifications = pgTable("notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  link: text("link"),
+  read: boolean("read").default(false),
+  type: text("type"),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── SUPPORT TICKETS ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const supportTickets = pgTable("support_tickets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  subject: text("subject").notNull(),
+  category: text("category"),
+  priority: text("priority").default("normal"),
+  status: text("status").default("open"),
+  createdAt: integer("created_at"),
+  updatedAt: integer("updated_at"),
+});
+
+export const supportReplies = pgTable("support_replies", {
+  id: text("id").primaryKey(),
+  ticketId: text("ticket_id").notNull(),
+  userId: text("user_id").notNull(),
+  body: text("body").notNull(),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── EXAM RESULTS ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const examResults = pgTable("exam_results", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  examId: text("exam_id").notNull(),
+  score: integer("score"),
+  total: integer("total"),
+  answers: jsonb("answers").$type<Record<string, string>>(),
+  startedAt: integer("started_at"),
+  completedAt: integer("completed_at"),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── QUESTIONS ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const questions = pgTable("questions", {
+  id: text("id").primaryKey(),
+  text: text("text").notNull(),
+  options: jsonb("options").$type<string[]>(),
+  correctAnswer: text("correct_answer"),
+  explanation: text("explanation"),
+  examId: text("exam_id"),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── CLASS RESOURCES ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const classResources = pgTable("class_resources", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  type: text("type").default("file"),
+  url: text("url"),
+  fileType: text("file_type"),
+  fileSize: integer("file_size"),
+  price: integer("price").default(0),
+  free: boolean("free").default(true),
+  courseId: text("course_id"),
+  classRoomId: text("class_room_id"),
+  published: boolean("published").default(true),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── AI CONFIG & QUOTAS ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const aiConfig = pgTable("ai_config", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+});
+
+export const aiTokenQuotas = pgTable("ai_token_quotas", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().unique(),
+  dailyLimit: integer("daily_limit").default(50),
+  extraTokens: integer("extra_tokens").default(0),
+  createdAt: integer("created_at"),
+});
+
+export const aiUsage = pgTable("ai_usage", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  date: text("date").notNull(),
+  modelId: text("model_id"),
+  messagesCount: integer("messages_count").default(0),
+  tokensUsed: integer("tokens_used").default(0),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── INSTRUCTOR NOTES & SUGGESTED COURSES ─────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const instructorSuggestedCourses = pgTable("instructor_suggested_courses", {
+  id: text("id").primaryKey(),
+  instructorId: text("instructor_id").notNull(),
+  courseId: text("course_id").notNull(),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── CLASS ENROLLMENTS ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const classEnrollments = pgTable("class_enrollments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  classRoomId: text("class_room_id").notNull(),
+  status: text("status").default("enrolled"),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── DAILY QUIZ ──────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const dailyQuizzes = pgTable("daily_quizzes", {
+  id: text("id").primaryKey(),
+  date: text("date").notNull().unique(),
+  questions: jsonb("questions").$type<Record<string, unknown>[]>(),
+  createdAt: integer("created_at"),
+});
+
+export const dailyQuizResults = pgTable("daily_quiz_results", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  quizId: text("quiz_id").notNull(),
+  score: integer("score"),
+  answers: jsonb("answers").$type<Record<string, string>>(),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── TESTIMONIALS ─────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const testimonials = pgTable("testimonials", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  role: text("role"),
+  text: text("text"),
+  avatar: text("avatar"),
+  rating: integer("rating"),
+  published: boolean("published").default(true),
+  createdAt: integer("created_at"),
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── INBOX / DIRECT MESSAGES ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+export const inboxMessages = pgTable("inbox_messages", {
+  id: text("id").primaryKey(),
+  senderId: text("sender_id").notNull(),
+  receiverId: text("receiver_id").notNull(),
+  text: text("text"),
+  read: boolean("read").default(false),
+  createdAt: integer("created_at"),
+});
