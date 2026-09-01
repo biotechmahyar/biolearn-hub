@@ -978,6 +978,7 @@ export const requestClass = mutation({
     topic: v.string(),
     description: v.string(),
     proposedDate: v.string(),
+    immediate: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -991,6 +992,7 @@ export const requestClass = mutation({
       topic: args.topic,
       description: args.description,
       proposedDate: args.proposedDate,
+      immediate: args.immediate ?? false,
       status: "pending",
       createdAt: Date.now(),
     });
@@ -1448,12 +1450,17 @@ export const getSectionNotifications = query({
       .withIndex("by_status", (q) => q.eq("status", "pending"))
       .collect();
 
+    // Count pending class requests
+    const allClassRequests = await ctx.db.query("classRequests").collect();
+    const pendingClassRequests = allClassRequests.filter((cr) => cr.status === "pending").length;
+
     return {
       support: openTickets.length,
       examReports: openReports.length,
       profiles: pendingProfiles,
       courses: pendingCourses,
       offlinePayments: pendingPayments.length,
+      classRequests: pendingClassRequests,
     };
   },
 });

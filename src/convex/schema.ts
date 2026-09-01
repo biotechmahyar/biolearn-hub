@@ -509,6 +509,7 @@ const schema = defineSchema(
       topic: v.string(),
       description: v.string(),
       proposedDate: v.string(), // instructor proposed date
+      immediate: v.optional(v.boolean()), // urgent: no scheduled date
       status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
       createdAt: v.number(),
       reviewedBy: v.optional(v.id("users")),

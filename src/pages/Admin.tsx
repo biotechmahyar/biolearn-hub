@@ -348,6 +348,7 @@ export default function Admin() {
     profiles: "profiles",
     courses: "courses",
     offlinePayments: "offlinePayments",
+    classRequests: "classRequests",
   };
 
   // Staff panels the admin can jump into (every role except student).

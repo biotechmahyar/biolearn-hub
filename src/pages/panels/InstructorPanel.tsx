@@ -1906,6 +1906,7 @@ function RoomsView({
   const [topic, setTopic] = useState("");
   const [description, setDescription] = useState("");
   const [proposedDate, setProposedDate] = useState("");
+  const [immediate, setImmediate] = useState(false);
   const createRoom = useMutation(api.collab.createRoom);
   const setRoomStatus = useMutation(api.collab.setRoomStatus);
   const requestClass = useMutation(api.admin.requestClass);
@@ -1934,10 +1935,10 @@ function RoomsView({
       return;
     }
     try {
-      await requestClass({ title, topic, description, proposedDate: proposedDate || new Date().toISOString().slice(0, 10) });
+      await requestClass({ title, topic, description, proposedDate: immediate ? "" : (proposedDate || new Date().toISOString().slice(0, 10)), immediate });
       toast.success("درخواست کلاس برای مدیر ارسال شد");
       setShowRequest(false);
-      setTitle(""); setTopic(""); setDescription(""); setProposedDate("");
+      setTitle(""); setTopic(""); setDescription(""); setProposedDate(""); setImmediate(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا در ارسال درخواست");
     }
@@ -2029,9 +2030,13 @@ function RoomsView({
             <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
             <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
             <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <JalaliDatePicker value={proposedDate} onChange={setProposedDate} placeholder="تاریخ پیشنهادی" className="w-full" />
+            <JalaliDatePicker value={immediate ? "" : proposedDate} onChange={setProposedDate} placeholder="تاریخ پیشنهادی" className="w-full" />
+            <label className="flex items-center gap-2 text-sm text-amber-200 cursor-pointer">
+              <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} className="size-4 rounded border-amber-400/30 bg-amber-400/10 accent-amber-400" />
+              <span>فوری — بدون زمان مشخص ارسال شود</span>
+            </label>
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setShowRequest(false)}>انصراف</Button>
+              <Button variant="ghost" size="sm" onClick={() => { setShowRequest(false); setImmediate(false); }}>انصراف</Button>
               <Button size="sm" onClick={handleRequestClass}>
                 <Send className="size-4" /> ارسال درخواست
               </Button>
