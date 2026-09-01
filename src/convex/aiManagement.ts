@@ -38,8 +38,8 @@ export const getConfig = query({
       provider: config.provider,
       model: config.model,
       baseUrl: config.baseUrl,
-      apiKeyMasked: config.apiKeyEncrypted.length > 4
-        ? "••••••" + config.apiKeyEncrypted.slice(-4)
+      apiKeyMasked: (config.apiKeyEncrypted ?? "").length > 4
+        ? "••••••" + (config.apiKeyEncrypted ?? "").slice(-4)
         : "••••",
       maxTokensPerRequest: config.maxTokensPerRequest,
       temperature: config.temperature,
@@ -62,8 +62,8 @@ export const getFullConfig = query({
       provider: config.provider,
       model: config.model,
       baseUrl: config.baseUrl,
-      apiKeyMasked: config.apiKeyEncrypted.length > 4
-        ? "••••••" + config.apiKeyEncrypted.slice(-4)
+      apiKeyMasked: (config.apiKeyEncrypted ?? "").length > 4
+        ? "••••••" + (config.apiKeyEncrypted ?? "").slice(-4)
         : "••••",
       hasApiKey: config.apiKeyEncrypted.length > 0,
       maxTokensPerRequest: config.maxTokensPerRequest,
@@ -367,7 +367,7 @@ export const listModels = query({
   args: {},
   handler: async (ctx) => {
     const models = await ctx.db.query("aiModels").collect();
-    return models.sort((a, b) => a.sortOrder - b.sortOrder);
+    return models.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   },
 });
 
@@ -377,7 +377,7 @@ export const listActiveModelsPublic = query({
     const models = await ctx.db.query("aiModels").collect();
     return models
       .filter((m) => m.active)
-      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
       .map((m) => ({
         _id: m._id,
         name: m.name,
@@ -473,10 +473,10 @@ export const getModelDetail = query({
     // Return masked API key
     return {
       ...model,
-      apiKeyMasked: model.apiKey.length > 4
-        ? "••••••" + model.apiKey.slice(-4)
+      apiKeyMasked: (model.apiKey ?? "").length > 4
+        ? "••••••" + (model.apiKey ?? "").slice(-4)
         : "••••",
-      hasApiKey: model.apiKey.length > 0,
+      hasApiKey: (model.apiKey ?? "").length > 0,
     };
   },
 });

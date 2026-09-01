@@ -465,7 +465,8 @@ export default defineSchema({
     size: v.number(),
     points: v.array(v.object({ x: v.number(), y: v.number() })),
     createdAt: v.number(),
-  }).index("by_room_layer", ["roomId", "layer"]),
+  }).index("by_room_layer", ["roomId", "layer"])
+    .index("by_room_layer_created", ["roomId", "layer", "createdAt"]),
 
   // WebRTC signaling
   signals: defineTable({
@@ -578,6 +579,7 @@ export default defineSchema({
     systemPrompt: v.optional(v.string()),
     dailyLimit: v.optional(v.number()),
     description: v.optional(v.string()),
+    createdBy: v.optional(v.id("users")),
   }),
 
   aiPrompts: defineTable({
@@ -620,6 +622,9 @@ export default defineSchema({
     userId: v.id("users"),
     dailyLimit: v.number(),
     extraTokens: v.optional(v.number()),
+    grantedAt: v.optional(v.number()),
+    grantedBy: v.optional(v.id("users")),
+    note: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
 

@@ -69,7 +69,7 @@ export const listActiveModels = query({
     const models = await ctx.db.query("aiModels").collect();
     return models
       .filter((m) => m.active)
-      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
       .map((m) => ({
         _id: m._id,
         name: m.name,
@@ -310,18 +310,20 @@ export const sendMessage = mutation({
       await ctx.db.insert("aiUsage", {
         userId,
         date: today,
+        modelId: convo.modelId ?? "default",
         messagesSent: 1,
+        messagesCount: 1,
         tokensUsed: 0,
+        createdAt: Date.now(),
       });
     }
 
     // Trigger AI response asynchronously via action
     // The action will read the config and messages, call the API, and save the response
     // Look up modelId from the conversation to pass to the action
-    const convoModel = convo.modelId ? await ctx.db.get(convo.modelId) : null;
     await ctx.scheduler.runAfter(0, api.aiActions.callAI, {
       conversationId: args.conversationId,
-      modelId: convo.modelId ?? undefined,
+      modelId: convo.modelId as any ?? undefined,
     });
 
     return {
