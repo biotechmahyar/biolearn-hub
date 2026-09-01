@@ -3302,6 +3302,89 @@ function CourseStudioView() {
         )}
       </div>
 
+      {/* AI skill input dialog */}
+      <Dialog open={aiDialog} onOpenChange={setAiDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="size-5 text-purple-400" />ساخت دوره با هوش مصنوعی
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-slate-400">موضوع یا مهارتی که می‌خواهید تدریس کنید را توضیح دهید. هوش مصنوعی عنوان، توضیحات، سرفصل‌ها و قیمت‌ها را به صورت خودکار تولید می‌کند.</p>
+            <Textarea
+              placeholder="مثلاً: میکروبیولوژی پیشرفته — تکنیک‌های کشت و شناسایی باکتری‌ها"
+              value={aiSkill}
+              onChange={(e) => setAiSkill(e.target.value)}
+              rows={4}
+              className="border-purple-400/20 bg-white/5 text-slate-100"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setAiDialog(false)}>انصراف</Button>
+              <Button size="sm" onClick={handleAIGenerate} disabled={aiGenerating || !aiSkill.trim()} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+                {aiGenerating ? <Loader2 className="ml-1 size-3.5 animate-spin" /> : <Bot className="ml-1 size-3.5" />}
+                {aiGenerating ? "در حال تولید..." : "تولید دوره"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI result preview dialog */}
+      <Dialog open={!!aiResult} onOpenChange={(o) => { if (!o) setAiResult(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="size-5 text-purple-400" />پیش‌نمایش دوره تولیدشده
+            </DialogTitle>
+          </DialogHeader>
+          {aiResult && (
+            <div className="space-y-4 pt-2">
+              <div className="rounded-lg border border-purple-400/20 bg-purple-400/5 p-4 space-y-3">
+                <div>
+                  <p className="text-[10px] font-bold text-purple-300 uppercase">عنوان</p>
+                  <p className="text-sm font-bold text-white">{aiResult.title}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-purple-300 uppercase">خلاصه</p>
+                  <p className="text-xs text-slate-300">{aiResult.summary}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-purple-300 uppercase">سرفصل‌ها</p>
+                  {(aiResult.syllabus ?? []).map((s: any, i: number) => (
+                    <p key={i} className="text-xs text-slate-300">• {s.title} ({s.durationMin} دقیقه){s.free ? " — رایگان" : ""}</p>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded bg-white/5 p-2">
+                    <p className="text-[10px] text-slate-500">اقتصادی</p>
+                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgEconomy ?? 0)} تومان</p>
+                  </div>
+                  <div className="rounded bg-white/5 p-2">
+                    <p className="text-[10px] text-slate-500">پایه</p>
+                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgBasic ?? 0)} تومان</p>
+                  </div>
+                  <div className="rounded bg-white/5 p-2">
+                    <p className="text-[10px] text-slate-500">پلاس</p>
+                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgPlus ?? 0)} تومان</p>
+                  </div>
+                  <div className="rounded bg-white/5 p-2">
+                    <p className="text-[10px] text-slate-500">پرمیوم</p>
+                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgPremium ?? 0)} تومان</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setAiResult(null)}>انصراف</Button>
+                <Button size="sm" onClick={handleAIApply} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+                  <Bot className="ml-1 size-3.5" />اعمال و ویرایش
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
