@@ -6,6 +6,8 @@ import TelegramAccount from "@/components/site/TelegramAccount";
 import TelegramNotifications from "@/components/site/TelegramNotifications";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useInstructorBroadcast } from "@/hooks/use-live";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { formatPriceNumber, formatCardNumber } from "@/lib/format";
@@ -284,6 +286,7 @@ function SidebarSectionButton({
 // ── Main panel ───────────────────────────────────────────────────────────────
 
 export default function InstructorPanel() {
+  const { isIran } = useMode();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("dashboard");

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useMode } from "@/hooks/useMode";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ const ROLE_LABELS: Record<string, string> = { user: "دانشجو", member: "ع�
 const TABLE_LIST = ["users", "categories", "courses", "exams", "questions", "orders", "enrollments", "articles", "workshops", "products", "aiConversations", "aiMessages", "aiConfig", "tickets", "announcements", "coupons", "sitePages", "siteTexts"];
 
 export default function SuperAdminPanel() {
+  const { isIran } = useMode();
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [authenticated, setAuthenticated] = useState(false);

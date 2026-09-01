@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
+import { useMode } from "@/hooks/useMode";
 import { formatPriceNumber } from "@/lib/format";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -66,6 +67,7 @@ const ORDER_STATUS: Record<string, { label: string; color: string }> = {
 };
 
 export default function AdminMarketplacePanel() {
+  const { isIran } = useMode();
   const { user } = useAuth();
   const [tab, setTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
