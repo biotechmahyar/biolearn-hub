@@ -1023,7 +1023,13 @@ function LiveTab() {
           {live.map((room) => (
             <button
               key={room._id}
-              onClick={() => setActiveRoom(room._id)}
+              onClick={() => {
+                if (room.platformUrl) {
+                  window.open(room.platformUrl, "_blank", "noopener,noreferrer");
+                } else {
+                  setActiveRoom(room._id);
+                }
+              }}
               className="group rounded-xl border border-border bg-card p-5 text-right transition-all hover:border-primary/50 hover:shadow-lg"
             >
               <div className="flex items-center justify-between">

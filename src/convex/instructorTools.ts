@@ -107,9 +107,25 @@ export const listCourseResources = query({
   },
 });
 
+export const listRoomResources = query({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    const resources = await ctx.db
+      .query("courseResources")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    // Instructors can only see resources they created; admins see all
+    if (user.role === "admin" || user.role === "site_admin") return resources;
+    return resources.filter((r) => r.instructorId === user._id);
+  },
+});
+
 export const addCourseResource = mutation({
   args: {
-    courseId: v.id("courses"),
+    courseId: v.optional(v.id("courses")),
+    roomId: v.optional(v.id("classRooms")),
     title: v.string(),
     description: v.optional(v.string()),
     fileUrl: v.string(),
@@ -128,6 +144,7 @@ export const addCourseResource = mutation({
     const commission = args.isFree ? 0 : Math.round(basePrice * 0.04);
     await ctx.db.insert("courseResources", {
       courseId: args.courseId,
+      roomId: args.roomId,
       instructorId: user._id,
       title: args.title,
       description: args.description,

@@ -290,8 +290,10 @@ export default function InstructorPanel() {
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const rooms = useQuery(api.collab.listRooms) ?? [];
+  const allRooms = useQuery(api.collab.listRooms) ?? [];
   const online = useQuery(api.collab.listOnline) ?? [];
+  // Instructor sees only their own rooms
+  const rooms = user ? allRooms.filter((r: any) => r.instructorId === user._id || user.role === "admin" || user.role === "site_admin") : allRooms;
   const touchPresence = useMutation(api.collab.touchPresence);
 
   useEffect(() => {
@@ -608,11 +610,20 @@ function CoursesMineView() {
 function ResourcesView() {
   const { user } = useAuth();
   const myCourses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
+  const myRooms = useQuery(api.instructorTools.listMyRooms) ?? [];
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+  const [resourceMode, setResourceMode] = useState<"course" | "room">("course");
+  const activeId = resourceMode === "course" ? selectedCourse : selectedRoom;
   const resources = useQuery(
     api.instructorTools.listCourseResources,
-    selectedCourse ? { courseId: selectedCourse as any } : "skip"
+    resourceMode === "course" && selectedCourse ? { courseId: selectedCourse as any } : "skip"
   ) ?? [];
+  const roomResources = useQuery(
+    api.instructorTools.listRoomResources,
+    resourceMode === "room" && selectedRoom ? { roomId: selectedRoom as any } : "skip"
+  ) ?? [];
+  const displayResources = resourceMode === "course" ? resources : roomResources;
   const addResource = useMutation(api.instructorTools.addCourseResource);
   const deleteResource = useMutation(api.instructorTools.deleteCourseResource);
   const getUploadUrl = useMutation(api.collab.getUploadUrl);
@@ -645,12 +656,11 @@ function ResourcesView() {
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedCourse) return;
+    if (!file || !activeId) return;
     setUploading(true);
     try {
       const storageId = await handleUploadFile(file);
-      await addResource({
-        courseId: selectedCourse as any,
+      const payload: any = {
         title: title || file.name,
         description: description || undefined,
         fileUrl: storageId,
@@ -660,19 +670,21 @@ function ResourcesView() {
         isFree,
         price: isFree ? 0 : basePrice,
         resourceType: "file",
-      });
+      };
+      if (resourceMode === "course") payload.courseId = selectedCourse as any;
+      else payload.roomId = selectedRoom as any;
+      await addResource(payload);
       toast.success("فایل آپلود شد");
       setShowAdd(false); setTitle(""); setDescription(""); setPrice("");
     } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setUploading(false); }
   };
 
   const handleSaveLink = async () => {
-    if (!selectedCourse || !title.trim()) { toast.error("عنوان و دوره الزامی است"); return; }
+    if (!activeId || !title.trim()) { toast.error("عنوان و دوره/کلاس الزامی است"); return; }
     if (!linkUrl.trim()) { toast.error("لینک را وارد کنید"); return; }
     setBusy(true);
     try {
-      await addResource({
-        courseId: selectedCourse as any,
+      const payload: any = {
         title,
         description: description || undefined,
         fileUrl: linkUrl,
@@ -683,7 +695,10 @@ function ResourcesView() {
         price: isFree ? 0 : basePrice,
         resourceType: "link",
         linkUrl,
-      });
+      };
+      if (resourceMode === "course") payload.courseId = selectedCourse as any;
+      else payload.roomId = selectedRoom as any;
+      await addResource(payload);
       toast.success("لینک اضافه شد");
       setShowAdd(false); setTitle(""); setDescription(""); setPrice(""); setLinkUrl("");
     } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } finally { setBusy(false); }
@@ -699,22 +714,38 @@ function ResourcesView() {
       </div>
 
       <Card className="border-white/5 bg-white/[0.02]">
-        <CardContent className="py-4">
-          <label className="text-xs font-bold text-slate-300 mb-2 block">انتخاب دوره</label>
-          <Select value={selectedCourse ?? ""} onValueChange={(v) => setSelectedCourse(v)}>
-            <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
-              <SelectValue placeholder="دوره مورد نظر را انتخاب کنید" />
-            </SelectTrigger>
-            <SelectContent>
-              {myCourses.map((c: any) => (
-                <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <CardContent className="py-4 space-y-3">
+          <div className="flex gap-2">
+            <Button size="sm" variant={resourceMode === "course" ? "default" : "outline"} onClick={() => { setResourceMode("course"); setSelectedRoom(null); }} className="text-xs">دوره‌ها</Button>
+            <Button size="sm" variant={resourceMode === "room" ? "default" : "outline"} onClick={() => { setResourceMode("room"); setSelectedCourse(null); }} className="text-xs">کلاس‌ها</Button>
+          </div>
+          {resourceMode === "course" ? (
+            <Select value={selectedCourse ?? ""} onValueChange={(v) => setSelectedCourse(v)}>
+              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                <SelectValue placeholder="دوره مورد نظر را انتخاب کنید" />
+              </SelectTrigger>
+              <SelectContent>
+                {myCourses.map((c: any) => (
+                  <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select value={selectedRoom ?? ""} onValueChange={(v) => setSelectedRoom(v)}>
+              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                <SelectValue placeholder="کلاس مورد نظر را انتخاب کنید" />
+              </SelectTrigger>
+              <SelectContent>
+                {myRooms.map((r: any) => (
+                  <SelectItem key={r._id} value={r._id}>{r.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </CardContent>
       </Card>
 
-      {selectedCourse && (
+      {activeId && (
         <>
           <div className="flex justify-end">
             <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => setShowAdd(true)}>
@@ -722,9 +753,9 @@ function ResourcesView() {
             </Button>
           </div>
 
-          {resources.length > 0 ? (
+          {displayResources.length > 0 ? (
             <div className="space-y-2">
-              {resources.map((r: any) => (
+              {displayResources.map((r: any) => (
                 <Card key={r._id} className="border-white/5 bg-white/[0.02]">
                   <CardContent className="flex items-center justify-between py-3 px-4">
                     <div className="flex items-center gap-3">

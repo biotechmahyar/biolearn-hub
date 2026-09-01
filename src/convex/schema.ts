@@ -662,7 +662,8 @@ const schema = defineSchema(
 
     // ── Course resources / file uploads ──────────────────────────────────
     courseResources: defineTable({
-      courseId: v.id("courses"),
+      courseId: v.optional(v.id("courses")),
+      roomId: v.optional(v.id("classRooms")),
       instructorId: v.id("users"),
       title: v.string(),
       description: v.optional(v.string()),
@@ -676,7 +677,8 @@ const schema = defineSchema(
       resourceType: v.optional(v.union(v.literal("file"), v.literal("link"))), // file upload or external link
       linkUrl: v.optional(v.string()), // external link URL
       createdAt: v.number(),
-    }).index("by_course", ["courseId"]),
+    }).index("by_course", ["courseId"])
+      .index("by_room", ["roomId"]),
 
     // ── Class attendance ─────────────────────────────────────────────────
     attendance: defineTable({

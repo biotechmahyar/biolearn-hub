@@ -241,11 +241,11 @@ export const listRooms = query({
         };
       }),
     );
-    // Students see only live rooms; instructors see their own (all statuses).
+    // Students see live rooms + scheduled rooms with a platform link; instructors see their own (all statuses).
     if (user && ((await isInstructor(ctx)) || (await isAdmin(ctx)))) {
       return enriched;
     }
-    return enriched.filter((r) => r.status === "live");
+    return enriched.filter((r) => r.status === "live" || (r.status === "scheduled" && r.platformUrl));
   },
 });
 
