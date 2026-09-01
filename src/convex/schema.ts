@@ -61,6 +61,10 @@ export default defineSchema({
     telegramUsername: v.optional(v.string()),
     telegramChatId: v.optional(v.string()),
     telegramNotificationsEnabled: v.optional(v.boolean()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    pendingProfile: v.optional(v.any()),
+    telegramId: v.optional(v.string()),
   }),
 
   // ── Presence ────────────────────────────────────────────────────────────
@@ -99,6 +103,7 @@ export default defineSchema({
     accent: v.optional(v.string()),
     verified: v.optional(v.boolean()),
     avatarUrl: v.optional(v.string()),
+    education: v.optional(v.array(v.string())),
   }).index("by_slug", ["slug"]),
 
   courses: defineTable({
@@ -107,8 +112,10 @@ export default defineSchema({
     summary: v.optional(v.string()),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
+    categoryId: v.optional(v.id("categories")),
     instructorId: v.optional(v.id("instructors")),
     instructorName: v.optional(v.string()),
+    status: v.optional(v.string()),
     difficulty: v.optional(v.string()),
     duration: v.optional(v.string()),
     price: v.optional(v.number()),
@@ -128,7 +135,8 @@ export default defineSchema({
     studentCount: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
-    .index("by_published", ["published"]),
+    .index("by_published", ["published"])
+    .index("by_status", ["status"]),
 
   articles: defineTable({
     title: v.string(),
@@ -145,6 +153,8 @@ export default defineSchema({
     ogTitle: v.optional(v.string()),
     ogDescription: v.optional(v.string()),
     ogImage: v.optional(v.string()),
+    accent: v.optional(v.string()),
+    createdAt: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
     .index("by_published", ["published"]),
@@ -156,10 +166,12 @@ export default defineSchema({
     description: v.optional(v.string()),
     category: v.optional(v.string()),
     type: v.optional(v.string()),
+    accent: v.optional(v.string()),
     price: v.optional(v.number()),
     published: v.boolean(),
     featured: v.optional(v.boolean()),
     coverUrl: v.optional(v.string()),
+    createdAt: v.optional(v.number()),
   })
     .index("by_slug", ["slug"]),
 
@@ -168,6 +180,7 @@ export default defineSchema({
     slug: v.string(),
     summary: v.optional(v.string()),
     description: v.optional(v.string()),
+    instructorId: v.optional(v.id("instructors")),
     date: v.optional(v.string()),
     time: v.optional(v.string()),
     location: v.optional(v.string()),
@@ -175,6 +188,9 @@ export default defineSchema({
     published: v.boolean(),
     featured: v.optional(v.boolean()),
     coverUrl: v.optional(v.string()),
+    topic: v.optional(v.string()),
+    capacity: v.optional(v.number()),
+    registeredCount: v.optional(v.number()),
   })
     .index("by_slug", ["slug"]),
 
@@ -234,6 +250,7 @@ export default defineSchema({
     free: v.boolean(),
     diagnostic: v.optional(v.boolean()),
     published: v.boolean(),
+    featured: v.optional(v.boolean()),
   }),
 
   questions: defineTable({
@@ -296,7 +313,8 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_ticket", ["ticketId"]),
 
-  // ── Comments ────────────────────────────────────────────────────────────    comments: defineTable({
+  // ── Comments ────────────────────────────────────────────────────────────
+  comments: defineTable({
     userId: v.id("users"),
     itemType: v.string(),
     itemId: v.string(),
@@ -511,6 +529,7 @@ export default defineSchema({
   aiModels: defineTable({
     name: v.string(),
     provider: v.string(),
+    sortOrder: v.optional(v.number()),
     baseUrl: v.optional(v.string()),
     apiKey: v.optional(v.string()),
     modelId: v.string(),
@@ -579,8 +598,9 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     instructorId: v.id("users"),
+    memberCount: v.optional(v.number()),
     createdAt: v.number(),
-  }),
+  }).index("by_instructor", ["instructorId"]),
 
   mentorQuestions: defineTable({
     userId: v.id("users"),
@@ -588,9 +608,7 @@ export default defineSchema({
     text: v.string(),
     answer: v.optional(v.string()),
     createdAt: v.number(),
-  })
-    .index("by_student", ["userId"]) 
-    .index("by_user", ["userId"]),
+  }).index("by_student", ["userId"]),
 
   mentorSessions: defineTable({
     mentorId: v.id("users"),
@@ -627,9 +645,11 @@ export default defineSchema({
   classEnrollRequests: defineTable({
     userId: v.id("users"),
     courseId: v.id("courses"),
+    roomId: v.optional(v.id("classRooms")),
     status: v.string(),
     createdAt: v.number(),
-  }),
+  }).index("by_user", ["userId"])
+    .index("by_status", ["status"]),
 
   // ── Coupons ────────────────────────────────────────────────────────────
   coupons: defineTable({
@@ -639,6 +659,7 @@ export default defineSchema({
     maxUses: v.number(),
     usedCount: v.number(),
     active: v.boolean(),
+    expiresAt: v.optional(v.number()),
     createdAt: v.number(),
   }).index("by_code", ["code"]),
 
@@ -647,8 +668,9 @@ export default defineSchema({
     examId: v.id("exams"),
     userId: v.id("users"),
     reason: v.string(),
+    status: v.optional(v.string()),
     createdAt: v.number(),
-  }),
+  }).index("by_status", ["status"]),
 
   // ── Group Announcements ────────────────────────────────────────────────
   groupAnnouncements: defineTable({
@@ -689,11 +711,13 @@ export default defineSchema({
   offlinePayments: defineTable({
     userId: v.id("users"),
     orderId: v.id("orders"),
+    courseId: v.optional(v.id("courses")),
     amount: v.number(),
     receiptUrl: v.optional(v.string()),
     status: v.string(),
     createdAt: v.number(),
-  }),
+  }).index("by_user", ["userId"])
+    .index("by_status", ["status"]),
 
   // ── Site Pages ─────────────────────────────────────────────────────────
   sitePages: defineTable({
@@ -721,8 +745,10 @@ export default defineSchema({
     chatId: v.string(),
     userId: v.id("users"),
     active: v.boolean(),
+    tokenEncrypted: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_chatId", ["chatId"]),
+  }).index("by_chatId", ["chatId"])
+    .index("by_user", ["userId"]),
 
   telegramLinkingCodes: defineTable({
     code: v.string(),
@@ -752,4 +778,13 @@ export default defineSchema({
     published: v.boolean(),
     createdAt: v.number(),
   }),
+
+  directMessages: defineTable({
+    senderId: v.id("users"),
+    receiverId: v.id("users"),
+    text: v.string(),
+    read: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_receiver", ["receiverId"])
+    .index("by_sender", ["senderId"]),
 });
