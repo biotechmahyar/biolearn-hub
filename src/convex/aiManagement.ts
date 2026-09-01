@@ -38,8 +38,8 @@ export const getConfig = query({
       provider: config.provider,
       model: config.model,
       baseUrl: config.baseUrl,
-      apiKeyMasked: (config.apiKeyEncrypted ?? "").length > 4
-        ? "••••••" + (config.apiKeyEncrypted ?? "").slice(-4)
+      apiKeyMasked: config.apiKeyEncrypted.length > 4
+        ? "••••••" + config.apiKeyEncrypted.slice(-4)
         : "••••",
       maxTokensPerRequest: config.maxTokensPerRequest,
       temperature: config.temperature,
@@ -62,10 +62,10 @@ export const getFullConfig = query({
       provider: config.provider,
       model: config.model,
       baseUrl: config.baseUrl,
-      apiKeyMasked: (config.apiKeyEncrypted ?? "").length > 4
-        ? "••••••" + (config.apiKeyEncrypted ?? "").slice(-4)
+      apiKeyMasked: config.apiKeyEncrypted.length > 4
+        ? "••••••" + config.apiKeyEncrypted.slice(-4)
         : "••••",
-      hasApiKey: (config.apiKeyEncrypted ?? "").length > 0,
+      hasApiKey: config.apiKeyEncrypted.length > 0,
       maxTokensPerRequest: config.maxTokensPerRequest,
       temperature: config.temperature,
       systemPrompt: config.systemPrompt,
@@ -323,7 +323,6 @@ export const grantTokens = mutation({
         extraTokens: 0,
         grantedAt: Date.now(),
         grantedBy: admin._id,
-        createdAt: Date.now(),
         note: args.note,
       });
     }
@@ -368,7 +367,7 @@ export const listModels = query({
   args: {},
   handler: async (ctx) => {
     const models = await ctx.db.query("aiModels").collect();
-    return models.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    return models.sort((a, b) => a.sortOrder - b.sortOrder);
   },
 });
 
@@ -378,7 +377,7 @@ export const listActiveModelsPublic = query({
     const models = await ctx.db.query("aiModels").collect();
     return models
       .filter((m) => m.active)
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((m) => ({
         _id: m._id,
         name: m.name,
@@ -474,10 +473,10 @@ export const getModelDetail = query({
     // Return masked API key
     return {
       ...model,
-      apiKeyMasked: (model.apiKey ?? "").length > 4
-        ? "••••••" + (model.apiKey ?? "").slice(-4)
+      apiKeyMasked: model.apiKey.length > 4
+        ? "••••••" + model.apiKey.slice(-4)
         : "••••",
-      hasApiKey: (model.apiKey ?? "").length > 0,
+      hasApiKey: model.apiKey.length > 0,
     };
   },
 });

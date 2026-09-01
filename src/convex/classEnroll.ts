@@ -50,9 +50,9 @@ export const listPendingRequests = query({
     const result = [];
     for (const r of requests) {
       const [room, student] = await Promise.all([
-        ctx.db.get(r.roomId!),
+        ctx.db.get(r.roomId),
         ctx.db.get(r.userId),
-      ]) as [any, any];
+      ]);
       // Only show requests for rooms this instructor owns (or admins see all)
       if (
         room?.instructorId !== user._id &&
@@ -82,7 +82,7 @@ export const approveClassEnroll = mutation({
     if (req.status !== "pending")
       throw new Error("این درخواست قبلاً بررسی شده است.");
 
-    const room = await ctx.db.get(req.roomId!) as any;
+    const room = await ctx.db.get(req.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     if (
       room.instructorId !== user._id &&
@@ -106,7 +106,7 @@ export const rejectClassEnroll = mutation({
     const req = await ctx.db.get(args.requestId);
     if (!req) throw new Error("درخواست یافت نشد.");
 
-    const room = await ctx.db.get(req.roomId!) as any;
+    const room = await ctx.db.get(req.roomId);
     if (!room) throw new Error("کلاس یافت نشد.");
     if (
       room.instructorId !== user._id &&
@@ -145,9 +145,9 @@ export const listAllMyRoomRequests = query({
     const result = [];
     for (const r of requests) {
       const [room, student] = await Promise.all([
-        ctx.db.get(r.roomId!),
+        ctx.db.get(r.roomId),
         ctx.db.get(r.userId),
-      ]) as [any, any];
+      ]);
       if (
         room?.instructorId !== user._id &&
         user.role !== "admin" &&
