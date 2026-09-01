@@ -333,6 +333,7 @@ function Loading() {
 // ── Shell ───────────────────────────────────────────────────────────────────
 export default function Admin() {
   const { user } = useAuth();
+  const { isIran } = useMode();
   const isAdmin = useQuery(api.admin.amIAdmin);
   const [section, setSection] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -640,9 +641,14 @@ export default function Admin() {
 
 // ── Overview ────────────────────────────────────────────────────────────────
 function AdminOverview() {
-  const stats = useQuery(api.admin.getAdminStats);
-  const revenue = useQuery(api.admin.getRevenueSeries);
-  const enrollments = useQuery(api.admin.getEnrollmentStats);
+  const { isIran } = useMode();
+  const statsConvex = useQuery(api.admin.getAdminStats);
+  const revenueConvex = useQuery(api.admin.getRevenueSeries);
+  const enrollmentsConvex = useQuery(api.admin.getEnrollmentStats);
+  const { data: statsIran } = useApiQuery<any>(isIran ? "/api/admin/stats" : "");
+  const stats = isIran ? statsIran : statsConvex;
+  const revenue = isIran ? null : revenueConvex;
+  const enrollments = isIran ? null : enrollmentsConvex;
 
   if (!stats) return <Loading />;
 
@@ -730,8 +736,13 @@ function AdminOverview() {
 
 // ── Courses ─────────────────────────────────────────────────────────────────
 function AdminCourses() {
-  const courses = useQuery(api.admin.adminListCourses);
-  const instructors = useQuery(api.content.listInstructors);
+  const { isIran } = useMode();
+  const coursesConvex = useQuery(api.admin.adminListCourses);
+  const instructorsConvex = useQuery(api.content.listInstructors);
+  const { data: coursesIran } = useApiQuery<any[]>(isIran ? "/api/admin/courses" : "");
+  const { data: instructorsIran } = useApiQuery<any[]>(isIran ? "/api/content/instructors" : "");
+  const courses = isIran ? coursesIran : coursesConvex;
+  const instructors = isIran ? instructorsIran : instructorsConvex;
   const create = useMutation(api.admin.adminCreateCourse);
   const update = useMutation(api.admin.adminUpdateCourse);
   const toggle = useMutation(api.admin.adminTogglePublish);
@@ -1920,8 +1931,13 @@ function AdminProducts() {
 
 // ── Instructors ─────────────────────────────────────────────────────────────
 function AdminInstructors() {
-  const instructors = useQuery(api.admin.adminListInstructors);
-  const users = useQuery(api.admin.adminGetUsers);
+  const { isIran } = useMode();
+  const instructorsConvex = useQuery(api.admin.adminListInstructors);
+  const usersConvex = useQuery(api.admin.adminGetUsers);
+  const { data: instructorsIran } = useApiQuery<any[]>(isIran ? "/api/content/instructors" : "");
+  const { data: usersIran } = useApiQuery<any[]>(isIran ? "/api/admin/users" : "");
+  const instructors = isIran ? instructorsIran : instructorsConvex;
+  const users = isIran ? usersIran : usersConvex;
   const create = useMutation(api.admin.adminCreateInstructor);
   const update = useMutation(api.admin.adminUpdateInstructor);
   const remove = useMutation(api.admin.adminDeleteInstructor);

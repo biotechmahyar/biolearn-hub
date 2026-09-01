@@ -2,7 +2,7 @@ import { api } from "@/convex/_generated/api";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { useMutation, useQuery } from "convex/react";
 import {
   CheckCircle2,
@@ -39,10 +39,29 @@ export default function SupportPanel() {
   const [view, setView] = useState<"tickets" | "profile">("tickets");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const tickets = useQuery(api.tickets.listAllTickets) ?? [];
-  const replyTicket = useMutation(api.tickets.replyTicket);
-  const updateTicketStatus = useMutation(api.tickets.updateTicketStatus);
+  const { isIran } = useMode();
+  const ticketsConvex = useQuery(api.tickets.listAllTickets) ?? [];
+  const replyTicketConvex = useMutation(api.tickets.replyTicket);
+  const updateTicketStatusConvex = useMutation(api.tickets.updateTicketStatus);
   const touchPresence = useMutation(api.collab.touchPresence);
+  const { data: ticketsIran } = useApiQuery<any[]>(isIran ? "/api/support/all-tickets" : "");
+  const { mutate: replyTicketIran } = useApiMutation("/api/support/tickets", "POST");
+  const tickets = (isIran ? ticketsIran : ticketsConvex) ?? [];
+
+  // Dual-mode reply helper
+  const handleReply = async (ticketId: string, message: string) => {
+    if (isIran) {
+      await replyTicketIran({ id: ticketId, message });
+    } else {
+      await replyTicketConvex({ ticketId, message });
+    }
+  };
+
+  const handleStatus = async (ticketId: string, status: string) => {
+    if (!isIran) {
+      await updateTicketStatusConvex({ ticketId, status: status as any });
+    }
+  };
 
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
@@ -67,7 +86,11 @@ export default function SupportPanel() {
     const text = drafts[t._id];
     if (!text?.trim()) return;
     try {
-      await replyTicket({ ticketId: t._id, message: text });
+      if (isIran) {
+        await replyTicketIran({ id: t._id, message: text });
+      } else {
+        await replyTicketConvex({ ticketId: t._id, message: text });
+      }
       setDrafts((d) => ({ ...d, [t._id]: "" }));
       toast.success("پاسخ ثبت شد");
     } catch (e) {
