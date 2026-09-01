@@ -6,8 +6,14 @@ import { useQuery } from "convex/react";
 import { Mic2 } from "lucide-react";
 import { Link } from "react-router";
 
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
+
 export default function Workshops() {
-  const workshops = useQuery(api.content.listWorkshops);
+  const { isIran } = useMode();
+  const workshopsConvex = useQuery(api.content.listWorkshops);
+  const { data: workshopsIran } = useApiQuery<any[]>("/api/content/workshops");
+  const workshops = isIran ? workshopsIran : workshopsConvex;
   const freeTalks = (workshops ?? []).filter((w) => w.expertTalk);
   const others = (workshops ?? []).filter((w) => !w.expertTalk);
 

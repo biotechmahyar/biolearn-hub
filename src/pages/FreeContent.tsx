@@ -5,9 +5,14 @@ import { api } from "@/convex/_generated/api";
 import { faNum } from "@/lib/format";
 import { useQuery } from "convex/react";
 import { useState } from "react";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 export default function FreeContent() {
-  const articles = useQuery(api.content.listArticles, {});
+  const { isIran } = useMode();
+  const articlesConvex = useQuery(api.content.listArticles, {});
+  const { data: articlesIran } = useApiQuery<any[]>("/api/content/articles");
+  const articles = isIran ? articlesIran : articlesConvex;
   const [category, setCategory] = useState<string>("");
 
   const cats = [...new Set((articles ?? []).map((a) => a.category))];

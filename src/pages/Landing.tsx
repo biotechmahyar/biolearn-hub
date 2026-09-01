@@ -42,17 +42,37 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import { SeedBootstrap } from "@/components/site/SeedBootstrap";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 export default function Landing() {
-  const categories = useQuery(api.content.listCategories);
-  const popularCourses = useQuery(api.content.listCourses, { popularOnly: true, limit: 4 });
-  const featuredCourses = useQuery(api.content.listCourses, { featuredOnly: true, limit: 4 });
-  const products = useQuery(api.content.listProducts, { featuredOnly: true });
-  const articles = useQuery(api.content.listArticles, { limit: 3 });
-  const instructors = useQuery(api.content.listInstructors);
-  const testimonials = useQuery(api.content.listTestimonials);
-  const dailyQuiz = useQuery(api.tests.getDailyQuiz);
-  const exams = useQuery(api.tests.listExams, { featuredOnly: true, freeOnly: true });
+  const { isIran } = useMode();
+  // Convex queries (used in global mode)
+  const categoriesConvex = useQuery(api.content.listCategories);
+  const popularCoursesConvex = useQuery(api.content.listCourses, { popularOnly: true, limit: 4 });
+  const featuredCoursesConvex = useQuery(api.content.listCourses, { featuredOnly: true, limit: 4 });
+  const productsConvex = useQuery(api.content.listProducts, { featuredOnly: true });
+  const articlesConvex = useQuery(api.content.listArticles, { limit: 3 });
+  const instructorsConvex = useQuery(api.content.listInstructors);
+  const testimonialsConvex = useQuery(api.content.listTestimonials);
+  const dailyQuizConvex = useQuery(api.tests.getDailyQuiz);
+  const examsConvex = useQuery(api.tests.listExams, { featuredOnly: true, freeOnly: true });
+  // Iran server queries (used in iran mode)
+  const { data: categoriesIran } = useApiQuery<any[]>("/api/content/categories");
+  const { data: coursesIran } = useApiQuery<any[]>("/api/content/courses");
+  const { data: productsIran } = useApiQuery<any[]>("/api/content/products");
+  const { data: articlesIran } = useApiQuery<any[]>("/api/content/articles");
+  const { data: instructorsIran } = useApiQuery<any[]>("/api/content/instructors");
+  // Dual-mode resolution: prefer Iran data when in iran mode, Convex otherwise
+  const categories = isIran ? categoriesIran : categoriesConvex;
+  const popularCourses = isIran ? (coursesIran?.slice(0, 4) ?? null) : popularCoursesConvex;
+  const featuredCourses = isIran ? (coursesIran?.slice(0, 4) ?? null) : featuredCoursesConvex;
+  const products = isIran ? productsIran : productsConvex;
+  const articles = isIran ? (articlesIran?.slice(0, 3) ?? null) : articlesConvex;
+  const instructors = isIran ? instructorsIran : instructorsConvex;
+  const testimonials = isIran ? null : testimonialsConvex;
+  const dailyQuiz = isIran ? null : dailyQuizConvex;
+  const exams = isIran ? null : examsConvex;
 
   const heroCourses = popularCourses ?? featuredCourses ?? [];
 

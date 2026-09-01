@@ -7,11 +7,16 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
 import { Package } from "lucide-react";
 import { useState } from "react";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 const TYPES = ["all", "flashcards", "guide", "poster"] as const;
 
 export default function Products() {
-  const products = useQuery(api.content.listProducts, {});
+  const { isIran } = useMode();
+  const productsConvex = useQuery(api.content.listProducts, {});
+  const { data: productsIran } = useApiQuery<any[]>("/api/content/products");
+  const products = isIran ? productsIran : productsConvex;
   const [type, setType] = useState<(typeof TYPES)[number]>("all");
 
   const filtered = (products ?? []).filter((p) => type === "all" || p.type === type);

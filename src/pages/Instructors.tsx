@@ -8,8 +8,14 @@ import { useQuery } from "convex/react";
 import { BadgeCheck, ChevronLeft } from "lucide-react";
 import { Link } from "react-router";
 
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
+
 export default function Instructors() {
-  const instructors = useQuery(api.content.listInstructors);
+  const { isIran } = useMode();
+  const instructorsConvex = useQuery(api.content.listInstructors);
+  const { data: instructorsIran } = useApiQuery<any[]>("/api/content/instructors");
+  const instructors = isIran ? instructorsIran : instructorsConvex;
 
   return (
     <PublicLayout>
@@ -52,7 +58,7 @@ export default function Instructors() {
                   {ins.bio}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {ins.specialties.slice(0, 3).map((s) => (
+                  {ins.specialties.slice(0, 3).map((s: string) => (
                     <span key={s} className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
                       {s}
                     </span>

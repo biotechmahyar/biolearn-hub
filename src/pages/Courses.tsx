@@ -9,17 +9,24 @@ import { useQuery } from "convex/react";
 import { Search } from "lucide-react";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 export default function Courses() {
+  const { isIran } = useMode();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeCategory = searchParams.get("category") ?? "";
   const [search, setSearch] = useState("");
 
-  const categories = useQuery(api.content.listCategories);
-  const courses = useQuery(api.content.listCourses, {
+  const categoriesConvex = useQuery(api.content.listCategories);
+  const coursesConvex = useQuery(api.content.listCourses, {
     categorySlug: activeCategory || undefined,
     search: search || undefined,
   });
+  const { data: categoriesIran } = useApiQuery<any[]>("/api/content/categories");
+  const { data: coursesIran } = useApiQuery<any[]>("/api/content/courses");
+  const categories = isIran ? categoriesIran : categoriesConvex;
+  const courses = isIran ? coursesIran : coursesConvex;
 
   return (
     <PublicLayout>

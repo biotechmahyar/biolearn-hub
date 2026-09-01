@@ -13,6 +13,8 @@ import { BookOpen, Loader2, Microscope, Pencil, Plus, Search, Trash2 } from "luc
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -229,6 +231,7 @@ function TermDialog({
 }
 
 export default function Dictionary() {
+  const { isIran } = useMode();
   const { user } = useAuth();
   const canEdit = !!user && EDITOR_ROLES.includes(user.role ?? "");
   const [query, setQuery] = useState("");
@@ -236,7 +239,10 @@ export default function Dictionary() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<TermRow | null>(null);
   const [deleting, setDeleting] = useState<TermRow | null>(null);
-  const terms = useQuery(api.content.searchDictionary, { query: query || undefined });
+  const termsConvex = useQuery(api.content.searchDictionary, { query: query || undefined });
+  const dictUrl = query ? `/api/content/dictionary?q=${encodeURIComponent(query)}` : "/api/content/dictionary";
+  const { data: termsIran } = useApiQuery<any[]>(dictUrl);
+  const terms = isIran ? termsIran : termsConvex;
   const removeTerm = useMutation(api.content.deleteDictionaryTerm);
   const [removing, setRemoving] = useState(false);
 
