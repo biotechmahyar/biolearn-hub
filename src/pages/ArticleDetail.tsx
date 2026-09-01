@@ -4,6 +4,8 @@ import { ArticleCard } from "@/components/site/ArticleCard";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAuth } from "@/hooks/use-auth";
 import { accent, faNum, formatDate, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";

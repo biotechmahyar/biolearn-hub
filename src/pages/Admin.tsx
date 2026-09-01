@@ -31,6 +31,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/convex/_generated/api";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatDateTime, formatPrice } from "@/lib/format";
 import { formatJalaliDate } from "@/lib/jalali";

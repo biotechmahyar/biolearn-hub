@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { requestNotificationPermission } from "@/components/site/NotificationCenter";
 import { faNum, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";

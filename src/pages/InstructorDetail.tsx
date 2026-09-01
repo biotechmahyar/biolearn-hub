@@ -5,6 +5,8 @@ import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { WorkshopCard } from "@/components/site/WorkshopCard";
 import { api } from "@/convex/_generated/api";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { accent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";

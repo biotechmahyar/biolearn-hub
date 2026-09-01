@@ -1,5 +1,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useParams, Link, useNavigate } from "react-router";
 import { useState, useEffect } from "react";
 import { addToRecentlyViewed } from "@/lib/recentlyViewed";

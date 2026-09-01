@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { BrandMark } from "@/components/site/BrandLogo";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/convex/_generated/api";
+import { useMode } from "@/hooks/useMode";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { useMutation } from "convex/react";
 import { Dna, Loader2, Save, User } from "lucide-react";
 import { Suspense, useState } from "react";
