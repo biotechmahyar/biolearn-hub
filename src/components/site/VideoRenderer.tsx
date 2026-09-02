@@ -31,10 +31,11 @@ function IframePlayer({
 }) {
   return (
     <div className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}>
-      <div className="aspect-video w-full">
+      <div className="relative w-full" style={{ paddingBottom: "56.25%" /* 16:9 */ }}>
         <iframe
           src={source.url}
-          className="h-full w-full border-0"
+          className="absolute inset-0 h-full w-full border-0 m-0 p-0"
+          style={{ margin: 0, padding: 0 }}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
           title={`پخش ویدئو — ${source.label}`}

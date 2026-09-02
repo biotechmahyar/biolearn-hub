@@ -180,10 +180,16 @@ function normalizeVimeoUrl(url: string): string {
 }
 
 function normalizeIranHlsUrl(url: string): string {
-  // Accept both embed code URLs and direct URLs
+  // Accept embed URLs
   // https://stream.iranhls.com/Video/Embed/VIDEO_ID
-  const match = url.match(/stream\.iranhls\.com\/Video\/Embed\/([\w]+)/i);
-  if (match) return `https://stream.iranhls.com/Video/Embed/${match[1]}`;
+  const embedMatch = url.match(/stream\.iranhls\.com\/Video\/Embed\/([\w]+)/i);
+  if (embedMatch) return `https://stream.iranhls.com/Video/Embed/${embedMatch[1]}`;
+
+  // Convert Play URLs to Embed URLs
+  // https://stream.iranhls.com/Video/Play/VIDEO_ID/HASH
+  const playMatch = url.match(/stream\.iranhls\.com\/Video\/Play\/([\w]+)/i);
+  if (playMatch) return `https://stream.iranhls.com/Video/Embed/${playMatch[1]}`;
+
   return url;
 }
 
