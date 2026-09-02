@@ -21,6 +21,71 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+// ── Video URL helpers ──────────────────────────────────────────────────────
+function isDirectVideoUrl(url: string): boolean {
+  return /\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url);
+}
+
+function getVideoEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  // YouTube
+  const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+  // Aparat
+  const apMatch = url.match(/aparat\.com\/(?:v\/|embed\/)([\w]+)/);
+  if (apMatch) return `https://www.aparat.com/embed/${apMatch[1]}?autoplay=0`;
+  // Vimeo
+  const vmMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vmMatch) return `https://player.vimeo.com/video/${vmMatch[1]}`;
+  // FramePlayer / other iframe-ready URLs — use as-is
+  if (/\.mp4|\.webm|\.ogg/i.test(url)) return null; // direct file
+  // Treat as embeddable URL (e.g. custom iframe src)
+  return url;
+}
+
+function VideoPlayer({
+  url,
+  onTimeUpdate,
+  onEnded,
+}: {
+  url: string;
+  onTimeUpdate?: (t: number) => void;
+  onEnded?: () => void;
+}) {
+  const embedUrl = getVideoEmbedUrl(url);
+
+  if (embedUrl) {
+    // iframe embed for YouTube, Aparat, Vimeo, etc.
+    return (
+      <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
+        <iframe
+          src={embedUrl}
+          className="h-full w-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title="ویدئوی جلسه"
+        />
+      </div>
+    );
+  }
+
+  // Direct video file
+  return (
+    <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
+      <video
+        className="h-full w-full"
+        controls
+        autoPlay={false}
+        onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
+        onEnded={onEnded}
+      >
+        <source src={url} />
+        مرورگر شما از پخش ویدئو پشتیبانی نمی‌کند.
+      </video>
+    </div>
+  );
+}
+
 export default function LessonPlayerPage() {
   const { slug = "", lessonId = "" } = useParams();
   const navigate = useNavigate();
@@ -181,19 +246,11 @@ export default function LessonPlayerPage() {
           <div className="space-y-6">
             {/* Video Player */}
             {currentLesson.videoUrl && (
-              <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
-                <video
-                  key={currentLesson._id}
-                  className="h-full w-full"
-                  controls
-                  autoPlay={false}
-                  onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
-                  onEnded={handleMarkComplete}
-                >
-                  <source src={currentLesson.videoUrl} />
-                  مرورگر شما از پخش ویدئو پشتیبانی نمی‌کند.
-                </video>
-              </div>
+              <VideoPlayer
+                url={currentLesson.videoUrl}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleMarkComplete}
+              />
             )}
 
             {/* Video from storage */}
