@@ -23,7 +23,7 @@ import { toast } from "sonner";
 
 // ── Video URL helpers ──────────────────────────────────────────────────────
 function isDirectVideoUrl(url: string): boolean {
-  return /\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(url);
+  return /\.(mp4|webm|ogg|mov|m4v|m3u8)(\?|$)/i.test(url);
 }
 
 function getVideoEmbedUrl(url: string): string | null {
@@ -37,10 +37,10 @@ function getVideoEmbedUrl(url: string): string | null {
   // Vimeo
   const vmMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
   if (vmMatch) return `https://player.vimeo.com/video/${vmMatch[1]}`;
-  // FramePlayer / other iframe-ready URLs — use as-is
-  if (/\.mp4|\.webm|\.ogg/i.test(url)) return null; // direct file
-  // Treat as embeddable URL (e.g. custom iframe src)
-  return url;
+  // Direct video files — don't embed, play natively
+  if (isDirectVideoUrl(url)) return null;
+  // Unknown URL — don't guess iframe; let <video> try, then fallback
+  return null;
 }
 
 function VideoPlayer({
@@ -52,10 +52,32 @@ function VideoPlayer({
   onTimeUpdate?: (t: number) => void;
   onEnded?: () => void;
 }) {
+  const [failed, setFailed] = useState(false);
   const embedUrl = getVideoEmbedUrl(url);
 
+  if (failed) {
+    // Fallback: show link to open in new tab
+    return (
+      <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-muted/30">
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <Film className="size-10 text-muted-foreground/50" />
+          <p className="text-sm font-medium">ویدئو قابل پخش نیست</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            این لینک مستقیماً قابل پخش نیست. لطفاً لینک مستقیم فایل ویدئو (مثل mp4) را قرار دهید،
+            یا از سرویس‌های اشتراک‌گذاری ویدئو مانند Aparat، YouTube یا Vimeo استفاده کنید.
+          </p>
+          <Button size="sm" variant="outline" asChild>
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              باز کردن لینک در تب جدید ↗
+            </a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (embedUrl) {
-    // iframe embed for YouTube, Aparat, Vimeo, etc.
+    // iframe embed for YouTube, Aparat, Vimeo
     return (
       <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
         <iframe
@@ -69,13 +91,14 @@ function VideoPlayer({
     );
   }
 
-  // Direct video file
+  // Direct video file — try native <video>
   return (
     <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
       <video
         className="h-full w-full"
         controls
-        autoPlay={false}
+        preload="metadata"
+        onError={() => setFailed(true)}
         onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
         onEnded={onEnded}
       >
