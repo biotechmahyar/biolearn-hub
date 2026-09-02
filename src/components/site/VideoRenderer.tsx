@@ -2,8 +2,12 @@
 // VideoRenderer — shared component used by both instructor preview & student player
 // ══════════════════════════════════════════════════════════════════════════════
 
-import { useState } from "react";
-import { resolveVideoSource, type ResolvedVideoSource } from "@/lib/videoResolver";
+import { useEffect, useRef, useState } from "react";
+import Hls from "hls.js";
+import {
+  resolveVideoSource,
+  type ResolvedVideoSource,
+} from "@/lib/videoResolver";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Film, ExternalLink, AlertTriangle } from "lucide-react";
@@ -22,9 +26,6 @@ interface VideoRendererProps {
 }
 
 // ── Iframe player for script-based providers (IranHLS, etc.) ────────────────
-// These providers use <script> tags that load JavaScript to create the player.
-// We render the script inside a sandboxed iframe via srcdoc so it executes
-// in an isolated context.
 function ScriptIframePlayer({
   source,
   className,
@@ -32,8 +33,8 @@ function ScriptIframePlayer({
   source: ResolvedVideoSource;
   className?: string;
 }) {
-  // Build the embed code to render inside the iframe
-  const embedCode = source.rawEmbedCode || `<script src="${source.url}"></script>`;
+  const embedCode =
+    source.rawEmbedCode || `<script src="${source.url}"></script>`;
 
   const srcdoc = `<!DOCTYPE html>
 <html>
@@ -52,7 +53,9 @@ ${embedCode}
 </html>`;
 
   return (
-    <div className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}>
+    <div
+      className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}
+    >
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
         <iframe
           srcDoc={srcdoc}
@@ -68,7 +71,7 @@ ${embedCode}
   );
 }
 
-// ── Iframe player (Aparat, YouTube, Vimeo, generic embed) ────────────────────
+// ── Iframe player (Aparat, YouTube, Vimeo, ArvanCloud Player, generic) ──────
 function IframePlayer({
   source,
   className,
@@ -77,8 +80,10 @@ function IframePlayer({
   className?: string;
 }) {
   return (
-    <div className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}>
-      <div className="relative w-full" style={{ paddingBottom: "56.25%" /* 16:9 */ }}>
+    <div
+      className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}
+    >
+      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
         <iframe
           src={source.url}
           className="absolute inset-0 h-full w-full border-0"
@@ -87,6 +92,123 @@ function IframePlayer({
           allowFullScreen
           title={`پخش ویدئو — ${source.label}`}
         />
+      </div>
+    </div>
+  );
+}
+
+// ── HLS Video player using hls.js ───────────────────────────────────────────
+function HlsVideoPlayer({
+  source,
+  onTimeUpdate,
+  onEnded,
+  poster,
+  className,
+}: {
+  source: ResolvedVideoSource;
+  onTimeUpdate?: (t: number) => void;
+  onEnded?: () => void;
+  poster?: string;
+  className?: string;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Cleanup previous instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hlsRef.current = hls;
+
+      hls.loadSource(source.url);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {
+          // Autoplay blocked — user can click play
+        });
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          console.error("HLS fatal error:", data.type, data.details);
+          setFailed(true);
+        }
+      });
+
+      return () => {
+        hls.destroy();
+        hlsRef.current = null;
+      };
+    }
+
+    // Native HLS support (Safari, some iOS browsers)
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = source.url;
+      return;
+    }
+
+    // Neither hls.js nor native HLS
+    setFailed(true);
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [source.url]);
+
+  if (failed) {
+    return (
+      <div
+        className={`relative w-full overflow-hidden rounded-xl border border-border bg-muted/30 ${className ?? ""}`}
+      >
+        <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
+          <AlertTriangle className="size-8 text-amber-400" />
+          <p className="text-sm font-medium">پخش جریان HLS ناموفق بود</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            مرورگر شما از پخش این فرمت پشتیبانی نمی‌کند.
+          </p>
+          <Button size="sm" variant="outline" asChild>
+            <a href={source.url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="ml-1.5 size-3" />
+              باز کردن لینک
+            </a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}
+    >
+      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+        <video
+          ref={videoRef}
+          className="absolute inset-0 h-full w-full"
+          controls
+          playsInline
+          preload="metadata"
+          poster={poster}
+          onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
+          onEnded={onEnded}
+        >
+          مرورگر شما از پخش ویدئو پشتیبانی نمی‌کند.
+        </video>
       </div>
     </div>
   );
@@ -110,7 +232,9 @@ function DirectVideoPlayer({
 
   if (failed) {
     return (
-      <div className={`relative w-full overflow-hidden rounded-xl border border-border bg-muted/30 ${className ?? ""}`}>
+      <div
+        className={`relative w-full overflow-hidden rounded-xl border border-border bg-muted/30 ${className ?? ""}`}
+      >
         <div className="aspect-video flex flex-col items-center justify-center gap-3 p-6 text-center">
           <AlertTriangle className="size-8 text-amber-400" />
           <p className="text-sm font-medium">پخش فایل ویدئو ناموفق بود</p>
@@ -129,7 +253,9 @@ function DirectVideoPlayer({
   }
 
   return (
-    <div className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}>
+    <div
+      className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}
+    >
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
         <video
           className="absolute inset-0 h-full w-full"
@@ -166,11 +292,13 @@ function ExternalLinkFallback({
           <Film className="size-7 text-amber-400" />
         </div>
         <div>
-          <p className="text-sm font-semibold">این لینک مستقیماً قابل پخش نیست</p>
+          <p className="text-sm font-semibold">
+            این لینک مستقیماً قابل پخش نیست
+          </p>
           <p className="mt-1 max-w-md text-xs text-muted-foreground">
-            این لینک یک صفحه اشتراک‌گذاری فایل است و در پلیر داخلی قابل پخش نیست.
-            برای پخش مستقیم، از لینک مستقیم فایل ویدئو (.mp4) یا لینک Embed
-            سرویس‌هایی مانند آپارات استفاده کنید.
+            این لینک یک صفحه اشتراک‌گذاری فایل است و در پلیر داخلی قابل پخش
+            نیست. برای پخش مستقیم، از لینک مستقیم فایل ویدئو (.mp4) یا لینک
+            Embed سرویس‌هایی مانند آپارات استفاده کنید.
           </p>
         </div>
         <Button size="sm" variant="outline" asChild>
@@ -201,6 +329,9 @@ export function VideoRenderer({
     return null;
   }
 
+  // Check if URL is an HLS stream
+  const isHls = /\.m3u8(\?|#|$)/i.test(source.url);
+
   switch (source.type) {
     case "embed":
       // Script-based providers (IranHLS) need their script to execute
@@ -210,6 +341,17 @@ export function VideoRenderer({
       return <IframePlayer source={source} className={className} />;
 
     case "direct":
+      if (isHls) {
+        return (
+          <HlsVideoPlayer
+            source={source}
+            onTimeUpdate={onTimeUpdate}
+            onEnded={onEnded}
+            poster={poster}
+            className={className}
+          />
+        );
+      }
       return (
         <DirectVideoPlayer
           source={source}
@@ -226,7 +368,11 @@ export function VideoRenderer({
 }
 
 // ── Small badge showing detected source type ─────────────────────────────────
-export function VideoSourceBadge({ url }: { url: string | null | undefined }) {
+export function VideoSourceBadge({
+  url,
+}: {
+  url: string | null | undefined;
+}) {
   const source = resolveVideoSource(url);
   if (!source) return null;
 

@@ -9,6 +9,7 @@ export type VideoProvider =
   | "youtube"
   | "vimeo"
   | "iranhls"
+  | "arvancloud"
   | "direct"
   | "generic";
 
@@ -32,6 +33,7 @@ const EMBED_PROVIDERS: Record<string, string[]> = {
   youtube: ["youtube.com", "www.youtube.com", "youtu.be"],
   vimeo: ["vimeo.com", "player.vimeo.com"],
   iranhls: ["stream.iranhls.com"],
+  arvancloud: ["player.arvancloud.ir", "arvancloud.ir"],
 };
 
 // Flat list of all trusted embed domains for quick lookup
@@ -40,6 +42,9 @@ const TRUSTED_EMBED_DOMAINS = Object.values(EMBED_PROVIDERS).flat();
 // Direct video file extensions
 const DIRECT_VIDEO_EXTENSIONS =
   /\.(mp4|webm|ogg|mov|m4v|m3u8|mkv|avi)(\?|#|$)/i;
+
+// HLS extension
+const HLS_EXTENSION = /\.m3u8(\?|#|$)/i;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Provider Detection Helpers
@@ -51,6 +56,7 @@ function detectProvider(url: string): VideoProvider {
   if (/(?:youtube\.com|youtu\.be)/i.test(lower)) return "youtube";
   if (/vimeo\.com/i.test(lower)) return "vimeo";
   if (/stream\.iranhls\.com/i.test(lower)) return "iranhls";
+  if (/player\.arvancloud\.ir/i.test(lower)) return "arvancloud";
   return "generic";
 }
 
@@ -69,6 +75,19 @@ function isTrustedDomain(url: string): boolean {
     const parsed = new URL(url);
     return TRUSTED_EMBED_DOMAINS.some(
       (d) => parsed.hostname === d || parsed.hostname.endsWith("." + d),
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Check if URL is an ArvanCloud CDN URL (direct video file hosted on arvanvod.ir) */
+function isArvanCloudCdn(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.hostname.endsWith(".arvanvod.ir") ||
+      parsed.hostname.endsWith(".arvancloud.ir")
     );
   } catch {
     return false;
@@ -128,10 +147,7 @@ export function parseEmbedCode(input: string): ParsedEmbedCode {
   }
 
   // 4. Try bare URL that looks like a video embed endpoint
-  if (
-    isValidHttpUrl(trimmed) &&
-    /embed|player|video/i.test(trimmed)
-  ) {
+  if (isValidHttpUrl(trimmed) && /embed|player|video/i.test(trimmed)) {
     return { found: true, url: trimmed, tagType: "unknown" };
   }
 
@@ -206,7 +222,9 @@ function normalizeIranHlsUrl(url: string): string {
  *
  * Handles:
  * - Direct video URLs (.mp4, .webm, etc.)
- * - Embed URLs (Aparat, YouTube, Vimeo, IranHLS, generic)
+ * - HLS streams (.m3u8) → flagged as HLS for player
+ * - Embed URLs (Aparat, YouTube, Vimeo, IranHLS, ArvanCloud Player)
+ * - ArvanCloud CDN URLs (arvanvod.ir) → direct video
  * - Embed codes (<script src="...">, <iframe src="...">)
  * - Share/page links (Files.ir, etc.) → external fallback
  */
@@ -279,13 +297,47 @@ export function resolveVideoSource(
 
 // ── Resolve a plain URL ──────────────────────────────────────────────────────
 function resolveAsUrl(url: string): ResolvedVideoSource {
-  // Direct video file
+  // ArvanCloud Player URL (HTML page) → iframe embed
+  // https://player.arvancloud.ir/index.html?config=...
+  if (/player\.arvancloud\.ir/i.test(url)) {
+    return {
+      type: "embed",
+      provider: "arvancloud",
+      url,
+      label: "آروان‌کلود",
+    };
+  }
+
+  // ArvanCloud CDN direct MP4 → direct video
+  // https://genovatab.arvanvod.ir/.../*.mp4
+  if (isArvanCloudCdn(url) && /\.(mp4|webm|ogg)(\?|#|$)/i.test(url)) {
+    return {
+      type: "direct",
+      provider: "arvancloud",
+      url,
+      label: "ویدئوی آروان‌کلود",
+    };
+  }
+
+  // ArvanCloud CDN HLS → direct video with HLS flag
+  // https://genovatab.arvanvod.ir/.../*.m3u8
+  if (isArvanCloudCdn(url) && HLS_EXTENSION.test(url)) {
+    return {
+      type: "direct",
+      provider: "arvancloud",
+      url,
+      label: "ویدئوی آروان‌کلود (HLS)",
+    };
+  }
+
+  // Direct video file (.mp4, .webm, .ogg, etc.)
   if (DIRECT_VIDEO_EXTENSIONS.test(url)) {
+    const isHls = HLS_EXTENSION.test(url);
     return {
       type: "direct",
       provider: "direct",
       url,
-      label: "ویدئوی مستقیم",
+      label: isHls ? "جریان HLS" : "ویدئوی مستقیم",
     };
   }
 
@@ -298,14 +350,20 @@ function resolveAsUrl(url: string): ResolvedVideoSource {
   // Check hostname against whitelist
   if (isTrustedDomain(url)) {
     const hostname = (() => {
-      try { return new URL(url).hostname; } catch { return ""; }
+      try {
+        return new URL(url).hostname;
+      } catch {
+        return "";
+      }
     })();
     const matchedProvider = detectProviderByHostname(hostname);
     return {
       type: "embed",
       provider: matchedProvider ?? "generic",
       url,
-      label: matchedProvider ? getProviderLabel(matchedProvider) : "پخش‌کننده",
+      label: matchedProvider
+        ? getProviderLabel(matchedProvider)
+        : "پخش‌کننده",
     };
   }
 
@@ -362,6 +420,13 @@ function resolveAsEmbed(
         label: "IranHLS",
         requiresScript: true,
       };
+    case "arvancloud":
+      return {
+        type: "embed",
+        provider: "arvancloud",
+        url,
+        label: "آروان‌کلود",
+      };
     default:
       return {
         type: "embed",
@@ -378,6 +443,7 @@ function getProviderLabel(provider: VideoProvider): string {
     youtube: "یوتیوب",
     vimeo: "Vimeo",
     iranhls: "IranHLS",
+    arvancloud: "آروان‌کلود",
     direct: "ویدئوی مستقیم",
     generic: "پخش‌کننده",
   };
