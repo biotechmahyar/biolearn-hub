@@ -653,9 +653,11 @@ export const addLesson = mutation({
       v.literal("videoUrl"),
       v.literal("text"),
       v.literal("file"),
+      v.literal("embedCode"),
     )),
     videoUrl: v.optional(v.string()),
     textContent: v.optional(v.string()),
+    embedCode: v.optional(v.string()),
     durationMin: v.optional(v.number()),
     isPreview: v.optional(v.boolean()),
   },
@@ -688,6 +690,7 @@ export const addLesson = mutation({
       contentType: args.contentType || undefined,
       videoUrl: args.videoUrl || undefined,
       textContent: args.textContent || undefined,
+      embedCode: args.embedCode || undefined,
       durationMin: args.durationMin || 60,
       isPreview: args.isPreview ?? false,
       isPublished: true,
@@ -708,10 +711,12 @@ export const updateLesson = mutation({
       v.literal("videoUrl"),
       v.literal("text"),
       v.literal("file"),
+      v.literal("embedCode"),
     )),
     videoUrl: v.optional(v.string()),
     videoStorageId: v.optional(v.string()),
     textContent: v.optional(v.string()),
+    embedCode: v.optional(v.string()),
     attachments: v.optional(v.array(v.object({
       name: v.string(),
       storageId: v.string(),
@@ -740,6 +745,7 @@ export const updateLesson = mutation({
     if (args.videoUrl !== undefined) patch.videoUrl = args.videoUrl || undefined;
     if (args.videoStorageId !== undefined) patch.videoStorageId = args.videoStorageId || undefined;
     if (args.textContent !== undefined) patch.textContent = args.textContent || undefined;
+    if (args.embedCode !== undefined) patch.embedCode = args.embedCode || undefined;
     if (args.attachments !== undefined) patch.attachments = args.attachments;
     if (args.durationMin !== undefined) patch.durationMin = args.durationMin;
     if (args.isPreview !== undefined) patch.isPreview = args.isPreview;

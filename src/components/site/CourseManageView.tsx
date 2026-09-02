@@ -313,6 +313,9 @@ function CurriculumManager({
       if (lessonContentType === "text" && lessonText.trim()) {
         payload.textContent = lessonText.trim();
       }
+      if (lessonContentType === "embedCode" && lessonVideoEmbedCode.trim()) {
+        payload.embedCode = lessonVideoEmbedCode.trim();
+      }
       await addLesson(payload);
       toast.success("جلسه اضافه شد");
       setLessonTitle("");
@@ -405,7 +408,9 @@ function CurriculumManager({
                             ? " · 🎬 ویدئو"
                             : lesson.contentType === "text"
                               ? " · 📝 متن"
-                              : ""}
+                              : lesson.contentType === "embedCode"
+                                ? " · 🔗 Embed"
+                                : ""}
                           {lesson.isPreview ? " · رایگان" : ""}
                         </p>
                       </div>
@@ -546,6 +551,11 @@ function CurriculumManager({
                         <Film className="size-3" /> فایل
                       </span>
                     </SelectItem>
+                    <SelectItem value="embedCode">
+                      <span className="flex items-center gap-1.5">
+                        <Link2 className="size-3" /> کد Embed / لایو
+                      </span>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -645,6 +655,37 @@ function CurriculumManager({
               </div>
             )}
 
+            {lessonContentType === "embedCode" && (
+              <div className="space-y-2">
+                <label className="text-xs text-slate-400">کد Embed / لایو استریم</label>
+                <Textarea
+                  placeholder="<script src='...'></script> or <iframe src='...'></iframe>"
+                  value={lessonVideoEmbedCode}
+                  onChange={(e) => setLessonVideoEmbedCode(e.target.value)}
+                  rows={5}
+                  className="border-white/10 bg-white/5 font-mono text-[11px] text-slate-300"
+                  dir="ltr"
+                />
+                <p className="text-[10px] text-slate-600">
+                  کد &lt;script&gt; یا &lt;iframe&gt; Embed سرویس ویدئویی را اینجا قرار دهید. کد به‌صورت امن در یک iframe ایزوله اجرا می‌شود.
+                </p>
+                {lessonVideoEmbedCode.trim() && (
+                  <div className="mt-2 space-y-2">
+                    <VideoSourceBadge url={(() => {
+                      const parsed = parseEmbedCode(lessonVideoEmbedCode);
+                      return parsed.url ?? undefined;
+                    })()} />
+                    <VideoRenderer
+                      url={(() => {
+                        const parsed = parseEmbedCode(lessonVideoEmbedCode);
+                        return parsed.url ?? undefined;
+                      })()}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -697,6 +738,7 @@ function ContentManager({
   const [videoEmbedCode, setVideoEmbedCode] = useState("");
   const [videoInputMode, setVideoInputMode] = useState<"url" | "embed-code">("url");
   const [textContent, setTextContent] = useState("");
+  const [embedCode, setEmbedCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState<string | null>(null);
 
@@ -719,6 +761,7 @@ function ContentManager({
     setVideoEmbedCode("");
     setVideoInputMode("url");
     setTextContent(selectedLesson.textContent ?? "");
+    setEmbedCode(selectedLesson.embedCode ?? "");
     setLoaded(selectedLessonId);
   }
 
@@ -749,6 +792,9 @@ function ContentManager({
       if (selectedLesson.contentType === "text") {
         patch.textContent = textContent || undefined;
       }
+      if (selectedLesson.contentType === "embedCode") {
+        patch.embedCode = embedCode || undefined;
+      }
       if (textContent.trim()) patch.textContent = textContent.trim();
 
       await updateLesson({
@@ -778,7 +824,7 @@ function ContentManager({
                   <p className="mb-1 text-[10px] font-bold text-cyan-400">{section.title}</p>
                   <div className="space-y-0.5">
                     {(section.lessons ?? []).map((lesson: any) => {
-                      const hasContent = !!(lesson.videoUrl || lesson.textContent);
+                      const hasContent = !!(lesson.videoUrl || lesson.textContent || lesson.embedCode);
                       return (
                         <button
                           key={lesson._id}
@@ -901,6 +947,29 @@ function ContentManager({
                   rows={8}
                   className="border-white/10 bg-white/5 text-sm text-slate-100"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Link2 className="size-3.5" /> کد Embed / لایو استریم
+                </label>
+                <Textarea
+                  placeholder={'<script src="https://stream.iranhls.com/Video/Embed/VIDEO_ID"></script>'}
+                  value={embedCode}
+                  onChange={(e) => setEmbedCode(e.target.value)}
+                  rows={4}
+                  className="border-white/10 bg-white/5 font-mono text-[11px] text-slate-300"
+                  dir="ltr"
+                />
+                <p className="text-[10px] text-slate-600">
+                  کد &lt;script&gt; یا &lt;iframe&gt; سرویس ویدئویی — به‌صورت امن در iframe ایزوله اجرا می‌شود
+                </p>
+                {embedCode.trim() && (
+                  <VideoSourceBadge url={(() => {
+                    const parsed = parseEmbedCode(embedCode);
+                    return parsed.url ?? undefined;
+                  })()} />
+                )}
               </div>
 
               <div className="flex justify-end">

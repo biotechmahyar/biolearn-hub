@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { VideoRenderer } from "@/components/site/VideoRenderer";
+import { EmbedCodeRenderer } from "@/components/site/EmbedCodeRenderer";
 import { useAuth } from "@/hooks/use-auth";
 import {
   ArrowLeft,
@@ -206,8 +207,13 @@ export default function LessonPlayerPage() {
               </div>
             )}
 
+            {/* Embed code content (live streaming, custom players, etc.) */}
+            {currentLesson.embedCode && !currentLesson.videoUrl && !currentLesson.videoStorageId && (
+              <EmbedCodeRenderer embedCode={currentLesson.embedCode} />
+            )}
+
             {/* No video placeholder */}
-            {!currentLesson.videoUrl && !currentLesson.videoStorageId && (
+            {!currentLesson.videoUrl && !currentLesson.videoStorageId && !currentLesson.embedCode && (
               <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-border bg-muted/30">
                 <div className="text-center">
                   <Film className="mx-auto size-12 text-muted-foreground/50" />
