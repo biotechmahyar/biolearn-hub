@@ -505,3 +505,347 @@ export const removeSyllabusLesson = mutation({
     return { ok: true };
   },
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Course Sections CRUD ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const addSection = mutation({
+  args: {
+    courseId: v.id("courses"),
+    title: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const existing = await ctx.db
+      .query("courseSections")
+      .withIndex("by_course", (q) => q.eq("courseId", args.courseId))
+      .collect();
+    const maxOrder = existing.reduce((max, s) => Math.max(max, s.order), 0);
+
+    const sectionId = await ctx.db.insert("courseSections", {
+      courseId: args.courseId,
+      title: args.title.trim(),
+      description: args.description?.trim() || undefined,
+      order: maxOrder + 1,
+      createdAt: Date.now(),
+    });
+    return { ok: true, sectionId };
+  },
+});
+
+export const updateSection = mutation({
+  args: {
+    sectionId: v.id("courseSections"),
+    title: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const section = await ctx.db.get(args.sectionId);
+    if (!section) throw new Error("سرفصل یافت نشد.");
+    const course = await ctx.db.get(section.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    await ctx.db.patch(args.sectionId, {
+      title: args.title.trim(),
+      description: args.description?.trim() || undefined,
+    });
+    return { ok: true };
+  },
+});
+
+export const deleteSection = mutation({
+  args: {
+    sectionId: v.id("courseSections"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const section = await ctx.db.get(args.sectionId);
+    if (!section) throw new Error("سرفصل یافت نشد.");
+    const course = await ctx.db.get(section.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    // Delete all lessons in this section
+    const lessons = await ctx.db
+      .query("courseLessons")
+      .withIndex("by_section", (q) => q.eq("sectionId", args.sectionId))
+      .collect();
+    for (const lesson of lessons) {
+      await ctx.db.delete(lesson._id);
+    }
+    await ctx.db.delete(args.sectionId);
+    return { ok: true };
+  },
+});
+
+export const getCourseSections = query({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, args) => {
+    const sections = await ctx.db
+      .query("courseSections")
+      .withIndex("by_course_order", (q) => q.eq("courseId", args.courseId))
+      .collect();
+    return sections;
+  },
+});
+
+export const getCourseSectionsWithLessons = query({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, args) => {
+    const sections = await ctx.db
+      .query("courseSections")
+      .withIndex("by_course_order", (q) => q.eq("courseId", args.courseId))
+      .collect();
+
+    const result = [];
+    for (const section of sections) {
+      const lessons = await ctx.db
+        .query("courseLessons")
+        .withIndex("by_section_order", (q) =>
+          q.eq("sectionId", section._id)
+        )
+        .collect();
+      result.push({ ...section, lessons });
+    }
+    return result;
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Course Lessons CRUD ─────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const addLesson = mutation({
+  args: {
+    courseId: v.id("courses"),
+    sectionId: v.id("courseSections"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    contentType: v.optional(v.union(
+      v.literal("video"),
+      v.literal("videoUrl"),
+      v.literal("text"),
+      v.literal("file"),
+    )),
+    videoUrl: v.optional(v.string()),
+    textContent: v.optional(v.string()),
+    durationMin: v.optional(v.number()),
+    isPreview: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const section = await ctx.db.get(args.sectionId);
+    if (!section || section.courseId !== args.courseId) {
+      throw new Error("سرفصل یافت نشد.");
+    }
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const existing = await ctx.db
+      .query("courseLessons")
+      .withIndex("by_section_order", (q) => q.eq("sectionId", args.sectionId))
+      .collect();
+    const maxOrder = existing.reduce((max, l) => Math.max(max, l.order), 0);
+
+    const now = Date.now();
+    const lessonId = await ctx.db.insert("courseLessons", {
+      courseId: args.courseId,
+      sectionId: args.sectionId,
+      title: args.title.trim(),
+      description: args.description?.trim() || undefined,
+      order: maxOrder + 1,
+      contentType: args.contentType || undefined,
+      videoUrl: args.videoUrl || undefined,
+      textContent: args.textContent || undefined,
+      durationMin: args.durationMin || 60,
+      isPreview: args.isPreview ?? false,
+      isPublished: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return { ok: true, lessonId };
+  },
+});
+
+export const updateLesson = mutation({
+  args: {
+    lessonId: v.id("courseLessons"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    contentType: v.optional(v.union(
+      v.literal("video"),
+      v.literal("videoUrl"),
+      v.literal("text"),
+      v.literal("file"),
+    )),
+    videoUrl: v.optional(v.string()),
+    videoStorageId: v.optional(v.string()),
+    textContent: v.optional(v.string()),
+    attachments: v.optional(v.array(v.object({
+      name: v.string(),
+      storageId: v.string(),
+      fileType: v.string(),
+      fileSize: v.number(),
+    }))),
+    durationMin: v.optional(v.number()),
+    isPreview: v.optional(v.boolean()),
+    isPublished: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) throw new Error("جلسه یافت نشد.");
+    const course = await ctx.db.get(lesson.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const patch: Record<string, any> = { updatedAt: Date.now() };
+    if (args.title !== undefined) patch.title = args.title.trim();
+    if (args.description !== undefined) patch.description = args.description?.trim() || undefined;
+    if (args.contentType !== undefined) patch.contentType = args.contentType;
+    if (args.videoUrl !== undefined) patch.videoUrl = args.videoUrl || undefined;
+    if (args.videoStorageId !== undefined) patch.videoStorageId = args.videoStorageId || undefined;
+    if (args.textContent !== undefined) patch.textContent = args.textContent || undefined;
+    if (args.attachments !== undefined) patch.attachments = args.attachments;
+    if (args.durationMin !== undefined) patch.durationMin = args.durationMin;
+    if (args.isPreview !== undefined) patch.isPreview = args.isPreview;
+    if (args.isPublished !== undefined) patch.isPublished = args.isPublished;
+
+    await ctx.db.patch(args.lessonId, patch);
+    return { ok: true };
+  },
+});
+
+export const deleteLesson = mutation({
+  args: {
+    lessonId: v.id("courseLessons"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) throw new Error("جلسه یافت نشد.");
+    const course = await ctx.db.get(lesson.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    await ctx.db.delete(args.lessonId);
+    return { ok: true };
+  },
+});
+
+export const getLessonsBySection = query({
+  args: { sectionId: v.id("courseSections") },
+  handler: async (ctx, args) => {
+    const lessons = await ctx.db
+      .query("courseLessons")
+      .withIndex("by_section_order", (q) => q.eq("sectionId", args.sectionId))
+      .collect();
+    return lessons;
+  },
+});
+
+// Get lessons for a course (all sections combined, ordered)
+export const getCourseLessons = query({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, args) => {
+    const sections = await ctx.db
+      .query("courseSections")
+      .withIndex("by_course_order", (q) => q.eq("courseId", args.courseId))
+      .collect();
+    const allLessons = [];
+    for (const section of sections) {
+      const lessons = await ctx.db
+        .query("courseLessons")
+        .withIndex("by_section_order", (q) => q.eq("sectionId", section._id))
+        .collect();
+      allLessons.push(...lessons);
+    }
+    return allLessons;
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Migration: Convert flat syllabus to sections+lessons ────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Creates sections and lessons from a course's flat syllabus array.
+// Can be called multiple times — skips if sections already exist.
+export const migrateSyllabusToSections = mutation({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    // Check if sections already exist
+    const existingSections = await ctx.db
+      .query("courseSections")
+      .withIndex("by_course", (q) => q.eq("courseId", args.courseId))
+      .collect();
+    if (existingSections.length > 0) {
+      return { ok: true, migrated: false, reason: "sections_exist" };
+    }
+
+    const syllabus = course.syllabus ?? [];
+    if (syllabus.length === 0) {
+      return { ok: true, migrated: false, reason: "no_syllabus" };
+    }
+
+    // Create a single "سرفصل اصلی" section
+    const sectionId = await ctx.db.insert("courseSections", {
+      courseId: args.courseId,
+      title: "سرفصل اصلی",
+      order: 1,
+      createdAt: Date.now(),
+    });
+
+    // Create lessons from syllabus
+    for (let i = 0; i < syllabus.length; i++) {
+      const s = syllabus[i];
+      await ctx.db.insert("courseLessons", {
+        courseId: args.courseId,
+        sectionId,
+        title: s.title,
+        order: i + 1,
+        durationMin: s.durationMin,
+        isPreview: s.free,
+        isPublished: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    return { ok: true, migrated: true, lessonCount: syllabus.length };
+  },
+});

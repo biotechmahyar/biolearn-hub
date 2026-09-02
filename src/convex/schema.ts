@@ -207,6 +207,49 @@ const schema = defineSchema(
       .index("by_featured", ["featured"])
       .index("by_author", ["authorId"]),
 
+    // ── Course Sections & Lessons (hierarchical curriculum) ────────────────
+    courseSections: defineTable({
+      courseId: v.id("courses"),
+      title: v.string(),
+      description: v.optional(v.string()),
+      order: v.number(),
+      createdAt: v.number(),
+    })
+      .index("by_course", ["courseId"])
+      .index("by_course_order", ["courseId", "order"]),
+
+    courseLessons: defineTable({
+      courseId: v.id("courses"),
+      sectionId: v.id("courseSections"),
+      title: v.string(),
+      description: v.optional(v.string()),
+      order: v.number(),
+      contentType: v.optional(v.union(
+        v.literal("video"),
+        v.literal("videoUrl"),
+        v.literal("text"),
+        v.literal("file"),
+      )),
+      videoUrl: v.optional(v.string()),
+      videoStorageId: v.optional(v.string()),
+      textContent: v.optional(v.string()),
+      attachments: v.optional(v.array(v.object({
+        name: v.string(),
+        storageId: v.string(),
+        fileType: v.string(),
+        fileSize: v.number(),
+      }))),
+      durationMin: v.number(),
+      isPreview: v.boolean(),
+      isPublished: v.boolean(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_section", ["sectionId"])
+      .index("by_course", ["courseId"])
+      .index("by_course_section", ["courseId", "sectionId"])
+      .index("by_section_order", ["sectionId", "order"]),
+
     products: defineTable({
       title: v.string(),
       slug: v.string(),
