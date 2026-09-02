@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { VideoRenderer, VideoSourceBadge } from "@/components/site/VideoRenderer";
 import {
   Dialog,
   DialogContent,
@@ -501,12 +502,21 @@ function CurriculumManager({
               <div className="space-y-1.5">
                 <label className="text-xs text-slate-400">لینک ویدئو</label>
                 <Input
-                  placeholder="https://www.aparat.com/v/..."
+                  placeholder="https://www.aparat.com/v/...  یا  https://youtube.com/watch?v=..."
                   value={lessonVideoUrl}
                   onChange={(e) => setLessonVideoUrl(e.target.value)}
                   className="border-white/10 bg-white/5 text-sm text-slate-100"
                   dir="ltr"
                 />
+                <p className="text-[10px] text-slate-600">
+                  لینک مستقیم ویدئو یا لینک Embed سرویس‌هایی مانند آپارات، یوتیوب یا Vimeo
+                </p>
+                {lessonVideoUrl.trim() && (
+                  <div className="mt-2 space-y-2">
+                    <VideoSourceBadge url={lessonVideoUrl} />
+                    <VideoRenderer url={lessonVideoUrl} />
+                  </div>
+                )}
               </div>
             )}
 
@@ -705,12 +715,21 @@ function ContentManager({
                   <Link2 className="size-3.5" /> لینک ویدئو
                 </label>
                 <Input
-                  placeholder="https://www.aparat.com/v/...  یا  https://youtube.com/watch?v=..."
+                  placeholder="https://www.aparat.com/v/...  یا  https://youtube.com/watch?v=...  یا  link.mp4"
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
                   className="border-white/10 bg-white/5 text-sm text-slate-100"
                   dir="ltr"
                 />
+                <p className="text-[10px] text-slate-600">
+                  لینک مستقیم فایل ویدئو یا لینک Embed سرویس‌هایی مانند آپارات، یوتیوب یا Vimeo
+                </p>
+                {videoUrl.trim() && (
+                  <div className="mt-2 space-y-2">
+                    <VideoSourceBadge url={videoUrl} />
+                    <VideoRenderer url={videoUrl} />
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
