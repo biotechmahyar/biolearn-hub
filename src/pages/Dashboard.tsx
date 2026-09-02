@@ -453,7 +453,11 @@ function MyCourses() {
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Button asChild variant="outline" className="rounded-full">
-                  <Link to={`/courses/${e.course?.slug}#syllabus`}>
+                  <Link to={(() => {
+                    const lastId = (e as any).lastLessonId;
+                    if (lastId) return `/courses/${e.course?.slug}/lesson/${lastId}`;
+                    return `/courses/${e.course?.slug}#syllabus`;
+                  })()}>
                     {e.percent === 100 ? "مرور دوره" : "ادامه یادگیری"}
                   </Link>
                 </Button>

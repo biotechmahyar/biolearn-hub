@@ -189,7 +189,23 @@ export const getMyEnrollments = query({
         const course = await ctx.db.get(en.courseId);
         if (!course) return null;
         const category = await ctx.db.get(course.categoryId);
-        const totalLessons = course.syllabus.length;
+        // Count lessons from sections if available, else fall back to syllabus
+        const sections = await ctx.db
+          .query("courseSections")
+          .withIndex("by_course", (q) => q.eq("courseId", en.courseId))
+          .collect();
+        let totalLessons = course.syllabus.length;
+        if (sections.length > 0) {
+          let count = 0;
+          for (const s of sections) {
+            const lessons = await ctx.db
+              .query("courseLessons")
+              .withIndex("by_section", (q) => q.eq("sectionId", s._id))
+              .collect();
+            count += lessons.length;
+          }
+          if (count > 0) totalLessons = count;
+        }
         const percent =
           totalLessons === 0
             ? 0

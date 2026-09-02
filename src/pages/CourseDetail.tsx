@@ -8,6 +8,7 @@ import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { LessonPlayer } from "@/components/site/LessonPlayer";
+import { Lock as LockIcon, Link2 } from "lucide-react";
 import { iconFor } from "@/components/site/icons";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
@@ -96,9 +97,16 @@ export default function CourseDetail() {
   const effective = course.discountPrice ?? course.price;
   const hasDiscount = !!course.discountPrice && course.discountPrice < course.price;
   const isEnrolled = !!course.enrollment;
-  const totalMin = course.syllabus.reduce((acc, l) => acc + l.durationMin, 0);
+  const sectionsWithLessons = useQuery(
+    api.courseStudio.getCourseSectionsWithLessons,
+    course ? { courseId: course._id } : "skip"
+  );
+  const allSections = sectionsWithLessons ?? [];
+  const allLessonsFromSections = allSections.flatMap((s: any) => s.lessons ?? []);
+  const totalMin = allLessonsFromSections.reduce((acc: number, l: any) => acc + (l.durationMin ?? 0), 0);
   const completedCount = course.enrollment?.completedLessons.length ?? 0;
-  const percent = course.syllabus.length === 0 ? 0 : Math.round((completedCount / course.syllabus.length) * 100);
+  const syllabusCount = allLessonsFromSections.length || course.syllabus.length;
+  const percent = syllabusCount === 0 ? 0 : Math.round((completedCount / syllabusCount) * 100);
 
   const toggleLesson = async (lessonId: string, completed: boolean) => {
     await markLesson({ courseId: course._id, lessonId, completed });
@@ -219,7 +227,17 @@ export default function CourseDetail() {
                     </div>
                     <Progress value={percent} className="h-2" />
                     <Button asChild className="w-full">
-                      <Link to={`/courses/${course.slug}#syllabus`}>
+                      <Link to={(() => {
+                        // Continue Learning: go to last viewed lesson or first lesson
+                        const lastId = course.enrollment?.lastLessonId;
+                        if (lastId && allLessonsFromSections.some((l: any) => l._id === lastId)) {
+                          return `/courses/${course.slug}/lesson/${lastId}`;
+                        }
+                        // Find first lesson
+                        const firstLesson = allLessonsFromSections[0];
+                        if (firstLesson) return `/courses/${course.slug}/lesson/${firstLesson._id}`;
+                        return `/courses/${course.slug}#syllabus`;
+                      })()}>
                         <PlayCircle className="ml-2 size-4" />
                         {percent === 100 ? "مرور دوباره دوره" : "ادامه یادگیری"}
                       </Link>
@@ -330,79 +348,114 @@ export default function CourseDetail() {
               </div>
             </div>
 
-            {/* Syllabus */}
+            {/* Syllabus - from Sections+Lessons */}
             <div id="syllabus" className="scroll-mt-24">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-extrabold">سرفصل‌های دوره</h2>
                 {isEnrolled && (
                   <span className="text-sm text-muted-foreground">
-                    {faNum(completedCount)} از {faNum(course.syllabus.length)} جلسه تکمیل شده
+                    {faNum(completedCount)} از {faNum(syllabusCount)} جلسه تکمیل شده
                   </span>
                 )}
               </div>
-              <Accordion type="single" collapsible className="mt-4 space-y-2">
-                {course.syllabus.map((lesson, index) => {
-                  const done = course.enrollment?.completedLessons.includes(lesson.id) ?? false;
-                  return (
-                    <AccordionItem
-                      key={lesson.id}
-                      value={lesson.id}
-                      className="rounded-xl border border-border/70 bg-card/60 px-4"
-                    >
-                      <AccordionTrigger className="py-3.5 hover:no-underline">
-                        <span className="flex items-center gap-3 text-right">
-                          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
-                            {faNum(index + 1)}
-                          </span>
-                          <span className={cn("text-sm font-semibold", done && "text-muted-foreground line-through")}>
-                            {lesson.title}
-                          </span>
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="flex flex-wrap items-center gap-3 pb-4">
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Clock className="size-3.5" />
-                            {faNum(lesson.durationMin)} دقیقه
-                          </span>
-                          {lesson.free ? (
-                            <Badge variant="secondary" className="rounded-full bg-emerald-50 text-emerald-700">
-                              رایگان
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="rounded-full">ویژهٔ دوره</Badge>
-                          )}
-                          {isEnrolled && (
-                            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                              <Checkbox
-                                checked={done}
-                                onCheckedChange={(v) => toggleLesson(lesson.id, !!v)}
-                              />
-                              {done ? "تکمیل شد" : "علامت‌گذاری به‌عنوان دیده‌شده"}
-                            </label>
-                          )}
-                          {!isEnrolled && (
-                            <span className="text-xs text-muted-foreground">
-                              برای دسترسی به جلسات، در دوره ثبت‌نام کن.
-                            </span>
-                          )}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  );
-                })}
-              </Accordion>
 
-              {/* Interactive lesson player */}
-              {(isEnrolled || course.syllabus.some((s) => s.free)) && (
-                <div className="mt-6">
-                  <LessonPlayer
-                    courseId={course._id}
-                    syllabus={course.syllabus}
-                    isEnrolled={!!isEnrolled}
-                    initialLessonId={course.enrollment?.lastLessonId}
-                  />
+              {allSections.length > 0 ? (
+                <div className="mt-4 space-y-4">
+                  {allSections.map((section: any, si: number) => (
+                    <div key={section._id} className="rounded-xl border border-border/70 bg-card/60">
+                      <div className="border-b border-border/50 px-4 py-3">
+                        <h3 className="text-sm font-bold">فصل {faNum(si + 1)} — {section.title}</h3>
+                      </div>
+                      <div className="divide-y divide-border/50">
+                        {section.lessons?.map((lesson: any, li: number) => {
+                          const done = course.enrollment?.completedLessons.includes(lesson._id) ?? false;
+                          const canAccess = isEnrolled || lesson.isPreview;
+                          return (
+                            <div key={lesson._id} className="flex items-center gap-3 px-4 py-3">
+                              <span className="flex size-6 shrink-0 items-center justify-center rounded bg-primary/10 text-[10px] font-bold text-primary">
+                                {faNum(li + 1)}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                {canAccess ? (
+                                  <Link
+                                    to={`/courses/${course.slug}/lesson/${lesson._id}`}
+                                    className={cn(
+                                      "text-sm font-semibold hover:underline",
+                                      done && "text-muted-foreground line-through"
+                                    )}
+                                  >
+                                    {lesson.title}
+                                  </Link>
+                                ) : (
+                                  <span className="text-sm font-semibold text-muted-foreground">
+                                    {lesson.title}
+                                  </span>
+                                )}
+                                <span className="mr-2 text-[10px] text-muted-foreground">
+                                  {faNum(lesson.durationMin)} دقیقه
+                                </span>
+                              </div>
+                              {done && (
+                                <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+                              )}
+                              {!canAccess && (
+                                <LockIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+                              )}
+                              {lesson.isPreview && !isEnrolled && (
+                                <Badge variant="secondary" className="shrink-0 rounded-full text-[9px] bg-emerald-50 text-emerald-700">
+                                  پیش‌نمایش
+                                </Badge>
+                              )}
+                              {lesson.videoUrl && (
+                                <Link2 className="size-3.5 shrink-0 text-muted-foreground/50" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                /* Fallback: old flat syllabus for backward compat */
+                <Accordion type="single" collapsible className="mt-4 space-y-2">
+                  {course.syllabus.map((lesson, index) => {
+                    const done = course.enrollment?.completedLessons.includes(lesson.id) ?? false;
+                    return (
+                      <AccordionItem
+                        key={lesson.id}
+                        value={lesson.id}
+                        className="rounded-xl border border-border/70 bg-card/60 px-4"
+                      >
+                        <AccordionTrigger className="py-3.5 hover:no-underline">
+                          <span className="flex items-center gap-3 text-right">
+                            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                              {faNum(index + 1)}
+                            </span>
+                            <span className={cn("text-sm font-semibold", done && "text-muted-foreground line-through")}>
+                              {lesson.title}
+                            </span>
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="flex flex-wrap items-center gap-3 pb-4">
+                            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                              <Clock className="size-3.5" />
+                              {faNum(lesson.durationMin)} دقیقه
+                            </span>
+                            {lesson.free ? (
+                              <Badge variant="secondary" className="rounded-full bg-emerald-50 text-emerald-700">
+                                رایگان
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="rounded-full">ویژهٔ دوره</Badge>
+                            )}
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    );
+                  })}
+                </Accordion>
               )}
             </div>
 

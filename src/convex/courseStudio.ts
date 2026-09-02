@@ -582,12 +582,22 @@ export const deleteSection = mutation({
     const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
     if (!owner && !staff) throw new Error("دسترسی ندارید.");
 
-    // Delete all lessons in this section
+    // Delete all lessons in this section + their progress
     const lessons = await ctx.db
       .query("courseLessons")
       .withIndex("by_section", (q) => q.eq("sectionId", args.sectionId))
       .collect();
     for (const lesson of lessons) {
+      // Clean up lessonProgress for this lesson
+      const progressRecords = await ctx.db
+        .query("lessonProgress")
+        .withIndex("by_user_course", (q) => q.eq("userId", lesson.courseId as any).eq("courseId", lesson.courseId))
+        .collect();
+      for (const p of progressRecords) {
+        if (p.lessonId === lesson._id.toString() || p.lessonId === (lesson as any)._id) {
+          await ctx.db.delete(p._id);
+        }
+      }
       await ctx.db.delete(lesson._id);
     }
     await ctx.db.delete(args.sectionId);
@@ -755,6 +765,17 @@ export const deleteLesson = mutation({
     const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
     if (!owner && !staff) throw new Error("دسترسی ندارید.");
 
+    // Clean up lessonProgress for this lesson
+    const allProgress = await ctx.db
+      .query("lessonProgress")
+      .withIndex("by_user_course", (q) => q.eq("userId", lesson.courseId as any).eq("courseId", lesson.courseId))
+      .collect();
+    for (const p of allProgress) {
+      if (p.lessonId === args.lessonId) {
+        await ctx.db.delete(p._id);
+      }
+    }
+
     await ctx.db.delete(args.lessonId);
     return { ok: true };
   },
@@ -847,5 +868,87 @@ export const migrateSyllabusToSections = mutation({
     }
 
     return { ok: true, migrated: true, lessonCount: syllabus.length };
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Lesson Progress ─────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const updateLessonProgress = mutation({
+  args: {
+    courseId: v.id("courses"),
+    lessonId: v.string(),
+    completed: v.optional(v.boolean()),
+    lastPositionSeconds: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+
+    // Verify enrollment
+    const enrollment = await ctx.db
+      .query("enrollments")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("courseId"), args.courseId as any))
+      .first();
+    if (!enrollment) throw new Error("ثبت‌نام نشده‌اید.");
+
+    // Find existing progress
+    const existing = await ctx.db
+      .query("lessonProgress")
+      .withIndex("by_user_course_lesson", (q) =>
+        q.eq("userId", user._id).eq("courseId", args.courseId).eq("lessonId", args.lessonId)
+      )
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      const patch: Record<string, any> = { lastViewedAt: now };
+      if (args.completed !== undefined) {
+        patch.completed = args.completed;
+        if (args.completed) patch.completedAt = now;
+      }
+      if (args.lastPositionSeconds !== undefined) {
+        patch.lastPositionSeconds = args.lastPositionSeconds;
+      }
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert("lessonProgress", {
+        userId: user._id,
+        courseId: args.courseId,
+        lessonId: args.lessonId,
+        completed: args.completed ?? false,
+        completedAt: args.completed ? now : undefined,
+        lastPositionSeconds: args.lastPositionSeconds,
+        lastViewedAt: now,
+      });
+    }
+
+    // Update enrollment lastLessonId
+    await ctx.db.patch(enrollment._id, {
+      lastLessonId: args.lessonId,
+      lastActiveAt: now,
+    });
+
+    return { ok: true };
+  },
+});
+
+export const getLessonProgress = query({
+  args: {
+    courseId: v.id("courses"),
+    lessonId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return null;
+    const progress = await ctx.db
+      .query("lessonProgress")
+      .withIndex("by_user_course_lesson", (q) =>
+        q.eq("userId", user._id).eq("courseId", args.courseId).eq("lessonId", args.lessonId)
+      )
+      .first();
+    return progress ?? null;
   },
 });

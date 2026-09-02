@@ -1249,6 +1249,8 @@ const schema = defineSchema(
       lessonId: v.string(),
       completed: v.boolean(),
       completedAt: v.optional(v.number()),
+      lastPositionSeconds: v.optional(v.number()),
+      lastViewedAt: v.optional(v.number()),
     }).index("by_user_course", ["userId", "courseId"]).index("by_user_course_lesson", ["userId", "courseId", "lessonId"]),
 
   },

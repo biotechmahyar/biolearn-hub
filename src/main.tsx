@@ -35,6 +35,7 @@ const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 // Public catalog pages
 const Courses = lazy(() => import("./pages/Courses.tsx"));
 const CourseDetail = lazy(() => import("./pages/CourseDetail.tsx"));
+const LessonPlayerPage = lazy(() => import("./pages/LessonPlayerPage.tsx"));
 const Tests = lazy(() => import("./pages/Tests.tsx"));
 const TestTake = lazy(() => import("./pages/TestTake.tsx"));
 const TestResult = lazy(() => import("./pages/TestResult.tsx"));
@@ -118,6 +119,7 @@ createRoot(document.getElementById("root")!).render(
               {/* Catalog */}
               <Route path="/courses" element={<Courses />} />
               <Route path="/courses/:slug" element={<CourseDetail />} />
+              <Route path="/courses/:slug/lesson/:lessonId" element={<LessonPlayerPage />} />
               <Route path="/tests" element={<Tests />} />
               <Route path="/tests/:slug" element={<RequireAuth><TestTake /></RequireAuth>} />
               <Route path="/tests/result/:attemptId" element={<RequireAuth><TestResult /></RequireAuth>} />
