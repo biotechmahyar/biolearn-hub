@@ -694,6 +694,8 @@ function ContentManager({
 
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
+  const [videoEmbedCode, setVideoEmbedCode] = useState("");
+  const [videoInputMode, setVideoInputMode] = useState<"url" | "embed-code">("url");
   const [textContent, setTextContent] = useState("");
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState<string | null>(null);
@@ -714,6 +716,8 @@ function ContentManager({
   // Load existing content when selecting a lesson
   if (selectedLesson && loaded !== selectedLessonId) {
     setVideoUrl(selectedLesson.videoUrl ?? "");
+    setVideoEmbedCode("");
+    setVideoInputMode("url");
     setTextContent(selectedLesson.textContent ?? "");
     setLoaded(selectedLessonId);
   }
@@ -726,6 +730,14 @@ function ContentManager({
       if (selectedLesson.contentType === "videoUrl" || selectedLesson.contentType === "video") {
         // Parse embed codes to extract the actual URL
         let finalUrl = videoUrl.trim();
+        // If using embed code tab, extract URL from embed code
+        if (!finalUrl && videoEmbedCode.trim()) {
+          const parsed = parseEmbedCode(videoEmbedCode.trim());
+          if (parsed.found && parsed.url) {
+            finalUrl = parsed.url;
+          }
+        }
+        // Also handle raw embed codes pasted into URL field
         if (finalUrl && /<script|<iframe|<object/i.test(finalUrl)) {
           const parsed = parseEmbedCode(finalUrl);
           if (parsed.found && parsed.url) {
@@ -816,25 +828,65 @@ function ContentManager({
                 </p>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <Link2 className="size-3.5" /> لینک ویدئو
-                </label>
-                <Input
-                  placeholder="https://www.aparat.com/v/...  یا  https://youtube.com/watch?v=...  یا  link.mp4"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                  className="border-white/10 bg-white/5 text-sm text-slate-100"
-                  dir="ltr"
-                />
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Link2 className="size-3.5" /> منبع ویدئو
+                </div>
+                {/* Input mode toggle */}
+                <div className="flex gap-1 rounded-lg bg-white/5 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setVideoInputMode("url")}
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      videoInputMode === "url"
+                        ? "bg-cyan-500/15 text-cyan-300"
+                        : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    لینک ویدئو
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVideoInputMode("embed-code")}
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      videoInputMode === "embed-code"
+                        ? "bg-cyan-500/15 text-cyan-300"
+                        : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    کد Embed
+                  </button>
+                </div>
+
+                {videoInputMode === "url" ? (
+                  <Input
+                    placeholder="https://www.aparat.com/v/...  یا  https://stream.iranhls.com/Video/Embed/...  یا  link.mp4"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    className="border-white/10 bg-white/5 text-sm text-slate-100"
+                    dir="ltr"
+                  />
+                ) : (
+                  <Textarea
+                    placeholder={"<script src=\"https://stream.iranhls.com/Video/Embed/VIDEO_ID\"></script>\nیا\n<iframe src=\"https://www.aparat.com/embed/VIDEO_ID\"></iframe>"}
+                    value={videoEmbedCode}
+                    onChange={(e) => setVideoEmbedCode(e.target.value)}
+                    rows={4}
+                    className="border-white/10 bg-white/5 font-mono text-[11px] text-slate-300"
+                    dir="ltr"
+                  />
+                )}
+
                 <p className="text-[10px] text-slate-600">
-                  لینک مستقیم فایل ویدئو یا لینک Embed سرویس‌هایی مانند آپارات، یوتیوب یا Vimeo
+                  لینک مستقیم، لینک Embed، یا کد &lt;script&gt;/&lt;iframe&gt; سرویس‌هایی مانند آپارات، IranHLS، یوتیوب یا Vimeo
                 </p>
-                {videoUrl.trim() && (
-                  <div className="mt-2 space-y-2">
-                    <VideoSourceBadge url={videoUrl} />
-                    <VideoRenderer url={videoUrl} />
-                  </div>
+
+                {/* Live preview for both input modes */}
+                {(videoUrl.trim() || videoEmbedCode.trim()) && (
+                  <VideoPreview
+                    url={videoInputMode === "url" ? videoUrl : ""}
+                    embedCode={videoInputMode === "embed-code" ? videoEmbedCode : ""}
+                  />
                 )}
               </div>
 
