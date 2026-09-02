@@ -76,6 +76,10 @@ export default function LessonPlayerPage() {
   }
 
   const myProgress = currentLesson ? progressMap[currentLesson._id] : null;
+  const attachmentUrls = useQuery(
+    api.courseStudio.getAttachmentUrls,
+    currentLesson ? { lessonId: currentLesson._id } : "skip"
+  );
   const completedCount = allProgress?.filter((p: any) => p.completed).length ?? 0;
   const totalLessons = lessons.length;
   const percent = totalLessons === 0 ? 0 : Math.round((completedCount / totalLessons) * 100);
@@ -337,16 +341,29 @@ export default function LessonPlayerPage() {
                 <CardContent className="py-4">
                   <h3 className="mb-3 text-sm font-bold">فایل‌های پیوست</h3>
                   <div className="space-y-2">
-                    {currentLesson.attachments.map((att: any, i: number) => (
+                    {(attachmentUrls ?? currentLesson.attachments.map((att: any) => ({ name: att.name, fileSize: att.fileSize, url: null }))).map((att: any, i: number) => (
                       <div key={i} className="flex items-center gap-3 rounded-lg border border-border/50 p-3">
                         <FileText className="size-4 text-muted-foreground" />
-                        <span className="flex-1 text-sm">{att.name}</span>
-                        <Button size="sm" variant="ghost" asChild>
-                          <a href={`/api/storage/${att.storageId}`} download={att.name}>
-                            <Download className="ml-1 size-3.5" />
-                            دانلود
-                          </a>
-                        </Button>
+                        <div className="flex-1 min-w-0">
+                          <span className="block text-sm truncate">{att.name}</span>
+                          {att.fileSize && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {att.fileSize > 1048576
+                                ? `${(att.fileSize / 1048576).toFixed(1)} مگابایت`
+                                : `${(att.fileSize / 1024).toFixed(0)} کیلوبایت`}
+                            </span>
+                          )}
+                        </div>
+                        {att.url ? (
+                          <Button size="sm" variant="ghost" asChild>
+                            <a href={att.url} download={att.name}>
+                              <Download className="ml-1 size-3.5" />
+                              دانلود
+                            </a>
+                          </Button>
+                        ) : (
+                          <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                        )}
                       </div>
                     ))}
                   </div>

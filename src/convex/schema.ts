@@ -235,6 +235,9 @@ const schema = defineSchema(
       videoStorageId: v.optional(v.string()),
       textContent: v.optional(v.string()),
       embedCode: v.optional(v.string()),
+      showVideo: v.optional(v.boolean()),
+      showText: v.optional(v.boolean()),
+      showFiles: v.optional(v.boolean()),
       attachments: v.optional(v.array(v.object({
         name: v.string(),
         storageId: v.string(),

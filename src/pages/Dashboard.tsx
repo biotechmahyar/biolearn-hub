@@ -74,8 +74,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { motion } from "framer-motion";
 
-type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile";
+type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
@@ -89,6 +90,7 @@ const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "downloads", label: "دانلودها", icon: Download },
   { key: "bookmarks", label: "نشان‌شده‌ها", icon: Bookmark },
   { key: "support", label: "پشتیبانی", icon: LifeBuoy },
+  { key: "certificate", label: "گواهی دوره", icon: Award },
   { key: "profile", label: "پروفایل", icon: User },
 ];
 
@@ -181,6 +183,7 @@ export default function Dashboard() {
           {tab === "live" && <LiveTab />}
           {tab === "announcements" && <AnnouncementsTab />}
           {tab === "inbox" && <InboxTab />}
+          {tab === "certificate" && <CertificateTab />}
           {tab === "profile" && <StudentProfileTab />}
         </main>
       </div>
@@ -993,10 +996,20 @@ function SupportTab() {
 // ── Shared helpers ─────────────────────────────────────────────────────────
 function Skeleton() {
   return (
-    <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
-      <Loader2 className="ml-2 size-4 animate-spin" />
-      در حال بارگذاری...
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className="flex min-h-40 flex-col items-center justify-center gap-3"
+    >
+      <div className="relative">
+        <Loader2 className="size-8 animate-spin text-primary/60" />
+        <div className="absolute inset-0 size-8 animate-ping rounded-full bg-primary/10" />
+      </div>
+      <p className="text-sm font-medium text-muted-foreground animate-pulse">
+        صبر کنید، در حال بارگذاری...
+      </p>
+    </motion.div>
   );
 }
 
@@ -1629,6 +1642,85 @@ function InboxTab() {
 }
 
 // ── Student profile (photo, name, about — admin approves edits) ────────────
+
+// ── Certificate tab ────────────────────────────────────────────────────────
+function CertificateTab() {
+  const myCourses = useQuery(api.enroll.getMyEnrollments);
+
+  const completedCourses = myCourses?.filter((e: any) => e.completed) ?? [];
+  const inProgressCourses = myCourses?.filter((e: any) => !e.completed) ?? [];
+
+  if (myCourses === undefined) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold tracking-tight">گواهی دوره‌ها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          گواهی تکمیل دوره‌هایی که با موفقیت به پایان رسانده‌اید.
+        </p>
+      </div>
+
+      {completedCourses.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-emerald-500">دوره‌های تکمیل شده ✓</h3>
+          {completedCourses.map((enroll: any) => (
+            <Card key={enroll._id} className="border-emerald-500/20 bg-emerald-500/5">
+              <CardContent className="flex items-center justify-between py-4">
+                <div>
+                  <p className="font-bold">{enroll.courseTitle}</p>
+                  <p className="text-xs text-muted-foreground">تکمیل شده</p>
+                </div>
+                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
+                  <Award className="ml-1 size-3" />
+                  گواهی آماده
+                </Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {inProgressCourses.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-muted-foreground">در حال گذراندن</h3>
+          {inProgressCourses.map((enroll: any) => (
+            <Card key={enroll._id} className="border-border/70">
+              <CardContent className="flex items-center justify-between py-4">
+                <div>
+                  <p className="font-bold">{enroll.courseTitle}</p>
+                  <p className="text-xs text-muted-foreground">تکمیل دوره برای دریافت گواهی لازم است</p>
+                </div>
+                <Badge variant="outline" className="text-xs">در حال گذراندن</Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {completedCourses.length === 0 && inProgressCourses.length === 0 && (
+        <Card className="border-border/70">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Award className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز دوره‌ای ثبت‌نام نکرده‌اید.</p>
+            <Button asChild variant="outline" size="sm">
+              <a href="/courses">مشاهده دوره‌ها</a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 function StudentProfileTab() {
   return (
     <div className="space-y-5">

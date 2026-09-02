@@ -723,6 +723,9 @@ export const updateLesson = mutation({
       fileType: v.string(),
       fileSize: v.number(),
     }))),
+    showVideo: v.optional(v.boolean()),
+    showText: v.optional(v.boolean()),
+    showFiles: v.optional(v.boolean()),
     durationMin: v.optional(v.number()),
     isPreview: v.optional(v.boolean()),
     isPublished: v.optional(v.boolean()),
@@ -747,6 +750,9 @@ export const updateLesson = mutation({
     if (args.textContent !== undefined) patch.textContent = args.textContent || undefined;
     if (args.embedCode !== undefined) patch.embedCode = args.embedCode || undefined;
     if (args.attachments !== undefined) patch.attachments = args.attachments;
+    if (args.showVideo !== undefined) patch.showVideo = args.showVideo;
+    if (args.showText !== undefined) patch.showText = args.showText;
+    if (args.showFiles !== undefined) patch.showFiles = args.showFiles;
     if (args.durationMin !== undefined) patch.durationMin = args.durationMin;
     if (args.isPreview !== undefined) patch.isPreview = args.isPreview;
     if (args.isPublished !== undefined) patch.isPublished = args.isPublished;
@@ -1015,6 +1021,31 @@ export const addLessonAttachment = mutation({
 });
 
 /** Remove an attachment from a lesson by index. */
+export const getAttachmentUrls = query({
+  args: {
+    lessonId: v.id("courseLessons"),
+  },
+  handler: async (ctx, args) => {
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) throw new Error("جلسه یافت نشد.");
+    const attachments = lesson.attachments ?? [];
+    const urls: { name: string; fileSize?: number; fileType?: string; url: string | null }[] = [];
+    for (const att of attachments) {
+      let url: string | null = null;
+      try {
+        if (att.storageId) {
+          const signedUrl = await ctx.storage.getUrl(att.storageId as any);
+          url = signedUrl ?? null;
+        }
+      } catch {
+        // If storageId is not a valid Convex storage ID, url stays null
+      }
+      urls.push({ name: att.name, fileSize: att.fileSize, fileType: att.fileType, url });
+    }
+    return urls;
+  },
+});
+
 export const removeLessonAttachment = mutation({
   args: {
     lessonId: v.id("courseLessons"),

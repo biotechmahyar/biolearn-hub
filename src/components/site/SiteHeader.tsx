@@ -29,6 +29,7 @@ import {
   Sun,
   Users,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
@@ -98,8 +99,8 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {/* Mode Switcher */}
-          <ModeSwitcher />
+          {/* Mode Switcher — only when NOT authenticated */}
+          {!isAuthenticated && <ModeSwitcher />}
           {/* Theme toggle */}
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -117,19 +118,24 @@ export function SiteHeader() {
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="hidden gap-2 sm:inline-flex">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center gap-2.5 rounded-full border border-border/50 bg-background/50 px-3 py-1.5 transition-colors hover:bg-accent"
+                >
+                  <span className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
                     {(user?.name ?? "د")[0]}
                   </span>
-                  <span className="max-w-28 truncate text-sm font-medium">
-                    {user?.name ?? "پنل کاربری"}
+                  <span className="hidden max-w-28 truncate text-sm font-semibold text-foreground sm:block">
+                    {user?.name ?? "دانشجو"}
                   </span>
                   <ChevronDown className="size-3.5 text-muted-foreground" />
-                </Button>
+                </motion.button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="truncate">
-                  {user?.name ?? "کاربر"}
+                <DropdownMenuLabel className="space-y-1">
+                  <p className="text-sm font-bold">{user?.name ?? "کاربر"}</p>
+                  <p className="text-xs text-muted-foreground">پنل کاربری</p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {isStaff ? (
@@ -194,24 +200,37 @@ export function SiteHeader() {
               </nav>
               <div className="mt-6 border-t pt-4">
                 {isAuthenticated ? (
-                  <div className="flex flex-col gap-2">
-                    <Button asChild>
+                  <div className="flex flex-col gap-3">
+                    {/* User info card */}
+                    <div className="flex items-center gap-3 rounded-xl bg-accent/50 px-3 py-2.5">
+                      <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                        {(user?.name ?? "د")[0]}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-foreground">{user?.name ?? "دانشجو"}</p>
+                        <p className="text-[11px] text-muted-foreground">پنل کاربری</p>
+                      </div>
+                    </div>
+                    <Button asChild size="sm">
                       <Link to={isStaff ? myPanel : "/dashboard"} onClick={() => setOpen(false)}>
                         <ShieldCheck className="ml-2 size-4" />
                         {isStaff ? myPanelLabel : "پنل دانشجویی"}
                       </Link>
                     </Button>
-                    <Button variant="outline" onClick={handleSignOut}>
+                    <Button variant="outline" size="sm" onClick={handleSignOut}>
                       <LogOut className="ml-2 size-4" />
                       خروج
                     </Button>
                   </div>
                 ) : (
-                  <Button asChild className="w-full">
-                    <Link to="/auth" onClick={() => setOpen(false)}>
-                      ورود / عضویت
-                    </Link>
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <ModeSwitcher />
+                    <Button asChild className="w-full">
+                      <Link to="/auth" onClick={() => setOpen(false)}>
+                        ورود / عضویت
+                      </Link>
+                    </Button>
+                  </div>
                 )}
               </div>
             </SheetContent>

@@ -1,6 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -720,6 +720,11 @@ function ContentManager({
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Section visibility toggles
+  const [showVideo, setShowVideo] = useState(true);
+  const [showText, setShowText] = useState(true);
+  const [showFiles, setShowFiles] = useState(true);
+
   // Find selected lesson across all sections
   let selectedLesson: any = null;
   let selectedSectionTitle = "";
@@ -741,7 +746,30 @@ function ContentManager({
     setTextContent(selectedLesson.textContent ?? "");
     setEmbedCode(selectedLesson.embedCode ?? "");
     setLoaded(selectedLessonId);
+    // Load visibility from lesson content flags
+    setShowVideo(selectedLesson.contentType !== "text" && selectedLesson.contentType !== "file");
+    setShowText(!!selectedLesson.textContent);
+    setShowFiles(!!selectedLesson.attachments && selectedLesson.attachments.length > 0);
   }
+
+  // Save visibility flags along with content
+  const handleSaveVisibility = useCallback(async () => {
+    if (!selectedLesson) return;
+    setSaving(true);
+    try {
+      await updateLesson({
+        lessonId: selectedLesson._id,
+        showVideo,
+        showText,
+        showFiles,
+      });
+      toast.success("نمایش بخش‌ها ذخیره شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setSaving(false);
+    }
+  }, [selectedLesson, showVideo, showText, showFiles, updateLesson]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1069,6 +1097,49 @@ function ContentManager({
                     PDF, PPT, DOC, XLS, ZIP, تصویر — حداکثر ۵۰ مگابایت
                   </p>
                 </div>
+              </div>
+
+              {/* Section Visibility Toggles */}
+              <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="text-xs font-bold text-slate-400">نمایش بخش‌ها در صفحه دانشجو</p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showVideo}
+                      onChange={(e) => setShowVideo(e.target.checked)}
+                      className="size-4 rounded border-white/20 accent-cyan-500"
+                    />
+                    <span className="text-xs text-slate-300">🎬 ویدئوی جلسه</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showText}
+                      onChange={(e) => setShowText(e.target.checked)}
+                      className="size-4 rounded border-white/20 accent-cyan-500"
+                    />
+                    <span className="text-xs text-slate-300">📝 متن آموزشی</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showFiles}
+                      onChange={(e) => setShowFiles(e.target.checked)}
+                      className="size-4 rounded border-white/20 accent-cyan-500"
+                    />
+                    <span className="text-xs text-slate-300">📎 فایل‌های پیوست</span>
+                  </label>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-white/10 text-[10px] text-slate-400 hover:text-white"
+                  onClick={handleSaveVisibility}
+                  disabled={saving}
+                >
+                  ذخیره نمایش
+                </Button>
               </div>
 
               <div className="flex justify-end">
