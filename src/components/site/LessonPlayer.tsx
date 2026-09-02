@@ -29,10 +29,12 @@ export function LessonPlayer({
   courseId,
   syllabus,
   isEnrolled,
+  initialLessonId,
 }: {
   courseId: string;
   syllabus: SyllabusItem[];
   isEnrolled: boolean;
+  initialLessonId?: string;
 }) {
   const lessonContents =
     useQuery(api.courseStudio.getLessonContentByCourse, {
@@ -44,7 +46,13 @@ export function LessonPlayer({
     }) ?? [];
   const markComplete = useMutation(api.courseStudio.markLessonComplete);
 
-  const [currentIdx, setCurrentIdx] = useState(0);
+  const [currentIdx, setCurrentIdx] = useState(() => {
+    if (initialLessonId) {
+      const idx = syllabus.findIndex((s) => s.id === initialLessonId);
+      if (idx >= 0) return idx;
+    }
+    return 0;
+  });
   const [completing, setCompleting] = useState(false);
 
   const contentMap = new Map(

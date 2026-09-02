@@ -400,6 +400,7 @@ export default function CourseDetail() {
                     courseId={course._id}
                     syllabus={course.syllabus}
                     isEnrolled={!!isEnrolled}
+                    initialLessonId={course.enrollment?.lastLessonId}
                   />
                 </div>
               )}

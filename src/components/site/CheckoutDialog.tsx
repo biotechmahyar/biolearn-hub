@@ -96,6 +96,7 @@ export function CheckoutDialog({
     try {
       const order = await purchase({
         items: items.map((i) => ({ type: i.type, refId: i.refId })),
+        bundleTier: bundleTier ?? undefined,
         couponCode: coupon.trim() || undefined,
       });
       setDone(order?.invoiceNumber ?? "ZA-00000000");

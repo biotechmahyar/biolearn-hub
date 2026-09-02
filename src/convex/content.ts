@@ -117,7 +117,7 @@ export const getCourseBySlug = query({
     ]);
 
     // enrollment state for signed-in users
-    let enrollment: { enrolledAt: number; completedLessons: string[] } | null =
+    let enrollment: { enrolledAt: number; completedLessons: string[]; lastLessonId?: string } | null =
       null;
     const user = await getCurrentUser(ctx);
     if (user) {
@@ -127,7 +127,7 @@ export const getCourseBySlug = query({
         .filter((q) => q.eq(q.field("courseId"), course._id))
         .first();
       if (en) {
-        enrollment = { enrolledAt: en.enrolledAt, completedLessons: en.completedLessons };
+        enrollment = { enrolledAt: en.enrolledAt, completedLessons: en.completedLessons, lastLessonId: en.lastLessonId };
       }
     }
 

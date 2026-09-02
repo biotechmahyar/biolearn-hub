@@ -97,7 +97,7 @@ export const listMyCourseStudio = query({
       });
     }
     return out.sort((a, b) => {
-      const order = { published: 0, pending: 1, draft: 2, rejected: 3 } as Record<string, number>;
+      const order = { published: 0, approved: 1, pending: 2, draft: 3, rejected: 4 } as Record<string, number>;
       return (order[a.status] ?? 0) - (order[b.status] ?? 0);
     });
   },
@@ -276,7 +276,7 @@ export const approveCourseReview = mutation({
     const course = await ctx.db.get(args.courseId);
     if (!course) throw new Error("دوره یافت نشد.");
     await ctx.db.patch(args.courseId, {
-      status: undefined,
+      status: "approved",
       published: true,
       reviewNote: undefined,
     });

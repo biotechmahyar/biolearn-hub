@@ -197,7 +197,7 @@ const schema = defineSchema(
       // status = draft → pending (sent to admin) → published / rejected.
       authorId: v.optional(v.id("users")),
       status: v.optional(
-        v.union(v.literal("draft"), v.literal("pending"), v.literal("rejected")),
+        v.union(v.literal("draft"), v.literal("pending"), v.literal("approved"), v.literal("rejected")),
       ),
       reviewNote: v.optional(v.string()),
     })
@@ -415,6 +415,10 @@ const schema = defineSchema(
       completedLessons: v.array(v.string()),
       enrolledAt: v.number(),
       lastActiveAt: v.optional(v.number()),
+      // Enriched fields (backward-compatible optional)
+      packageTier: v.optional(v.string()),
+      orderId: v.optional(v.id("orders")),
+      lastLessonId: v.optional(v.string()),
     })
       .index("by_user", ["userId"])
       .index("by_course", ["courseId"]),

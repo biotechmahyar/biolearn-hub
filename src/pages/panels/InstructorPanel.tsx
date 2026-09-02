@@ -3105,6 +3105,7 @@ function OnlineView({ online }: { online: OnlineRow[] }) {
 // ── Course studio: design a course, send it to the site admin ──────────────
 const STUDIO_STATUS: Record<string, { label: string; cls: string }> = {
   published: { label: "منتشرشده", cls: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" },
+  approved: { label: "تأیید شده", cls: "border-cyan-400/20 bg-cyan-400/10 text-cyan-300" },
   pending: { label: "در انتظار تأیید", cls: "border-amber-400/20 bg-amber-400/10 text-amber-300" },
   draft: { label: "پیش‌نویس", cls: "border-slate-400/20 bg-slate-400/10 text-slate-300" },
   rejected: { label: "رد شده", cls: "border-red-400/20 bg-red-400/10 text-red-300" },

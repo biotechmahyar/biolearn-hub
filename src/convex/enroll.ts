@@ -11,6 +11,7 @@ export const purchase = mutation({
     items: v.array(
       v.object({ type: v.string(), refId: v.string() }),
     ),
+    bundleTier: v.optional(v.string()),
     couponCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -23,11 +24,21 @@ export const purchase = mutation({
       if (item.type === "course") {
         const course = await getDoc(ctx, item.refId);
         if (!course || !course.published) throw new Error("دوره یافت نشد.");
+        // Validate package price from DB — never trust frontend price
+        let price = course.discountPrice ?? course.price;
+        if (args.bundleTier && course.packagePrices?.length) {
+          const pkg = course.packagePrices.find((p: any) => p.tier === args.bundleTier);
+          if (pkg && pkg.price > 0) {
+            price = pkg.price;
+          } else if (pkg && pkg.price === 0 && course.price === 0) {
+            price = 0;
+          }
+        }
         lineItems.push({
           type: "course",
           refId: course._id,
           title: course.title,
-          price: course.discountPrice ?? course.price,
+          price,
         });
       } else if (item.type === "product") {
         const product = await getDoc(ctx, item.refId);
@@ -107,6 +118,8 @@ export const purchase = mutation({
             completedLessons: [],
             enrolledAt: Date.now(),
             lastActiveAt: Date.now(),
+            packageTier: args.bundleTier,
+            orderId: orderId,
           });
         }
       }
@@ -219,6 +232,7 @@ export const markLessonComplete = mutation({
     await ctx.db.patch(enrollment._id, {
       completedLessons: completed,
       lastActiveAt: Date.now(),
+      lastLessonId: args.lessonId,
     });
     return { completedLessons: completed };
   },
