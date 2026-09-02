@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { VideoRenderer, VideoSourceBadge } from "@/components/site/VideoRenderer";
+import { parseEmbedCode, resolveVideoSource } from "@/lib/videoResolver";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,41 @@ type Props = {
   courseId: string;
   onBack: () => void;
 };
+
+// ── Video preview helper (safe — never executes embed code) ────────────────
+function VideoPreview({
+  url,
+  embedCode,
+}: {
+  url?: string;
+  embedCode?: string;
+}) {
+  // Determine the URL to preview
+  let previewUrl = url?.trim();
+  if (!previewUrl && embedCode?.trim()) {
+    const parsed = parseEmbedCode(embedCode.trim());
+    if (parsed.found && parsed.url) {
+      previewUrl = parsed.url;
+    } else {
+      return (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
+          ⚠️ کد Embed معتبر نیست یا سرویس ناشناخته است
+        </div>
+      );
+    }
+  }
+  if (!previewUrl) return null;
+
+  const source = resolveVideoSource(previewUrl);
+  if (!source) return null;
+
+  return (
+    <div className="space-y-2">
+      <VideoSourceBadge url={previewUrl} />
+      <VideoRenderer url={previewUrl} />
+    </div>
+  );
+}
 
 export function CourseManageView({ courseId, onBack }: Props) {
   const [activeTab, setActiveTab] = useState<"info" | "curriculum" | "content">("curriculum");
@@ -210,6 +246,8 @@ function CurriculumManager({
   const [lessonDuration, setLessonDuration] = useState("60");
   const [lessonContentType, setLessonContentType] = useState<string>("videoUrl");
   const [lessonVideoUrl, setLessonVideoUrl] = useState("");
+  const [lessonVideoEmbedCode, setLessonVideoEmbedCode] = useState("");
+  const [lessonVideoInputMode, setLessonVideoInputMode] = useState<"url" | "embed-code">("url");
   const [lessonText, setLessonText] = useState("");
   const [lessonIsPreview, setLessonIsPreview] = useState(false);
 
@@ -255,8 +293,22 @@ function CurriculumManager({
         contentType: lessonContentType as any,
         isPreview: lessonIsPreview,
       };
-      if (lessonContentType === "videoUrl" && lessonVideoUrl.trim()) {
-        payload.videoUrl = lessonVideoUrl.trim();
+      if (lessonContentType === "videoUrl") {
+        let finalUrl = lessonVideoUrl.trim();
+        // If user pasted an embed code, extract the URL
+        if (!finalUrl && lessonVideoEmbedCode.trim()) {
+          const parsed = parseEmbedCode(lessonVideoEmbedCode.trim());
+          if (parsed.found && parsed.url) {
+            finalUrl = parsed.url;
+          } else {
+            toast.error("کد Embed معتبر نیست");
+            setBusy(false);
+            return;
+          }
+        }
+        if (finalUrl) {
+          payload.videoUrl = finalUrl;
+        }
       }
       if (lessonContentType === "text" && lessonText.trim()) {
         payload.textContent = lessonText.trim();
@@ -266,6 +318,7 @@ function CurriculumManager({
       setLessonTitle("");
       setLessonDuration("60");
       setLessonVideoUrl("");
+      setLessonVideoEmbedCode("");
       setLessonText("");
       setLessonIsPreview(false);
       setLessonDialog(null);
@@ -499,23 +552,70 @@ function CurriculumManager({
             </div>
 
             {lessonContentType === "videoUrl" && (
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-400">لینک ویدئو</label>
-                <Input
-                  placeholder="https://www.aparat.com/v/...  یا  https://youtube.com/watch?v=..."
-                  value={lessonVideoUrl}
-                  onChange={(e) => setLessonVideoUrl(e.target.value)}
-                  className="border-white/10 bg-white/5 text-sm text-slate-100"
-                  dir="ltr"
-                />
-                <p className="text-[10px] text-slate-600">
-                  لینک مستقیم ویدئو یا لینک Embed سرویس‌هایی مانند آپارات، یوتیوب یا Vimeo
-                </p>
-                {lessonVideoUrl.trim() && (
-                  <div className="mt-2 space-y-2">
-                    <VideoSourceBadge url={lessonVideoUrl} />
-                    <VideoRenderer url={lessonVideoUrl} />
+              <div className="space-y-3">
+                {/* Input mode toggle */}
+                <div className="flex gap-1 rounded-lg bg-white/5 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setLessonVideoInputMode("url")}
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      lessonVideoInputMode === "url"
+                        ? "bg-cyan-500/15 text-cyan-300"
+                        : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    لینک ویدئو
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLessonVideoInputMode("embed-code")}
+                    className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      lessonVideoInputMode === "embed-code"
+                        ? "bg-cyan-500/15 text-cyan-300"
+                        : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    کد Embed
+                  </button>
+                </div>
+
+                {lessonVideoInputMode === "url" ? (
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-slate-400">لینک ویدئو</label>
+                    <Input
+                      placeholder="https://www.aparat.com/v/... یا  https://youtube.com/watch?v=... یا  link.mp4"
+                      value={lessonVideoUrl}
+                      onChange={(e) => setLessonVideoUrl(e.target.value)}
+                      className="border-white/10 bg-white/5 text-sm text-slate-100"
+                      dir="ltr"
+                    />
+                    <p className="text-[10px] text-slate-600">
+                      لینک مستقیم فایل ویدئو یا لینک Embed سرویس‌هایی مانند آپارات، یوتیوب، Vimeo یا IranHLS
+                    </p>
                   </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-slate-400">کد Embed ویدئو</label>
+                    <Textarea
+                      placeholder={"<script src=\"https://stream.iranhls.com/Video/Embed/VIDEO_ID\"></script>\nیا\n<iframe src=\"https://www.aparat.com/embed/VIDEO_ID\"></iframe>"}
+                      value={lessonVideoEmbedCode}
+                      onChange={(e) => setLessonVideoEmbedCode(e.target.value)}
+                      rows={4}
+                      className="border-white/10 bg-white/5 font-mono text-[11px] text-slate-300"
+                      dir="ltr"
+                    />
+                    <p className="text-[10px] text-slate-600">
+                      کد &lt;script&gt; یا &lt;iframe&gt; Embed سرویس ویدئویی را اینجا قرار دهید
+                    </p>
+                  </div>
+                )}
+
+                {/* Live preview for both input modes */}
+                {(lessonVideoUrl.trim() || lessonVideoEmbedCode.trim()) && (
+                  <VideoPreview
+                    url={lessonVideoUrl}
+                    embedCode={lessonVideoEmbedCode}
+                  />
                 )}
               </div>
             )}
@@ -624,13 +724,19 @@ function ContentManager({
     try {
       const patch: any = {};
       if (selectedLesson.contentType === "videoUrl" || selectedLesson.contentType === "video") {
-        patch.videoUrl = videoUrl || undefined;
+        // Parse embed codes to extract the actual URL
+        let finalUrl = videoUrl.trim();
+        if (finalUrl && /<script|<iframe|<object/i.test(finalUrl)) {
+          const parsed = parseEmbedCode(finalUrl);
+          if (parsed.found && parsed.url) {
+            finalUrl = parsed.url;
+          }
+        }
+        patch.videoUrl = finalUrl || undefined;
       }
       if (selectedLesson.contentType === "text") {
         patch.textContent = textContent || undefined;
       }
-      // Always save both for flexibility
-      if (videoUrl.trim()) patch.videoUrl = videoUrl.trim();
       if (textContent.trim()) patch.textContent = textContent.trim();
 
       await updateLesson({
