@@ -66,6 +66,10 @@ export default function CourseDetail() {
   const { slug = "" } = useParams();
   const course = useQuery(api.content.getCourseBySlug, { slug });
   const testimonials = useQuery(api.content.listTestimonials);
+  const sectionsWithLessons = useQuery(
+    api.courseStudio.getCourseSectionsWithLessons,
+    course ? { courseId: course._id } : "skip"
+  );
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
   const markLesson = useMutation(api.enroll.markLessonComplete);
@@ -97,10 +101,6 @@ export default function CourseDetail() {
   const effective = course.discountPrice ?? course.price;
   const hasDiscount = !!course.discountPrice && course.discountPrice < course.price;
   const isEnrolled = !!course.enrollment;
-  const sectionsWithLessons = useQuery(
-    api.courseStudio.getCourseSectionsWithLessons,
-    course ? { courseId: course._id } : "skip"
-  );
   const allSections = sectionsWithLessons ?? [];
   const allLessonsFromSections = allSections.flatMap((s: any) => s.lessons ?? []);
   const totalMin = allLessonsFromSections.reduce((acc: number, l: any) => acc + (l.durationMin ?? 0), 0);
