@@ -2,16 +2,14 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
-import { LessonPlayer } from "@/components/site/LessonPlayer";
+
 import { iconFor } from "@/components/site/icons";
 import { api } from "@/convex/_generated/api";
-import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
+
 import { accent, BUNDLE_LABELS, faNum, formatDate, formatPrice, MODE_LABELS } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
@@ -31,8 +29,31 @@ import {
   Star,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { Component, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
+
+class CourseErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(err: unknown) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <PublicLayout>
+          <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center px-4">
+            <p className="text-lg font-bold text-red-500">خطا در بارگذاری دوره</p>
+            <p className="text-sm text-muted-foreground max-w-md break-all">{this.state.error}</p>
+            <Button asChild variant="outline" className="mt-2">
+              <Link to="/courses">بازگشت به دوره‌ها</Link>
+            </Button>
+          </div>
+        </PublicLayout>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const FAQ = [
   {
@@ -62,7 +83,15 @@ const BUNDLE_DESC: Record<string, string> = {
   premium: "دوره + جزوه + فلش‌کارت + رفع اشکال",
 };
 
-export default function CourseDetail() {
+export default function CourseDetailWrapper() {
+  return (
+    <CourseErrorBoundary>
+      <CourseDetail />
+    </CourseErrorBoundary>
+  );
+}
+
+function CourseDetail() {
   const { slug = "" } = useParams();
   const course = useQuery(api.content.getCourseBySlug, { slug });
   const testimonials = useQuery(api.content.listTestimonials);
@@ -104,8 +133,8 @@ export default function CourseDetail() {
   const allSections = sectionsWithLessons ?? [];
   const allLessonsFromSections = allSections.flatMap((s: any) => s.lessons ?? []);
   const totalMin = allLessonsFromSections.reduce((acc: number, l: any) => acc + (l.durationMin ?? 0), 0);
-  const completedCount = course.enrollment?.completedLessons.length ?? 0;
-  const syllabusCount = allLessonsFromSections.length || course.syllabus.length;
+  const completedCount = course.enrollment?.completedLessons?.length ?? 0;
+  const syllabusCount = allLessonsFromSections.length || course.syllabus?.length || 0;
   const percent = syllabusCount === 0 ? 0 : Math.round((completedCount / syllabusCount) * 100);
 
   const toggleLesson = async (lessonId: string, completed: boolean) => {
@@ -167,7 +196,7 @@ export default function CourseDetail() {
                 </span>
                 <span className="flex items-center gap-1.5">
                   <PlayCircle className="size-4" />
-                  {faNum(course.syllabus.length)} جلسه
+                  {faNum(allLessonsFromSections.length || course.syllabus?.length || 0)} جلسه
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Clock className="size-4" />
@@ -323,7 +352,7 @@ export default function CourseDetail() {
                     مناسب چه کسانی است؟
                   </h3>
                   <ul className="mt-3 space-y-2 text-[13px] text-muted-foreground">
-                    {course.audience.map((item) => (
+                    {(course.audience ?? []).map((item) => (
                       <li key={item} className="flex items-start gap-2">
                         <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
                         {item}
@@ -337,7 +366,7 @@ export default function CourseDetail() {
                     پیش‌نیازها
                   </h3>
                   <ul className="mt-3 space-y-2 text-[13px] text-muted-foreground">
-                    {course.prerequisites.map((item) => (
+                    {(course.prerequisites ?? []).map((item) => (
                       <li key={item} className="flex items-start gap-2">
                         <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
                         {item}
@@ -419,7 +448,7 @@ export default function CourseDetail() {
               ) : (
                 /* Fallback: old flat syllabus for backward compat */
                 <Accordion type="single" collapsible className="mt-4 space-y-2">
-                  {course.syllabus.map((lesson, index) => {
+                  {(course.syllabus ?? []).map((lesson, index) => {
                     const done = course.enrollment?.completedLessons.includes(lesson.id) ?? false;
                     return (
                       <AccordionItem
@@ -463,7 +492,7 @@ export default function CourseDetail() {
             <div>
               <h2 className="text-xl font-extrabold">این پکیج شامل چه چیزهایی است؟</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {course.includes.map((item) => (
+                {(course.includes ?? []).map((item) => (
                   <div key={item} className="flex items-start gap-2.5 rounded-xl border border-border/70 bg-card/60 px-4 py-3">
                     <ListChecks className="mt-0.5 size-4 shrink-0 text-primary" />
                     <span className="text-sm leading-6">{item}</span>
@@ -480,7 +509,7 @@ export default function CourseDetail() {
                   فایل‌های دوره
                 </h2>
                 <div className="mt-4 space-y-2">
-                  {course.files.map((file) => (
+                  {(course.files ?? []).map((file) => (
                     <div
                       key={file.name}
                       className="flex items-center justify-between rounded-xl border border-border/70 bg-card/60 px-4 py-3"
@@ -567,7 +596,7 @@ export default function CourseDetail() {
                   </li>
                   <li className="flex justify-between">
                     <span>تعداد جلسات</span>
-                    <span className="font-medium text-foreground">{faNum(course.syllabus.length)}</span>
+                    <span className="font-medium text-foreground">{faNum(allLessonsFromSections.length || course.syllabus?.length || 0)}</span>
                   </li>
                   <li className="flex justify-between">
                     <span>مدت دوره</span>
