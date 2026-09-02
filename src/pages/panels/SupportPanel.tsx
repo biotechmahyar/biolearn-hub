@@ -48,21 +48,6 @@ export default function SupportPanel() {
   const { mutate: replyTicketIran } = useApiMutation("/api/support/tickets", "POST");
   const tickets = (isIran ? ticketsIran : ticketsConvex) ?? [];
 
-  // Dual-mode reply helper
-  const handleReply = async (ticketId: string, message: string) => {
-    if (isIran) {
-      await replyTicketIran({ id: ticketId, message });
-    } else {
-      await replyTicketConvex({ ticketId, message });
-    }
-  };
-
-  const handleStatus = async (ticketId: string, status: string) => {
-    if (!isIran) {
-      await updateTicketStatusConvex({ ticketId, status: status as any });
-    }
-  };
-
   const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -212,7 +197,7 @@ export default function SupportPanel() {
                     <div className="mt-4 space-y-3 border-t border-white/5 pt-4">
                       {/* Thread */}
                       <div className="max-h-72 space-y-2 overflow-y-auto">
-                        {t.messages.map((m, i) => (
+                        {t.messages.map((m: { author: string; text: string; at: number }, i: number) => (
                           <div
                             key={i}
                             className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
@@ -254,7 +239,7 @@ export default function SupportPanel() {
                             size="sm"
                             variant="outline"
                             className="border-white/10 text-emerald-100/60 hover:bg-white/5"
-                            onClick={() => updateTicketStatus({ ticketId: t._id, status: "closed" })}
+                            onClick={() => updateTicketStatusConvex({ ticketId: t._id, status: "closed" })}
                           >
                             <Lock className="size-3.5" />
                             بستن تیکت
