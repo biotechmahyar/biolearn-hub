@@ -17,6 +17,10 @@ export interface ResolvedVideoSource {
   provider: VideoProvider;
   url: string; // The URL to use for playback (may be normalized)
   label: string; // Human-readable label for the provider
+  /** If true, the provider requires script execution (not a standalone HTML page) */
+  requiresScript?: boolean;
+  /** The original embed code if this source was parsed from one */
+  rawEmbedCode?: string;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -235,8 +239,10 @@ export function resolveVideoSource(
       // Check if the extracted URL is from a trusted provider
       const provider = detectProvider(parsed.url);
       if (provider !== "generic" || isTrustedDomain(parsed.url)) {
-        // Known provider — resolve to embed
-        return resolveAsEmbed(parsed.url, provider);
+        // Known provider — resolve to embed, preserving raw embed code
+        const result = resolveAsEmbed(parsed.url, provider);
+        result.rawEmbedCode = trimmed;
+        return result;
       }
 
       // Unknown domain in embed code — block for security
@@ -354,6 +360,7 @@ function resolveAsEmbed(
         provider: "iranhls",
         url: normalizeIranHlsUrl(url),
         label: "IranHLS",
+        requiresScript: true,
       };
     default:
       return {

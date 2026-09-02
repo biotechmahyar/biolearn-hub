@@ -21,6 +21,53 @@ interface VideoRendererProps {
   className?: string;
 }
 
+// ── Iframe player for script-based providers (IranHLS, etc.) ────────────────
+// These providers use <script> tags that load JavaScript to create the player.
+// We render the script inside a sandboxed iframe via srcdoc so it executes
+// in an isolated context.
+function ScriptIframePlayer({
+  source,
+  className,
+}: {
+  source: ResolvedVideoSource;
+  className?: string;
+}) {
+  // Build the embed code to render inside the iframe
+  const embedCode = source.rawEmbedCode || `<script src="${source.url}"></script>`;
+
+  const srcdoc = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    iframe, video, embed, object { width: 100%; height: 100%; border: 0; }
+  </style>
+</head>
+<body>
+${embedCode}
+</body>
+</html>`;
+
+  return (
+    <div className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}>
+      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+        <iframe
+          srcDoc={srcdoc}
+          className="absolute inset-0 h-full w-full border-0"
+          style={{ margin: 0, padding: 0 }}
+          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          allowFullScreen
+          title={`پخش ویدئو — ${source.label}`}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── Iframe player (Aparat, YouTube, Vimeo, generic embed) ────────────────────
 function IframePlayer({
   source,
@@ -34,12 +81,11 @@ function IframePlayer({
       <div className="relative w-full" style={{ paddingBottom: "56.25%" /* 16:9 */ }}>
         <iframe
           src={source.url}
-          className="absolute inset-0 h-full w-full border-0 m-0 p-0"
+          className="absolute inset-0 h-full w-full border-0"
           style={{ margin: 0, padding: 0 }}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
           title={`پخش ویدئو — ${source.label}`}
-          loading="lazy"
         />
       </div>
     </div>
@@ -84,19 +130,21 @@ function DirectVideoPlayer({
 
   return (
     <div className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}>
-      <video
-        className="h-full w-full"
-        controls
-        playsInline
-        preload="metadata"
-        poster={poster}
-        onError={() => setFailed(true)}
-        onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
-        onEnded={onEnded}
-      >
-        <source src={source.url} />
-        مرورگر شما از پخش ویدئو پشتیبانی نمی‌کند.
-      </video>
+      <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
+        <video
+          className="absolute inset-0 h-full w-full"
+          controls
+          playsInline
+          preload="metadata"
+          poster={poster}
+          onError={() => setFailed(true)}
+          onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
+          onEnded={onEnded}
+        >
+          <source src={source.url} />
+          مرورگر شما از پخش ویدئو پشتیبانی نمی‌کند.
+        </video>
+      </div>
     </div>
   );
 }
@@ -155,6 +203,10 @@ export function VideoRenderer({
 
   switch (source.type) {
     case "embed":
+      // Script-based providers (IranHLS) need their script to execute
+      if (source.requiresScript) {
+        return <ScriptIframePlayer source={source} className={className} />;
+      }
       return <IframePlayer source={source} className={className} />;
 
     case "direct":
