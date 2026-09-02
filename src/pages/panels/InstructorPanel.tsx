@@ -114,7 +114,8 @@ type Tab =
   | "reports"
   | "ai-assistant"
   | "payments"
-  | "profile";
+  | "profile"
+  | "course-manage";
 
 interface SidebarSection {
   label: string;
@@ -293,6 +294,7 @@ export default function InstructorPanel() {
   const [tab, setTab] = useState<Tab>("dashboard");
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [manageCourseId, setManageCourseId] = useState<string | null>(null);
 
   const allRooms = useQuery(api.collab.listRooms) ?? [];
   const online = useQuery(api.collab.listOnline) ?? [];
@@ -378,8 +380,9 @@ export default function InstructorPanel() {
           {tab === "dashboard" && <DashboardView rooms={rooms} online={online} user={user} />}
 
           {/* آموزش */}
-          {tab === "courses-mine" && <CoursesMineView />}
+          {tab === "courses-mine" && <CoursesMineView onManageCourse={(id) => { setManageCourseId(id); setTab("course-manage"); }} />}
           {tab === "courses-design" && <CourseStudioView />}
+          {tab === "course-manage" && manageCourseId && <CourseManageView courseId={manageCourseId} onBack={() => { setTab("courses-mine"); setManageCourseId(null); }} />}
           {tab === "courses-resources" && <ResourcesView />}
 
           {/* کلاس‌ها */}
@@ -572,12 +575,13 @@ function DashboardView({
 // ── آموزش: دوره‌های من ───────────────────────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════════════
 
-function CoursesMineView() {
+function CoursesMineView({ onManageCourse }: { onManageCourse: (courseId: string) => void }) {
   const myCourses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
   const courses = myCourses;
 
   const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
     published: { label: "منتشر", cls: "bg-emerald-400/15 text-emerald-300" },
+    approved: { label: "تأیید شده", cls: "bg-cyan-400/15 text-cyan-300" },
     pending: { label: "در بررسی", cls: "bg-amber-400/15 text-amber-300" },
     draft: { label: "پیش‌نویس", cls: "bg-slate-400/15 text-slate-300" },
     rejected: { label: "رد شده", cls: "bg-red-400/15 text-red-300" },
@@ -619,6 +623,16 @@ function CoursesMineView() {
                   {c.reviewNote && (
                     <p className="text-[11px] text-red-400">علت رد: {c.reviewNote}</p>
                   )}
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      className="flex-1 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
+                      onClick={() => onManageCourse(c._id)}
+                    >
+                      <Settings className="ml-1 size-3.5" />
+                      مدیریت دوره
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -3856,5 +3870,383 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
         )}
       </div>
     </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Course Management View ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function CourseManageView({ courseId, onBack }: { courseId: string; onBack: () => void }) {
+  const courses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
+  const course = courses.find((c: any) => c._id === courseId);
+  const [activeTab, setActiveTab] = useState<"info" | "syllabus" | "content">("info");
+  const [editingLesson, setEditingLesson] = useState<string | null>(null);
+
+  if (!course) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-400">
+          ← بازگشت به دوره‌ها
+        </Button>
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <BookOpen className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">دوره یافت نشد.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const syllabus = (course as any).syllabus ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={onBack} className="text-slate-400">
+          ← بازگشت
+        </Button>
+        <div className="flex-1">
+          <h2 className="text-lg font-bold text-white">{course.title}</h2>
+          <p className="text-xs text-slate-400">
+            {course.categoryName ?? ""} · {course.syllabusCount ?? 0} جلسه · {course.studentsCount ?? 0} دانشجو
+          </p>
+        </div>
+        <a
+          href={`/courses/${course.slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/10"
+        >
+          مشاهده در سایت ↗
+        </a>
+      </div>
+
+      {/* Tab navigation */}
+      <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+        {([
+          { key: "info" as const, label: "اطلاعات دوره" },
+          { key: "syllabus" as const, label: "سرفصل‌ها و جلسات" },
+          { key: "content" as const, label: "محتوای جلسات" },
+        ]).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
+              activeTab === t.key ? "bg-cyan-500 text-white" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      {activeTab === "info" && (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[10px] text-slate-500">عنوان</label>
+                <p className="text-sm font-bold text-white">{course.title}</p>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500">وضعیت</label>
+                <p className="text-sm text-white">{course.status ?? "ناشناخته"}</p>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500">قیمت</label>
+                <p className="text-sm text-white">{course.price?.toLocaleString("fa-IR") ?? 0} تومان</p>
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500">تعداد جلسات</label>
+                <p className="text-sm text-white">{syllabus.length}</p>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-500">خلاصه</label>
+              <p className="text-sm text-slate-300">{course.summary}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "syllabus" && (
+        <SyllabusManager courseId={courseId} syllabus={syllabus} onEditLesson={setEditingLesson} />
+      )}
+
+      {activeTab === "content" && (
+        <LessonContentEditor courseId={courseId} syllabus={syllabus} />
+      )}
+
+      {/* Inline lesson editor */}
+      {editingLesson && (
+        <LessonEditDialog
+          courseId={courseId}
+          lesson={syllabus.find((s: any) => s.id === editingLesson)}
+          onClose={() => setEditingLesson(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Syllabus Manager ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function SyllabusManager({
+  courseId,
+  syllabus,
+  onEditLesson,
+}: {
+  courseId: string;
+  syllabus: { id: string; title: string; durationMin: number; free: boolean }[];
+  onEditLesson: (id: string) => void;
+}) {
+  const addLesson = useMutation(api.courseStudio.addSyllabusLesson);
+  const removeLesson = useMutation(api.courseStudio.removeSyllabusLesson);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newDuration, setNewDuration] = useState("60");
+  const [newFree, setNewFree] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const handleAdd = async () => {
+    if (!newTitle.trim()) return;
+    setBusy(true);
+    try {
+      await addLesson({
+        courseId: courseId as any,
+        title: newTitle.trim(),
+        durationMin: Number(newDuration) || 60,
+        free: newFree,
+      });
+      toast.success("جلسه اضافه شد");
+      setNewTitle("");
+      setNewDuration("60");
+      setNewFree(false);
+      setShowAdd(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async (lessonId: string) => {
+    if (!confirm("آیا از حذف این جلسه مطمئنید؟")) return;
+    try {
+      await removeLesson({ courseId: courseId as any, lessonId });
+      toast.success("جلسه حذف شد");
+      onEditLesson("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white">سرفصل‌ها و جلسات</h3>
+        <Button
+          size="sm"
+          className="bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+          onClick={() => setShowAdd(true)}
+        >
+          <Plus className="ml-1 size-3.5" />
+          افزودن جلسه
+        </Button>
+      </div>
+
+      {syllabus.length === 0 ? (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <BookOpen className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">هنوز جلسه‌ای اضافه نشده.</p>
+            <Button size="sm" className="bg-emerald-500/10 text-emerald-300" onClick={() => setShowAdd(true)}>
+              <Plus className="ml-1 size-3.5" /> افزودن اولین جلسه
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        syllabus.map((lesson: any, i: number) => (
+          <Card key={lesson.id} className="border-white/5 bg-white/[0.02]">
+            <CardContent className="flex items-center gap-3 py-3">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/5 text-xs font-bold text-slate-400">
+                {i + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-white">{lesson.title}</p>
+                <p className="text-[11px] text-slate-500">
+                  {lesson.durationMin} دقیقه · {lesson.free ? "رایگان" : "پولی"}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-[10px] text-cyan-300 hover:text-cyan-200"
+                onClick={() => onEditLesson(lesson.id)}
+              >
+                ویرایش
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-[10px] text-red-400 hover:text-red-300"
+                onClick={() => handleRemove(lesson.id)}
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </CardContent>
+          </Card>
+        ))
+      )}
+
+      {/* Add lesson dialog */}
+      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>افزودن جلسه جدید</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="عنوان جلسه"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              className="border-white/10 bg-white/5 text-sm text-slate-100"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400">مدت (دقیقه)</label>
+                <Input
+                  type="number"
+                  value={newDuration}
+                  onChange={(e) => setNewDuration(e.target.value)}
+                  className="border-white/10 bg-white/5 text-sm text-slate-100"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-slate-400">نوع دسترسی</label>
+                <Select value={newFree ? "free" : "paid"} onValueChange={(v) => setNewFree(v === "free")}>
+                  <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">رایگان</SelectItem>
+                    <SelectItem value="paid">پولی</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>انصراف</Button>
+              <Button size="sm" onClick={handleAdd} disabled={busy || !newTitle.trim()} className="bg-cyan-500 text-white">
+                {busy ? <Loader2 className="ml-1 size-3 animate-spin" /> : <Plus className="ml-1 size-3" />}
+                افزودن
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Lesson Edit Dialog ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+function LessonEditDialog({
+  courseId,
+  lesson,
+  onClose,
+}: {
+  courseId: string;
+  lesson: { id: string; title: string; durationMin: number; free: boolean } | undefined;
+  onClose: () => void;
+}) {
+  const contents = useQuery(api.courseStudio.getLessonContentByCourse, { courseId: courseId as any }) ?? [];
+  const saveContent = useMutation(api.courseStudio.saveLessonContent);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [textContent, setTextContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const existing = contents.find((c: any) => c.lessonId === lesson?.id);
+
+  useEffect(() => {
+    if (existing && !loaded) {
+      setVideoUrl(existing.videoUrl ?? "");
+      setTextContent(existing.textContent ?? "");
+      setLoaded(true);
+    }
+  }, [existing, loaded]);
+
+  if (!lesson) return null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveContent({
+        courseId: courseId as any,
+        lessonId: lesson.id,
+        videoUrl: videoUrl || undefined,
+        textContent: textContent || undefined,
+        order: 0,
+      });
+      toast.success("محتوای جلسه ذخیره شد");
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>ویرایش جلسه: {lesson.title}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              <Video className="size-3.5" /> لینک ویدئو
+            </label>
+            <Input
+              placeholder="https://www.aparat.com/v/..."
+              value={videoUrl}
+              onChange={(e) => setVideoUrl(e.target.value)}
+              className="border-white/10 bg-white/5 text-sm text-slate-100"
+              dir="ltr"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1.5 text-xs text-slate-400">
+              <FileText className="size-3.5" /> متن آموزشی
+            </label>
+            <Textarea
+              placeholder="متن درس..."
+              value={textContent}
+              onChange={(e) => setTextContent(e.target.value)}
+              rows={6}
+              className="border-white/10 bg-white/5 text-sm text-slate-100"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={onClose}>انصراف</Button>
+            <Button size="sm" onClick={handleSave} disabled={saving} className="bg-cyan-500 text-white">
+              {saving ? <Loader2 className="ml-1 size-3 animate-spin" /> : <Save className="ml-1 size-3" />}
+              ذخیره
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -602,7 +602,11 @@ export default function CourseDetail() {
             type: "course",
             refId: course._id,
             title: course.title,
-            price: effective,
+            price: (() => {
+              const selectedTier = buying || course.bundle;
+              const pkg = course.packagePrices?.find((p: any) => p.tier === selectedTier);
+              return pkg?.price ?? effective;
+            })(),
           },
         ]}
         successTitle="ثبت‌نام با موفقیت انجام شد"
