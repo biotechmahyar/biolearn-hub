@@ -731,31 +731,16 @@ function ContentManager({
     setSaving(true);
     try {
       const patch: any = {};
-      if (selectedLesson.contentType === "videoUrl" || selectedLesson.contentType === "video") {
-        // Parse embed codes to extract the actual URL
-        let finalUrl = videoUrl.trim();
-        // If using embed code tab, extract URL from embed code
-        if (!finalUrl && videoEmbedCode.trim()) {
-          const parsed = parseEmbedCode(videoEmbedCode.trim());
-          if (parsed.found && parsed.url) {
-            finalUrl = parsed.url;
-          }
+      // Always save videoUrl if provided, regardless of content type
+      let finalUrl = videoUrl.trim();
+      if (finalUrl && /<script|<iframe|<object/i.test(finalUrl)) {
+        const parsed = parseEmbedCode(finalUrl);
+        if (parsed.found && parsed.url) {
+          finalUrl = parsed.url;
         }
-        // Also handle raw embed codes pasted into URL field
-        if (finalUrl && /<script|<iframe|<object/i.test(finalUrl)) {
-          const parsed = parseEmbedCode(finalUrl);
-          if (parsed.found && parsed.url) {
-            finalUrl = parsed.url;
-          }
-        }
-        patch.videoUrl = finalUrl || undefined;
       }
-      if (selectedLesson.contentType === "text") {
-        patch.textContent = textContent || undefined;
-      }
-      if (selectedLesson.contentType === "embedCode") {
-        patch.embedCode = embedCode || undefined;
-      }
+      if (finalUrl) patch.videoUrl = finalUrl;
+
       if (textContent.trim()) patch.textContent = textContent.trim();
 
       await updateLesson({
@@ -908,29 +893,6 @@ function ContentManager({
                   rows={8}
                   className="border-white/10 bg-white/5 text-sm text-slate-100"
                 />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-xs text-slate-400">
-                  <Link2 className="size-3.5" /> کد Embed / لایو استریم
-                </label>
-                <Textarea
-                  placeholder={'<script src="https://stream.iranhls.com/Video/Embed/VIDEO_ID"></script>'}
-                  value={embedCode}
-                  onChange={(e) => setEmbedCode(e.target.value)}
-                  rows={4}
-                  className="border-white/10 bg-white/5 font-mono text-[11px] text-slate-300"
-                  dir="ltr"
-                />
-                <p className="text-[10px] text-slate-600">
-                  کد &lt;script&gt; یا &lt;iframe&gt; سرویس ویدئویی — به‌صورت امن در iframe ایزوله اجرا می‌شود
-                </p>
-                {embedCode.trim() && (
-                  <VideoSourceBadge url={(() => {
-                    const parsed = parseEmbedCode(embedCode);
-                    return parsed.url ?? undefined;
-                  })()} />
-                )}
               </div>
 
               <div className="flex justify-end">
