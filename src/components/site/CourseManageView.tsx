@@ -313,9 +313,6 @@ function CurriculumManager({
       if (lessonContentType === "text" && lessonText.trim()) {
         payload.textContent = lessonText.trim();
       }
-      if (lessonContentType === "embedCode" && lessonVideoEmbedCode.trim()) {
-        payload.embedCode = lessonVideoEmbedCode.trim();
-      }
       await addLesson(payload);
       toast.success("جلسه اضافه شد");
       setLessonTitle("");
@@ -551,11 +548,6 @@ function CurriculumManager({
                         <Film className="size-3" /> فایل
                       </span>
                     </SelectItem>
-                    <SelectItem value="embedCode">
-                      <span className="flex items-center gap-1.5">
-                        <Link2 className="size-3" /> کد Embed / لایو
-                      </span>
-                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -652,37 +644,6 @@ function CurriculumManager({
             {lessonContentType === "file" && (
               <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
                 آپلود فایل: ابتدا جلسه را بسازید، سپس از تب «محتوای جلسات» فایل را آپلود کنید.
-              </div>
-            )}
-
-            {lessonContentType === "embedCode" && (
-              <div className="space-y-2">
-                <label className="text-xs text-slate-400">کد Embed / لایو استریم</label>
-                <Textarea
-                  placeholder="<script src='...'></script> or <iframe src='...'></iframe>"
-                  value={lessonVideoEmbedCode}
-                  onChange={(e) => setLessonVideoEmbedCode(e.target.value)}
-                  rows={5}
-                  className="border-white/10 bg-white/5 font-mono text-[11px] text-slate-300"
-                  dir="ltr"
-                />
-                <p className="text-[10px] text-slate-600">
-                  کد &lt;script&gt; یا &lt;iframe&gt; Embed سرویس ویدئویی را اینجا قرار دهید. کد به‌صورت امن در یک iframe ایزوله اجرا می‌شود.
-                </p>
-                {lessonVideoEmbedCode.trim() && (
-                  <div className="mt-2 space-y-2">
-                    <VideoSourceBadge url={(() => {
-                      const parsed = parseEmbedCode(lessonVideoEmbedCode);
-                      return parsed.url ?? undefined;
-                    })()} />
-                    <VideoRenderer
-                      url={(() => {
-                        const parsed = parseEmbedCode(lessonVideoEmbedCode);
-                        return parsed.url ?? undefined;
-                      })()}
-                    />
-                  </div>
-                )}
               </div>
             )}
 
