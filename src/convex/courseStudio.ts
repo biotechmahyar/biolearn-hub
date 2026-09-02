@@ -313,3 +313,139 @@ export const deleteDraftCourse = mutation({
     return { ok: true };
   },
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Lesson content (video / text / files per syllabus item) ──────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const getLessonContent = query({
+  args: {
+    courseId: v.id("courses"),
+    lessonId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query("lessonContent")
+      .withIndex("by_course_lesson", (q) =>
+        q.eq("courseId", args.courseId).eq("lessonId", args.lessonId),
+      )
+      .collect();
+    return rows[0] ?? null;
+  },
+});
+
+export const getLessonContentByCourse = query({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("lessonContent")
+      .withIndex("by_course", (q) => q.eq("courseId", args.courseId))
+      .collect();
+  },
+});
+
+export const saveLessonContent = mutation({
+  args: {
+    courseId: v.id("courses"),
+    lessonId: v.string(),
+    videoUrl: v.optional(v.string()),
+    textContent: v.optional(v.string()),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          url: v.string(),
+          size: v.number(),
+          type: v.string(),
+        }),
+      ),
+    ),
+    order: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const existing = await ctx.db
+      .query("lessonContent")
+      .withIndex("by_course_lesson", (q) =>
+        q.eq("courseId", args.courseId).eq("lessonId", args.lessonId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        videoUrl: args.videoUrl,
+        textContent: args.textContent,
+        attachments: args.attachments,
+        order: args.order,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("lessonContent", {
+        courseId: args.courseId,
+        lessonId: args.lessonId,
+        videoUrl: args.videoUrl,
+        textContent: args.textContent,
+        attachments: args.attachments,
+        order: args.order,
+        updatedAt: Date.now(),
+      });
+    }
+    return { ok: true };
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Student lesson progress ──────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const getMyLessonProgress = query({
+  args: { courseId: v.id("courses") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    return await ctx.db
+      .query("lessonProgress")
+      .withIndex("by_user_course", (q) =>
+        q.eq("userId", user._id).eq("courseId", args.courseId),
+      )
+      .collect();
+  },
+});
+
+export const markLessonComplete = mutation({
+  args: {
+    courseId: v.id("courses"),
+    lessonId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+
+    const existing = await ctx.db
+      .query("lessonProgress")
+      .withIndex("by_user_course_lesson", (q) =>
+        q.eq("userId", user._id).eq("courseId", args.courseId).eq("lessonId", args.lessonId),
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { completed: true, completedAt: Date.now() });
+    } else {
+      await ctx.db.insert("lessonProgress", {
+        userId: user._id,
+        courseId: args.courseId,
+        lessonId: args.lessonId,
+        completed: true,
+        completedAt: Date.now(),
+      });
+    }
+    return { ok: true };
+  },
+});

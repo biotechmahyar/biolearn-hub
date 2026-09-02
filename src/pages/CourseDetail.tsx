@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
+import { LessonPlayer } from "@/components/site/LessonPlayer";
 import { iconFor } from "@/components/site/icons";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
@@ -374,6 +375,17 @@ export default function CourseDetail() {
                   );
                 })}
               </Accordion>
+
+              {/* Interactive lesson player */}
+              {(isEnrolled || course.syllabus.some((s) => s.free)) && (
+                <div className="mt-6">
+                  <LessonPlayer
+                    courseId={course._id}
+                    syllabus={course.syllabus}
+                    isEnrolled={!!isEnrolled}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Includes */}

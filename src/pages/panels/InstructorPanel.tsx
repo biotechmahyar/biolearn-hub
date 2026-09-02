@@ -4,6 +4,7 @@ import { ClassTimer } from "@/components/site/ClassTimer";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import TelegramAccount from "@/components/site/TelegramAccount";
 import TelegramNotifications from "@/components/site/TelegramNotifications";
+import { LessonContentEditor } from "@/components/site/LessonContentEditor";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
@@ -572,34 +573,56 @@ function DashboardView({
 // ══════════════════════════════════════════════════════════════════════════════
 
 function CoursesMineView() {
-  const suggested = useQuery(api.profiles.listSuggestedCourses);
-  const toggle = useMutation(api.profiles.toggleSuggestedCourse);
-  const courses = suggested?.mine ?? [];
+  const myCourses = useQuery(api.courseStudio.listMyCourseStudio) ?? [];
+  const courses = myCourses;
+
+  const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+    published: { label: "منتشر", cls: "bg-emerald-400/15 text-emerald-300" },
+    pending: { label: "در بررسی", cls: "bg-amber-400/15 text-amber-300" },
+    draft: { label: "پیش‌نویس", cls: "bg-slate-400/15 text-slate-300" },
+    rejected: { label: "رد شده", cls: "bg-red-400/15 text-red-300" },
+  };
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white">دوره‌های من</h2>
-        <p className="mt-1 text-sm text-slate-400">دوره‌هایی که تدریس می‌کنید.</p>
+        <p className="mt-1 text-sm text-slate-400">دوره‌هایی که ساخته‌اید یا تدریس می‌کنید.</p>
       </div>
       {courses.length === 0 ? (
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <BookOpen className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">هنوز دوره‌ای ثبت نشده است.</p>
+            <p className="text-sm text-slate-400">هنوز دوره‌ای نساخته‌اید.</p>
+            <p className="text-xs text-slate-500">از تب «طراحی دوره» دوره جدید بسازید.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {courses.map((c: any) => (
-            <Card key={c._id} className="border-white/5 bg-white/[0.02]">
-              <CardContent className="space-y-2 py-4">
-                <h3 className="break-words font-bold text-white">{c.title}</h3>
-                <p className="text-xs text-slate-400">{c.category ?? ""}</p>
-                <p className="line-clamp-2 text-xs text-slate-500">{c.summary ?? ""}</p>
-              </CardContent>
-            </Card>
-          ))}
+          {courses.map((c: any) => {
+            const badge = STATUS_BADGE[c.status] ?? STATUS_BADGE.draft;
+            return (
+              <Card key={c._id} className="border-white/5 bg-white/[0.02]">
+                <CardContent className="space-y-3 py-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="break-words font-bold text-white text-sm">{c.title}</h3>
+                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badge.cls}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">{c.categoryName ?? c.category ?? ""}</p>
+                  <p className="line-clamp-2 text-xs text-slate-500">{c.summary ?? ""}</p>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span>{c.syllabusCount ?? 0} جلسه</span>
+                    <span>{c.studentsCount ?? 0} دانشجو</span>
+                  </div>
+                  {c.reviewNote && (
+                    <p className="text-[11px] text-red-400">علت رد: {c.reviewNote}</p>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
@@ -3108,7 +3131,7 @@ function CourseStudioView() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<"basic" | "detail" | "packages">("basic");
+  const [activeSection, setActiveSection] = useState<"basic" | "detail" | "packages" | "content">("basic");
 
   // AI course generation  
   const [aiDialog, setAiDialog] = useState(false);
@@ -3436,6 +3459,7 @@ function CourseStudioView() {
               { key: "basic" as const, label: "اطلاعات پایه" },
               { key: "detail" as const, label: "جزئیات دوره" },
               { key: "packages" as const, label: "پکیج‌ها و قیمت" },
+              ...(dialog?.mode === "edit" ? [{ key: "content" as const, label: "محتوای جلسات" }] : []),
             ]).map((s) => (
               <button key={s.key} onClick={() => setActiveSection(s.key)} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${activeSection === s.key ? "bg-cyan-500 text-white" : "text-slate-400 hover:text-white"}`}>{s.label}</button>
             ))}
@@ -3493,6 +3517,12 @@ function CourseStudioView() {
                   </div>
                 ))}
               </>
+            )}
+            {activeSection === "content" && dialog?.mode === "edit" && (
+              <LessonContentEditor
+                courseId={dialog.course._id}
+                syllabus={dialog.course.syllabus ?? []}
+              />
             )}
             {err && <p className="text-sm text-red-400">{err}</p>}
             <Button onClick={handleSave} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">

@@ -1179,6 +1179,31 @@ const schema = defineSchema(
       joinedAt: v.number(),
     }).index("by_user", ["userId"]),
 
+    // ── Lesson content (video / text / files per syllabus item) ──────────
+    lessonContent: defineTable({
+      courseId: v.id("courses"),
+      lessonId: v.string(),         // matches syllabus[].id
+      videoUrl: v.optional(v.string()),
+      textContent: v.optional(v.string()),
+      attachments: v.optional(v.array(v.object({
+        name: v.string(),
+        url: v.string(),
+        size: v.number(),
+        type: v.string(),
+      }))),
+      order: v.number(),
+      updatedAt: v.number(),
+    }).index("by_course", ["courseId"]).index("by_course_lesson", ["courseId", "lessonId"]),
+
+    // ── Student lesson progress ──────────────────────────────────────────
+    lessonProgress: defineTable({
+      userId: v.id("users"),
+      courseId: v.id("courses"),
+      lessonId: v.string(),
+      completed: v.boolean(),
+      completedAt: v.optional(v.number()),
+    }).index("by_user_course", ["userId", "courseId"]).index("by_user_course_lesson", ["userId", "courseId", "lessonId"]),
+
   },
   {
     schemaValidation: false,
