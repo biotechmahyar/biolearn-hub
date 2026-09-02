@@ -449,3 +449,59 @@ export const markLessonComplete = mutation({
     return { ok: true };
   },
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── Syllabus management (add / remove lessons) ─────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const addSyllabusLesson = mutation({
+  args: {
+    courseId: v.id("courses"),
+    title: v.string(),
+    durationMin: v.number(),
+    free: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const existing = course.syllabus ?? [];
+    const newLesson = {
+      id: `s${existing.length}-${Date.now()}`,
+      title: args.title.trim(),
+      durationMin: args.durationMin,
+      free: args.free,
+    };
+    await ctx.db.patch(args.courseId, {
+      syllabus: [...existing, newLesson],
+    });
+    return { ok: true, lessonId: newLesson.id };
+  },
+});
+
+export const removeSyllabusLesson = mutation({
+  args: {
+    courseId: v.id("courses"),
+    lessonId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const existing = course.syllabus ?? [];
+    await ctx.db.patch(args.courseId, {
+      syllabus: existing.filter((s) => s.id !== args.lessonId),
+    });
+    return { ok: true };
+  },
+});

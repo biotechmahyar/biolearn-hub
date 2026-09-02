@@ -229,16 +229,20 @@ export default function CourseDetail() {
                   <div className="mt-5 space-y-2.5">
                     {BUNDLE_ORDER.map((tier) => {
                       const isSelected = buying === tier;
+                      const pkgPrice = course.packagePrices?.find((p: any) => p.tier === tier);
+                      const tierPrice = pkgPrice?.price ?? (tier === course.bundle ? effective : 0);
+                      const hasPrice = tierPrice > 0 || course.price === 0;
                       return (
                         <button
                           key={tier}
                           type="button"
-                          onClick={() => openCheckout(tier)}
+                          onClick={() => hasPrice && setBuying(tier)}
                           className={cn(
                             "flex w-full items-center justify-between rounded-xl border px-4 py-3 text-right transition-all",
                             isSelected
                               ? "border-primary bg-primary/5 ring-2 ring-primary/20"
                               : "border-border bg-background hover:border-primary/40",
+                            !hasPrice && "opacity-40 cursor-not-allowed",
                           )}
                         >
                           <span className="flex items-center gap-2.5">
@@ -252,12 +256,25 @@ export default function CourseDetail() {
                               </span>
                             </span>
                           </span>
-                          <ChevronLeft className="size-4 text-muted-foreground" />
+                          <span className="flex items-center gap-2">
+                            {hasPrice ? (
+                              <span className="text-sm font-extrabold text-primary">
+                                {course.price === 0 ? "رایگان" : formatPrice(tierPrice)}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                            <ChevronLeft className="size-4 text-muted-foreground" />
+                          </span>
                         </button>
                       );
                     })}
-                    <Button className="w-full" size="lg" onClick={() => openCheckout("premium")}>
-                      {course.price === 0 ? "ثبت‌نام رایگان" : `خرید دوره — ${formatPrice(effective)}`}
+                    <Button
+                      className="w-full" size="lg"
+                      onClick={() => openCheckout(buying || course.bundle)}
+                      disabled={!buying && course.price > 0}
+                    >
+                      {course.price === 0 ? "ثبت‌نام رایگان" : buying ? `خرید دوره — ${formatPrice(course.packagePrices?.find((p: any) => p.tier === buying)?.price ?? effective)}` : "یک پکیج را انتخاب کنید"}
                     </Button>
                     <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                       <ShieldCheck className="size-3.5 text-emerald-500" />
