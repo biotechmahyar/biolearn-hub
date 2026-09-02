@@ -26,6 +26,8 @@ interface VideoRendererProps {
 }
 
 // ── Iframe player for script-based providers (IranHLS, etc.) ────────────────
+// For known providers (IranHLS), we render a direct iframe to the embed URL
+// instead of using srcdoc, which is more reliable for script-based players.
 function ScriptIframePlayer({
   source,
   className,
@@ -33,35 +35,17 @@ function ScriptIframePlayer({
   source: ResolvedVideoSource;
   className?: string;
 }) {
-  const embedCode =
-    source.rawEmbedCode || `<script src="${source.url}"></script>`;
-
-  const srcdoc = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-    iframe, video, embed, object { width: 100%; height: 100%; border: 0; }
-  </style>
-</head>
-<body>
-${embedCode}
-</body>
-</html>`;
-
+  // Use direct iframe src for known providers — the embed endpoint is a
+  // standalone player page that doesn't need script injection.
   return (
     <div
       className={`relative w-full overflow-hidden rounded-xl border border-border bg-black ${className ?? ""}`}
     >
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
         <iframe
-          srcDoc={srcdoc}
+          src={source.url}
           className="absolute inset-0 h-full w-full border-0"
           style={{ margin: 0, padding: 0 }}
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           allowFullScreen
           title={`پخش ویدئو — ${source.label}`}

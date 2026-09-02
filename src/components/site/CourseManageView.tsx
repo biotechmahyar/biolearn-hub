@@ -50,20 +50,28 @@ function VideoPreview({
   url?: string;
   embedCode?: string;
 }) {
-  // Determine the URL to preview
-  let previewUrl = url?.trim();
-  if (!previewUrl && embedCode?.trim()) {
+  // If raw embed code is provided, render it directly via EmbedCodeRenderer
+  // (this preserves the original <script>/<iframe> for providers like IranHLS)
+  if (embedCode?.trim() && !url?.trim()) {
     const parsed = parseEmbedCode(embedCode.trim());
     if (parsed.found && parsed.url) {
-      previewUrl = parsed.url;
-    } else {
+      const source = resolveVideoSource(parsed.url);
       return (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
-          ⚠️ کد Embed معتبر نیست یا سرویس ناشناخته است
+        <div className="space-y-2">
+          {source && <VideoSourceBadge url={parsed.url} />}
+          <VideoRenderer url={parsed.url} />
         </div>
       );
     }
+    return (
+      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-300">
+        ⚠️ کد Embed معتبر نیست یا سرویس ناشناخته است
+      </div>
+    );
   }
+
+  // If URL is provided, resolve and render it
+  const previewUrl = url?.trim();
   if (!previewUrl) return null;
 
   const source = resolveVideoSource(previewUrl);
@@ -731,16 +739,30 @@ function ContentManager({
     setSaving(true);
     try {
       const patch: any = {};
-      // Always save videoUrl if provided, regardless of content type
+
+      // Handle video URL or embed code
       let finalUrl = videoUrl.trim();
-      if (finalUrl && /<script|<iframe|<object/i.test(finalUrl)) {
-        const parsed = parseEmbedCode(finalUrl);
+      let finalEmbedCode = "";
+
+      if (videoInputMode === "embed-code" && videoEmbedCode.trim()) {
+        // User pasted an embed code — save it directly for the EmbedCodeRenderer
+        finalEmbedCode = videoEmbedCode.trim();
+        // Also try to extract a URL for the VideoRenderer fallback
+        const parsed = parseEmbedCode(finalEmbedCode);
         if (parsed.found && parsed.url) {
           finalUrl = parsed.url;
         }
+      } else if (finalUrl && /<script|<iframe|<object/i.test(finalUrl)) {
+        // User pasted embed code in the URL field — parse it
+        const parsed = parseEmbedCode(finalUrl);
+        if (parsed.found && parsed.url) {
+          finalEmbedCode = finalUrl;
+          finalUrl = parsed.url;
+        }
       }
-      if (finalUrl) patch.videoUrl = finalUrl;
 
+      if (finalUrl) patch.videoUrl = finalUrl;
+      if (finalEmbedCode) patch.embedCode = finalEmbedCode;
       if (textContent.trim()) patch.textContent = textContent.trim();
 
       await updateLesson({

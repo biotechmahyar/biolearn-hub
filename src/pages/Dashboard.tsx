@@ -310,7 +310,12 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
             </CardHeader>
             <CardContent>
               <Link
-                to={`/courses/${continueCourse.course?.slug}`}
+                to={(() => {
+                  const slug = continueCourse.course?.slug;
+                  const lastId = (continueCourse as any).lastLessonId;
+                  if (lastId) return `/courses/${slug}/lesson/${lastId}`;
+                  return `/courses/${slug}`;
+                })()}
                 className="block rounded-2xl border border-border/70 bg-card/60 p-4 transition-colors hover:border-primary/40"
               >
                 <p className="text-sm font-bold">{continueCourse.course?.title}</p>
