@@ -17,7 +17,6 @@ import {
   FileText,
   Film,
   Loader2,
-  Lock,
   Play,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -150,7 +149,7 @@ export default function LessonPlayerPage() {
     return (
       <PublicLayout>
         <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center px-4">
-          <Lock className="size-12 text-muted-foreground" />
+          <div className="size-12 rounded-full border-2 border-muted-foreground/30" />
           <p className="text-lg font-bold">این جلسه خصوصی است</p>
           <p className="text-sm text-muted-foreground">
             برای دسترسی به این محتوا باید در دوره ثبت‌نام کنید.

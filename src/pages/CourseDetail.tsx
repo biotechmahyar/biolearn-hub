@@ -8,7 +8,6 @@ import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { InstructorAvatar } from "@/components/site/InstructorAvatar";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { LessonPlayer } from "@/components/site/LessonPlayer";
-import { Lock as LockIcon, Link2 } from "lucide-react";
 import { iconFor } from "@/components/site/icons";
 import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
@@ -22,6 +21,7 @@ import {
   ChevronLeft,
   Clock,
   Download,
+  Link2,
   FileText,
   Film,
   GraduationCap,
@@ -399,7 +399,7 @@ export default function CourseDetail() {
                                 <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
                               )}
                               {!canAccess && (
-                                <LockIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+                                <span className="size-3.5 shrink-0 inline-block rounded-full border border-muted-foreground/30" />
                               )}
                               {lesson.isPreview && !isEnrolled && (
                                 <Badge variant="secondary" className="shrink-0 rounded-full text-[9px] bg-emerald-50 text-emerald-700">
