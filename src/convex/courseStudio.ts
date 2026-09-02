@@ -958,3 +958,97 @@ export const getLessonProgress = query({
     return progress ?? null;
   },
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── File Upload for Lessons ──────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Returns a signed upload URL for storing files in Convex storage. */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!staff && user.role !== "instructor") {
+      throw new Error("دسترسی ندارید.");
+    }
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Add an attachment to a lesson (after uploading to storage). */
+export const addLessonAttachment = mutation({
+  args: {
+    lessonId: v.id("courseLessons"),
+    name: v.string(),
+    storageId: v.string(),
+    fileType: v.string(),
+    fileSize: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) throw new Error("جلسه یافت نشد.");
+    const course = await ctx.db.get(lesson.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const existing = lesson.attachments ?? [];
+    await ctx.db.patch(args.lessonId, {
+      attachments: [
+        ...existing,
+        {
+          name: args.name,
+          storageId: args.storageId,
+          fileType: args.fileType,
+          fileSize: args.fileSize,
+        },
+      ],
+      updatedAt: Date.now(),
+    });
+    return { ok: true };
+  },
+});
+
+/** Remove an attachment from a lesson by index. */
+export const removeLessonAttachment = mutation({
+  args: {
+    lessonId: v.id("courseLessons"),
+    attachmentIndex: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("وارد نشده‌اید.");
+    const lesson = await ctx.db.get(args.lessonId);
+    if (!lesson) throw new Error("جلسه یافت نشد.");
+    const course = await ctx.db.get(lesson.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    const owner = course.authorId === user._id;
+    const staff = (await isAnyAdmin(ctx)) || (await isContentStaff(ctx));
+    if (!owner && !staff) throw new Error("دسترسی ندارید.");
+
+    const existing = lesson.attachments ?? [];
+    if (args.attachmentIndex < 0 || args.attachmentIndex >= existing.length) {
+      throw new Error("فایل پیوست یافت نشد.");
+    }
+
+    // Delete from storage if we can
+    const removed = existing[args.attachmentIndex];
+    try {
+      await ctx.storage.delete(removed.storageId as any);
+    } catch {
+      // Storage delete may fail for old-style URLs, that's fine
+    }
+
+    const updated = existing.filter((_: any, i: number) => i !== args.attachmentIndex);
+    await ctx.db.patch(args.lessonId, {
+      attachments: updated.length > 0 ? updated : undefined,
+      updatedAt: Date.now(),
+    });
+    return { ok: true };
+  },
+});

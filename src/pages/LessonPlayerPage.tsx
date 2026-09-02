@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { VideoRenderer } from "@/components/site/VideoRenderer";
 import { EmbedCodeRenderer } from "@/components/site/EmbedCodeRenderer";
@@ -15,11 +23,13 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronLeft,
+  Clock,
   Download,
   FileText,
   Film,
   Loader2,
   Play,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -72,6 +82,49 @@ export default function LessonPlayerPage() {
 
   const isEnrolled = !!course?.enrollment;
   const isPreview = currentLesson?.isPreview;
+
+  // Resume playback dialog
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const [resumePosition, setResumePosition] = useState(0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hasResumedRef = useRef(false);
+
+  // When lesson changes, check for saved position and prompt resume
+  useEffect(() => {
+    if (!myProgress || hasResumedRef.current) return;
+    const savedPos = myProgress.lastPositionSeconds ?? 0;
+    if (savedPos > 10 && !myProgress.completed) {
+      setResumePosition(savedPos);
+      setShowResumeDialog(true);
+    }
+    hasResumedRef.current = true;
+  }, [currentLesson?._id, myProgress]);
+
+  // Reset resume flag when lesson changes
+  useEffect(() => {
+    hasResumedRef.current = false;
+  }, [currentLesson?._id]);
+
+  const handleResumeYes = () => {
+    setShowResumeDialog(false);
+    // Seek video to saved position
+    const videoEl = document.querySelector("#lesson-video") as HTMLVideoElement | null;
+    if (videoEl) {
+      videoEl.currentTime = resumePosition;
+      videoEl.play().catch(() => {});
+    }
+  };
+
+  const handleResumeNo = () => {
+    setShowResumeDialog(false);
+    setResumePosition(0);
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   // Save video position periodically
   const savePosition = useCallback(
@@ -181,6 +234,30 @@ export default function LessonPlayerPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
           {/* Main content */}
           <div className="space-y-6">
+            {/* Resume Playback Dialog */}
+            <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+              <DialogContent className="sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <RotateCcw className="size-5 text-primary" />
+                    ادامه پخش
+                  </DialogTitle>
+                  <DialogDescription>
+                    شما قبلاً این ویدئو را تا دقیقه {formatTime(resumePosition)} تماشا کرده‌اید. آیا می‌خواهید از همان‌جا ادامه دهید؟
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="outline" size="sm" onClick={handleResumeNo}>
+                    شروع از ابتدا
+                  </Button>
+                  <Button size="sm" onClick={handleResumeYes} className="bg-primary">
+                    <Play className="ml-1 size-3.5" />
+                    ادامه از {formatTime(resumePosition)}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             {/* Video Player */}
             {currentLesson.videoUrl && (
               <VideoRenderer
@@ -194,6 +271,8 @@ export default function LessonPlayerPage() {
             {currentLesson.videoStorageId && !currentLesson.videoUrl && (
               <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
                 <video
+                  id="lesson-video"
+                  ref={videoRef}
                   key={currentLesson._id}
                   className="h-full w-full"
                   controls

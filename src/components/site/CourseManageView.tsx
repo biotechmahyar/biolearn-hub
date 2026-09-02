@@ -1,6 +1,6 @@
 import { api } from "@/convex/_generated/api";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,10 +30,13 @@ import {
   Link2,
   Loader2,
   Pencil,
+  Paperclip,
   Plus,
   Save,
   Trash2,
   Upload,
+  FileIcon,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -701,6 +704,9 @@ function ContentManager({
   sections: any[];
 }) {
   const updateLesson = useMutation(api.courseStudio.updateLesson);
+  const generateUploadUrl = useMutation(api.courseStudio.generateUploadUrl);
+  const addLessonAttachment = useMutation(api.courseStudio.addLessonAttachment);
+  const removeLessonAttachment = useMutation(api.courseStudio.removeLessonAttachment);
 
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
@@ -710,6 +716,9 @@ function ContentManager({
   const [embedCode, setEmbedCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Find selected lesson across all sections
   let selectedLesson: any = null;
@@ -733,6 +742,79 @@ function ContentManager({
     setEmbedCode(selectedLesson.embedCode ?? "");
     setLoaded(selectedLessonId);
   }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedLesson) return;
+
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      // Get upload URL
+      const uploadUrl = await generateUploadUrl();
+
+      // Upload with progress tracking via XMLHttpRequest
+      const uploadedStorageId = await new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            setUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        });
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response.storageId);
+          } else {
+            reject(new Error("آپلود ناموفق بود"));
+          }
+        });
+        xhr.addEventListener("error", () => reject(new Error("خطا در آپلود")));
+        xhr.open("POST", uploadUrl);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.send(file);
+      });
+
+      // Add attachment to lesson
+      await addLessonAttachment({
+        lessonId: selectedLesson._id,
+        name: file.name,
+        storageId: uploadedStorageId,
+        fileType: file.type,
+        fileSize: file.size,
+      });
+
+      toast.success(`فایل «${file.name}» با موفقیت آپلود شد`);
+      // Force reload
+      setLoaded(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "خطا در آپلود فایل");
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoveAttachment = async (index: number) => {
+    if (!selectedLesson) return;
+    try {
+      await removeLessonAttachment({
+        lessonId: selectedLesson._id,
+        attachmentIndex: index,
+      });
+      toast.success("فایل پیوست حذف شد");
+      setLoaded(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "خطا");
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleSaveContent = async () => {
     if (!selectedLesson) return;
@@ -915,6 +997,78 @@ function ContentManager({
                   rows={8}
                   className="border-white/10 bg-white/5 text-sm text-slate-100"
                 />
+              </div>
+
+              {/* Attachments Section */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                  <Paperclip className="size-3.5" /> فایل‌های پیوست جلسه
+                </div>
+
+                {/* Existing attachments */}
+                {selectedLesson.attachments && selectedLesson.attachments.length > 0 && (
+                  <div className="space-y-1.5">
+                    {selectedLesson.attachments.map((att: any, i: number) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2"
+                      >
+                        <FileIcon className="size-4 text-cyan-400" />
+                        <span className="flex-1 truncate text-xs text-slate-200">
+                          {att.name}
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {formatFileSize(att.fileSize)}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0 text-red-400 hover:text-red-300"
+                          onClick={() => handleRemoveAttachment(i)}
+                        >
+                          <X className="size-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload button */}
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt,.png,.jpg,.jpeg,.gif"
+                    onChange={handleFileUpload}
+                  />
+                  {uploading ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <Loader2 className="size-3 animate-spin" />
+                        در حال آپلود... {uploadProgress}%
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                        <div
+                          className="h-full rounded-full bg-cyan-500 transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-dashed border-white/10 text-[11px] text-slate-400 hover:text-white"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="ml-1 size-3" /> افزودن فایل
+                    </Button>
+                  )}
+                  <p className="mt-1.5 text-[10px] text-slate-600">
+                    PDF, PPT, DOC, XLS, ZIP, تصویر — حداکثر ۵۰ مگابایت
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end">
