@@ -155,6 +155,103 @@ export const toggleRaiseHand = mutation({
   },
 });
 
+// ── Voice request / approval system ────────────────────────────────────────
+export const requestVoice = mutation({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    if (room.status !== "live") throw new Error("کلاس در حال حاضر فعال نیست.");
+    // Already approved?
+    const speakers = (room as any).speakers ?? [];
+    if (speakers.includes(user._id)) return { status: "approved" as const };
+    // Check for pending request
+    const existing = await ctx.db
+      .query("roomMessages")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .collect();
+    const pending = existing.find(
+      (m) => m.type === "message" && m.text === `__voice_request__${user._id}` && !m.answer,
+    );
+    if (pending) return { status: "pending" as const };
+    await ctx.db.insert("roomMessages", {
+      roomId: room._id,
+      userId: user._id,
+      name: user.name ?? "دانشجو",
+      role: user.role ?? "user",
+      type: "message",
+      text: `__voice_request__${user._id}`,
+      createdAt: Date.now(),
+    });
+    return { status: "pending" as const };
+  },
+});
+
+export const approveSpeaker = mutation({
+  args: { roomId: v.id("classRooms"), userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند فعال‌سازی کند.");
+    const speakers = (room as any).speakers ?? [];
+    if (!speakers.includes(args.userId)) {
+      await ctx.db.patch(args.roomId, { speakers: [...speakers, args.userId] });
+    }
+    // Mark the voice request as answered
+    const messages = await ctx.db
+      .query("roomMessages")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .collect();
+    const req = messages.find(
+      (m) => m.type === "message" && m.text === `__voice_request__${args.userId}` && !m.answer,
+    );
+    if (req) await ctx.db.patch(req._id, { answer: "approved" });
+    return { ok: true };
+  },
+});
+
+export const removeSpeaker = mutation({
+  args: { roomId: v.id("classRooms"), userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند غیرفعال کند.");
+    const speakers = (room as any).speakers ?? [];
+    await ctx.db.patch(args.roomId, { speakers: speakers.filter((s: string) => s !== args.userId) });
+    return { ok: true };
+  },
+});
+
+export const listVoiceRequests = query({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) return { requests: [], speakers: [] };
+    const speakers = (room as any).speakers ?? [];
+    const messages = await ctx.db
+      .query("roomMessages")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .collect();
+    const pending = messages
+      .filter((m) => m.type === "message" && m.text.startsWith("__voice_request__") && !m.answer)
+      .map((m) => ({
+        userId: m.userId,
+        name: m.name,
+        requestId: m._id,
+        createdAt: m.createdAt,
+      }));
+    return { requests: pending, speakers };
+  },
+});
+
 // ── Live rooms ──────────────────────────────────────────────────────────────
 export const createRoom = mutation({
   args: { title: v.string(), topic: v.string(), description: v.string() },

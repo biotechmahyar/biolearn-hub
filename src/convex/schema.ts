@@ -546,6 +546,7 @@ const schema = defineSchema(
       broadcasting: v.boolean(),
       broadcastKind: v.optional(v.union(v.literal("camera"), v.literal("screen"))),
       boardBg: v.optional(v.string()),
+      speakers: v.optional(v.array(v.id("users"))), // approved speakers (students with active mic)
       createdAt: v.number(),
       platformUrl: v.optional(v.string()), // external platform link
       scheduledDate: v.optional(v.string()), // proposed date by instructor

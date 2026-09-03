@@ -2325,6 +2325,11 @@ function RoomView({
     if (broadcast.status !== "live") setScreenShare(false);
   }, [broadcast.status]);
 
+  // Voice request management
+  const voiceRequests = useQuery(api.collab.listVoiceRequests, { roomId: roomId as any });
+  const approveSpeaker = useMutation(api.collab.approveSpeaker);
+  const removeSpeaker = useMutation(api.collab.removeSpeaker);
+
   // Voice recorder
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
@@ -2378,6 +2383,8 @@ function RoomView({
       };
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
         const blob = new Blob(chunksRef.current, {
           type: rec.mimeType || "audio/webm",
         });
@@ -2504,6 +2511,7 @@ function RoomView({
       </div>
 
       {subTab === "live" && (
+        <>
         <LiveSection
           broadcast={broadcast}
           localVideoRef={localVideoRef}
@@ -2515,6 +2523,83 @@ function RoomView({
           addStroke={addStroke}
           clearStrokes={clearStrokes}
         />
+        {/* Voice request management for instructor */}
+        {isLive && voiceRequests && (
+          <Card className="border-emerald-400/20 bg-[#0b1a2a] mt-3">
+            <CardContent className="space-y-3 py-4">
+              <div className="flex items-center gap-2">
+                <Mic className="size-4 text-emerald-400" />
+                <p className="text-sm font-bold text-emerald-200">مدیریت صدا</p>
+                {(voiceRequests.speakers?.length ?? 0) > 0 && (
+                  <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                    {(voiceRequests.speakers?.length ?? 0)} فعال
+                  </span>
+                )}
+                {(voiceRequests.requests?.length ?? 0) > 0 && (
+                  <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                    {(voiceRequests.requests?.length ?? 0)} درخواست
+                  </span>
+                )}
+              </div>
+              {/* Pending requests */}
+              {(voiceRequests.requests?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">درخواست‌های صحبت</p>
+                  {voiceRequests.requests!.map((req) => (
+                    <div key={req.userId} className="flex items-center justify-between gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2">
+                      <span className="text-xs font-bold text-slate-200">{req.name}</span>
+                      <div className="flex gap-1.5">
+                        <Button size="sm" className="h-7 text-[10px] bg-emerald-500 hover:bg-emerald-400" onClick={async () => {
+                          try {
+                            await approveSpeaker({ roomId: roomId as any, userId: req.userId as any });
+                            toast.success(req.name + ' فعال شد');
+                          } catch (e) { toast.error(e instanceof Error ? e.message : 'خطا'); }
+                        }}>
+                          <CheckCircle2 className="ml-1 size-3" /> تأیید
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={async () => {
+                          try {
+                            // Lower the request hand
+                            await answerQuestion({ messageId: req.requestId as any, answer: 'denied' });
+                            toast.info('درخواست رد شد');
+                          } catch (e) { toast.error(e instanceof Error ? e.message : 'خطا'); }
+                        }}>
+                          رد
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Active speakers */}
+              {(voiceRequests.speakers?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">گویندگان فعال</p>
+                  {voiceRequests.speakers!.map((sid) => (
+                    <div key={sid} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                        <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
+                        {sid.slice(-6)}
+                      </span>
+                      <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400 hover:text-red-300" onClick={async () => {
+                        try {
+                          await removeSpeaker({ roomId: roomId as any, userId: sid as any });
+                          toast.info('گوینده غیرفعال شد');
+                        } catch (e) { toast.error(e instanceof Error ? e.message : 'خطا'); }
+                      }}>
+                        قطع صدا
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {(voiceRequests.requests?.length ?? 0) === 0 && (voiceRequests.speakers?.length ?? 0) === 0 && (
+                <p className="text-xs text-slate-500">دانشجویان می‌توانند درخواست صحبت بدهند.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+        </>
       )}
 
       {subTab === "board" && (

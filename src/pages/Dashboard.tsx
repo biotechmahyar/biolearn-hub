@@ -13,7 +13,7 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
-import { useStudentReceiver } from "@/hooks/use-live";
+import { useStudentReceiver, useStudentAudioSender } from "@/hooks/use-live";
 import { accent, faNum, formatDate, formatDateTime, formatPrice } from "@/lib/format";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { cn } from "@/lib/utils";
@@ -1179,6 +1179,43 @@ function LiveRoomView({
     }
   }, [receiver.remoteStream]);
 
+  // Voice request system
+  const requestVoice = useMutation(api.collab.requestVoice);
+  const voiceRequests = useQuery(api.collab.listVoiceRequests, { roomId: roomId as any });
+  const isSpeaker = (voiceRequests?.speakers ?? []).includes(user?._id as any);
+  const myRequest = (voiceRequests?.requests ?? []).find((r) => r.userId === user?._id);
+  const [voiceStatus, setVoiceStatus] = useState<"none" | "pending" | "approved">("none");
+
+  // Sync voice status from server
+  useEffect(() => {
+    if (isSpeaker) setVoiceStatus("approved");
+    else if (myRequest) setVoiceStatus("pending");
+    else setVoiceStatus("none");
+  }, [isSpeaker, myRequest]);
+
+  // Student audio sender (sends mic to instructor when approved)
+  const audioSender = useStudentAudioSender(
+    roomId,
+    room?.instructorId,
+    user?._id,
+    isSpeaker,
+  );
+
+  async function handleVoiceRequest() {
+    try {
+      const result = await requestVoice({ roomId: roomId as any });
+      if (result.status === "approved") {
+        setVoiceStatus("approved");
+        toast.success("شما فعال شدید! می‌توانید صحبت کنید.");
+      } else {
+        setVoiceStatus("pending");
+        toast.info("درخواست شما ارسال شد — منتظر تأیید مدرس.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  }
+
   // Voice recorder
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
@@ -1233,6 +1270,8 @@ function LiveRoomView({
       };
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
         const blob = new Blob(chunksRef.current, {
           type: rec.mimeType || "audio/webm",
         });
@@ -1376,6 +1415,68 @@ function LiveRoomView({
               readOnly
               className="min-h-[240px]"
             />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Voice request / active speaker section */}
+      {detail?.status === "live" && (
+        <Card className="border-emerald-500/20">
+          <CardContent className="py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Mic className="size-4 text-emerald-500" />
+                <span className="text-sm font-bold">صحبت در کلاس</span>
+                {voiceStatus === "approved" && (
+                  <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold text-emerald-500">
+                    <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                    فعال — در حال ارسال صدا
+                  </span>
+                )}
+                {voiceStatus === "pending" && (
+                  <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-500">
+                    <Loader2 className="size-2.5 animate-spin" />
+                    در انتظار تأیید مدرس
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {voiceStatus === "approved" ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant={audioSender.sending ? "destructive" : "default"}
+                      onClick={() => {
+                        if (audioSender.sending) {
+                          audioSender.stopSending();
+                        } else {
+                          void audioSender.startSending();
+                        }
+                      }}
+                    >
+                      {audioSender.sending ? (
+                        <><Square className="size-3.5" /> قطع صدا</>
+                      ) : (
+                        <><Mic className="size-3.5" /> شروع صحبت</>
+                      )}
+                    </Button>
+                  </>
+                ) : voiceStatus === "none" ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                    onClick={() => void handleVoiceRequest()}
+                  >
+                    <Mic className="size-3.5" />
+                    درخواست صحبت
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            {audioSender.error && (
+              <p className="mt-2 text-xs text-destructive">{audioSender.error}</p>
+            )}
           </CardContent>
         </Card>
       )}
