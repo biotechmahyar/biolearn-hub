@@ -2,9 +2,17 @@ import { useAuth } from "@/hooks/use-auth";
 import { Dna } from "lucide-react";
 import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router";
+import { panelForRole } from "@/components/RoleGate";
 
+/**
+ * RequireAuth checks:
+ * 1. Loading → show spinner
+ * 2. Not authenticated → redirect to /auth?returnTo=...
+ * 3. Authenticated but staff member on /dashboard → redirect to their own panel
+ * 4. Otherwise → render children
+ */
 export function RequireAuth({ children }: { children: ReactNode }) {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, user } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -30,6 +38,15 @@ export function RequireAuth({ children }: { children: ReactNode }) {
         replace
       />
     );
+  }
+
+  // Staff members should never land on /dashboard — redirect them to their own panel.
+  const role = user?.role;
+  if (role && role !== "user" && role !== "member") {
+    const theirPanel = panelForRole(role);
+    if (location.pathname === "/dashboard") {
+      return <Navigate to={theirPanel} replace />;
+    }
   }
 
   return children;
