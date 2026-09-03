@@ -57,6 +57,13 @@ export function useVoiceRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const blobTypeRef = useRef<string>("audio/webm");
+  // Use refs for callbacks to avoid stale closures
+  const onRecordedRef = useRef(onRecorded);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs fresh
+  onRecordedRef.current = onRecorded;
+  onErrorRef.current = onError;
 
   // Cleanup timer
   const clearTimer = useCallback(() => {
@@ -89,10 +96,13 @@ export function useVoiceRecorder({
     setState("IDLE");
     setSeconds(0);
     setPreviewBlob(null);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
+    // Revoke old URL
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
     setPreviewDuration(0);
-  }, [clearTimer, releaseMedia, previewUrl]);
+  }, [clearTimer, releaseMedia]);
 
   // Start recording
   const start = useCallback(async () => {
@@ -100,6 +110,9 @@ export function useVoiceRecorder({
     if (previewBlob) {
       reset();
     }
+
+    // Small delay to ensure state is clean
+    await new Promise((r) => setTimeout(r, 50));
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -128,9 +141,8 @@ export function useVoiceRecorder({
         clearTimer();
 
         // Capture final seconds
-        const finalSec = timerRef.current !== null ? seconds : 0;
         setSeconds((prev) => {
-          setPreviewDuration(prev);
+          setPreviewDuration(prev > 0 ? prev : 1);
           return prev;
         });
 
@@ -147,7 +159,7 @@ export function useVoiceRecorder({
         clearTimer();
         chunksRef.current = [];
         setState("ERROR");
-        onError?.("خطا در ضبط صدا");
+        onErrorRef.current?.("خطا در ضبط صدا");
         // Auto-recover to IDLE after a short delay
         setTimeout(() => setState("IDLE"), 2000);
       };
@@ -166,7 +178,7 @@ export function useVoiceRecorder({
       releaseMedia();
       clearTimer();
       setState("ERROR");
-      onError?.(
+      onErrorRef.current?.(
         e instanceof Error
           ? e.name === "NotAllowedError"
             ? "برای ضبط صدا، دسترسی میکروفون را فعال کنید."
@@ -175,7 +187,7 @@ export function useVoiceRecorder({
       );
       setTimeout(() => setState("IDLE"), 2000);
     }
-  }, [releaseMedia, clearTimer, onError, previewBlob, reset, seconds]);
+  }, [previewBlob, reset, releaseMedia, clearTimer]);
 
   // Stop recording → builds blob, shows preview
   const stop = useCallback(() => {
@@ -194,15 +206,21 @@ export function useVoiceRecorder({
 
   // Send the recorded blob
   const send = useCallback(() => {
-    if (!previewBlob || previewBlob.size === 0) {
-      reset();
-      return;
-    }
-    setState("UPLOADING");
-    const dur = previewDuration || seconds;
-    // Call the callback — caller handles upload and will call reset/discard after
-    onRecorded(previewBlob, dur);
-  }, [previewBlob, previewDuration, seconds, onRecorded, reset]);
+    setPreviewBlob((currentBlob) => {
+      if (!currentBlob || currentBlob.size === 0) {
+        reset();
+        return null;
+      }
+      setState("UPLOADING");
+      setSeconds((currentSec) => {
+        const dur = previewDuration > 0 ? previewDuration : currentSec > 0 ? currentSec : 1;
+        // Use ref to avoid stale closure
+        onRecordedRef.current(currentBlob, dur);
+        return currentSec;
+      });
+      return currentBlob;
+    });
+  }, [reset, previewDuration]);
 
   // Discard the current recording
   const discard = useCallback(() => {
@@ -214,7 +232,10 @@ export function useVoiceRecorder({
     return () => {
       clearTimer();
       releaseMedia();
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

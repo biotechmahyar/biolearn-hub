@@ -140,7 +140,7 @@ export const toggleRaiseHand = mutation({
       await ctx.db.patch(handUp._id, { answer: "lowered" });
       return { handUp: false };
     } else {
-      // Raise hand
+      // Raise hand - internal state message
       await ctx.db.insert("roomMessages", {
         roomId: room._id,
         userId: user._id,
@@ -149,6 +149,16 @@ export const toggleRaiseHand = mutation({
         type: "message",
         text: `__hand__${user._id}`,
         createdAt: Date.now(),
+      });
+      // Also add a visible system message
+      await ctx.db.insert("roomMessages", {
+        roomId: room._id,
+        userId: user._id,
+        name: user.name ?? "دانشجو",
+        role: user.role ?? "user",
+        type: "message",
+        text: `✋ ${user.name ?? "دانشجو"} دستش را بالا برد`,
+        createdAt: Date.now() + 1,
       });
       return { handUp: true };
     }
@@ -185,6 +195,16 @@ export const requestVoice = mutation({
       text: `__voice_request__${user._id}`,
       createdAt: Date.now(),
     });
+    // Also add a visible system message
+    await ctx.db.insert("roomMessages", {
+      roomId: room._id,
+      userId: user._id,
+      name: user.name ?? "دانشجو",
+      role: user.role ?? "user",
+      type: "message",
+      text: `🎤 ${user.name ?? "دانشجو"} درخواست صحبت کرد`,
+      createdAt: Date.now() + 1,
+    });
     return { status: "pending" as const };
   },
 });
@@ -211,6 +231,18 @@ export const approveSpeaker = mutation({
       (m) => m.type === "message" && m.text === `__voice_request__${args.userId}` && !m.answer,
     );
     if (req) await ctx.db.patch(req._id, { answer: "approved" });
+    // Add visible system message
+    const approvedDoc = await ctx.db.get(args.userId);
+    const approvedName = (approvedDoc && "name" in approvedDoc) ? (approvedDoc as any).name : undefined;
+    await ctx.db.insert("roomMessages", {
+      roomId: room._id,
+      userId: user._id,
+      name: user.name ?? "مدرس",
+      role: "instructor",
+      type: "message",
+      text: `✅ مدرس به ${approvedName ?? "دانشجو"} اجازه صحبت داد`,
+      createdAt: Date.now(),
+    });
     return { ok: true };
   },
 });
@@ -226,6 +258,17 @@ export const removeSpeaker = mutation({
     if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند غیرفعال کند.");
     const speakers = (room as any).speakers ?? [];
     await ctx.db.patch(args.roomId, { speakers: speakers.filter((s: string) => s !== args.userId) });
+    const removedDoc = await ctx.db.get(args.userId);
+    const removedName = (removedDoc && "name" in removedDoc) ? (removedDoc as any).name : undefined;
+    await ctx.db.insert("roomMessages", {
+      roomId: room._id,
+      userId: user._id,
+      name: user.name ?? "مدرس",
+      role: "instructor",
+      type: "message",
+      text: `🔇 مدرس میکروفون ${removedName ?? "دانشجو"} را قطع کرد`,
+      createdAt: Date.now(),
+    });
     return { ok: true };
   },
 });
@@ -248,7 +291,15 @@ export const listVoiceRequests = query({
         requestId: m._id,
         createdAt: m.createdAt,
       }));
-    return { requests: pending, speakers };
+    // Resolve speaker names
+    const speakerDetails = await Promise.all(
+      speakers.map(async (sid: string) => {
+        const doc = await ctx.db.get(sid as any);
+        const name = (doc && "name" in doc) ? (doc as any).name : undefined;
+        return { userId: sid, name: name ?? "دانشجو" };
+      })
+    );
+    return { requests: pending, speakers: speakerDetails };
   },
 });
 

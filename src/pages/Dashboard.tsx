@@ -1191,7 +1191,7 @@ function LiveRoomView({
   // Voice request system
   const requestVoice = useMutation(api.collab.requestVoice);
   const voiceRequests = useQuery(api.collab.listVoiceRequests, { roomId: roomId as any });
-  const isSpeaker = (voiceRequests?.speakers ?? []).includes(user?._id as any);
+  const isSpeaker = (voiceRequests?.speakers ?? []).some((sp: any) => sp.userId === user?._id);
   const myRequest = (voiceRequests?.requests ?? []).find((r) => r.userId === user?._id);
   const [voiceStatus, setVoiceStatus] = useState<"none" | "pending" | "approved">("none");
 
@@ -1500,7 +1500,7 @@ function LiveRoomView({
               هنوز پیامی نیست — اولین سؤال را شما بپرسید!
             </p>
           )}
-          {messages.map((m) => {
+          {messages.filter((m) => !m.text.startsWith("__voice_request__") && !m.text.startsWith("__hand__")).map((m) => {
             const isQuestion = m.type === "question";
             return (
               <div

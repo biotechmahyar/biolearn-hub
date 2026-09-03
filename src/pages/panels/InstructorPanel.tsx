@@ -2568,15 +2568,15 @@ function RoomView({
               {(voiceRequests.speakers?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">گویندگان فعال</p>
-                  {voiceRequests.speakers!.map((sid: string) => (
-                    <div key={sid} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
+                  {voiceRequests.speakers!.map((sp: { userId: string; name: string }) => (
+                    <div key={sp.userId} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
                       <span className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
                         <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
-                        {sid.slice(-6)}
+                        {sp.name}
                       </span>
                       <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400 hover:text-red-300" onClick={async () => {
                         try {
-                          await removeSpeaker({ roomId: roomId as any, userId: sid as any });
+                          await removeSpeaker({ roomId: roomId as any, userId: sp.userId as any });
                           toast.info('گوینده غیرفعال شد');
                         } catch (e) { toast.error(e instanceof Error ? e.message : 'خطا'); }
                       }}>
@@ -2617,7 +2617,7 @@ function RoomView({
               هنوز پیامی نیست. از دانشجویان بخواهید سؤال بپرسند.
             </p>
           )}
-          {messages.map((m) => {
+          {messages.filter((m) => !m.text.startsWith("__voice_request__") && !m.text.startsWith("__hand__")).map((m) => {
             const isQuestion = m.type === "question";
             const answered = !!m.answer;
             return (
