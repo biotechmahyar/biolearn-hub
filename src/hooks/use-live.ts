@@ -8,11 +8,9 @@ const RTC_CONFIG: RTCConfiguration = {
   ],
 };
 
-type SignalRow = (typeof api.collab.listSignals)["_returnType"][number];
-
 export type BroadcastStatus = "idle" | "starting" | "live" | "failed";
 
-// ── Instructor side: publish camera/mic to all students (multi-peer) ────────
+// ── Instructor side: publish camera/mic/screen to all students (multi-peer) ────────
 // Creates individual RTCPeerConnection per student for reliable delivery.
 export function useInstructorBroadcast(roomId: string, myId?: string) {
   const [status, setStatus] = useState<BroadcastStatus>("idle");
@@ -31,7 +29,6 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
   const endBroadcast = useMutation(api.collab.endBroadcast);
 
   const stop = useCallback(async () => {
-    // Close all peer connections
     for (const [, pc] of pcsRef.current) {
       pc.close();
     }
@@ -48,16 +45,13 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
     }
   }, [endBroadcast]);
 
-  /** Create or reuse a PC for a specific student */
-  const getOrCreatePC = useCallback(
-    (studentId: string, stream: MediaStream): RTCPeerConnection => {
-      let pc = pcsRef.current.get(studentId);
-      if (pc && pc.connectionState !== "closed") return pc;
-
-      pc = new RTCPeerConnection(RTC_CONFIG);
+  /** Create a dedicated PC for a specific student, add tracks, create+send offer */
+  const createStudentPC = useCallback(
+    (studentId: string, stream: MediaStream) => {
+      const pc = new RTCPeerConnection(RTC_CONFIG);
       pcsRef.current.set(studentId, pc);
 
-      stream.getTracks().forEach((t) => pc!.addTrack(t, stream));
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
       pc.onicecandidate = (e) => {
         if (e.candidate && myId) {
@@ -71,10 +65,25 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
       };
 
       pc.onconnectionstatechange = () => {
-        if (pc!.connectionState === "failed" || pc!.connectionState === "closed") {
+        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
           pcsRef.current.delete(studentId);
         }
       };
+
+      // Create offer and send to this specific student
+      void pc.createOffer()
+        .then((offer) => pc.setLocalDescription(offer))
+        .then(() => {
+          if (pc.signalingState === "have-local-offer") {
+            return sendSignal({
+              roomId: roomIdRef.current as any,
+              type: "offer",
+              data: JSON.stringify(pc.localDescription),
+              to: studentId as any,
+            });
+          }
+        })
+        .catch(() => {});
 
       return pc;
     },
@@ -102,13 +111,10 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
         streamRef.current = stream;
         setLocalStream(stream);
 
-        // Broadcast a single offer to all students via signaling.
-        // Each student will create their own answer; we process them individually.
+        // Create the initial broadcast PC — sends one offer to all students
         const pc = new RTCPeerConnection(RTC_CONFIG);
         stream.getTracks().forEach((t) => pc.addTrack(t, stream));
 
-        // Store a "broadcast" PC — we'll create per-student PCs on demand
-        // when answers come in
         pcsRef.current.set("__broadcast__", pc);
 
         pc.onicecandidate = (e) => {
@@ -138,8 +144,7 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
     [myId, sendSignal, startBroadcast],
   );
 
-  // Consume answers + ICE candidates from students.
-  // The broadcast PC handles the first answer; subsequent answers create new PCs.
+  // Consume answers + ICE candidates from students + offers from students.
   useEffect(() => {
     if (!signals || status !== "live") return;
     for (const s of signals) {
@@ -151,20 +156,70 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
           if (broadcastPC && broadcastPC.signalingState === "have-local-offer") {
             // First student answer goes to the broadcast PC
             void broadcastPC.setRemoteDescription(JSON.parse(s.data)).catch(() => {});
-          } else {
-            // Subsequent answers: create a dedicated PC for this student
-            if (streamRef.current) {
-              const pc = getOrCreatePC(s.from, streamRef.current);
-              if (pc.signalingState === "have-local-offer") {
-                void pc.setRemoteDescription(JSON.parse(s.data)).catch(() => {});
-              }
+          } else if (s.to === myId) {
+            // Subsequent answers to us: find the right PC
+            const targetPC = pcsRef.current.get(s.from);
+            if (targetPC && targetPC.signalingState === "have-local-offer") {
+              void targetPC.setRemoteDescription(JSON.parse(s.data)).catch(() => {});
             }
+          }
+        } else if (s.type === "offer" && s.from !== myId && s.to === myId) {
+          // Student sending audio: they create an offer, we answer
+          const existingPC = pcsRef.current.get(`student-audio-${s.from}`);
+          if (!existingPC || existingPC.connectionState === "closed") {
+            const pc = new RTCPeerConnection(RTC_CONFIG);
+            pcsRef.current.set(`student-audio-${s.from}`, pc);
+
+            // When we receive audio from student, trigger event
+            pc.ontrack = (e) => {
+              // Audio track from student — play it
+              const audio = new Audio();
+              audio.srcObject = new MediaStream([e.track]);
+              audio.play().catch(() => {});
+            };
+
+            pc.onicecandidate = (e) => {
+              if (e.candidate && myId) {
+                void sendSignal({
+                  roomId: roomIdRef.current as any,
+                  type: "candidate",
+                  data: JSON.stringify(e.candidate),
+                  to: s.from as any,
+                });
+              }
+            };
+
+            pc.onconnectionstatechange = () => {
+              if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+                pcsRef.current.delete(`student-audio-${s.from}`);
+              }
+            };
+
+            void pc.setRemoteDescription(JSON.parse(s.data))
+              .then(() => pc.createAnswer())
+              .then((ans) => pc.setLocalDescription(ans))
+              .then(() => {
+                if (pc.signalingState === "have-local-offer") return;
+                return sendSignal({
+                  roomId: roomIdRef.current as any,
+                  type: "answer",
+                  data: JSON.stringify(pc.localDescription),
+                  to: s.from as any,
+                });
+              })
+              .catch(() => {});
           }
         } else if (s.type === "candidate" && s.from !== myId) {
           // Route ICE candidate to the right PC
-          const targetPC = s.to === myId
-            ? (pcsRef.current.get(s.from) ?? pcsRef.current.get("__broadcast__"))
-            : pcsRef.current.get("__broadcast__");
+          let targetPC: RTCPeerConnection | undefined;
+          if (s.to === myId) {
+            // Candidate targeted at us — could be from student audio or student answer
+            targetPC = pcsRef.current.get(s.from)
+              ?? pcsRef.current.get(`student-audio-${s.from}`)
+              ?? pcsRef.current.get("__broadcast__");
+          } else {
+            targetPC = pcsRef.current.get("__broadcast__");
+          }
           if (targetPC) {
             void targetPC.addIceCandidate(new RTCIceCandidate(JSON.parse(s.data))).catch(() => {});
           }
@@ -173,7 +228,7 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
         // ignore malformed signals
       }
     }
-  }, [signals, status, myId, getOrCreatePC]);
+  }, [signals, status, myId, sendSignal]);
 
   // Cleanup on unmount.
   useEffect(() => {
@@ -221,8 +276,10 @@ export function useStudentReceiver(roomId: string, instructorId?: string, myId?:
       if (processedRef.current.has(s._id)) continue;
       processedRef.current.add(s._id);
       if (s.from !== instructorId) continue;
+      // Only process signals targeted at us or broadcast (no to field)
+      if (s.to && s.to !== myId) continue;
       try {
-        if (s.type === "offer" && !answeredRef.current) {
+        if (s.type === "offer") {
           const pc = new RTCPeerConnection(RTC_CONFIG);
           pcRef.current = pc;
           pc.ontrack = (e) => {
@@ -240,7 +297,14 @@ export function useStudentReceiver(roomId: string, instructorId?: string, myId?:
               });
             }
           };
-          pc.setRemoteDescription(JSON.parse(s.data))
+          pc.onconnectionstatechange = () => {
+            if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+              setStatus("failed");
+            } else if (pc.connectionState === "connected") {
+              setStatus("live");
+            }
+          };
+          void pc.setRemoteDescription(JSON.parse(s.data))
             .then(() => pc.createAnswer())
             .then((ans) => pc.setLocalDescription(ans))
             .then(() => {
@@ -343,6 +407,14 @@ export function useStudentAudioSender(
         }
       };
 
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "connected") {
+          setSending(true);
+        } else if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+          setSending(false);
+        }
+      };
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await sendSignal({
@@ -361,11 +433,12 @@ export function useStudentAudioSender(
 
   // Process answer from instructor
   useEffect(() => {
-    if (!signals || !sending || !instructorId) return;
+    if (!signals || !instructorId) return;
     for (const s of signals) {
       if (processedRef.current.has(s._id)) continue;
       processedRef.current.add(s._id);
       if (s.from !== instructorId) continue;
+      if (s.to && s.to !== myId) continue;
       try {
         if (s.type === "answer" && !answeredRef.current && pcRef.current) {
           void pcRef.current.setRemoteDescription(JSON.parse(s.data)).then(() => {
@@ -380,7 +453,7 @@ export function useStudentAudioSender(
         // ignore
       }
     }
-  }, [signals, sending, instructorId]);
+  }, [signals, instructorId, myId]);
 
   // Cleanup
   useEffect(() => {
