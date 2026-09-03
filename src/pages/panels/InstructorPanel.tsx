@@ -7,6 +7,7 @@ import TelegramNotifications from "@/components/site/TelegramNotifications";
 import { LessonContentEditor } from "@/components/site/LessonContentEditor";
 import { CourseManageView } from "@/components/site/CourseManageView";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery } from "@/hooks/useApiQuery";
@@ -42,6 +43,7 @@ import {
   HelpCircle,
   Highlighter,
   Home,
+  LifeBuoy,
   Hourglass,
   Layers,
   LinkIcon,
@@ -220,6 +222,19 @@ const TOOL_SIZES: Record<WbTool, number> = {
 // ── Sidebar section component ────────────────────────────────────────────────
 
 /** Format seconds to MM:SS for voice recorder display */
+function formatDateTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("fa-IR", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
+
 function formatRecDuration(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
@@ -3986,3 +4001,196 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
 }
 
 
+// ── Instructor Support Inbox ────────────────────────────────────────────────
+function InstructorSupportView() {
+  const { user } = useAuth();
+  const tickets = useQuery(api.support.listTeacherTickets);
+  const sendTicketMsg = useMutation(api.support.sendMessage);
+  const markRead = useMutation(api.support.markAsRead);
+  const updateStatus = useMutation(api.support.updateTicketStatus);
+  const getUploadUrl = useMutation(api.support.getUploadUrl);
+
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openTicket = useQuery(
+    api.support.getTicket,
+    openId ? { ticketId: openId as any } : "skip",
+  );
+  const [reply, setReply] = useState("");
+  const [replying, setReplying] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (openId && openTicket) {
+      void markRead({ ticketId: openId as any });
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  }, [openId, openTicket]);
+
+  const handleReply = async () => {
+    if (!reply.trim() || !openId) return;
+    setReplying(true);
+    try {
+      await sendTicketMsg({ ticketId: openId as any, message: reply.trim() });
+      setReply("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setReplying(false);
+    }
+  };
+
+  const handleFileReply = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !openId) return;
+    setReplying(true);
+    try {
+      const url = await getUploadUrl();
+      const storageId = await uploadBlob(url, file);
+      await sendTicketMsg({
+        ticketId: openId as any,
+        message: "📎 " + file.name,
+        attachmentStorageId: storageId,
+        attachmentName: file.name,
+        attachmentSize: file.size,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در آپلود");
+    } finally {
+      setReplying(false);
+      e.target.value = "";
+    }
+  };
+
+  const totalUnread = (tickets ?? []).reduce((sum: number, t: any) => sum + (t.unreadByTeacher ?? 0), 0);
+
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case "open": return "جدید";
+      case "waiting_for_teacher": return "در انتظار پاسخ";
+      case "waiting_for_student": return "در انتظار دانشجو";
+      case "resolved": return "حل شده";
+      case "closed": return "بسته شده";
+      default: return s;
+    }
+  };
+
+  const statusCls = (s: string) => {
+    switch (s) {
+      case "open": case "waiting_for_teacher": return "bg-amber-400/15 text-amber-300";
+      case "waiting_for_student": return "bg-blue-400/15 text-blue-300";
+      case "resolved": return "bg-emerald-400/15 text-emerald-300";
+      case "closed": return "bg-white/5 text-slate-500";
+      default: return "bg-white/5 text-slate-500";
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-white">🎧 پشتیبانی دانشجویان</h2>
+          <p className="mt-1 text-sm text-slate-400">
+            {totalUnread > 0 ? `${totalUnread} پیام خوانده‌نشده` : "همه پیام‌ها خوانده شده"}
+          </p>
+        </div>
+      </div>
+
+      {!openId ? (
+        tickets === undefined ? (
+          <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-cyan-400" /></div>
+        ) : (tickets as any[]).length === 0 ? (
+          <Card className="border-white/5 bg-[#0b1a2a]">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <LifeBuoy className="size-8 text-slate-500" />
+              <p className="text-sm text-slate-400">هنوز درخواست پشتیبانی ندارید.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {(tickets as any[]).map((t: any) => (
+              <button key={t._id} type="button" className="w-full text-right" onClick={() => setOpenId(t._id)}>
+                <Card className="border-white/5 bg-[#0b1a2a] transition-colors hover:border-cyan-400/20">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                      <LifeBuoy className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-white">{t.studentName}</p>
+                      <p className="truncate text-xs text-slate-400">{t.subject}</p>
+                      <p className="text-[10px] text-slate-500">
+                        {t.courseName ?? "عمومی"} · {formatDateTime(t.lastMessageAt ?? t.createdAt)}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {t.unreadByTeacher > 0 && (
+                        <span className="flex size-5 items-center justify-center rounded-full bg-cyan-400 text-[10px] font-bold text-black">
+                          {t.unreadByTeacher}
+                        </span>
+                      )}
+                      <Badge className={cn("rounded-full text-[10px]", statusCls(t.status))}>
+                        {statusLabel(t.status)}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </button>
+            ))}
+          </div>
+        )
+      ) : openTicket ? (
+        <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+          <CardContent className="p-0">
+            <div className="flex items-center gap-3 border-b border-white/10 p-4">
+              <Button variant="ghost" size="sm" onClick={() => setOpenId(null)} className="text-slate-400">
+                <ChevronDown className="size-4 rotate-90" />
+              </Button>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-white">{openTicket.studentName}</p>
+                <p className="text-xs text-slate-400">{openTicket.subject}</p>
+              </div>
+              <select
+                value={openTicket.status}
+                onChange={(e) => void updateStatus({ ticketId: openId as any, status: e.target.value as any })}
+                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200"
+              >
+                <option value="waiting_for_student">در انتظار دانشجو</option>
+                <option value="waiting_for_teacher">در انتظار پاسخ</option>
+                <option value="resolved">حل شده</option>
+                <option value="closed">بسته شده</option>
+              </select>
+            </div>
+            <div className="max-h-[50vh] space-y-3 overflow-y-auto p-4">
+              {openTicket.messages.map((m: any) => {
+                const isMine = m.senderId === user?._id;
+                return (
+                  <div key={m._id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
+                    <div className={cn("max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6", isMine ? "bg-cyan-400/10" : "bg-white/5")}>
+                      <p className="text-[11px] font-bold text-slate-400">
+                        {m.senderName} · {m.senderRole === "instructor" ? "استاد" : "دانشجو"} · {formatDateTime(m.createdAt)}
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap text-slate-200">{m.message}</p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+            {openTicket.status !== "closed" && openTicket.status !== "resolved" && (
+              <div className="flex items-center gap-2 border-t border-white/10 p-3">
+                <input ref={fileInputRef} type="file" hidden onChange={handleFileReply} />
+                <button onClick={() => fileInputRef.current?.click()} className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10" title="فایل پیوست">
+                  <Paperclip className="size-4" />
+                </button>
+                <Input value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleReply()} placeholder="پاسخ شما..." className="flex-1 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                <Button size="sm" onClick={handleReply} disabled={!reply.trim() || replying} className="bg-cyan-500 text-white hover:bg-cyan-400">
+                  {replying ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}

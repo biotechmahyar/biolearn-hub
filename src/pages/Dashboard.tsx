@@ -868,135 +868,263 @@ function BookmarksTab() {
 
 // ── Support tab ────────────────────────────────────────────────────────────
 function SupportTab() {
-  const { isIran } = useMode();
-  const ticketsConvex = useQuery(api.tickets.getMyTickets);
-  const createTicketConvex = useMutation(api.tickets.createTicket);
-  const replyTicketConvex = useMutation(api.tickets.replyTicket);
-  const { data: ticketsIran } = useApiQuery<any[]>(isIran ? "/api/dashboard/tickets" : "");
-  const { mutate: createTicketIran } = useApiMutation("/api/dashboard/tickets", "POST");
-  const { mutate: replyTicketIran } = useApiMutation("/api/dashboard/tickets", "POST");
-  const tickets = (isIran ? ticketsIran : ticketsConvex) ?? [];
+  const { user } = useAuth();
+  const tickets = useQuery(api.support.listMyTickets);
+  const instructors = useQuery(api.support.listInstructors);
+  const createTicket = useMutation(api.support.createTicket);
+  const sendTicketMsg = useMutation(api.support.sendMessage);
+  const markRead = useMutation(api.support.markAsRead);
+  const updateStatus = useMutation(api.support.updateTicketStatus);
+  const getUploadUrl = useMutation(api.support.getUploadUrl);
+
+  const [showNew, setShowNew] = useState(false);
+  const [teacherId, setTeacherId] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
+  const [creating, setCreating] = useState(false);
+
   const [openId, setOpenId] = useState<string | null>(null);
+  const openTicket = useQuery(
+    api.support.getTicket,
+    openId ? { ticketId: openId as any } : "skip",
+  );
   const [reply, setReply] = useState("");
+  const [replying, setReplying] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (openId && openTicket) {
+      void markRead({ ticketId: openId as any });
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  }, [openId, openTicket]);
 
   const handleCreate = async () => {
-    if (!subject.trim() || !message.trim()) return;
-    if (isIran) {
-      await createTicketIran({ subject, message });
-    } else {
-      await createTicketConvex({ subject, message });
+    if (!teacherId || !subject.trim() || !message.trim()) return;
+    setCreating(true);
+    try {
+      const result = await createTicket({
+        teacherId: teacherId as any,
+        subject: subject.trim(),
+        message: message.trim(),
+      });
+      setShowNew(false);
+      setTeacherId("");
+      setSubject("");
+      setMessage("");
+      if (result?.ticketId) setOpenId(result.ticketId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setCreating(false);
     }
-    setSubject("");
-    setMessage("");
   };
 
-  const handleReply = async (ticketId: string) => {
-    if (!reply.trim()) return;
-    if (isIran) {
-      await replyTicketIran({ id: ticketId, message: reply });
-    } else {
-      await replyTicketConvex({ ticketId: ticketId as any, message: reply });
+  const handleReply = async () => {
+    if (!reply.trim() || !openId) return;
+    setReplying(true);
+    try {
+      await sendTicketMsg({ ticketId: openId as any, message: reply.trim() });
+      setReply("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setReplying(false);
     }
-    setReply("");
+  };
+
+  const handleFileReply = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !openId) return;
+    setReplying(true);
+    try {
+      const url = await getUploadUrl();
+      const storageId = await uploadBlob(url, file);
+      await sendTicketMsg({
+        ticketId: openId as any,
+        message: "📎 " + file.name,
+        attachmentStorageId: storageId,
+        attachmentName: file.name,
+        attachmentSize: file.size,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در آپلود");
+    } finally {
+      setReplying(false);
+      e.target.value = "";
+    }
+  };
+
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case "open": return "جدید";
+      case "waiting_for_teacher": return "در انتظار استاد";
+      case "waiting_for_student": return "در انتظار شما";
+      case "resolved": return "حل شده";
+      case "closed": return "بسته شده";
+      default: return s;
+    }
+  };
+
+  const statusCls = (s: string) => {
+    switch (s) {
+      case "open": case "waiting_for_teacher": return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+      case "waiting_for_student": return "bg-blue-500/10 text-blue-600 dark:text-blue-400";
+      case "resolved": return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+      case "closed": return "bg-muted text-muted-foreground";
+      default: return "bg-muted text-muted-foreground";
+    }
   };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold">پشتیبانی</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          تیکت ثبت کن؛ تیم پشتیبانی معمولاً در کمتر از ۲۴ ساعت پاسخ می‌دهد.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold">🎧 پشتیبانی</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            مستقیماً با استاد خود در ارتباط باشید.
+          </p>
+        </div>
+        <Button onClick={() => setShowNew(!showNew)}>
+          <Plus className="ml-1.5 size-4" />
+          درخواست جدید
+        </Button>
       </div>
 
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="space-y-3 p-5">
-          <p className="text-sm font-bold">تیکت جدید</p>
-          <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="موضوع (مثلاً: مشکل در دانلود جزوه)" />
-          <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="توضیح کامل مشکل..." rows={3} />
-          <Button onClick={handleCreate} disabled={!subject.trim() || !message.trim()}>
-            <Send className="ml-1.5 size-4" />
-            ثبت تیکت
-          </Button>
-        </CardContent>
-      </Card>
+      {/* New ticket form */}
+      {showNew && (
+        <Card className="border-primary/20">
+          <CardContent className="space-y-3 p-5">
+            <p className="text-sm font-bold">📋 درخواست جدید</p>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">استاد</label>
+              <select
+                value={teacherId}
+                onChange={(e) => setTeacherId(e.target.value)}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">انتخاب استاد…</option>
+                {(instructors ?? []).map((inst: any) => (
+                  <option key={inst.id} value={inst.id}>{inst.name}</option>
+                ))}
+              </select>
+            </div>
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="موضوع (مثلاً: مشکل در مشاهده جلسه ۴)" />
+            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="توضیح کامل مشکل..." rows={3} />
+            <div className="flex gap-2">
+              <Button onClick={handleCreate} disabled={!teacherId || !subject.trim() || !message.trim() || creating}>
+                {creating ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
+                ارسال درخواست
+              </Button>
+              <Button variant="ghost" onClick={() => setShowNew(false)}>انصراف</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
+      {/* Ticket list */}
       {tickets === undefined ? (
         <Skeleton />
-      ) : tickets.length === 0 ? (
-        <EmptyState
-          icon={MessageCircle}
-          title="تیکتی نداری"
-          desc="هر سؤالی دربارهٔ دوره، خرید یا دسترسی داری، این‌جا بپرس."
-        />
-      ) : (
+      ) : tickets.length === 0 && !showNew ? (
+        <EmptyState icon={MessageCircle} title="هنوز درخواستی ندارید" desc="اگر سؤالی دارید، درخواست پشتیبانی جدید بسازید." />
+      ) : !openId ? (
         <div className="space-y-3">
-          {tickets.map((t) => (
-            <Card key={t._id} className="border-border/70 shadow-sm">
-              <CardContent className="p-5">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-3 text-right"
-                  onClick={() => setOpenId(openId === t._id ? null : t._id)}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <LifeBuoy className="size-4" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold">{t.subject}</p>
-                      <p className="text-xs text-muted-foreground">{formatDateTime(t.createdAt)}</p>
-                    </div>
+          {tickets.map((t: any) => (
+            <button
+              key={t._id}
+              type="button"
+              className="w-full"
+              onClick={() => setOpenId(t._id)}
+            >
+              <Card className="border-border/70 text-right shadow-sm transition-colors hover:border-primary/30 hover:bg-accent/30">
+                <CardContent className="flex items-center gap-3 p-4">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <LifeBuoy className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">{t.subject}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t.courseName ?? "عمومی"} · {formatDateTime(t.lastMessageAt ?? t.createdAt)}
+                    </p>
                   </div>
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      "rounded-full",
-                      t.status === "open" && "bg-amber-500/10 text-amber-500",
-                      t.status === "answered" && "bg-emerald-500/10 text-emerald-500",
-                      t.status === "closed" && "bg-muted text-muted-foreground",
+                  <div className="flex shrink-0 items-center gap-2">
+                    {t.unreadByStudent > 0 && (
+                      <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                        {t.unreadByStudent}
+                      </span>
                     )}
-                  >
-                    {t.status === "open" ? "در انتظار پاسخ" : t.status === "answered" ? "پاسخ داده شده" : "بسته شده"}
-                  </Badge>
-                </button>
-
-                {openId === t._id && (
-                  <div className="mt-4 space-y-3 border-t border-border/60 pt-4">
-                    {t.messages.map((m: any, i: number) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-6",
-                          m.author === "admin" ? "bg-primary/10" : "bg-muted",
-                        )}
-                      >
-                        <p className="text-[11px] font-bold text-muted-foreground">
-                          {m.author === "admin" ? "تیم پشتیبانی" : "شما"} · {formatDateTime(m.at)}
-                        </p>
-                        <p className="mt-1">{m.text}</p>
-                      </div>
-                    ))}
-                    {t.status !== "closed" && (
-                      <div className="flex gap-2">
-                        <Input
-                          value={reply}
-                          onChange={(e) => setReply(e.target.value)}
-                          placeholder="پاسخ شما..."
-                        />
-                        <Button variant="outline" onClick={() => handleReply(t._id)} disabled={!reply.trim()}>
-                          <Send className="size-4" />
-                        </Button>
-                      </div>
-                    )}
+                    <Badge variant="secondary" className={cn("rounded-full text-[10px]", statusCls(t.status))}>
+                      {statusLabel(t.status)}
+                    </Badge>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </button>
           ))}
         </div>
+      ) : null}
+
+      {/* Conversation view */}
+      {openId && openTicket && (
+        <Card>
+          <CardContent className="p-0">
+            <div className="flex items-center gap-3 border-b p-4">
+              <Button variant="ghost" size="sm" onClick={() => setOpenId(null)}>
+                <ChevronLeft className="size-4" />
+              </Button>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">{openTicket.subject}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {openTicket.courseName ?? "عمومی"} · {statusLabel(openTicket.status)}
+                </p>
+              </div>
+              {openTicket.status !== "closed" && openTicket.status !== "resolved" && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground"
+                  onClick={() => void updateStatus({ ticketId: openId as any, status: "closed" })}
+                >
+                  بستن
+                </Button>
+              )}
+            </div>
+            <div className="max-h-[50vh] space-y-3 overflow-y-auto p-4">
+              {openTicket.messages.map((m: any) => {
+                const isMine = m.senderId === user?._id;
+                return (
+                  <div key={m._id} className={cn("flex", isMine ? "justify-start" : "justify-end")}>
+                    <div className={cn("max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6", isMine ? "bg-muted" : "bg-primary/10")}>
+                      <p className="text-[11px] font-bold text-muted-foreground">
+                        {m.senderName} · {m.senderRole === "instructor" ? "استاد" : "شما"} · {formatDateTime(m.createdAt)}
+                      </p>
+                      <p className="mt-1 whitespace-pre-wrap">{m.message}</p>
+                      {m.attachmentStorageId && (
+                        <a href={`/api/storage/${m.attachmentStorageId}`} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                          📎 {m.attachmentName}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+            {openTicket.status !== "closed" && openTicket.status !== "resolved" && (
+              <div className="flex items-center gap-2 border-t p-3">
+                <input ref={fileInputRef} type="file" hidden onChange={handleFileReply} />
+                <button onClick={() => fileInputRef.current?.click()} className="flex size-8 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors hover:bg-accent" title="فایل پیوست">
+                  <Paperclip className="size-4" />
+                </button>
+                <Input value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleReply()} placeholder="پاسخ شما..." className="flex-1" />
+                <Button onClick={handleReply} disabled={!reply.trim() || replying}>
+                  {replying ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

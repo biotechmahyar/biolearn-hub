@@ -1259,6 +1259,57 @@ const schema = defineSchema(
       lastViewedAt: v.optional(v.number()),
     }).index("by_user_course", ["userId", "courseId"]).index("by_user_course_lesson", ["userId", "courseId", "lessonId"]),
 
+
+    // ── Support System (Student ↔ Teacher) ──────────────────────────────
+    supportTickets: defineTable({
+      studentId: v.id("users"),
+      studentName: v.string(),
+      teacherId: v.id("users"),
+      courseId: v.optional(v.id("courses")),
+      courseName: v.optional(v.string()),
+      subject: v.string(),
+      status: v.union(
+        v.literal("open"),
+        v.literal("waiting_for_teacher"),
+        v.literal("waiting_for_student"),
+        v.literal("resolved"),
+        v.literal("closed"),
+      ),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      lastMessageAt: v.number(),
+      unreadByStudent: v.number(),
+      unreadByTeacher: v.number(),
+    })
+      .index("by_student", ["studentId"])
+      .index("by_teacher", ["teacherId"])
+      .index("by_teacher_status", ["teacherId", "status"])
+      .index("by_student_status", ["studentId", "status"]),
+
+    supportMessages: defineTable({
+      ticketId: v.id("supportTickets"),
+      senderId: v.id("users"),
+      senderName: v.string(),
+      senderRole: v.string(),
+      message: v.string(),
+      attachmentStorageId: v.optional(v.string()),
+      attachmentName: v.optional(v.string()),
+      attachmentSize: v.optional(v.number()),
+      createdAt: v.number(),
+      readAt: v.optional(v.number()),
+    }).index("by_ticket", ["ticketId"]).index("by_ticket_created", ["ticketId", "createdAt"]),
+
+    // ── Notifications (generic) ─────────────────────────────────────────
+    notifications: defineTable({
+      userId: v.id("users"),
+      type: v.string(),
+      title: v.string(),
+      body: v.string(),
+      entityType: v.optional(v.string()),
+      entityId: v.optional(v.string()),
+      isRead: v.boolean(),
+      createdAt: v.number(),
+    }).index("by_user", ["userId"]).index("by_user_read", ["userId", "isRead"]),
   },
   {
     schemaValidation: false,

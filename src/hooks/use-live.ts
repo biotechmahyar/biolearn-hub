@@ -35,6 +35,8 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
     setLocalStream(null);
     setStatus("idle");
     processedRef.current = new Set();
+    // Clean up any student audio elements
+    document.querySelectorAll('[id^="student-audio-"]').forEach((el) => el.remove());
     try { await endBroadcast({ roomId: roomIdRef.current as any }); } catch {}
   }, [endBroadcast]);
 
@@ -84,87 +86,78 @@ export function useInstructorBroadcast(roomId: string, myId?: string) {
     [myId, sendSignal, startBroadcast],
   );
 
-  // Process student answers + ICE candidates + student audio offers
+  // Process ALL incoming signals: student answers, student audio offers, ICE candidates
   useEffect(() => {
     if (!signals || status !== "live") return;
     for (const s of signals) {
       if (processedRef.current.has(s._id)) continue;
       processedRef.current.add(s._id);
+      if (s.from === myId) continue; // skip our own signals
       try {
-        if (s.type === "answer" && s.from !== myId) {
+        if (s.type === "offer" && s.to === myId) {
+          // ── Student audio offer ──
+          const key = `audio-${s.from}`;
+          if (pcsRef.current.has(key) && pcsRef.current.get(key)!.connectionState !== "closed") continue;
+          const pc = new RTCPeerConnection(RTC_CONFIG);
+          pcsRef.current.set(key, pc);
+          pc.ontrack = (ev) => {
+            const ms = ev.streams[0] ?? new MediaStream([ev.track]);
+            const id = `audio-el-${s.from}`;
+            let el = document.getElementById(id) as HTMLAudioElement | null;
+            if (!el) {
+              el = document.createElement("audio");
+              el.id = id;
+              el.autoplay = true;
+              el.style.display = "none";
+              document.body.appendChild(el);
+            }
+            el.srcObject = ms;
+          };
+          pc.onicecandidate = (ev) => {
+            if (ev.candidate && myId) {
+              void sendSignal({
+                roomId: roomIdRef.current as any,
+                type: "candidate",
+                data: JSON.stringify(ev.candidate),
+                to: s.from as any,
+              });
+            }
+          };
+          pc.onconnectionstatechange = () => {
+            if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+              pcsRef.current.delete(key);
+              document.getElementById(`audio-el-${s.from}`)?.remove();
+            }
+          };
+          void pc.setRemoteDescription(JSON.parse(s.data))
+            .then(() => pc.createAnswer())
+            .then((ans) => pc.setLocalDescription(ans))
+            .then(() => sendSignal({
+              roomId: roomIdRef.current as any,
+              type: "answer",
+              data: JSON.stringify(pc.localDescription),
+              to: s.from as any,
+            }))
+            .catch(() => {});
+        } else if (s.type === "answer" && s.to === myId) {
+          // ── Student answer to our broadcast ──
           const broadcastPC = pcsRef.current.get("__broadcast__");
           if (broadcastPC && broadcastPC.signalingState === "have-local-offer") {
             void broadcastPC.setRemoteDescription(JSON.parse(s.data)).catch(() => {});
-          } else if (s.to === myId) {
-            const targetPC = pcsRef.current.get(s.from);
-            if (targetPC && targetPC.signalingState === "have-local-offer") {
-              void targetPC.setRemoteDescription(JSON.parse(s.data)).catch(() => {});
-            }
           }
-        } else if (s.type === "offer" && s.from !== myId && s.to === myId) {
-          // Student audio offer: create a PC to receive their mic
-          const key = `student-audio-${s.from}`;
-          const existingPC = pcsRef.current.get(key);
-          if (!existingPC || existingPC.connectionState === "closed") {
-            const pc = new RTCPeerConnection(RTC_CONFIG);
-            pcsRef.current.set(key, pc);
-
-            pc.ontrack = (e) => {
-              // Store the student's audio stream so it can be played
-              const studentStream = e.streams[0] ?? new MediaStream([e.track]);
-              // Attach to a hidden audio element that auto-plays
-              const audio = document.createElement("audio");
-              audio.srcObject = studentStream;
-              audio.autoplay = true;
-              audio.id = `student-audio-${s.from}`;
-              document.body.appendChild(audio);
-              // Clean up old one if exists
-              const old = document.getElementById(`student-audio-${s.from}`);
-              if (old && old !== audio) old.remove();
-            };
-
-            pc.onicecandidate = (e) => {
-              if (e.candidate && myId) {
-                void sendSignal({
-                  roomId: roomIdRef.current as any,
-                  type: "candidate",
-                  data: JSON.stringify(e.candidate),
-                  to: s.from as any,
-                });
-              }
-            };
-
-            pc.onconnectionstatechange = () => {
-              if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-                pcsRef.current.delete(key);
-                // Remove hidden audio element
-                const el = document.getElementById(`student-audio-${s.from}`);
-                if (el) el.remove();
-              }
-            };
-
-            void pc.setRemoteDescription(JSON.parse(s.data))
-              .then(() => pc.createAnswer())
-              .then((ans) => pc.setLocalDescription(ans))
-              .then(() => sendSignal({
-                roomId: roomIdRef.current as any,
-                type: "answer",
-                data: JSON.stringify(pc.localDescription),
-                to: s.from as any,
-              }))
-              .catch(() => {});
-          }
-        } else if (s.type === "candidate" && s.from !== myId) {
-          let targetPC: RTCPeerConnection | undefined;
+        } else if (s.type === "candidate") {
+          // ── ICE candidate — route to correct PC ──
+          let pc: RTCPeerConnection | undefined;
           if (s.to === myId) {
-            targetPC = pcsRef.current.get(s.from)
-              ?? pcsRef.current.get(`student-audio-${s.from}`)
+            // Targeted at us: from student audio or student answer
+            pc = pcsRef.current.get(`audio-${s.from}`)
               ?? pcsRef.current.get("__broadcast__");
-          } else {
-            targetPC = pcsRef.current.get("__broadcast__");
+          } else if (!s.to) {
+            // Broadcast candidate (from student answer)
+            pc = pcsRef.current.get("__broadcast__");
           }
-          if (targetPC) {
-            void targetPC.addIceCandidate(new RTCIceCandidate(JSON.parse(s.data))).catch(() => {});
+          if (pc) {
+            void pc.addIceCandidate(new RTCIceCandidate(JSON.parse(s.data))).catch(() => {});
           }
         }
       } catch {
@@ -209,16 +202,18 @@ export function useStudentReceiver(roomId: string, instructorId?: string, myId?:
     setStatus("idle");
   }, []);
 
-  // Consume ONLY broadcast offers (no `to` field) from instructor.
-  // Targeted offers/answers (with `to` field) belong to the audio sender.
+  // Process ONLY broadcast offers (no `to` field) from instructor
   useEffect(() => {
     if (!signals || !instructorId || !myId) return;
     for (const s of signals) {
       if (processedRef.current.has(s._id)) continue;
-      processedRef.current.add(s._id);
       if (s.from !== instructorId) continue;
-      // KEY FIX: skip signals targeted at us — those are for audio sender
-      if (s.to) continue;
+      // ONLY process broadcast signals (no `to` field)
+      if (s.to) {
+        processedRef.current.add(s._id); // mark as seen but skip
+        continue;
+      }
+      processedRef.current.add(s._id);
       try {
         if (s.type === "offer") {
           const pc = new RTCPeerConnection(RTC_CONFIG);
@@ -285,7 +280,7 @@ export function useStudentReceiver(roomId: string, instructorId?: string, myId?:
   return { status, remoteStream, error, reset, reconnect };
 }
 
-// ── Student audio sender: approved students send voice to instructor ────────
+// ── Student audio sender ───────────────────────────────────────────────────
 export function useStudentAudioSender(
   roomId: string,
   instructorId?: string,
@@ -294,7 +289,6 @@ export function useStudentAudioSender(
 ) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -309,9 +303,8 @@ export function useStudentAudioSender(
   const stopSending = useCallback(() => {
     pcRef.current?.close();
     pcRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
     streamRef.current = null;
-    setLocalStream(null);
     setSending(false);
     answeredRef.current = false;
     processedRef.current = new Set();
@@ -319,7 +312,6 @@ export function useStudentAudioSender(
 
   const startSending = useCallback(async () => {
     if (!isApproved || !instructorId || !myId) return;
-    // If already sending, stop first
     if (pcRef.current) stopSending();
     setError(null);
     try {
@@ -328,7 +320,6 @@ export function useStudentAudioSender(
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      setLocalStream(stream);
 
       const pc = new RTCPeerConnection(RTC_CONFIG);
       pcRef.current = pc;
@@ -345,15 +336,11 @@ export function useStudentAudioSender(
         }
       };
 
-      // Only set sending=true after connection is established
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "connected") {
           setSending(true);
         } else if (pc.connectionState === "failed" || pc.connectionState === "closed") {
           setSending(false);
-          setError("اتصال قطع شد");
-        } else if (pc.connectionState === "connecting") {
-          // Still connecting — don't set sending yet
         }
       };
 
@@ -366,8 +353,6 @@ export function useStudentAudioSender(
         to: instructorId as any,
       });
       answeredRef.current = false;
-      // Don't set sending=true here — wait for onconnectionstatechange "connected"
-      setSending(true); // Optimistic — will be corrected by connection state
     } catch (e) {
       setError(e instanceof Error
         ? e.name === "NotAllowedError"
@@ -378,14 +363,13 @@ export function useStudentAudioSender(
     }
   }, [isApproved, instructorId, myId, sendSignal, stopSending]);
 
-  // Process answer + candidates from instructor (targeted at us)
+  // Process answer + candidates from instructor (targeted at us only)
   useEffect(() => {
     if (!signals || !instructorId || !myId) return;
     for (const s of signals) {
       if (processedRef.current.has(s._id)) continue;
       processedRef.current.add(s._id);
       if (s.from !== instructorId) continue;
-      // Only process signals targeted at us
       if (s.to !== myId) continue;
       try {
         if (s.type === "answer" && pcRef.current && !answeredRef.current) {
@@ -403,22 +387,19 @@ export function useStudentAudioSender(
     }
   }, [signals, instructorId, myId]);
 
-  // Cleanup
   useEffect(() => {
     return () => {
       pcRef.current?.close();
       pcRef.current = null;
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
       streamRef.current = null;
     };
   }, []);
 
   // Auto-stop when no longer approved
   useEffect(() => {
-    if (!isApproved && sending) {
-      stopSending();
-    }
+    if (!isApproved && sending) stopSending();
   }, [isApproved, sending, stopSending]);
 
-  return { sending, error, localStream, startSending, stopSending };
+  return { sending, error, startSending, stopSending };
 }
