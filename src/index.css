@@ -240,7 +240,34 @@
   .text-balance {
     text-wrap: balance;
   }
-  /* Theme-matched custom scrollbar */
+  /* Global theme-matched scrollbar for html/body */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.5 0.08 80 / 0.5) transparent;
+  }
+  html::-webkit-scrollbar {
+    width: 6px;
+  }
+  html::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  html::-webkit-scrollbar-thumb {
+    background: oklch(0.5 0.08 80 / 0.4);
+    border-radius: 999px;
+  }
+  html::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.6 0.08 80 / 0.6);
+  }
+  .dark html {
+    scrollbar-color: oklch(0.4 0.06 250 / 0.4) transparent;
+  }
+  .dark html::-webkit-scrollbar-thumb {
+    background: oklch(0.4 0.06 250 / 0.35);
+  }
+  .dark html::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.5 0.06 250 / 0.5);
+  }
+  /* Utility class for inner scrollable containers */
   .scrollbar-theme {
     scrollbar-width: thin;
     scrollbar-color: oklch(0.5 0.08 80 / 0.5) transparent;

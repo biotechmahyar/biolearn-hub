@@ -170,7 +170,7 @@ export function SiteHeader() {
                 <Menu className="size-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-80">
+            <SheetContent side="right" className="scrollbar-theme w-80 overflow-y-auto">
               <SheetTitle className="sr-only">منوی سایت</SheetTitle>
               <div className="mb-6">
                 <BrandLogo />
