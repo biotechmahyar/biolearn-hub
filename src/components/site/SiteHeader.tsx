@@ -8,9 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "convex/react";
 import { ShoppingCart } from "lucide-react";
 import {
   BookOpen,
@@ -51,7 +49,6 @@ const NAV = [
 
 export function SiteHeader() {
   const { isAuthenticated, user, signOut } = useAuth();
-  const isAdmin = useQuery(api.admin.amIAdmin);
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -74,7 +71,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/85 backdrop-blur-lg">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
         <Link to="/" className="shrink-0">
           <BrandLogo />
         </Link>
@@ -118,12 +115,12 @@ export function SiteHeader() {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="flex items-center gap-2.5 rounded-full border border-border/50 bg-background/50 px-3 py-1.5 transition-colors hover:bg-accent"
+                  className="flex items-center gap-1.5 rounded-full border border-border/50 bg-background/50 px-2 py-1 transition-colors hover:bg-accent sm:gap-2.5 sm:px-3 sm:py-1.5"
                 >
                   <span className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-primary-foreground">
                     {(user?.name ?? "د")[0]}
                   </span>
-                  <span className="hidden max-w-28 truncate text-sm font-semibold text-foreground sm:block">
+                  <span className="hidden max-w-20 truncate text-sm font-semibold text-foreground md:block">
                     {user?.name ?? "دانشجو"}
                   </span>
                   <ChevronDown className="size-3.5 text-muted-foreground" />
