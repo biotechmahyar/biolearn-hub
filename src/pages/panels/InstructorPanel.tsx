@@ -358,7 +358,7 @@ export default function InstructorPanel() {
         {/* Sidebar — mobile toggle */}
         {mobileMenuOpen && (
           <aside className="lg:hidden rounded-xl border border-cyan-400/10 bg-[#0a1520] p-3">
-            <nav className="space-y-1">
+            <nav className="scrollbar-theme space-y-1">
               {SIDEBAR.map((section) => (
                 <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} />
               ))}
@@ -368,7 +368,7 @@ export default function InstructorPanel() {
 
         {/* Sidebar — desktop */}
         <aside className="hidden lg:block lg:sticky lg:top-20 lg:self-start">
-          <nav className="space-y-1">
+          <nav className="scrollbar-theme space-y-1">
             {SIDEBAR.map((section) => (
               <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} />
             ))}
@@ -376,7 +376,7 @@ export default function InstructorPanel() {
         </aside>
 
         {/* Main */}
-        <main className="min-w-0">
+        <main className="scrollbar-theme min-w-0">
           {/* Dashboard */}
           {tab === "dashboard" && <DashboardView rooms={rooms} online={online} user={user} />}
 
