@@ -32,6 +32,7 @@ import {
   FileText,
   GraduationCap,
   Hourglass,
+  ChevronLeft,
   Inbox,
   Layers,
   LayoutDashboard,
