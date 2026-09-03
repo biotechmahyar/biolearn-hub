@@ -27,10 +27,11 @@ import {
   Users,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Link, NavLink, useNavigate } from "react-router";
 import { cn } from "@/lib/utils";
 import { panelForRole, ROLE_LABEL } from "@/components/RoleGate";
+import { Dna } from "lucide-react";
 import { BrandLogo } from "./BrandLogo";
 import { useSettings } from "@/lib/settings";
 
@@ -47,10 +48,22 @@ const NAV = [
   { to: "/about", label: "درباره ما" },
 ];
 
+const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  admin: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-400/30" },
+  site_admin: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-400/30" },
+  instructor: { bg: "bg-sky-500/10", text: "text-sky-400", border: "border-sky-400/30" },
+  mentor: { bg: "bg-violet-500/10", text: "text-violet-400", border: "border-violet-400/30" },
+  content_manager: { bg: "bg-cyan-500/10", text: "text-cyan-400", border: "border-cyan-400/30" },
+  support: { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-400/30" },
+  student: { bg: "bg-primary/10", text: "text-primary", border: "border-primary/30" },
+  member: { bg: "bg-primary/10", text: "text-primary", border: "border-primary/30" },
+};
+
 export function SiteHeader() {
   const { isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState<{ label: string; path: string; role: string } | null>(null);
 
   const role = user?.role;
   const secondaryRole = user?.secondaryRole as string | undefined;
@@ -69,7 +82,16 @@ export function SiteHeader() {
     navigate("/");
   };
 
+  /** Show themed loading overlay then navigate to the target panel */
+  const switchPanel = useCallback(
+    (label: string, path: string, role?: string) => {
+      setSwitchingTo({ label, path, role: role ?? "student" });
+    },
+    [],
+  );
+
   return (
+    <>
     <header className="sticky top-0 z-40 w-full border-b border-border/70 bg-background/85 backdrop-blur-lg">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6">
         <Link to="/" className="shrink-0">
@@ -133,18 +155,18 @@ export function SiteHeader() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {isStaff ? (
-                  <DropdownMenuItem onClick={() => navigate(myPanel)} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => switchPanel(myPanelLabel ?? "پنل من", myPanel, role)} className="cursor-pointer">
                     <ShieldCheck className="ml-2 size-4" />
                     {myPanelLabel}
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onClick={() => navigate("/dashboard")} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => switchPanel("پنل دانشجویی", "/dashboard", "student")} className="cursor-pointer">
                     <LayoutDashboard className="ml-2 size-4" />
                     پنل دانشجویی
                   </DropdownMenuItem>
                 )}
                 {hasSecondaryPanel && secondaryPanel && (
-                  <DropdownMenuItem onClick={() => navigate(secondaryPanel)} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => switchPanel(secondaryPanelLabel ?? "پنل دوم", secondaryPanel, secondaryRole)} className="cursor-pointer">
                     <ShieldCheck className="ml-2 size-4" />
                     {secondaryPanelLabel}
                   </DropdownMenuItem>
@@ -205,11 +227,9 @@ export function SiteHeader() {
                         <p className="text-[11px] text-muted-foreground">پنل کاربری</p>
                       </div>
                     </div>
-                    <Button asChild size="sm">
-                      <Link to={isStaff ? myPanel : "/dashboard"} onClick={() => setOpen(false)}>
-                        <ShieldCheck className="ml-2 size-4" />
-                        {isStaff ? myPanelLabel : "پنل دانشجویی"}
-                      </Link>
+                    <Button size="sm" onClick={() => { setOpen(false); switchPanel(isStaff ? (myPanelLabel ?? "پنل من") : "پنل دانشجویی", isStaff ? myPanel : "/dashboard", isStaff ? role : "student"); }}>
+                      <ShieldCheck className="ml-2 size-4" />
+                      {isStaff ? myPanelLabel : "پنل دانشجویی"}
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleSignOut}>
                       <LogOut className="ml-2 size-4" />
@@ -231,6 +251,41 @@ export function SiteHeader() {
         </div>
       </div>
     </header>
+
+    {/* Themed panel-switch loading overlay */}
+    {switchingTo && (
+      <PanelSwitchOverlay
+        label={switchingTo.label}
+        role={switchingTo.role}
+        onDone={() => {
+          navigate(switchingTo.path);
+          setSwitchingTo(null);
+        }}
+      />
+    )}
+    </>
+  );
+}
+
+function PanelSwitchOverlay({ label, role, onDone }: { label: string; role: string; onDone: () => void }) {
+  const colors = ROLE_COLORS[role] ?? ROLE_COLORS.student;
+
+  useEffect(() => {
+    const t = setTimeout(onDone, 600);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-background">
+      <span className={`relative flex size-16 items-center justify-center rounded-2xl border ${colors.border} ${colors.bg}`}>
+        <span className="absolute inset-0 animate-ping rounded-2xl border border-primary/20" />
+        <Dna className={`size-7 animate-pulse ${colors.text}`} />
+      </span>
+      <div className="text-center">
+        <p className="text-sm font-bold text-foreground">صبر کنید…</p>
+        <p className={`mt-1 text-xs ${colors.text}`}>{label}</p>
+      </div>
+    </div>
   );
 }
 
