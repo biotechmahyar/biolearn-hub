@@ -368,10 +368,11 @@ export function useStudentAudioSender(
       if (s.from !== instructorId) continue;
       try {
         if (s.type === "answer" && !answeredRef.current && pcRef.current) {
-          await pcRef.current.setRemoteDescription(JSON.parse(s.data));
-          answeredRef.current = true;
+          void pcRef.current.setRemoteDescription(JSON.parse(s.data)).then(() => {
+            answeredRef.current = true;
+          });
         } else if (s.type === "candidate" && pcRef.current) {
-          await pcRef.current.addIceCandidate(
+          void pcRef.current.addIceCandidate(
             new RTCIceCandidate(JSON.parse(s.data)),
           );
         }

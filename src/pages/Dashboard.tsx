@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { useStudentReceiver, useStudentAudioSender } from "@/hooks/use-live";
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { accent, faNum, formatDate, formatDateTime, formatPrice } from "@/lib/format";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { cn } from "@/lib/utils";
@@ -50,8 +51,9 @@ import {
   Send,
   Sparkles,
   Square,
-  Target,
+  Play,
   Trash2,
+  Target,
   TrendingUp,
   Trophy,
   Upload,
@@ -192,6 +194,13 @@ export default function Dashboard() {
 }
 
 // ── Overview ────────────────────────────────────────────────────────────────
+/** Format seconds to MM:SS for voice recorder display */
+function formatRecDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
   const { user } = useAuth();
   const { isIran } = useMode();
@@ -1193,6 +1202,11 @@ function LiveRoomView({
     else setVoiceStatus("none");
   }, [isSpeaker, myRequest]);
 
+  // Cleanup recorder on unmount
+  useEffect(() => {
+    return () => { voiceRecorder.reset(); };
+  }, []);
+
   // Student audio sender (sends mic to instructor when approved)
   const audioSender = useStudentAudioSender(
     roomId,
@@ -1216,12 +1230,32 @@ function LiveRoomView({
     }
   }
 
-  // Voice recorder
-  const [recording, setRecording] = useState(false);
-  const [recSeconds, setRecSeconds] = useState(0);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Voice recorder — proper state machine
+  const voiceRecorder = useVoiceRecorder({
+    onRecorded: async (blob, _dur) => {
+      setUploading(true);
+      try {
+        const url = await getUploadUrl();
+        const storageId = await uploadBlob(url, blob);
+        await sendMessage({
+          roomId: roomId as any,
+          text: "🎙️ پیام صوتی",
+          type: "message",
+          attachmentType: "voice",
+          attachmentName: "voice.webm",
+          attachmentStorageId: storageId,
+          attachmentSize: blob.size,
+        });
+        toast.success("پیام صوتی ارسال شد");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "خطا در آپلود");
+      } finally {
+        setUploading(false);
+        voiceRecorder.reset();
+      }
+    },
+    onError: (msg) => toast.error(msg),
+  });
 
   const messages = detail?.messages ?? [];
 
@@ -1253,46 +1287,7 @@ function LiveRoomView({
     e.target.value = "";
   }
 
-  async function toggleRecording() {
-    if (recording) {
-      recorderRef.current?.stop();
-      return;
-    }
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.");
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      chunksRef.current = [];
-      rec.ondataavailable = (ev) => {
-        if (ev.data.size > 0) chunksRef.current.push(ev.data);
-      };
-      rec.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setRecording(false);
-        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-        const blob = new Blob(chunksRef.current, {
-          type: rec.mimeType || "audio/webm",
-        });
-        if (blob.size > 0) void handleSendAttachment(blob, "voice");
-      };
-      rec.start();
-      recorderRef.current = rec;
-      setRecording(true);
-      setRecSeconds(0);
-      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "دسترسی به میکروفون ممکن نشد");
-    }
-  }
 
-  useEffect(() => {
-    return () => {
-      recorderRef.current?.stop();
-      if (recTimerRef.current) clearInterval(recTimerRef.current);
-    };
-  }, []);
 
   async function handleSend() {
     if (!text.trim()) return;
@@ -1422,60 +1417,77 @@ function LiveRoomView({
       {/* Voice request / active speaker section */}
       {detail?.status === "live" && (
         <Card className="border-emerald-500/20">
-          <CardContent className="py-3">
+          <CardContent className="space-y-3 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Mic className="size-4 text-emerald-500" />
-                <span className="text-sm font-bold">صحبت در کلاس</span>
-                {voiceStatus === "approved" && (
+                <span className="flex size-8 items-center justify-center rounded-full bg-emerald-500/10">
+                  <Mic className="size-4 text-emerald-500" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold">صحبت در کلاس</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {voiceStatus === "approved" && audioSender.sending
+                      ? "شما در حال صحبت هستید"
+                      : voiceStatus === "approved"
+                        ? "مدرس به شما اجازه صحبت داده است"
+                        : voiceStatus === "pending"
+                          ? "درخواست شما برای مدرس ارسال شد"
+                          : "درخواست صحبت بدهید تا مدرس مجوز دهد"}
+                  </p>
+                </div>
+                {voiceStatus === "approved" && audioSender.sending && (
                   <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-bold text-emerald-500">
                     <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-                    فعال — در حال ارسال صدا
+                    در حال صحبت
+                  </span>
+                )}
+                {voiceStatus === "approved" && !audioSender.sending && (
+                  <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-[10px] font-bold text-primary">
+                    مجاز به صحبت
                   </span>
                 )}
                 {voiceStatus === "pending" && (
                   <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-500">
                     <Loader2 className="size-2.5 animate-spin" />
-                    در انتظار تأیید مدرس
+                    در انتظار تأیید
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 {voiceStatus === "approved" ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant={audioSender.sending ? "destructive" : "default"}
-                      onClick={() => {
-                        if (audioSender.sending) {
-                          audioSender.stopSending();
-                        } else {
-                          void audioSender.startSending();
-                        }
-                      }}
-                    >
-                      {audioSender.sending ? (
-                        <><Square className="size-3.5" /> قطع صدا</>
-                      ) : (
-                        <><Mic className="size-3.5" /> شروع صحبت</>
-                      )}
-                    </Button>
-                  </>
+                  <Button
+                    size="sm"
+                    variant={audioSender.sending ? "destructive" : "default"}
+                    onClick={() => {
+                      if (audioSender.sending) {
+                        audioSender.stopSending();
+                      } else {
+                        void audioSender.startSending();
+                      }
+                    }}
+                  >
+                    {audioSender.sending ? (
+                      <><Square className="size-3.5" /> قطع صدا</>
+                    ) : (
+                      <><Mic className="size-3.5" /> روشن کردن میکروفون</>
+                    )}
+                  </Button>
                 ) : voiceStatus === "none" ? (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                    className="bg-emerald-600 hover:bg-emerald-500"
                     onClick={() => void handleVoiceRequest()}
                   >
                     <Mic className="size-3.5" />
-                    درخواست صحبت
+                    ✋ دستم را بالا می‌برم
                   </Button>
                 ) : null}
               </div>
             </div>
             {audioSender.error && (
-              <p className="mt-2 text-xs text-destructive">{audioSender.error}</p>
+              <p className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {audioSender.error}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -1559,6 +1571,31 @@ function LiveRoomView({
         </CardContent>
       </Card>
 
+      {/* Voice preview — after recording stops */}
+      {voiceRecorder.previewBlob && voiceRecorder.state === "IDLE" && (
+        <Card className="border-primary/20">
+          <CardContent className="flex items-center gap-3 py-3">
+            <Play className="size-5 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold">پیش‌گوشی پیام صوتی</p>
+              <p className="text-[10px] text-muted-foreground">{formatRecDuration(voiceRecorder.previewDuration)}</p>
+            </div>
+            {voiceRecorder.previewUrl && (
+              <audio controls src={voiceRecorder.previewUrl} className="h-8 max-w-[180px]" />
+            )}
+            <div className="flex shrink-0 gap-1">
+              <Button size="sm" onClick={() => voiceRecorder.send()} disabled={uploading}>
+                {uploading ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
+                ارسال
+              </Button>
+              <Button size="sm" variant="ghost" className="text-destructive" onClick={() => voiceRecorder.discard()}>
+                <Trash2 className="size-3" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {detail?.status === "live" && (
         <Card>
           <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
@@ -1580,10 +1617,16 @@ function LiveRoomView({
                 پیام
               </button>
             </div>
-            {recording && (
+            {voiceRecorder.state === "RECORDING" && (
               <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1 text-[11px] font-bold text-red-600 dark:text-red-400">
                 <span className="size-2 animate-pulse rounded-full bg-red-500" />
-                ضبط… {recSeconds}s
+                در حال ضبط {formatRecDuration(voiceRecorder.seconds)}
+              </span>
+            )}
+            {voiceRecorder.state === "UPLOADING" && (
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-[11px] font-bold text-primary">
+                <Loader2 className="size-3 animate-spin" />
+                در حال ارسال…
               </span>
             )}
             <Input
@@ -1614,18 +1657,20 @@ function LiveRoomView({
                 )}
               </button>
               <button
-                onClick={() => void toggleRecording()}
-                title={recording ? "پایان ضبط" : "ضبط پیام صوتی"}
+                onClick={() => voiceRecorder.state === "RECORDING" ? voiceRecorder.stop() : voiceRecorder.start()}
+                title={voiceRecorder.state === "RECORDING" ? "پایان ضبط" : "ضبط پیام صوتی"}
                 className={`flex size-8 items-center justify-center rounded-lg border transition-colors ${
-                  recording
+                  voiceRecorder.state === "RECORDING"
                     ? "border-red-500/40 bg-red-500/15 text-red-500 dark:text-red-400"
-                    : "bg-muted text-muted-foreground hover:bg-accent"
+                    : voiceRecorder.state === "STOPPING"
+                      ? "border-amber-500/40 bg-amber-500/15 text-amber-500 dark:text-amber-400"
+                      : "bg-muted text-muted-foreground hover:bg-accent"
                 }`}
               >
-                {recording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
+                {voiceRecorder.state === "RECORDING" ? <Square className="size-3.5" /> : <Mic className="size-4" />}
               </button>
             </div>
-            <Button size="sm" onClick={handleSend} disabled={sending || uploading}>
+            <Button size="sm" onClick={handleSend} disabled={sending || uploading || voiceRecorder.state === "RECORDING"}>
               <Send className="ml-1 size-4" />
               ارسال
             </Button>

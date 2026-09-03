@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useInstructorBroadcast } from "@/hooks/use-live";
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { formatPriceNumber, formatCardNumber } from "@/lib/format";
 import { gregorianToJalali, toPersianDigits } from "@/lib/jalali";
@@ -51,6 +52,7 @@ import {
   MonitorPlay,
   Paperclip,
   PenTool,
+  Play,
   Plus,
   Presentation,
   Radio,
@@ -216,6 +218,13 @@ const TOOL_SIZES: Record<WbTool, number> = {
 };
 
 // ── Sidebar section component ────────────────────────────────────────────────
+
+/** Format seconds to MM:SS for voice recorder display */
+function formatRecDuration(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 function SidebarSectionButton({
   section,
@@ -2330,12 +2339,32 @@ function RoomView({
   const approveSpeaker = useMutation(api.collab.approveSpeaker);
   const removeSpeaker = useMutation(api.collab.removeSpeaker);
 
-  // Voice recorder
-  const [recording, setRecording] = useState(false);
-  const [recSeconds, setRecSeconds] = useState(0);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Voice recorder — proper state machine
+  const voiceRecorder = useVoiceRecorder({
+    onRecorded: async (blob, _dur) => {
+      setUploading(true);
+      try {
+        const url = await getUploadUrl();
+        const storageId = await uploadBlob(url, blob);
+        await sendMessage({
+          roomId: roomId as any,
+          text: "🎙️ پیام صوتی",
+          type: "message",
+          attachmentType: "voice",
+          attachmentName: "voice.webm",
+          attachmentStorageId: storageId,
+          attachmentSize: blob.size,
+        });
+        toast.success("پیام صوتی ارسال شد");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "خطا در آپلود");
+      } finally {
+        setUploading(false);
+        voiceRecorder.reset();
+      }
+    },
+    onError: (msg) => toast.error(msg),
+  });
 
   async function handleSendAttachment(blob: Blob, kind: "file" | "voice" | "image", name?: string) {
     setUploading(true);
@@ -2366,45 +2395,9 @@ function RoomView({
     e.target.value = "";
   }
 
-  async function toggleRecording() {
-    if (recording) {
-      recorderRef.current?.stop();
-      return;
-    }
-    try {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.");
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      chunksRef.current = [];
-      rec.ondataavailable = (ev) => {
-        if (ev.data.size > 0) chunksRef.current.push(ev.data);
-      };
-      rec.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setRecording(false);
-        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-        const blob = new Blob(chunksRef.current, {
-          type: rec.mimeType || "audio/webm",
-        });
-        if (blob.size > 0) void handleSendAttachment(blob, "voice");
-      };
-      rec.start();
-      recorderRef.current = rec;
-      setRecording(true);
-      setRecSeconds(0);
-      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "دسترسی به میکروفون ممکن نشد");
-    }
-  }
-
+  // Cleanup recorder on unmount
   useEffect(() => {
-    return () => {
-      recorderRef.current?.stop();
-      if (recTimerRef.current) clearInterval(recTimerRef.current);
-    };
+    return () => { voiceRecorder.reset(); };
   }, []);
 
   const messages = detail?.messages ?? [];
@@ -2575,7 +2568,7 @@ function RoomView({
               {(voiceRequests.speakers?.length ?? 0) > 0 && (
                 <div className="space-y-2">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">گویندگان فعال</p>
-                  {voiceRequests.speakers!.map((sid) => (
+                  {voiceRequests.speakers!.map((sid: string) => (
                     <div key={sid} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
                       <span className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
                         <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
@@ -2723,14 +2716,45 @@ function RoomView({
         </CardContent>
       </Card>
 
+      {/* Voice preview — after recording stops */}
+      {voiceRecorder.previewBlob && voiceRecorder.state === "IDLE" && (
+        <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+          <CardContent className="flex items-center gap-3 py-3">
+            <Play className="size-5 shrink-0 text-cyan-300" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-cyan-200">پیش‌گوشی پیام صوتی</p>
+              <p className="text-[10px] text-slate-400">{formatRecDuration(voiceRecorder.previewDuration)}</p>
+            </div>
+            {voiceRecorder.previewUrl && (
+              <audio controls src={voiceRecorder.previewUrl} className="h-8 max-w-[180px]" />
+            )}
+            <div className="flex shrink-0 gap-1">
+              <Button size="sm" onClick={() => voiceRecorder.send()} disabled={uploading}>
+                {uploading ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
+                ارسال
+              </Button>
+              <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => voiceRecorder.discard()}>
+                <Trash2 className="size-3" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Composer */}
       {isLive && (
         <Card className="border-white/5 bg-[#0b1a2a]">
           <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
-            {recording && (
+            {voiceRecorder.state === "RECORDING" && (
               <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1 text-[11px] font-bold text-red-300">
                 <span className="size-2 animate-pulse rounded-full bg-red-500" />
-                ضبط… {recSeconds}s
+                در حال ضبط {formatRecDuration(voiceRecorder.seconds)}
+              </span>
+            )}
+            {voiceRecorder.state === "UPLOADING" && (
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-cyan-500/15 px-3 py-1 text-[11px] font-bold text-cyan-300">
+                <Loader2 className="size-3 animate-spin" />
+                در حال ارسال…
               </span>
             )}
             <div className="flex shrink-0 gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
@@ -2783,18 +2807,20 @@ function RoomView({
                 )}
               </button>
               <button
-                onClick={() => void toggleRecording()}
-                title={recording ? "پایان ضبط" : "ضبط پیام صوتی"}
+                onClick={() => voiceRecorder.state === "RECORDING" ? voiceRecorder.stop() : voiceRecorder.start()}
+                title={voiceRecorder.state === "RECORDING" ? "پایان ضبط" : "ضبط پیام صوتی"}
                 className={`flex size-8 items-center justify-center rounded-lg border transition-colors ${
-                  recording
+                  voiceRecorder.state === "RECORDING"
                     ? "border-red-400/40 bg-red-400/15 text-red-300"
-                    : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                    : voiceRecorder.state === "STOPPING"
+                      ? "border-amber-400/40 bg-amber-400/15 text-amber-300"
+                      : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
                 }`}
               >
-                {recording ? <Square className="size-3.5" /> : <Mic className="size-4" />}
+                {voiceRecorder.state === "RECORDING" ? <Square className="size-3.5" /> : <Mic className="size-4" />}
               </button>
             </div>
-            <Button size="sm" onClick={handleSend} disabled={sending || uploading}>
+            <Button size="sm" onClick={handleSend} disabled={sending || uploading || voiceRecorder.state === "RECORDING"}>
               <Send className="size-4" />
               ارسال
             </Button>
