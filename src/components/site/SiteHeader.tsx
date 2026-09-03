@@ -12,7 +12,6 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "convex/react";
 import { ShoppingCart } from "lucide-react";
-import { ModeSwitcher } from "./ModeSwitcher";
 import {
   BookOpen,
   Bot,
@@ -99,8 +98,6 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          {/* Mode Switcher — only when NOT authenticated */}
-          {!isAuthenticated && <ModeSwitcher />}
           {/* Theme toggle */}
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -224,7 +221,6 @@ export function SiteHeader() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    <ModeSwitcher />
                     <Button asChild className="w-full">
                       <Link to="/auth" onClick={() => setOpen(false)}>
                         ورود / عضویت

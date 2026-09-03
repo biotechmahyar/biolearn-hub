@@ -64,7 +64,18 @@ const AdminMarketplacePanel = lazy(() => import("./pages/panels/AdminMarketplace
 function RouteLoading() {
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative flex size-14 items-center justify-center">
+          <span className="absolute inset-0 animate-ping rounded-2xl border border-primary/25" />
+          <span className="flex size-12 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10">
+            <span className="block size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </span>
+        </div>
+        <div className="text-center">
+          <p className="text-sm font-bold text-foreground">صبر کنید…</p>
+          <p className="text-xs text-muted-foreground">در حال بارگذاری صفحه</p>
+        </div>
+      </div>
     </div>
   );
 }

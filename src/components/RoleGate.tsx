@@ -46,7 +46,8 @@ export function RoleGate({ allowed, children, title }: RoleGateProps) {
             <Dna className="size-7 animate-pulse text-primary" />
           </span>
         </span>
-        <p className="font-mono text-xs text-muted-foreground">loading {title}…</p>
+        <p className="text-sm font-bold text-foreground">صبر کنید…</p>
+        <p className="text-xs text-muted-foreground">در حال بارگذاری پنل</p>
       </main>
     );
   }

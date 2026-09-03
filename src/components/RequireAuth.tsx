@@ -16,7 +16,8 @@ export function RequireAuth({ children }: { children: ReactNode }) {
             <Dna className="size-7 animate-pulse text-primary" />
           </span>
         </span>
-        <p className="font-mono text-xs text-muted-foreground">loading workspace…</p>
+        <p className="text-sm font-bold text-foreground">صبر کنید…</p>
+        <p className="text-xs text-muted-foreground">در حال بررسی دسترسی</p>
       </main>
     );
   }

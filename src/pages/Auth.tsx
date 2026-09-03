@@ -24,6 +24,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { panelForRole } from "@/components/RoleGate";
 import { useMode } from "@/hooks/useMode";
+import { ModeSwitcher } from "@/components/site/ModeSwitcher";
 import { authApi } from "@/lib/apiClient";
 
 declare global {
@@ -52,9 +53,14 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const verifyGoogle = useAction(api.googleAuth.verifyGoogleToken);
-  // Staff members always land on their own panel instead of the student dashboard.
-  const roleHome = user ? panelForRole(user.role) : redirectAfterAuth ?? "/dashboard";
-  const redirect = resolveRedirectAfterAuth(searchParams.get("returnTo"), roleHome);
+  const returnTo = searchParams.get("returnTo");
+
+  // Compute the correct redirect destination based on current user role
+  const getRedirect = useCallback(() => {
+    const roleHome = user ? panelForRole(user.role) : redirectAfterAuth ?? "/dashboard";
+    return resolveRedirectAfterAuth(returnTo, roleHome);
+  }, [user, redirectAfterAuth, returnTo]);
+
   const [step, setStep] = useState<"signIn" | { email: string }>("signIn");
   const [mode, setMode] = useState<"otp" | "password">("otp");
   const [otp, setOtp] = useState("");
@@ -63,9 +69,12 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate(redirect);
+      // Compute redirect inside the effect so user is always up-to-date
+      const roleHome = user ? panelForRole(user.role) : redirectAfterAuth ?? "/dashboard";
+      const dest = resolveRedirectAfterAuth(returnTo, roleHome);
+      navigate(dest);
     }
-  }, [authLoading, isAuthenticated, navigate, redirect]);
+  }, [authLoading, isAuthenticated, navigate, user, redirectAfterAuth, returnTo]);
 
   const handleEmailSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -99,7 +108,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
     try {
       const formData = new FormData(event.currentTarget);
       await signIn("email-otp", formData);
-      navigate(redirect);
+      navigate(getRedirect());
     } catch (error) {
       console.error("OTP verification error:", error);
       setError("کد واردشده صحیح نیست. دوباره بررسی کنید.");
@@ -120,7 +129,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         const password = formData.get("password") as string;
         const res = await authApi.login(email, password);
         if (res.ok) {
-          navigate(redirect);
+          navigate(getRedirect());
         } else {
           setError(res.error || "ورود ناموفق بود.");
         }
@@ -128,7 +137,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         // Global mode: use Convex auth
         const res = await signIn("password", formData);
         if (res.signingIn) {
-          navigate(redirect);
+          navigate(getRedirect());
         }
       }
     } catch (error) {
@@ -157,14 +166,14 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
       if (!verified.name) {
         navigate("/complete-profile");
       } else {
-        navigate(redirect);
+        navigate(getRedirect());
       }
     } catch (err: any) {
       console.error("Google sign-in error:", err);
       setError("ورود با گوگل ناموفق بود. دوباره تلاش کنید.");
       setIsLoading(false);
     }
-  }, [verifyGoogle, signIn, navigate, redirect]);
+  }, [verifyGoogle, signIn, navigate, getRedirect]);
 
   const GOOGLE_CLIENT_ID = "249113399223-scvp6ehrm1l4cam42rnh7ohq4hipnn9t.apps.googleusercontent.com";
 
@@ -219,13 +228,13 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         const tempEmail = `guest-${Date.now()}@genova.local`;
         const res = await authApi.register(tempEmail, "guest-" + Date.now(), "مهمان");
         if (res.ok) {
-          navigate(redirect);
+          navigate(getRedirect());
         } else {
           setError("ورود مهمان ناموفق بود.");
         }
       } else {
         await signIn("anonymous");
-        navigate(redirect);
+        navigate(getRedirect());
       }
     } catch (error) {
       console.error("Guest login error:", error);
@@ -253,8 +262,8 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
               </span>
             </div>
             <div className="text-center">
-              <p className="text-sm font-bold">در حال ورود به Genova…</p>
-              <p className="mt-1 font-mono text-[11px] text-muted-foreground">establishing secure session</p>
+              <p className="text-sm font-bold">صبر کنید…</p>
+              <p className="mt-1 text-xs text-muted-foreground">در حال ورود به Genova</p>
             </div>
           </motion.div>
         )}
@@ -299,6 +308,9 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             <span className="text-lg font-extrabold">Genova</span>
           </Link>
 
+          <div className="mb-4 flex justify-center">
+            <ModeSwitcher />
+          </div>
           <Card className="border-border/70 shadow-xl shadow-primary/5">
             {step === "signIn" ? (
               <>
