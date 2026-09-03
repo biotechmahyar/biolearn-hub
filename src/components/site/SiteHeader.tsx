@@ -271,20 +271,32 @@ function PanelSwitchOverlay({ label, role, onDone }: { label: string; role: stri
   const colors = ROLE_COLORS[role] ?? ROLE_COLORS.student;
 
   useEffect(() => {
-    const t = setTimeout(onDone, 600);
+    const t = setTimeout(onDone, 700);
     return () => clearTimeout(t);
   }, [onDone]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-5 bg-background">
-      <span className={`relative flex size-16 items-center justify-center rounded-2xl border ${colors.border} ${colors.bg}`}>
-        <span className="absolute inset-0 animate-ping rounded-2xl border border-primary/20" />
-        <Dna className={`size-7 animate-pulse ${colors.text}`} />
-      </span>
-      <div className="text-center">
-        <p className="text-sm font-bold text-foreground">صبر کنید…</p>
-        <p className={`mt-1 text-xs ${colors.text}`}>{label}</p>
-      </div>
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-background/95 backdrop-blur-md">
+      <motion.div
+        initial={{ scale: 0.6, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="relative flex size-20 items-center justify-center rounded-3xl border-2 border-dashed"
+        style={{ borderColor: `var(--primary)`, backgroundColor: `color-mix(in oklch, var(--primary) 10%, transparent)` }}
+      >
+        <span className="absolute inset-0 animate-ping rounded-3xl border border-primary/15" />
+        <Dna className="size-9 animate-spin text-primary" style={{ animationDuration: '2s' }} />
+      </motion.div>
+      <motion.div
+        initial={{ y: 12, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.3, delay: 0.15 }}
+        className="text-center space-y-2"
+      >
+        <p className="text-lg font-extrabold text-foreground">در حال بارگذاری پنل</p>
+        <p className={`text-base font-bold ${colors.text}`}>{label}</p>
+        <p className="text-xs text-muted-foreground mt-1">صبر کنید…</p>
+      </motion.div>
     </div>
   );
 }
