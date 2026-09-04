@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import {
   Award,
+  ArrowDown,
+  ArrowUp,
   BarChart3,
   BellRing,
   BookOpen,
@@ -48,6 +50,7 @@ import {
   Plus,
   Presentation,
   Radio,
+  Route,
   Save,
   Send,
   Sparkles,
@@ -79,12 +82,13 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-type TabKey = "overview" | "courses" | "workshops" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate";
+type TabKey = "overview" | "courses" | "workshops" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate" | "academyPath";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
   { key: "courses", label: "دوره‌های من", icon: BookOpen },
   { key: "workshops", label: "کارگاه‌ها", icon: GraduationCap },
+  { key: "academyPath", label: "مسیر آکادمی", icon: Route },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
   { key: "live", label: "کلاس‌های زنده", icon: Radio },
   { key: "inbox", label: "صندوق ورودی", icon: Inbox },
@@ -179,6 +183,7 @@ export default function Dashboard() {
           {tab === "overview" && <Overview onNavigate={setTab} />}
           {tab === "courses" && <MyCourses />}
           {tab === "workshops" && <MyWorkshops />}
+          {tab === "academyPath" && <AcademyPathTab />}
           {tab === "tests" && <TestsTab />}
           {tab === "progress" && <ProgressTab />}
           {tab === "flashcards" && <FlashcardsTab />}
@@ -540,6 +545,109 @@ function MyWorkshops() {
                   {w.workshopFree ? "رایگان" : formatPrice(w.workshopPrice)}
                 </span>
               </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Academy Path tab ─────────────────────────────────────────────────────────
+function AcademyPathTab() {
+  const paths = useQuery(api.academyPaths.listPublishedPaths);
+  const enrolledWorkshops = useQuery(api.academyPaths.listMyPathProgress);
+  const enroll = useMutation(api.promotions.enrollWorkshop);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const isEnrolled = (wid: string) => (enrolledWorkshops ?? []).includes(wid as any);
+
+  const handleEnroll = async (wid: string, free: boolean) => {
+    if (!free) {
+      toast.info("این کارگاه پرداختی است — از صفحه کارگاه ثبت‌نام کنید.");
+      return;
+    }
+    setBusyId(wid);
+    try {
+      await enroll({ workshopId: wid as any });
+      toast.success("ثبت‌نام انجام شد!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ثبت‌نام");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (paths === undefined) return <Skeleton />;
+
+  if (paths.length === 0) {
+    return (
+      <EmptyState
+        icon={Route}
+        title="مسیری منتشر نشده"
+        desc="سلسله کارگاه‌های آکادمی به‌زودی اینجا نمایش داده می‌شود."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-extrabold">مسیر آکادمی</h1>
+        <p className="mt-1 text-sm text-muted-foreground">سلسله کارگاه‌های تخصصی — به ترتیب پیش بروید و ثبت‌نام کنید.</p>
+      </div>
+      {paths.map((p) => {
+        const doneCount = p.items.filter((it: any) => isEnrolled(it.workshopId)).length;
+        const pct = p.items.length > 0 ? Math.round((doneCount / p.items.length) * 100) : 0;
+        return (
+          <Card key={p._id} className="border-border/70 shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Route className="size-5 text-primary" />
+                <CardTitle className="text-base">{p.title}</CardTitle>
+                <Badge variant="outline" className="rounded-full text-[10px]">{p.level === "beginner" ? "مبتدی" : p.level === "intermediate" ? "متوسط" : p.level === "advanced" ? "پیشرفته" : "ترکیبی"}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">{p.description}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <Progress value={pct} className="h-1.5 flex-1" />
+                <span className="text-[11px] font-bold text-muted-foreground">{faNum(doneCount)}/{faNum(p.items.length)}</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {p.items.map((item: any, idx: number) => {
+                const enrolled = isEnrolled(item.workshopId);
+                const isPast = item.date ? new Date(item.date).getTime() < Date.now() : false;
+                return (
+                  <div key={item.itemId} className="flex flex-col gap-2 rounded-xl border border-border/60 p-3 sm:flex-row sm:items-center">
+                    <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                      enrolled ? "bg-emerald-500/15 text-emerald-600" : "bg-primary/10 text-primary"
+                    )}>
+                      {enrolled ? <CheckCircle2 className="size-4" /> : idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold">{item.title}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {item.topic} · {item.date ? new Date(item.date).toLocaleDateString("fa-IR") : "—"}
+                        {item.time ? ` ساعت ${item.time}` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs font-bold text-emerald-600">{item.free ? "رایگان" : formatPrice(item.price)}</span>
+                      {enrolled ? (
+                        <Button size="sm" variant="outline" className="rounded-full text-xs" asChild>
+                          <Link to={`/workshops/${item.slug}`}>ورود به کارگاه</Link>
+                        </Button>
+                      ) : isPast ? (
+                        <span className="text-[11px] text-muted-foreground">برگزار شده</span>
+                      ) : (
+                        <Button size="sm" className="rounded-full text-xs" disabled={busyId === item.workshopId} onClick={() => handleEnroll(item.workshopId, item.free)}>
+                          {busyId === item.workshopId ? <Loader2 className="size-3.5 animate-spin" /> : item.free ? "ثبت‌نام رایگان" : "ثبت‌نام"}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         );
@@ -1981,9 +2089,26 @@ function InboxTab() {
 // ── Certificate tab ────────────────────────────────────────────────────────
 function CertificateTab() {
   const myCourses = useQuery(api.enroll.getMyEnrollments);
+  const myCerts = useQuery(api.promotions.listMyCertificates);
+  const requestCert = useMutation(api.promotions.requestCertificate);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const completedCourses = myCourses?.filter((e: any) => e.completed) ?? [];
   const inProgressCourses = myCourses?.filter((e: any) => !e.completed) ?? [];
+
+  const certFor = (courseId: string) => (myCerts ?? []).find((c: any) => c.courseId === courseId);
+
+  const handleRequest = async (courseId: string) => {
+    setBusyId(courseId);
+    try {
+      await requestCert({ courseId: courseId as any });
+      toast.success("درخواست گواهی ارسال شد — پس از بررسی مدیر صادر می شود.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ارسال درخواست");
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   if (myCourses === undefined) {
     return (
@@ -2007,20 +2132,52 @@ function CertificateTab() {
       {completedCourses.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-bold text-emerald-500">دوره‌های تکمیل شده ✓</h3>
-          {completedCourses.map((enroll: any) => (
-            <Card key={enroll._id} className="border-emerald-500/20 bg-emerald-500/5">
-              <CardContent className="flex items-center justify-between py-4">
-                <div>
-                  <p className="font-bold">{enroll.courseTitle}</p>
-                  <p className="text-xs text-muted-foreground">تکمیل شده</p>
-                </div>
-                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
-                  <Award className="ml-1 size-3" />
-                  گواهی آماده
-                </Badge>
-              </CardContent>
-            </Card>
-          ))}
+          {completedCourses.map((enroll: any) => {
+            const cert = certFor(enroll.courseId);
+            return (
+              <Card key={enroll._id} className="border-emerald-500/20 bg-emerald-500/5">
+                <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-bold">{enroll.courseTitle}</p>
+                    <p className="text-xs text-muted-foreground">تکمیل شده</p>
+                  </div>
+                  {cert?.status === "approved" && (cert.certificateUrl || cert.certificateStorageId) ? (
+                    <a
+                      href={cert.fileUrl ?? cert.certificateUrl ?? "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-8 items-center gap-1 rounded-full bg-emerald-500 px-4 text-xs font-bold text-white hover:bg-emerald-600"
+                    >
+                      <Download className="size-3.5" />
+                      دانلود گواهی
+                    </a>
+                  ) : cert?.status === "approved" ? (
+                    <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
+                      <Award className="ml-1 size-3" />
+                      تایید شده — در انتظار فایل
+                    </Badge>
+                  ) : cert?.status === "requested" ? (
+                    <Badge variant="outline" className="text-xs text-amber-500">
+                      <Hourglass className="ml-1 size-3" />
+                      در انتظار بررسی مدیر
+                    </Badge>
+                  ) : cert?.status === "rejected" ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-xs text-red-500">رد شده{cert.note ? `: ${cert.note}` : ""}</Badge>
+                      <Button size="sm" variant="outline" className="rounded-full text-xs" disabled={busyId === enroll.courseId} onClick={() => handleRequest(enroll.courseId)}>
+                        درخواست مجدد
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" className="rounded-full text-xs" disabled={busyId === enroll.courseId} onClick={() => handleRequest(enroll.courseId)}>
+                      {busyId === enroll.courseId ? <Loader2 className="size-3.5 animate-spin" /> : <Award className="ml-1 size-3.5" />}
+                      درخواست گواهی
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 

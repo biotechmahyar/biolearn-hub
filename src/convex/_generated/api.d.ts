@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as academyPaths from "../academyPaths.js";
 import type * as admin from "../admin.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiChat from "../aiChat.js";
@@ -55,6 +56,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  academyPaths: typeof academyPaths;
   admin: typeof admin;
   aiActions: typeof aiActions;
   aiChat: typeof aiChat;

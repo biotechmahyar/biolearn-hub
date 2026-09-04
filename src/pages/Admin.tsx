@@ -42,7 +42,11 @@ import { uploadBlob } from "@/lib/upload";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Activity,
+  ArrowDown,
+  ArrowUp,
+  Award,
   BarChart3,
+  Route as RouteIcon,
   Bot,
   BellRing,
   BookOpen,
@@ -86,6 +90,7 @@ import {
   Ticket,
   Trash2,
   TrendingUp,
+  Upload,
   User,
   UserCheck,
   Users,
@@ -147,7 +152,9 @@ type Section =
   | "storeApproval"
   | "flashSales"
   | "promoBanners"
-  | "discounts";
+  | "discounts"
+  | "academyPaths"
+  | "certificates";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -184,6 +191,8 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "discounts", label: "تخفیفات ویژه", icon: Ticket },
       { key: "flashSales", label: "فروش ویژه", icon: Zap },
       { key: "promoBanners", label: "بنر تبلیغاتی", icon: Megaphone },
+      { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon },
+      { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
     ],
   },
   {
@@ -647,6 +656,8 @@ export default function Admin() {
             {section === "discounts" && <AdminDiscounts />}
             {section === "flashSales" && <AdminFlashSales />}
             {section === "promoBanners" && <AdminPromoBanners />}
+            {section === "academyPaths" && <AdminAcademyPaths />}
+            {section === "certificates" && <AdminCertificates />}
           </div>
         </main>
       </div>
@@ -3509,6 +3520,17 @@ function AdminInbox() {
   const [body, setBody] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+
+  const filteredUsers = userSearch.trim()
+    ? (users as any[]).filter((u: any) => {
+        const q = userSearch.trim().toLowerCase();
+        return (
+          (u.name ?? "").toLowerCase().includes(q) ||
+          (u.email ?? "").toLowerCase().includes(q)
+        );
+      })
+    : (users as any[]);
 
   const handleSend = async () => {
     setErr(null);
@@ -3543,16 +3565,24 @@ function AdminInbox() {
           <CardTitle className="text-base">ارسال پیام به یک حساب</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <Input
+            placeholder="🔍 جستجوی نام یا ایمیل دانشجو…"
+            value={userSearch}
+            onChange={(e) => setUserSearch(e.target.value)}
+          />
           <Select value={userId} onValueChange={setUserId}>
             <SelectTrigger>
               <SelectValue placeholder="گیرنده را انتخاب کنید (دانشجو / عضو / مدرس و…)" />
             </SelectTrigger>
             <SelectContent>
-              {users.map((u) => (
+              {filteredUsers.map((u) => (
                 <SelectItem key={u._id} value={u._id}>
                   {u.name ?? "بدون نام"} — {u.email} ({ROLE_LABELS[u.role ?? "user"] ?? u.role})
                 </SelectItem>
               ))}
+              {filteredUsers.length === 0 && (
+                <div className="px-3 py-2 text-xs text-muted-foreground">کاربری یافت نشد.</div>
+              )}
             </SelectContent>
           </Select>
           <Input placeholder="عنوان پیام (مثلاً: پذیرش در دورهٔ آزمایشی)" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -4669,6 +4699,322 @@ function AdminPromoBanners() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Academy Path (مسیر آکادمی — سلسله کارگاه‌ها) ────────────────────────────────
+function AdminAcademyPaths() {
+  const paths = useQuery(api.academyPaths.adminListPaths);
+  const workshops = useQuery(api.admin.adminListWorkshops);
+  const create = useMutation(api.academyPaths.adminCreatePath);
+  const update = useMutation(api.academyPaths.adminUpdatePath);
+  const remove = useMutation(api.academyPaths.adminDeletePath);
+  const addItem = useMutation(api.academyPaths.adminAddPathItem);
+  const removeItem = useMutation(api.academyPaths.adminRemovePathItem);
+  const moveItem = useMutation(api.academyPaths.adminMovePathItem);
+
+  const [dialog, setDialog] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [level, setLevel] = useState("beginner");
+  const [busy, setBusy] = useState(false);
+  const [openPathId, setOpenPathId] = useState<string | null>(null);
+  const [pickedWorkshop, setPickedWorkshop] = useState("");
+
+  const handleCreate = async () => {
+    if (!title.trim()) return;
+    setBusy(true);
+    try {
+      const id = await create({ title: title.trim(), description: description.trim(), level });
+      setOpenPathId(id as string);
+      setDialog(false);
+      setTitle(""); setDescription(""); setLevel("beginner");
+      toast.success("مسیر ساخته شد — حالا کارگاه‌ها را اضافه کنید");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAddItem = async () => {
+    if (!openPathId || !pickedWorkshop) return;
+    try {
+      await addItem({ pathId: openPathId as any, workshopId: pickedWorkshop as any });
+      setPickedWorkshop("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  const LEVELS: Record<string, string> = {
+    beginner: "مبتدی",
+    intermediate: "متوسط",
+    advanced: "پیشرفته",
+    mixed: "ترکیبی",
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="مسیر آکادمی" subtitle="academy path / workshop series" count={paths?.length} />
+        <Button className="rounded-lg" onClick={() => setDialog(true)}>
+          <Plus className="ml-1.5 size-4" />
+          مسیر جدید
+        </Button>
+      </div>
+
+      {paths === undefined ? (
+        <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+      ) : paths.length === 0 ? (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
+            <RouteIcon className="size-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">هنوز مسیری ساخته نشده. با «مسیر جدید» شروع کنید.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {paths.map((p: any) => {
+            const open = openPathId === p._id;
+            return (
+              <Card key={p._id} className="border-border/70 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                      <RouteIcon className="size-5 text-primary" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold">{p.title}</p>
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{LEVELS[p.level] ?? p.level}</span>
+                        <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-bold",
+                          p.published ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-slate-400/30 bg-slate-400/10 text-muted-foreground"
+                        )}>
+                          {p.published ? "منتشر شده" : "پیش‌نویس"}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{p.description}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">{p.items.length} کارگاه در این مسیر</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-1">
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setOpenPathId(open ? null : p._id); setPickedWorkshop(""); }}>
+                        {open ? "بستن" : "مدیریت کارگاه‌ها"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => update({ id: p._id, published: !p.published })}>
+                        {p.published ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                        {p.published ? "لغو انتشار" : "انتشار"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => remove({ id: p._id })}>
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {open && (
+                    <div className="mt-4 space-y-3 rounded-xl border border-border/60 bg-muted/30 p-3">
+                      {p.items.length === 0 ? (
+                        <p className="py-2 text-center text-xs text-muted-foreground">هنوز کارگاهی اضافه نشده. از پایین اضافه کنید.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {p.items.map((item: any, idx: number) => (
+                            <div key={item._id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-background px-3 py-2">
+                              <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">{idx + 1}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-xs font-bold">{item.workshopTitle}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {item.workshopDate ? formatJalaliDate(new Date(item.workshopDate).getTime()) : "بدون تاریخ"}
+                                  {item.workshopTime ? ` — ${item.workshopTime}` : ""}
+                                </p>
+                              </div>
+                              <Button size="icon" variant="ghost" className="size-6" disabled={idx === 0} onClick={() => moveItem({ id: item._id, direction: "up" })}>
+                                <ArrowUp className="size-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="size-6" disabled={idx === p.items.length - 1} onClick={() => moveItem({ id: item._id, direction: "down" })}>
+                                <ArrowDown className="size-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => removeItem({ id: item._id })}>
+                                <Trash2 className="size-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Select value={pickedWorkshop} onValueChange={setPickedWorkshop}>
+                          <SelectTrigger className="flex-1"><SelectValue placeholder="کارگاه را انتخاب کنید…" /></SelectTrigger>
+                          <SelectContent>
+                            {(workshops ?? []).map((w: any) => (
+                              <SelectItem key={w._id} value={w._id}>{w.title} — {w.topic}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" className="h-9" disabled={!pickedWorkshop} onClick={handleAddItem}>
+                          <Plus className="ml-1 size-3.5" />
+                          افزودن
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <Dialog open={dialog} onOpenChange={setDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>مسیر آکادمی جدید</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="عنوان مسیر (مثلاً: مسیر میکروبیولوژی عمومی)" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Textarea placeholder="توضیح مسیر…" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Select value={level} onValueChange={setLevel}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="beginner">مبتدی</SelectItem>
+                <SelectItem value="intermediate">متوسط</SelectItem>
+                <SelectItem value="advanced">پیشرفته</SelectItem>
+                <SelectItem value="mixed">ترکیبی</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button className="w-full" onClick={handleCreate} disabled={busy || !title.trim()}>
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              ساخت مسیر
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Certificate requests (درخواست‌های گواهی) ──────────────────────────────────
+function AdminCertificates() {
+  const requests = useQuery(api.promotions.listAllCertRequests);
+  const all = useQuery(api.promotions.listMyCertificates) as any[] | undefined;
+  const resolve = useMutation(api.promotions.resolveCertificate);
+  const getUploadUrl = useMutation(api.upload.getUploadUrl);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, id: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(id);
+    try {
+      const url = await getUploadUrl();
+      const storageId = await uploadBlob(url, file);
+      await resolve({ id, status: "approved", certificateStorageId: storageId });
+      toast.success("گواهی آپلود و تایید شد");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "خطا در آپلود");
+    } finally {
+      setUploading(null);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="درخواست‌های گواهی" subtitle="certificate requests" count={requests?.length} />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>دانشجو</TableHead>
+                <TableHead>دوره</TableHead>
+                <TableHead>تاریخ درخواست</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(requests ?? []).map((r: any) => (
+                <TableRow key={r._id}>
+                  <TableCell className="font-medium">{r.userName}</TableCell>
+                  <TableCell className="text-xs">{r.courseTitle}</TableCell>
+                  <TableCell className="text-xs">{formatJalaliDate(r.requestedAt)}</TableCell>
+                  <TableCell>
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600">در انتظار</span>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <div className="flex items-center justify-end gap-1">
+                      <label className="cursor-pointer">
+                        <input type="file" accept=".pdf,image/*" hidden disabled={uploading === r._id}
+                          onChange={(e) => handleUpload(e, r._id)} />
+                        <span className="inline-flex h-7 items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 text-xs font-bold text-emerald-600 hover:bg-emerald-500/20">
+                          {uploading === r._id ? <Loader2 className="size-3 animate-spin" /> : <Upload className="size-3" />}
+                          آپلود گواهی
+                        </span>
+                      </label>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive"
+                        onClick={async () => {
+                          try {
+                            await resolve({ id: r._id, status: "rejected", note: note || undefined });
+                            toast.success("درخواست رد شد");
+                          } catch (e) { toast.error("خطا"); }
+                        }}>
+                        رد
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(requests ?? []).length === 0 && (
+                <TableRow><TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">درخواست گواهی جدیدی وجود ندارد.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {showAll && (
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">تاریخچه کامل گواهی‌ها</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>دوره</TableHead>
+                  <TableHead>وضعیت</TableHead>
+                  <TableHead>فایل گواهی</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(all ?? []).map((c: any) => (
+                  <TableRow key={c._id}>
+                    <TableCell className="text-xs">{c.courseTitle}</TableCell>
+                    <TableCell>
+                      <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold",
+                        c.status === "approved" ? "bg-emerald-500/15 text-emerald-600" : c.status === "rejected" ? "bg-red-500/15 text-red-600" : "bg-amber-500/15 text-amber-600"
+                      )}>
+                        {c.status === "approved" ? "صادر شده" : c.status === "rejected" ? "رد شده" : "در انتظار"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {c.certificateUrl ? (
+                        <a href={c.certificateUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline">دانلود</a>
+                      ) : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+      <Button variant="outline" className="rounded-lg text-xs" onClick={() => setShowAll((s) => !s)}>
+        {showAll ? "بستن تاریخچه" : "نمایش تاریخچه کامل"}
+      </Button>
     </div>
   );
 }

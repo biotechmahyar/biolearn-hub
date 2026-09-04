@@ -188,7 +188,10 @@ export const listMyCertificates = query({
     const result = [];
     for (const c of certs) {
       const course = await ctx.db.get(c.courseId);
-      result.push({ ...c, courseTitle: course?.title ?? "—" });
+      const fileUrl = c.certificateStorageId
+        ? await ctx.storage.getUrl(c.certificateStorageId as any)
+        : null;
+      result.push({ ...c, courseTitle: course?.title ?? "—", fileUrl });
     }
     return result;
   },
@@ -221,6 +224,7 @@ export const resolveCertificate = mutation({
     id: v.id("certificates"),
     status: v.union(v.literal("approved"), v.literal("rejected")),
     certificateUrl: v.optional(v.string()),
+    certificateStorageId: v.optional(v.string()),
     note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -229,10 +233,19 @@ export const resolveCertificate = mutation({
     await ctx.db.patch(args.id, {
       status: args.status,
       certificateUrl: args.certificateUrl,
+      certificateStorageId: args.certificateStorageId,
       note: args.note,
       resolvedAt: Date.now(),
       resolvedBy: identity.subject as any,
     });
+  },
+});
+
+// Resolve a certificate storage id into a downloadable URL
+export const getCertificateFileUrl = query({
+  args: { storageId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId as any);
   },
 });
 

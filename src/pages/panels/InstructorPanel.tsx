@@ -58,6 +58,7 @@ import {
   Plus,
   Presentation,
   Radio,
+  Route,
   Save,
   Send,
   Settings,
@@ -115,6 +116,7 @@ type Tab =
   | "comm-qa"
   | "comm-messages"
   | "comm-announcements"
+  | "academy-path"
   | "analytics"
   | "reports"
   | "ai-assistant"
@@ -174,6 +176,11 @@ const SIDEBAR: SidebarSection[] = [
       { id: "comm-messages", label: "پیام‌ها", icon: MessageSquare },
       { id: "comm-announcements", label: "اطلاعیه‌ها", icon: BellRing },
     ],
+  },
+  {
+    label: "مسیر آکادمی",
+    icon: Route,
+    children: [{ id: "academy-path", label: "مسیر آکادمی", icon: Route }],
   },
   {
     label: "تحلیل",
@@ -432,6 +439,7 @@ export default function InstructorPanel() {
           {tab === "comm-qa" && <QAView rooms={rooms} />}
           {tab === "comm-messages" && <MessagesView />}
           {tab === "comm-announcements" && <AnnouncementsView instructorName={user?.name ?? null} />}
+          {tab === "academy-path" && <AcademyPathView />}
 
           {/* تحلیل */}
           {tab === "analytics" && <AnalyticsView />}
@@ -4191,6 +4199,105 @@ function InstructorSupportView() {
           </CardContent>
         </Card>
       ) : null}
+    </div>
+  );
+}
+
+// ── Academy Path view (مسیر آکادمی) ─────────────────────────────────────────
+function AcademyPathView() {
+  const paths = useQuery(api.academyPaths.listInstructorPaths);
+  const enrolledWorkshops = useQuery(api.academyPaths.listMyPathProgress);
+  const enroll = useMutation(api.promotions.enrollWorkshop);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const isEnrolled = (wid: string) => (enrolledWorkshops ?? []).includes(wid as any);
+
+  const handleEnroll = async (wid: string, free: boolean) => {
+    if (!free) {
+      toast.info("این کارگاه پرداختی است — از صفحه کارگاه ثبت‌نام کنید.");
+      return;
+    }
+    setBusyId(wid);
+    try {
+      await enroll({ workshopId: wid as any });
+      toast.success("ثبت‌نام انجام شد!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ثبت‌نام");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold text-white">🗺️ مسیر آکادمی</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          سلسله کارگاه‌های آکادمی — مسیرهای منتشر شده و جایگاه کارگاه‌های شما در آن‌ها.
+        </p>
+      </div>
+
+      {paths === undefined ? (
+        <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-cyan-400" /></div>
+      ) : paths.length === 0 ? (
+        <Card className="border-white/5 bg-[#0b1a2a]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <Route className="size-8 text-slate-500" />
+            <p className="text-sm text-slate-400">هنوز مسیری منتشر نشده است.</p>
+            <p className="text-xs text-slate-500">مدیران سایت از پنل ادمین می‌توانند مسیر بسازند.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {paths.map((p: any) => (
+            <Card key={p._id} className="border-white/10 bg-[#0b1a2a]">
+              <CardContent className="p-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Route className="size-5 text-cyan-300" />
+                  <p className="text-base font-bold text-white">{p.title}</p>
+                  <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
+                    {p.level === "beginner" ? "مبتدی" : p.level === "intermediate" ? "متوسط" : p.level === "advanced" ? "پیشرفته" : "ترکیبی"}
+                  </span>
+                  <span className="text-xs text-slate-500">{p.items.length} کارگاه</span>
+                </div>
+                {p.description && <p className="mt-1.5 text-xs text-slate-400">{p.description}</p>}
+                <div className="mt-4 space-y-2">
+                  {p.items.map((item: any, idx: number) => {
+                    const enrolled = isEnrolled(item.workshopId);
+                    return (
+                      <div key={item.workshopId} className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5">
+                        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+                          enrolled ? "bg-emerald-400/15 text-emerald-300" : "bg-cyan-400/10 text-cyan-300"
+                        )}>
+                          {enrolled ? <CheckCircle2 className="size-3.5" /> : idx + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-bold text-slate-100">{item.title}</p>
+                          <p className="text-[10px] text-slate-500">
+                            {item.date ? new Date(item.date).toLocaleDateString("fa-IR") : "بدون تاریخ"}
+                            {item.time ? ` — ${item.time}` : ""}
+                          </p>
+                        </div>
+                        {!enrolled && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 shrink-0 text-[11px] text-cyan-300 hover:bg-cyan-400/10"
+                            disabled={busyId === item.workshopId}
+                            onClick={() => handleEnroll(item.workshopId, true)}
+                          >
+                            {busyId === item.workshopId ? <Loader2 className="size-3 animate-spin" /> : "ثبت‌نام"}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

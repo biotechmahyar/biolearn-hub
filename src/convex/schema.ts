@@ -1332,6 +1332,25 @@ const schema = defineSchema(
       .index("by_user", ["userId"])
       .index("by_workshop", ["workshopId"]),
 
+    // ── Academy Path (سلسله کارگاه‌ها) ───────────────────────────────────────
+    academyPaths: defineTable({
+      title: v.string(),
+      slug: v.string(),
+      description: v.string(),
+      level: v.string(), // beginner | intermediate | advanced | mixed
+      color: v.optional(v.string()),
+      published: v.boolean(),
+      createdAt: v.number(),
+    }).index("by_published", ["published"]),
+
+    academyPathItems: defineTable({
+      pathId: v.id("academyPaths"),
+      workshopId: v.id("workshops"),
+      order: v.number(),
+    })
+      .index("by_path", ["pathId"])
+      .index("by_workshop", ["workshopId"]),
+
     // ── Flash Sales / Discount Campaigns ───────────────────────────────────
     flashSales: defineTable({
       title: v.string(),
@@ -1377,6 +1396,7 @@ const schema = defineSchema(
         v.literal("rejected"),
       ),
       certificateUrl: v.optional(v.string()), // uploaded by admin
+      certificateStorageId: v.optional(v.string()),
       requestedAt: v.number(),
       resolvedAt: v.optional(v.number()),
       resolvedBy: v.optional(v.id("users")),
