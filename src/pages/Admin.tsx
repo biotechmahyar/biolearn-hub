@@ -39,6 +39,7 @@ import { formatJalaliDate } from "@/lib/jalali";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
+import { uploadBlob } from "@/lib/upload";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Activity,
@@ -63,6 +64,8 @@ import {
   HelpCircle,
   Home,
   Inbox,
+  Image,
+  Megaphone,
   Layers,
   Loader2,
   Lock,
@@ -92,6 +95,7 @@ import {
   WifiOff,
   X,
   XCircle,
+  Zap,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -140,7 +144,11 @@ type Section =
   | "studentReports"
   | "backup"
   | "sync"
-  | "classManagement";
+  | "classManagement"
+  | "storeApproval"
+  | "flashSales"
+  | "promoBanners"
+  | "discounts";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -173,6 +181,10 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "articles", label: "مقالات رایگان", icon: FileText },
       { key: "workshops", label: "کارگاه‌ها", icon: TrendingUp },
       { key: "products", label: "محصولات فیزیکی", icon: Package },
+      { key: "storeApproval", label: "تأیید محصولات بازارچه", icon: ShieldCheck },
+      { key: "discounts", label: "تخفیفات ویژه", icon: Ticket },
+      { key: "flashSales", label: "فروش ویژه", icon: Zap },
+      { key: "promoBanners", label: "بنر تبلیغاتی", icon: Megaphone },
     ],
   },
   {
@@ -632,6 +644,10 @@ export default function Admin() {
             {section === "backup" && <AdminBackup />}
             {section === "sync" && <AdminSync />}
             {section === "classManagement" && <AdminClasses />}
+            {section === "storeApproval" && <AdminStoreApproval />}
+            {section === "discounts" && <AdminDiscounts />}
+            {section === "flashSales" && <AdminFlashSales />}
+            {section === "promoBanners" && <AdminPromoBanners />}
           </div>
         </main>
       </div>
@@ -1824,15 +1840,19 @@ function AdminProducts() {
   const update = useMutation(api.admin.adminUpdateProduct);
   const toggle = useMutation(api.admin.adminTogglePublish);
   const remove = useMutation(api.admin.adminDeleteProduct);
+  const getUploadUrl = useMutation(api.upload.getUploadUrl);
 
-  const empty = { title: "", type: "flashcards", description: "", price: "0", published: false };
+  const empty = { title: "", type: "flashcards", description: "", price: "0", published: false, coverImage: "", stock: "0" };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; product: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const coverRef = useRef<HTMLInputElement | null>(null);
 
-  const openCreate = () => { setForm(empty); setDialog({ mode: "create" }); };
+  const openCreate = () => { setForm(empty); setCoverFile(null); setDialog({ mode: "create" }); };
   const openEdit = (p: any) => {
-    setForm({ title: p.title, type: p.type, description: p.description, price: String(p.price), published: p.published });
+    setForm({ title: p.title, type: p.type, description: p.description, price: String(p.price), published: p.published, coverImage: p.coverImage ?? "", stock: String(p.stock ?? 0) });
+    setCoverFile(null);
     setDialog({ mode: "edit", product: p });
   };
 
@@ -1840,7 +1860,12 @@ function AdminProducts() {
     if (!form.title.trim()) return;
     setBusy(true);
     try {
-      const payload = { title: form.title, type: form.type, description: form.description, price: Number(form.price) || 0, published: form.published };
+      let coverUrl = form.coverImage || undefined;
+      if (coverFile) {
+        const url = await getUploadUrl();
+        coverUrl = await uploadBlob(url, coverFile);
+      }
+      const payload = { title: form.title, type: form.type, description: form.description, price: Number(form.price) || 0, published: form.published, coverImage: coverUrl, stock: Number(form.stock) || 0 };
       if (dialog?.mode === "edit") {
         await update({ id: dialog.product._id, ...payload });
       } else {
@@ -1853,6 +1878,8 @@ function AdminProducts() {
       setBusy(false);
     }
   };
+
+  const typeLabels: Record<string, string> = { flashcards: "فلش‌کارت", guide: "کتابچهٔ راهنما", poster: "پوستر", notes: "جزوه", book: "کتاب", package: "بسته آموزشی", other: "سایر" };
 
   return (
     <div className="space-y-5">
@@ -1869,9 +1896,11 @@ function AdminProducts() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>تصویر</TableHead>
                 <TableHead>عنوان</TableHead>
                 <TableHead>نوع</TableHead>
                 <TableHead>قیمت</TableHead>
+                <TableHead>موجودی</TableHead>
                 <TableHead>وضعیت</TableHead>
                 <TableHead className="text-left">عملیات</TableHead>
               </TableRow>
@@ -1879,9 +1908,17 @@ function AdminProducts() {
             <TableBody>
               {(products ?? []).map((p) => (
                 <TableRow key={p._id}>
+                  <TableCell>
+                    {p.coverImage ? (
+                      <img src={p.coverImage} alt={p.title} className="size-10 rounded-md object-cover" />
+                    ) : (
+                      <span className="flex size-10 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell className="max-w-md truncate font-medium">{p.title}</TableCell>
-                  <TableCell className="text-muted-foreground">{p.typeLabel}</TableCell>
+                  <TableCell className="text-muted-foreground">{typeLabels[p.type] ?? p.type}</TableCell>
                   <TableCell>{formatPrice(p.price)}</TableCell>
+                  <TableCell className="font-mono text-xs">{p.stock ?? 0}</TableCell>
                   <TableCell><StatusChip published={p.published} /></TableCell>
                   <TableCell>
                     <PublishActions
@@ -1899,7 +1936,7 @@ function AdminProducts() {
       </Card>
 
       <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto scrollbar-theme">
           <DialogHeader>
             <DialogTitle>{dialog?.mode === "edit" ? "ویرایش محصول" : "محصول جدید"}</DialogTitle>
           </DialogHeader>
@@ -1912,9 +1949,24 @@ function AdminProducts() {
                   <SelectItem value="flashcards">فلش‌کارت</SelectItem>
                   <SelectItem value="guide">کتابچهٔ راهنما</SelectItem>
                   <SelectItem value="poster">پوستر آموزشی</SelectItem>
+                  <SelectItem value="notes">جزوه</SelectItem>
+                  <SelectItem value="book">کتاب</SelectItem>
+                  <SelectItem value="package">بسته آموزشی</SelectItem>
+                  <SelectItem value="other">سایر</SelectItem>
                 </SelectContent>
               </Select>
               <Input type="number" placeholder="قیمت (تومان)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
+            </div>
+            <Input type="number" placeholder="موجودی" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
+            <div>
+              <input ref={coverRef} type="file" accept="image/*" className="hidden" onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)} />
+              <Button type="button" variant="outline" className="w-full" onClick={() => coverRef.current?.click()}>
+                <Image className="ml-1.5 size-4" />
+                {coverFile ? coverFile.name : form.coverImage ? "تصویر فعلی — تغییر" : "انتخاب تصویر کاور"}
+              </Button>
+              {(coverFile || form.coverImage) && (
+                <img src={coverFile ? URL.createObjectURL(coverFile) : form.coverImage} alt="پیش‌نمایش" className="mt-2 h-32 w-full rounded-lg object-cover" />
+              )}
             </div>
             <Textarea placeholder="توضیحات" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             <PublishPicker value={form.published} onChange={(v) => setForm({ ...form, published: v })} />
@@ -4069,3 +4121,502 @@ function AdminClasses() {
   );
 }
 
+
+// ── Store Product Approval ─────────────────────────────────────────────────
+function AdminStoreApproval() {
+  const pending = useQuery(api.admin.adminListPendingStoreProducts);
+  const all = useQuery(api.admin.adminGetAllStoreProducts);
+  const approve = useMutation(api.admin.adminApproveStoreProduct);
+  const [tab, setTab] = useState<"pending" | "all">("pending");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const handleApprove = async (id: string, status: "approved" | "rejected", reason?: string) => {
+    setBusyId(id);
+    try {
+      await approve({ productId: id as any, status, rejectionReason: reason });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const list = tab === "pending" ? pending : all;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="تأیید محصولات بازارچه" subtitle="marketplace / store approvals" count={pending?.length} />
+
+      <div className="flex gap-2">
+        <Button size="sm" variant={tab === "pending" ? "default" : "outline"} onClick={() => setTab("pending")}>
+          در انتظار تأیید {pending?.length ? `(${pending.length})` : ""}
+        </Button>
+        <Button size="sm" variant={tab === "all" ? "default" : "outline"} onClick={() => setTab("all")}>
+          همه محصولات
+        </Button>
+      </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>عنوان</TableHead>
+                <TableHead>فروشنده</TableHead>
+                <TableHead>دسته</TableHead>
+                <TableHead>قیمت</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(list ?? []).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                    {tab === "pending" ? "محصولی در انتظار تأیید نیست." : "هنوز محصولی ثبت نشده."}
+                  </TableCell>
+                </TableRow>
+              )}
+              {(list ?? []).map((p: any) => (
+                <TableRow key={p._id}>
+                  <TableCell className="max-w-[200px] truncate font-medium">{p.title}</TableCell>
+                  <TableCell className="text-muted-foreground">{p.sellerName}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs">{p.category}</TableCell>
+                  <TableCell>{formatPrice(p.price)}</TableCell>
+                  <TableCell>
+                    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-bold",
+                      p.status === "approved" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" :
+                      p.status === "rejected" ? "border-red-500/30 bg-red-500/10 text-red-500" :
+                      "border-amber-500/30 bg-amber-500/10 text-amber-500"
+                    )}>
+                      {p.status === "approved" ? "تأیید شده" : p.status === "rejected" ? "رد شده" : "در انتظار"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    {p.status === "pending" && (
+                      <div className="flex gap-1">
+                        <Button size="sm" className="h-7 text-xs" disabled={busyId === p._id} onClick={() => handleApprove(p._id, "approved")}>
+                          {busyId === p._id ? <Loader2 className="size-3 animate-spin" /> : "تأیید"}
+                        </Button>
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" disabled={busyId === p._id} onClick={() => handleApprove(p._id, "rejected", "رد شده توسط مدیر")}>
+                          رد
+                        </Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Discount Management ────────────────────────────────────────────────────
+function AdminDiscounts() {
+  const courses = useQuery(api.admin.adminListCoursesForDiscount);
+  const products = useQuery(api.admin.adminListProductsForDiscount);
+  const setCourseDiscount = useMutation(api.admin.adminSetCourseDiscount);
+  const setProductDiscount = useMutation(api.admin.adminSetProductDiscount);
+  const [dialog, setDialog] = useState<{ type: "course" | "product"; item: any } | null>(null);
+  const [discountPrice, setDiscountPrice] = useState("");
+  const [discountDays, setDiscountDays] = useState("7");
+  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"course" | "product">("course");
+
+  const items = tab === "course" ? courses : products;
+
+  const openDiscount = (type: "course" | "product", item: any) => {
+    setDialog({ type, item });
+    setDiscountPrice(item.discountPrice ? String(item.discountPrice) : "");
+    setDiscountDays("7");
+  };
+
+  const handleSave = async () => {
+    if (!dialog) return;
+    setBusy(true);
+    try {
+      const expiresAt = discountPrice ? Date.now() + Number(discountDays) * 86400000 : undefined;
+      const dp = discountPrice ? Number(discountPrice) : undefined;
+      if (dialog.type === "course") {
+        await setCourseDiscount({ courseId: dialog.item._id, discountPrice: dp, discountExpiresAt: expiresAt });
+      } else {
+        await setProductDiscount({ productId: dialog.item._id, discountPrice: dp, discountExpiresAt: expiresAt });
+      }
+      setDialog(null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="تخفیفات ویژه" subtitle="discounts / flash pricing" />
+
+      <div className="flex gap-2">
+        <Button size="sm" variant={tab === "course" ? "default" : "outline"} onClick={() => setTab("course")}>دوره‌ها</Button>
+        <Button size="sm" variant={tab === "product" ? "default" : "outline"} onClick={() => setTab("product")}>محصولات</Button>
+      </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>عنوان</TableHead>
+                <TableHead>قیمت اصلی</TableHead>
+                <TableHead>قیمت تخفیفی</TableHead>
+                <TableHead>تخفیف</TableHead>
+                <TableHead>انقضا</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(items ?? []).map((item: any) => {
+                const hasDiscount = item.discountPrice && item.discountPrice > 0;
+                const expired = hasDiscount && item.discountExpiresAt && item.discountExpiresAt < Date.now();
+                const discountPct = hasDiscount ? Math.round((1 - item.discountPrice / item.price) * 100) : 0;
+                return (
+                  <TableRow key={item._id}>
+                    <TableCell className="max-w-[250px] truncate font-medium">{item.title}</TableCell>
+                    <TableCell>{formatPrice(item.price)}</TableCell>
+                    <TableCell className={hasDiscount && !expired ? "text-emerald-600 font-bold" : ""}>
+                      {hasDiscount && !expired ? formatPrice(item.discountPrice) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      {hasDiscount && !expired ? (
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600">
+                          {discountPct}% تخفیف
+                        </span>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {hasDiscount && item.discountExpiresAt ? (
+                        expired ? (
+                          <span className="text-red-500">منقضی شده</span>
+                        ) : (
+                          new Date(item.discountExpiresAt).toLocaleDateString("fa-IR")
+                        )
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell className="text-left">
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openDiscount(tab, item)}>
+                        {hasDiscount && !expired ? "ویرایش تخفیف" : "افزودن تخفیف"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialog !== null} onOpenChange={(o) => { if (!o) setDialog(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>تنظیم تخفیف — {dialog?.item?.title}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">قیمت اصلی</label>
+                <p className="font-bold">{formatPrice(dialog?.item?.price ?? 0)}</p>
+              </div>
+              <Input type="number" placeholder="قیمت تخفیفی (تومان)" value={discountPrice} onChange={(e) => setDiscountPrice(e.target.value)} />
+            </div>
+            {discountPrice && Number(discountPrice) > 0 && Number(discountPrice) < (dialog?.item?.price ?? 0) && (
+              <p className="text-sm text-emerald-600 font-bold">
+                {Math.round((1 - Number(discountPrice) / (dialog?.item?.price ?? 1)) * 100)}% تخفیف اعمال می‌شود
+              </p>
+            )}
+            <div>
+              <label className="text-xs text-muted-foreground">مدت اعتبار (روز)</label>
+              <Select value={discountDays} onValueChange={setDiscountDays}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="3">۳ روز</SelectItem>
+                  <SelectItem value="7">۱ هفته</SelectItem>
+                  <SelectItem value="14">۲ هفته</SelectItem>
+                  <SelectItem value="30">۱ ماه</SelectItem>
+                  <SelectItem value="60">۲ ماه</SelectItem>
+                  <SelectItem value="90">۳ ماه</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleSave} disabled={busy}>
+                {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                ذخیره تخفیف
+              </Button>
+              {discountPrice && (
+                <Button variant="destructive" onClick={async () => {
+                  setBusy(true);
+                  try {
+                    if (dialog?.type === "course") {
+                      await setCourseDiscount({ courseId: dialog.item._id, discountPrice: undefined, discountExpiresAt: undefined });
+                    } else if (dialog?.type === "product") {
+                      await setProductDiscount({ productId: dialog.item._id, discountPrice: undefined, discountExpiresAt: undefined });
+                    }
+                    setDialog(null);
+                  } finally { setBusy(false); }
+                }}>
+                  حذف تخفیف
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Flash Sales (campaigns) ────────────────────────────────────────────────
+function AdminFlashSales() {
+  const sales = useQuery(api.promotions.listAllFlashSales);
+  const create = useMutation(api.promotions.createFlashSale);
+  const toggle = useMutation(api.promotions.toggleFlashSale);
+  const remove = useMutation(api.promotions.deleteFlashSale);
+  const [dialog, setDialog] = useState(false);
+  const [title, setTitle] = useState("");
+  const [percent, setPercent] = useState("20");
+  const [targetType, setTargetType] = useState<"course" | "workshop" | "product" | "all">("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleCreate = async () => {
+    if (!title.trim() || !startDate || !endDate) return;
+    setBusy(true);
+    try {
+      await create({
+        title,
+        targetType,
+        percent: Number(percent),
+        startsAt: new Date(startDate).getTime(),
+        expiresAt: new Date(endDate).getTime(),
+      });
+      setDialog(false);
+      setTitle("");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="فروش ویژه" subtitle="flash sales / campaigns" count={sales?.length} />
+        <Button className="rounded-lg" onClick={() => setDialog(true)}>
+          <Plus className="ml-1.5 size-4" />
+          کمپین جدید
+        </Button>
+      </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>عنوان</TableHead>
+                <TableHead>تخفیف</TableHead>
+                <TableHead>نوع هدف</TableHead>
+                <TableHead>شروع</TableHead>
+                <TableHead>پایان</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(sales ?? []).map((s: any) => {
+                const now = Date.now();
+                const active = s.active && s.startsAt <= now && s.expiresAt >= now;
+                const expired = s.expiresAt < now;
+                return (
+                  <TableRow key={s._id}>
+                    <TableCell className="font-medium">{s.title}</TableCell>
+                    <TableCell><span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{s.percent}%</span></TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{s.targetType === "all" ? "همه" : s.targetType === "course" ? "دوره" : s.targetType === "workshop" ? "کارگاه" : "محصول"}</TableCell>
+                    <TableCell className="text-xs">{new Date(s.startsAt).toLocaleDateString("fa-IR")}</TableCell>
+                    <TableCell className="text-xs">{new Date(s.expiresAt).toLocaleDateString("fa-IR")}</TableCell>
+                    <TableCell>
+                      {expired ? (
+                        <span className="text-xs text-red-500">منقضی</span>
+                      ) : active ? (
+                        <span className="text-xs text-emerald-500 font-bold">فعال</span>
+                      ) : (
+                        <span className="text-xs text-amber-500">غیرفعال</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-left">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => toggle({ id: s._id, active: !s.active })}>
+                          {s.active ? "غیرفعال" : "فعال"}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => remove({ id: s._id })}>
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {(sales ?? []).length === 0 && (
+                <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">هنوز کمپینی ثبت نشده.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialog} onOpenChange={setDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>کمپین فروش ویژه جدید</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="عنوان کمپین (مثلاً جشنواره پایان ترم)" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input type="number" placeholder="درصد تخفیف" value={percent} onChange={(e) => setPercent(e.target.value)} />
+              <Select value={targetType} onValueChange={(v) => setTargetType(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">همه</SelectItem>
+                  <SelectItem value="course">دوره‌ها</SelectItem>
+                  <SelectItem value="workshop">کارگاه‌ها</SelectItem>
+                  <SelectItem value="product">محصولات</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground">تاریخ شروع</label>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">تاریخ پایان</label>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1" />
+              </div>
+            </div>
+            <Button className="w-full" onClick={handleCreate} disabled={busy}>
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              ساخت کمپین
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Promotional Banners (scrolling ticker) ──────────────────────────────────
+function AdminPromoBanners() {
+  const banners = useQuery(api.promotions.listAllPromoBanners);
+  const create = useMutation(api.promotions.createPromoBanner);
+  const toggle = useMutation(api.promotions.togglePromoBanner);
+  const remove = useMutation(api.promotions.deletePromoBanner);
+  const [dialog, setDialog] = useState(false);
+  const [text, setText] = useState("");
+  const [link, setLink] = useState("");
+  const [sticker, setSticker] = useState("");
+  const [priority, setPriority] = useState("5");
+  const [busy, setBusy] = useState(false);
+
+  const handleCreate = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      await create({ text, link: link || undefined, sticker: sticker || undefined, priority: Number(priority) || 5 });
+      setDialog(false);
+      setText(""); setLink(""); setSticker(""); setPriority("5");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <SectionHeader title="بنر تبلیغاتی" subtitle="promotional banners / scrolling ticker" count={banners?.length} />
+        <Button className="rounded-lg" onClick={() => setDialog(true)}>
+          <Plus className="ml-1.5 size-4" />
+          بنر جدید
+        </Button>
+      </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>متن</TableHead>
+                <TableHead>استیکر</TableHead>
+                <TableHead>اولویت</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(banners ?? []).map((b: any) => (
+                <TableRow key={b._id}>
+                  <TableCell className="max-w-xs truncate font-medium">{b.text}</TableCell>
+                  <TableCell className="text-lg">{b.sticker ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{b.priority}</TableCell>
+                  <TableCell>
+                    <span className={cn("inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-bold",
+                      b.active ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-slate-400/30 bg-slate-400/10 text-slate-500"
+                    )}>
+                      {b.active ? "فعال" : "غیرفعال"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => toggle({ id: b._id, active: !b.active })}>
+                        {b.active ? "غیرفعال" : "فعال"}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => remove({ id: b._id })}>
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {(banners ?? []).length === 0 && (
+                <TableRow><TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">هنوز بنری ثبت نشده.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={dialog} onOpenChange={setDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>بنر تبلیغاتی جدید</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="متن بنر (مثلاً: تخفیف ۳۰٪ دوره‌ها تا پایان هفته)" value={text} onChange={(e) => setText(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <Input placeholder="لینک (اختیاری)" value={link} onChange={(e) => setLink(e.target.value)} />
+              <Input placeholder="استیکر / ایموجی (اختیاری)" value={sticker} onChange={(e) => setSticker(e.target.value)} />
+            </div>
+            <Input type="number" placeholder="اولویت (بزرگتر = اول)" value={priority} onChange={(e) => setPriority(e.target.value)} />
+            <Button className="w-full" onClick={handleCreate} disabled={busy}>
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              ساخت بنر
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

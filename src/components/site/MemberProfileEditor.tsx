@@ -22,6 +22,9 @@ export function MemberProfileEditor() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [about, setAbout] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [avatarStorageId, setAvatarStorageId] = useState<string | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,6 +39,9 @@ export function MemberProfileEditor() {
       setFirstName(me.firstName ?? "");
       setLastName(me.lastName ?? "");
       setAbout(me.about ?? "");
+      setPhone(me.phone ?? "");
+      setAddress(me.address ?? "");
+      setPostalCode(me.postalCode ?? "");
     }
   }, [me]);
 
@@ -64,6 +70,9 @@ export function MemberProfileEditor() {
         lastName,
         avatarStorageId: avatarStorageId ?? undefined,
         about,
+        phone,
+        address,
+        postalCode,
       });
       setMessage(
         res.applied
@@ -158,6 +167,20 @@ export function MemberProfileEditor() {
               onChange={(e) => setAbout(e.target.value)}
               placeholder="تحصیلات، تجربه یا نقشی که در تیم دارید را بنویسید…"
             />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">شماره تلفن</label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="۰۹۱۲۱۲۳۴۵۶۷" dir="ltr" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">کد پستی</label>
+              <Input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="۱۲۳۴۵۶۷۸۹۰" dir="ltr" />
+            </div>
+            <div className="sm:col-span-3">
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">آدرس</label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="آدرس کامل پستی" />
+            </div>
           </div>
           {err && <p className="text-sm text-destructive">{err}</p>}
           {message && (

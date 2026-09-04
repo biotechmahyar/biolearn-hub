@@ -807,14 +807,18 @@ export const adminListProducts = query({
   args: {},
   handler: async (ctx) => {
     if (!(await isContentStaff(ctx))) return [];
+    const typeLabels: Record<string, string> = {
+      flashcards: "فلش‌کارت",
+      guide: "کتابچهٔ راهنما",
+      poster: "پوستر",
+      notes: "جزوه",
+      book: "کتاب",
+      package: "بسته آموزشی",
+      other: "سایر",
+    };
     return (await ctx.db.query("products").order("desc").collect()).map((p) => ({
       ...p,
-      typeLabel:
-        p.type === "flashcards"
-          ? "فلش‌کارت"
-          : p.type === "guide"
-            ? "کتابچهٔ راهنما"
-            : "پوستر",
+      typeLabel: typeLabels[p.type] ?? p.type,
     }));
   },
 });
@@ -826,10 +830,12 @@ export const adminCreateProduct = mutation({
     description: v.string(),
     price: v.number(),
     published: v.boolean(),
+    coverImage: v.optional(v.string()),
+    stock: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
-    if (!["flashcards", "guide", "poster"].includes(args.type)) {
+    if (!["flashcards", "guide", "poster", "notes", "book", "package", "other"].includes(args.type)) {
       throw new Error("نوع محصول نامعتبر است.");
     }
     await ctx.db.insert("products", {
@@ -841,6 +847,8 @@ export const adminCreateProduct = mutation({
       accent: "teal",
       published: args.published,
       featured: false,
+      coverImage: args.coverImage,
+      stock: args.stock ?? 0,
       createdAt: Date.now(),
     });
     return { ok: true };
@@ -855,6 +863,8 @@ export const adminUpdateProduct = mutation({
     description: v.string(),
     price: v.number(),
     published: v.boolean(),
+    coverImage: v.optional(v.string()),
+    stock: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی لازم است.");
@@ -864,6 +874,8 @@ export const adminUpdateProduct = mutation({
       description: args.description.trim(),
       price: args.price,
       published: args.published,
+      coverImage: args.coverImage,
+      stock: args.stock,
     });
     return { ok: true };
   },
@@ -1574,3 +1586,122 @@ export const adminListClassRooms = query({
     return await ctx.db.query("classRooms").order("desc").collect();
   },
 });
+
+// ── Admin: Marketplace Product Approvals ─────────────────────────────────────
+export const adminListPendingStoreProducts = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    const pending = await ctx.db
+      .query("storeProducts")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .order("desc")
+      .collect();
+    const result = [];
+    for (const p of pending) {
+      const seller = await ctx.db.get(p.sellerId);
+      result.push({
+        ...p,
+        sellerName: seller?.name ?? seller?.email ?? "—",
+      });
+    }
+    return result;
+  },
+});
+
+export const adminApproveStoreProduct = mutation({
+  args: {
+    productId: v.id("storeProducts"),
+    status: v.union(v.literal("approved"), v.literal("rejected")),
+    rejectionReason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("فقط مدیر می‌تواند محصول را تأیید کند.");
+    await ctx.db.patch(args.productId, {
+      status: args.status,
+      rejectionReason: args.status === "rejected" ? args.rejectionReason : undefined,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminGetAllStoreProducts = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    const all = await ctx.db.query("storeProducts").order("desc").collect();
+    const result = [];
+    for (const p of all) {
+      const seller = await ctx.db.get(p.sellerId);
+      result.push({
+        ...p,
+        sellerName: seller?.name ?? seller?.email ?? "—",
+      });
+    }
+    return result;
+  },
+});
+
+// ── Admin: Product Discount Management ───────────────────────────────────────
+export const adminSetCourseDiscount = mutation({
+  args: {
+    courseId: v.id("courses"),
+    discountPrice: v.optional(v.number()),
+    discountExpiresAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("فقط مدیر می‌تواند تخفیف تنظیم کند.");
+    await ctx.db.patch(args.courseId, {
+      discountPrice: args.discountPrice,
+      discountExpiresAt: args.discountExpiresAt,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminSetProductDiscount = mutation({
+  args: {
+    productId: v.id("products"),
+    discountPrice: v.optional(v.number()),
+    discountExpiresAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("فقط مدیر می‌تواند تخفیف تنظیم کند.");
+    await ctx.db.patch(args.productId, {
+      discountPrice: args.discountPrice,
+      discountExpiresAt: args.discountExpiresAt,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminListCoursesForDiscount = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return (await ctx.db.query("courses").collect()).map((c) => ({
+      _id: c._id,
+      title: c.title,
+      price: c.price,
+      discountPrice: c.discountPrice,
+      discountExpiresAt: c.discountExpiresAt,
+      published: c.published,
+    }));
+  },
+});
+
+export const adminListProductsForDiscount = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return (await ctx.db.query("products").collect()).map((p) => ({
+      _id: p._id,
+      title: p.title,
+      price: p.price,
+      discountPrice: p.discountPrice,
+      discountExpiresAt: p.discountExpiresAt,
+      published: p.published,
+    }));
+  },
+});
+

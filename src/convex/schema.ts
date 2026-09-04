@@ -59,6 +59,10 @@ export const productTypeValidator = v.union(
   v.literal("flashcards"),
   v.literal("guide"),
   v.literal("poster"),
+  v.literal("notes"),
+  v.literal("book"),
+  v.literal("package"),
+  v.literal("other"),
 );
 export type ProductType = Infer<typeof productTypeValidator>;
 
@@ -94,6 +98,9 @@ const schema = defineSchema(
       lastName: v.optional(v.string()),
       avatarStorageId: v.optional(v.string()),
       about: v.optional(v.string()),
+      phone: v.optional(v.string()),
+      address: v.optional(v.string()),
+      postalCode: v.optional(v.string()),
       suggestedCourseIds: v.optional(v.array(v.id("courses"))),
       pendingProfile: v.optional(
         v.object({
@@ -163,6 +170,7 @@ const schema = defineSchema(
       mode: courseModeValidator,
       price: v.number(), // in Toman
       discountPrice: v.optional(v.number()),
+      discountExpiresAt: v.optional(v.number()),
       rating: v.number(),
       ratingCount: v.number(),
       studentsCount: v.number(),
@@ -261,9 +269,13 @@ const schema = defineSchema(
       type: productTypeValidator,
       description: v.string(),
       price: v.number(),
+      discountPrice: v.optional(v.number()),
+      discountExpiresAt: v.optional(v.number()),
       accent: v.string(),
       published: v.boolean(),
       featured: v.boolean(),
+      coverImage: v.optional(v.string()),
+      stock: v.optional(v.number()),
       createdAt: v.number(),
     }).index("by_slug", ["slug"]),
 
@@ -1310,6 +1322,68 @@ const schema = defineSchema(
       isRead: v.boolean(),
       createdAt: v.number(),
     }).index("by_user", ["userId"]).index("by_user_read", ["userId", "isRead"]),
+
+    // ── Workshop Enrollments ───────────────────────────────────────────────
+    workshopEnrollments: defineTable({
+      userId: v.id("users"),
+      workshopId: v.id("workshops"),
+      enrolledAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_workshop", ["workshopId"]),
+
+    // ── Flash Sales / Discount Campaigns ───────────────────────────────────
+    flashSales: defineTable({
+      title: v.string(),
+      targetType: v.union(
+        v.literal("course"),
+        v.literal("workshop"),
+        v.literal("product"),
+        v.literal("all"),
+      ),
+      targetId: v.optional(v.string()), // specific item id, or null for all of type
+      percent: v.number(), // discount percentage
+      startsAt: v.number(),
+      expiresAt: v.number(),
+      active: v.boolean(),
+      createdBy: v.id("users"),
+      createdAt: v.number(),
+    })
+      .index("by_active", ["active"])
+      .index("by_target", ["targetType", "targetId"]),
+
+    // ── Promotional Banners (scrolling ticker under header) ────────────────
+    promoBanners: defineTable({
+      text: v.string(),
+      link: v.optional(v.string()),
+      sticker: v.optional(v.string()), // emoji or icon name
+      color: v.optional(v.string()),
+      priority: v.number(),
+      active: v.boolean(),
+      startsAt: v.optional(v.number()),
+      expiresAt: v.optional(v.number()),
+      createdBy: v.id("users"),
+      createdAt: v.number(),
+    }).index("by_active", ["active"]),
+
+    // ── Certificates ───────────────────────────────────────────────────────
+    certificates: defineTable({
+      userId: v.id("users"),
+      courseId: v.id("courses"),
+      status: v.union(
+        v.literal("requested"),
+        v.literal("approved"),
+        v.literal("rejected"),
+      ),
+      certificateUrl: v.optional(v.string()), // uploaded by admin
+      requestedAt: v.number(),
+      resolvedAt: v.optional(v.number()),
+      resolvedBy: v.optional(v.id("users")),
+      note: v.optional(v.string()),
+    })
+      .index("by_user", ["userId"])
+      .index("by_course", ["courseId"])
+      .index("by_status", ["status"]),
   },
   {
     schemaValidation: false,

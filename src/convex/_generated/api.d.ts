@@ -31,6 +31,7 @@ import type * as mentor from "../mentor.js";
 import type * as notifications from "../notifications.js";
 import type * as offlinePayments from "../offlinePayments.js";
 import type * as profiles from "../profiles.js";
+import type * as promotions from "../promotions.js";
 import type * as seed from "../seed.js";
 import type * as seedBioDiagnostic from "../seedBioDiagnostic.js";
 import type * as sendOtpEmail from "../sendOtpEmail.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   offlinePayments: typeof offlinePayments;
   profiles: typeof profiles;
+  promotions: typeof promotions;
   seed: typeof seed;
   seedBioDiagnostic: typeof seedBioDiagnostic;
   sendOtpEmail: typeof sendOtpEmail;

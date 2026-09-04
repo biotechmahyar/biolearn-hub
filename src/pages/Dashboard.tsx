@@ -79,11 +79,12 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-type TabKey = "overview" | "courses" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate";
+type TabKey = "overview" | "courses" | "workshops" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
   { key: "courses", label: "دوره‌های من", icon: BookOpen },
+  { key: "workshops", label: "کارگاه‌ها", icon: GraduationCap },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
   { key: "live", label: "کلاس‌های زنده", icon: Radio },
   { key: "inbox", label: "صندوق ورودی", icon: Inbox },
@@ -177,6 +178,7 @@ export default function Dashboard() {
         <main className="min-w-0 flex-1">
           {tab === "overview" && <Overview onNavigate={setTab} />}
           {tab === "courses" && <MyCourses />}
+          {tab === "workshops" && <MyWorkshops />}
           {tab === "tests" && <TestsTab />}
           {tab === "progress" && <ProgressTab />}
           {tab === "flashcards" && <FlashcardsTab />}
@@ -479,6 +481,64 @@ function MyCourses() {
                     {e.percent === 100 ? "مرور دوره" : "ادامه یادگیری"}
                   </Link>
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── My workshops ──────────────────────────────────────────────────────────
+function MyWorkshops() {
+  const workshops = useQuery(api.promotions.listMyWorkshopEnrollments);
+  const now = Date.now();
+
+  if (workshops === undefined) return <Skeleton />;
+  if (workshops.length === 0) {
+    return (
+      <EmptyState
+        icon={GraduationCap}
+        title="هنوز در کارگاهی ثبت‌نام نکرده‌ای"
+        desc="کارگاه‌های تخصصی و کارگاهی ثبت‌نام کن."
+        cta={<Button asChild className="rounded-full"><Link to="/workshops">مشاهده کارگاه‌ها</Link></Button>}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-extrabold">کارگاه‌های من</h1>
+      {workshops.map((w) => {
+        const workshopDate = new Date(w.workshopDate);
+        const isPast = workshopDate.getTime() < now;
+        return (
+          <Card key={w._id} className="border-border/70 shadow-sm">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+                <GraduationCap className="size-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-bold">{w.workshopTitle}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {w.workshopTopic} · {formatDate(w.enrolledAt)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  📅 {new Date(w.workshopDate).toLocaleDateString("fa-IR")} ساعت {w.workshopTime}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {isPast ? (
+                  <span className="text-xs text-muted-foreground">برگزار شده</span>
+                ) : (
+                  <Button size="sm" className="rounded-full">
+                    🎥 ورود به کارگاه
+                  </Button>
+                )}
+                <span className="text-xs font-bold text-emerald-600">
+                  {w.workshopFree ? "رایگان" : formatPrice(w.workshopPrice)}
+                </span>
               </div>
             </CardContent>
           </Card>

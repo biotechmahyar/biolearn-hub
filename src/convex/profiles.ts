@@ -21,6 +21,9 @@ export const getMyProfile = query({
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
       about: user.about ?? null,
+      phone: user.phone ?? null,
+      address: user.address ?? null,
+      postalCode: user.postalCode ?? null,
       avatarUrl,
       suggestedCourseIds: user.suggestedCourseIds ?? [],
       pendingProfile: user.pendingProfile ?? null,
@@ -46,6 +49,9 @@ export const updateMyProfile = mutation({
     lastName: v.optional(v.string()),
     avatarStorageId: v.optional(v.string()),
     about: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    address: v.optional(v.string()),
+    postalCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -55,6 +61,9 @@ export const updateMyProfile = mutation({
       lastName: args.lastName?.trim() || undefined,
       avatarStorageId: args.avatarStorageId || undefined,
       about: args.about?.trim() || undefined,
+      phone: args.phone?.trim() || undefined,
+      address: args.address?.trim() || undefined,
+      postalCode: args.postalCode?.trim() || undefined,
     };
     // Admins publish their own profile changes without approval.
     if (await isAnyAdmin(ctx)) {
@@ -63,6 +72,9 @@ export const updateMyProfile = mutation({
         lastName: next.lastName,
         avatarStorageId: next.avatarStorageId,
         about: next.about,
+        phone: next.phone,
+        address: next.address,
+        postalCode: next.postalCode,
         pendingProfile: undefined,
       };
       if (next.firstName || next.lastName) {

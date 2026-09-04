@@ -295,3 +295,8 @@
     background: oklch(0.5 0.06 250 / 0.5);
   }
 }
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}

@@ -34,6 +34,8 @@ import { panelForRole, ROLE_LABEL } from "@/components/RoleGate";
 import { Dna } from "lucide-react";
 import { BrandLogo } from "./BrandLogo";
 import { useSettings } from "@/lib/settings";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 const NAV = [
   { to: "/courses", label: "دوره‌ها" },
@@ -252,6 +254,9 @@ export function SiteHeader() {
       </div>
     </header>
 
+    {/* Scrolling promotional banner ticker */}
+    <PromoBannerTicker />
+
     {/* Themed panel-switch loading overlay */}
     {switchingTo && (
       <PanelSwitchOverlay
@@ -312,3 +317,31 @@ export const NAV_ICONS: Record<string, typeof BookOpen> = {
   "/ai-chat": Bot,
   "/marketplace": Store,
 };
+
+
+// ── Scrolling promotional banner ticker ─────────────────────────────────────
+function PromoBannerTicker() {
+  const banners = useQuery(api.promotions.listActivePromoBanners);
+
+  if (!banners || banners.length === 0) return null;
+
+  return (
+    <div className="relative w-full overflow-hidden border-b border-border/50 bg-primary/5 py-1.5">
+      <div className="flex animate-[marquee_30s_linear_infinite] whitespace-nowrap">
+        {[...banners, ...banners].map((b, i) => (
+          <span key={`${b._id}-${i}`} className="mx-8 inline-flex items-center gap-2 text-xs font-medium text-primary/80">
+            {b.sticker && <span className="text-sm">{b.sticker}</span>}
+            {b.link ? (
+              <a href={b.link} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors underline-offset-2 hover:underline">
+                {b.text}
+              </a>
+            ) : (
+              b.text
+            )}
+            <span className="mx-4 text-primary/30">•</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
