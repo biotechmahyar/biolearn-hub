@@ -1360,6 +1360,7 @@ const schema = defineSchema(
       color: v.optional(v.string()),
       priority: v.number(),
       active: v.boolean(),
+      repeatCount: v.optional(v.number()), // how many times text repeats in ticker
       startsAt: v.optional(v.number()),
       expiresAt: v.optional(v.number()),
       createdBy: v.id("users"),

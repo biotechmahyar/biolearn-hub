@@ -34,8 +34,7 @@ import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAuth } from "@/hooks/use-auth";
-import { faNum, formatDateTime, formatPrice } from "@/lib/format";
-import { formatJalaliDate } from "@/lib/jalali";
+import { accent, faNum, formatDate, formatDateTime, formatJalaliDate, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
@@ -1774,7 +1773,7 @@ function AdminWorkshops() {
                 <TableRow key={w._id}>
                   <TableCell className="max-w-md truncate font-medium">{w.title}</TableCell>
                   <TableCell className="text-muted-foreground">{w.instructor}</TableCell>
-                  <TableCell className="text-muted-foreground">{w.date ? formatJalaliDate(w.date) : "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{w.date ? formatJalaliDate(new Date(w.date).getTime()) : "—"}</TableCell>
                   <TableCell>{faNum(w.registeredCount)}/{faNum(w.capacity)}</TableCell>
                   <TableCell><StatusChip published={w.published} /></TableCell>
                   <TableCell>
@@ -3183,6 +3182,8 @@ function AdminAnnouncements() {
   const [targetId, setTargetId] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [sendAsBanner, setSendAsBanner] = useState(false);
+  const [bannerSticker, setBannerSticker] = useState("📢");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -3203,6 +3204,8 @@ function AdminAnnouncements() {
         targetId: targetType === "all" ? undefined : targetId,
         title,
         body,
+        sendAsBanner,
+        bannerSticker: bannerSticker || undefined,
       });
       setTitle("");
       setBody("");
@@ -3259,6 +3262,24 @@ function AdminAnnouncements() {
           </div>
           <Input placeholder="عنوان اطلاعیه (مثلاً: کلاس آنلاین جمع‌بندی امشب)" value={title} onChange={(e) => setTitle(e.target.value)} />
           <Textarea placeholder="متن اطلاعیه…" rows={3} value={body} onChange={(e) => setBody(e.target.value)} />
+          <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={sendAsBanner}
+              onChange={(e) => setSendAsBanner(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            <Megaphone className="size-4 text-primary" />
+            <span className="text-sm font-medium">نمایش به‌صورت بنر متحرک در بالای سایت</span>
+            {sendAsBanner && (
+              <input
+                value={bannerSticker}
+                onChange={(e) => setBannerSticker(e.target.value)}
+                placeholder="📢"
+                className="w-14 rounded-md border border-border bg-background px-2 py-1 text-center text-sm"
+              />
+            )}
+          </label>
           {err && <p className="text-sm text-destructive">{err}</p>}
           <Button className="rounded-lg" onClick={handleCreate} disabled={busy}>
             {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
@@ -4221,7 +4242,7 @@ function AdminDiscounts() {
   const setCourseDiscount = useMutation(api.admin.adminSetCourseDiscount);
   const setProductDiscount = useMutation(api.admin.adminSetProductDiscount);
   const [dialog, setDialog] = useState<{ type: "course" | "product"; item: any } | null>(null);
-  const [discountPrice, setDiscountPrice] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("");
   const [discountDays, setDiscountDays] = useState("7");
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"course" | "product">("course");
@@ -4230,7 +4251,11 @@ function AdminDiscounts() {
 
   const openDiscount = (type: "course" | "product", item: any) => {
     setDialog({ type, item });
-    setDiscountPrice(item.discountPrice ? String(item.discountPrice) : "");
+    // Compute existing percent from price + discountPrice
+    const pct = item.discountPrice && item.price > 0
+      ? String(Math.round((1 - item.discountPrice / item.price) * 100))
+      : "";
+    setDiscountPercent(pct);
     setDiscountDays("7");
   };
 
@@ -4238,12 +4263,12 @@ function AdminDiscounts() {
     if (!dialog) return;
     setBusy(true);
     try {
-      const expiresAt = discountPrice ? Date.now() + Number(discountDays) * 86400000 : undefined;
-      const dp = discountPrice ? Number(discountPrice) : undefined;
+      const pct = discountPercent ? Number(discountPercent) : undefined;
+      const expiresAt = pct ? Date.now() + Number(discountDays) * 86400000 : undefined;
       if (dialog.type === "course") {
-        await setCourseDiscount({ courseId: dialog.item._id, discountPrice: dp, discountExpiresAt: expiresAt });
+        await setCourseDiscount({ courseId: dialog.item._id, discountPercent: pct, discountExpiresAt: expiresAt });
       } else {
-        await setProductDiscount({ productId: dialog.item._id, discountPrice: dp, discountExpiresAt: expiresAt });
+        await setProductDiscount({ productId: dialog.item._id, discountPercent: pct, discountExpiresAt: expiresAt });
       }
       setDialog(null);
     } catch (e) {
@@ -4299,7 +4324,7 @@ function AdminDiscounts() {
                         expired ? (
                           <span className="text-red-500">منقضی شده</span>
                         ) : (
-                          new Date(item.discountExpiresAt).toLocaleDateString("fa-IR")
+                          formatJalaliDate(item.discountExpiresAt)
                         )
                       ) : "—"}
                     </TableCell>
@@ -4327,12 +4352,17 @@ function AdminDiscounts() {
                 <label className="text-xs text-muted-foreground">قیمت اصلی</label>
                 <p className="font-bold">{formatPrice(dialog?.item?.price ?? 0)}</p>
               </div>
-              <Input type="number" placeholder="قیمت تخفیفی (تومان)" value={discountPrice} onChange={(e) => setDiscountPrice(e.target.value)} />
+              <Input type="number" min={0} max={100} placeholder="درصد تخفیف (0-100)" value={discountPercent} onChange={(e) => setDiscountPercent(e.target.value)} />
             </div>
-            {discountPrice && Number(discountPrice) > 0 && Number(discountPrice) < (dialog?.item?.price ?? 0) && (
-              <p className="text-sm text-emerald-600 font-bold">
-                {Math.round((1 - Number(discountPrice) / (dialog?.item?.price ?? 1)) * 100)}% تخفیف اعمال می‌شود
-              </p>
+            {discountPercent && Number(discountPercent) > 0 && Number(discountPercent) <= 100 && (
+              <div className="rounded-md bg-emerald-500/10 px-3 py-2">
+                <p className="text-sm text-emerald-600 font-bold">
+                  {Number(discountPercent)}% تخفیف اعمال می‌شود
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  قیمت جدید: {formatPrice(Math.round((dialog?.item?.price ?? 0) * (1 - Number(discountPercent) / 100)))} تومان
+                </p>
+              </div>
             )}
             <div>
               <label className="text-xs text-muted-foreground">مدت اعتبار (روز)</label>
@@ -4353,14 +4383,14 @@ function AdminDiscounts() {
                 {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
                 ذخیره تخفیف
               </Button>
-              {discountPrice && (
+              {discountPercent && (
                 <Button variant="destructive" onClick={async () => {
                   setBusy(true);
                   try {
                     if (dialog?.type === "course") {
-                      await setCourseDiscount({ courseId: dialog.item._id, discountPrice: undefined, discountExpiresAt: undefined });
+                      await setCourseDiscount({ courseId: dialog.item._id, discountPercent: 0, discountExpiresAt: undefined });
                     } else if (dialog?.type === "product") {
-                      await setProductDiscount({ productId: dialog.item._id, discountPrice: undefined, discountExpiresAt: undefined });
+                      await setProductDiscount({ productId: dialog.item._id, discountPercent: 0, discountExpiresAt: undefined });
                     }
                     setDialog(null);
                   } finally { setBusy(false); }
@@ -4374,6 +4404,20 @@ function AdminDiscounts() {
       </Dialog>
     </div>
   );
+}
+
+/** Parse Jalali date string (1404/06/15 or 1404-6-15) to timestamp */
+function parseJalaliToDate(value: string): number | null {
+  const en = value.replace(/[۰-۹]/g, (c) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(c)));
+  const parts = en.split(/[\/-]/).map((p) => parseInt(p.trim(), 10));
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  try {
+    const { toGregorian } = require("jalaali-js");
+    const g = toGregorian(parts[0], parts[1], parts[2]);
+    return new Date(g.gy, g.gm - 1, g.gd).getTime();
+  } catch {
+    return null;
+  }
 }
 
 // ── Flash Sales (campaigns) ────────────────────────────────────────────────
@@ -4394,12 +4438,18 @@ function AdminFlashSales() {
     if (!title.trim() || !startDate || !endDate) return;
     setBusy(true);
     try {
+      const startTs = parseJalaliToDate(startDate);
+      const endTs = parseJalaliToDate(endDate);
+      if (!startTs || !endTs) {
+        toast.error("تاریخ را به صورت 1404/06/15 وارد کنید.");
+        return;
+      }
       await create({
         title,
         targetType,
         percent: Number(percent),
-        startsAt: new Date(startDate).getTime(),
-        expiresAt: new Date(endDate).getTime(),
+        startsAt: startTs,
+        expiresAt: endTs,
       });
       setDialog(false);
       setTitle("");
@@ -4444,8 +4494,8 @@ function AdminFlashSales() {
                     <TableCell className="font-medium">{s.title}</TableCell>
                     <TableCell><span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary">{s.percent}%</span></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{s.targetType === "all" ? "همه" : s.targetType === "course" ? "دوره" : s.targetType === "workshop" ? "کارگاه" : "محصول"}</TableCell>
-                    <TableCell className="text-xs">{new Date(s.startsAt).toLocaleDateString("fa-IR")}</TableCell>
-                    <TableCell className="text-xs">{new Date(s.expiresAt).toLocaleDateString("fa-IR")}</TableCell>
+                    <TableCell className="text-xs">{formatJalaliDate(s.startsAt)}</TableCell>
+                    <TableCell className="text-xs">{formatJalaliDate(s.expiresAt)}</TableCell>
                     <TableCell>
                       {expired ? (
                         <span className="text-xs text-red-500">منقضی</span>
@@ -4497,12 +4547,12 @@ function AdminFlashSales() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-muted-foreground">تاریخ شروع</label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1" />
+                <label className="text-xs text-muted-foreground">تاریخ شروع (شمسی)</label>
+                <Input dir="ltr" placeholder="1404/06/15" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1" />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground">تاریخ پایان</label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1" />
+                <label className="text-xs text-muted-foreground">تاریخ پایان (شمسی)</label>
+                <Input dir="ltr" placeholder="1404/07/15" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1" />
               </div>
             </div>
             <Button className="w-full" onClick={handleCreate} disabled={busy}>
@@ -4527,15 +4577,16 @@ function AdminPromoBanners() {
   const [link, setLink] = useState("");
   const [sticker, setSticker] = useState("");
   const [priority, setPriority] = useState("5");
+  const [repeatCount, setRepeatCount] = useState("1");
   const [busy, setBusy] = useState(false);
 
   const handleCreate = async () => {
     if (!text.trim()) return;
     setBusy(true);
     try {
-      await create({ text, link: link || undefined, sticker: sticker || undefined, priority: Number(priority) || 5 });
+      await create({ text, link: link || undefined, sticker: sticker || undefined, priority: Number(priority) || 5, repeatCount: Number(repeatCount) || 1 });
       setDialog(false);
-      setText(""); setLink(""); setSticker(""); setPriority("5");
+      setText(""); setLink(""); setSticker(""); setPriority("5"); setRepeatCount("1");
     } catch (e) {
       console.error(e);
     } finally {
@@ -4610,6 +4661,7 @@ function AdminPromoBanners() {
               <Input placeholder="استیکر / ایموجی (اختیاری)" value={sticker} onChange={(e) => setSticker(e.target.value)} />
             </div>
             <Input type="number" placeholder="اولویت (بزرگتر = اول)" value={priority} onChange={(e) => setPriority(e.target.value)} />
+            <Input type="number" placeholder="تعداد تکرار (1 تا 10)" value={repeatCount} onChange={(e) => setRepeatCount(e.target.value)} />
             <Button className="w-full" onClick={handleCreate} disabled={busy}>
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               ساخت بنر

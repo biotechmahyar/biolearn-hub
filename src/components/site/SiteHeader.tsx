@@ -319,16 +319,28 @@ export const NAV_ICONS: Record<string, typeof BookOpen> = {
 };
 
 
-// ── Scrolling promotional banner ticker ─────────────────────────────────────
+// ── Scrolling promotional banner ticker ─────────────────────────
 function PromoBannerTicker() {
   const banners = useQuery(api.promotions.listActivePromoBanners);
 
   if (!banners || banners.length === 0) return null;
 
+  // Build the repeating sequence: each banner repeats according to its repeatCount (default 1)
+  const sequence: typeof banners = [];
+  for (const b of banners) {
+    const repeats = Math.max(1, Math.min(b.repeatCount ?? 1, 10));
+    for (let i = 0; i < repeats; i++) {
+      sequence.push(b);
+    }
+  }
+
+  // Duplicate the whole sequence for seamless marquee loop
+  const loop = [...sequence, ...sequence];
+
   return (
     <div className="relative w-full overflow-hidden border-b border-border/50 bg-primary/5 py-1.5">
       <div className="flex animate-[marquee_30s_linear_infinite] whitespace-nowrap">
-        {[...banners, ...banners].map((b, i) => (
+        {loop.map((b, i) => (
           <span key={`${b._id}-${i}`} className="mx-8 inline-flex items-center gap-2 text-xs font-medium text-primary/80">
             {b.sticker && <span className="text-sm">{b.sticker}</span>}
             {b.link ? (
@@ -338,6 +350,7 @@ function PromoBannerTicker() {
             ) : (
               b.text
             )}
+            {b.sticker && <span className="text-sm">{b.sticker}</span>}
             <span className="mx-4 text-primary/30">•</span>
           </span>
         ))}

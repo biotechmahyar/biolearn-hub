@@ -21,6 +21,8 @@ export const createAnnouncement = mutation({
     targetId: v.optional(v.string()),
     title: v.string(),
     body: v.string(),
+    sendAsBanner: v.optional(v.boolean()),
+    bannerSticker: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -68,6 +70,19 @@ export const createAnnouncement = mutation({
       body: args.body.trim(),
       createdAt: Date.now(),
     });
+
+    // Optionally also show as scrolling banner ticker site-wide
+    if (args.sendAsBanner) {
+      await ctx.db.insert("promoBanners", {
+        text: args.title.trim(),
+        sticker: args.bannerSticker || "📢",
+        priority: 10,
+        repeatCount: 2,
+        active: true,
+        createdBy: user._id,
+        createdAt: Date.now(),
+      });
+    }
 
     // ── Send Telegram notification to relevant users ──
     try {

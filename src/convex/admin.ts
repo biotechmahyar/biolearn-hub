@@ -1646,32 +1646,46 @@ export const adminGetAllStoreProducts = query({
 export const adminSetCourseDiscount = mutation({
   args: {
     courseId: v.id("courses"),
-    discountPrice: v.optional(v.number()),
+    discountPercent: v.optional(v.number()),
     discountExpiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("فقط مدیر می‌تواند تخفیف تنظیم کند.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    let discountPrice: number | undefined = undefined;
+    if (args.discountPercent !== undefined && args.discountPercent > 0) {
+      const pct = Math.min(Math.max(args.discountPercent, 1), 100);
+      discountPrice = Math.round(course.price * (1 - pct / 100));
+    }
     await ctx.db.patch(args.courseId, {
-      discountPrice: args.discountPrice,
-      discountExpiresAt: args.discountExpiresAt,
+      discountPrice,
+      discountExpiresAt: discountPrice ? args.discountExpiresAt : undefined,
     });
-    return { ok: true };
+    return { ok: true, discountPrice };
   },
 });
 
 export const adminSetProductDiscount = mutation({
   args: {
     productId: v.id("products"),
-    discountPrice: v.optional(v.number()),
+    discountPercent: v.optional(v.number()),
     discountExpiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("فقط مدیر می‌تواند تخفیف تنظیم کند.");
+    const product = await ctx.db.get(args.productId);
+    if (!product) throw new Error("محصول یافت نشد.");
+    let discountPrice: number | undefined = undefined;
+    if (args.discountPercent !== undefined && args.discountPercent > 0) {
+      const pct = Math.min(Math.max(args.discountPercent, 1), 100);
+      discountPrice = Math.round(product.price * (1 - pct / 100));
+    }
     await ctx.db.patch(args.productId, {
-      discountPrice: args.discountPrice,
-      discountExpiresAt: args.discountExpiresAt,
+      discountPrice,
+      discountExpiresAt: discountPrice ? args.discountExpiresAt : undefined,
     });
-    return { ok: true };
+    return { ok: true, discountPrice };
   },
 });
 

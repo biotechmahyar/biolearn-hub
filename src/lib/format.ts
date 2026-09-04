@@ -54,6 +54,16 @@ export function formatDateTime(ts: number): string {
   });
 }
 
+/** Format timestamp as short Jalali date (e.g. ۱۴۰۴/۰۶/۱۴) */
+export function formatJalaliDate(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleDateString("fa-IR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 export function todayKey(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
