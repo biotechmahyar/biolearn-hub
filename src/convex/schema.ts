@@ -1405,6 +1405,85 @@ const schema = defineSchema(
       .index("by_user", ["userId"])
       .index("by_course", ["courseId"])
       .index("by_status", ["status"]),
+
+    // ── Site Studio (visual site builder) ──────────────────────────────────
+    // Editable site pages. `key` is a stable identifier matching a real route
+    // (e.g. "home", "about", "rules"). Content lives in studioElements.
+    // Note: distinct from the legacy `sitePages` custom-HTML table above.
+    studioPages: defineTable({
+      key: v.string(), // stable id: home | about | rules | ...
+      title: v.string(),
+      route: v.string(), // public route path (e.g. "/", "/about")
+      description: v.optional(v.string()),
+      published: v.boolean(), // false = hidden from site until published
+      updatedBy: v.optional(v.id("users")),
+      updatedAt: v.optional(v.number()),
+    }).index("by_key", ["key"]),
+
+    // One editable element/section on a page. Draft + published fields live
+    // side by side so drafts never affect the public site until publish.
+    studioElements: defineTable({
+      pageId: v.id("studioPages"),
+      type: v.string(), // block type: hero | heading | text | image | button | card | gallery | video | ...
+      label: v.optional(v.string()), // admin-facing label, e.g. "Hero"
+      order: v.number(),
+      visible: v.boolean(),
+      // draft working copy (what the studio edits)
+      props: v.optional(v.any()),
+      style: v.optional(v.any()),
+      // published snapshot (what the public site reads)
+      publishedProps: v.optional(v.any()),
+      publishedStyle: v.optional(v.any()),
+      publishedVisible: v.optional(v.boolean()),
+      publishedOrder: v.optional(v.number()),
+      hasDraftChanges: v.optional(v.boolean()),
+      updatedBy: v.optional(v.id("users")),
+      updatedAt: v.optional(v.number()),
+    })
+      .index("by_page", ["pageId"])
+      .index("by_page_order", ["pageId", "order"]),
+
+    // Per-page global appearance: text/background colors, font, spacing,
+    // radius, shadows — draft + published snapshots.
+    studioThemes: defineTable({
+      pageId: v.id("studioPages"),
+      draft: v.optional(v.any()),
+      published: v.optional(v.any()),
+      hasDraftChanges: v.optional(v.boolean()),
+      updatedBy: v.optional(v.id("users")),
+      updatedAt: v.optional(v.number()),
+    }).index("by_page", ["pageId"]),
+
+    // Immutable published snapshots for version history / restore.
+    studioVersions: defineTable({
+      pageId: v.id("studioPages"),
+      version: v.number(),
+      label: v.optional(v.string()),
+      snapshot: v.any(), // { elements: [...], theme: {...} }
+      createdBy: v.optional(v.id("users")),
+      createdAt: v.number(),
+    }).index("by_page", ["pageId"]),
+
+    // Permission-based staff access (not just role checks).
+    studioStaffPerms: defineTable({
+      userId: v.id("users"),
+      perms: v.array(v.string()), // siteStudio permission keys
+      updatedBy: v.optional(v.id("users")),
+      updatedAt: v.optional(v.number()),
+    }).index("by_user", ["userId"]),
+
+    // Media library for the studio (images & videos uploaded by staff).
+    // URL is resolved server-side from storageId on every read.
+    studioMedia: defineTable({
+      storageId: v.id("_storage"),
+      url: v.optional(v.string()),
+      name: v.string(),
+      kind: v.union(v.literal("image"), v.literal("video")),
+      width: v.optional(v.number()),
+      height: v.optional(v.number()),
+      size: v.optional(v.number()),
+      createdAt: v.number(),
+    }).index("by_kind", ["kind"]),
   },
   {
     schemaValidation: false,
