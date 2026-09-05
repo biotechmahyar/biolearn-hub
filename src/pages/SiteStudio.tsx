@@ -74,6 +74,7 @@ import {
   type StudioElement,
 } from "@/components/studio/blocks";
 import { RequireAuth } from "@/components/RequireAuth";
+import { PAGE_REGISTRY, SECTION_DEFAULTS, type SectionDef } from "@/components/studio/pageRegistry";
 
 // ── Shared types ──────────────────────────────────────────────────────────
 type PageDoc = {
@@ -653,6 +654,8 @@ export default function SiteStudio() {
   const [pageKey, setPageKey] = useState<string | null>(null);
   const activePage = pages?.find((p) => p.key === pageKey) ?? pages?.[0] ?? null;
   const pageId = activePage?._id ?? null;
+  const realPageDef = activePage ? PAGE_REGISTRY.find((p) => p.key === activePage.key) : null;
+  const hasEditableSections = (realPageDef?.sections ?? []).length > 0;
   const detail = useQuery(
     api.siteStudio.getPage,
     perms && pageKey ? { key: pageKey } : "skip",
@@ -666,6 +669,14 @@ export default function SiteStudio() {
   const publish = useMutation(api.siteStudio.publishPage);
   const discard = useMutation(api.siteStudio.discardDraft);
   const bootstrap = useMutation(api.siteStudio.bootstrapPages);
+  const saveSection = useMutation(api.siteStudio.savePageSection);
+  const publishConfig = useMutation(api.siteStudio.publishPageConfig);
+  const discardConfigDraft = useMutation(api.siteStudio.discardPageConfigDraft);
+  const toggleSectionVis = useMutation(api.siteStudio.toggleSectionVisibility);
+  const configDraft = useQuery(
+    api.siteStudio.getPageConfigDraft,
+    pageKey ? { pageKey } : "skip",
+  );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [device, setDevice] = useState<"desktop" | "tablet" | "mobile">("desktop");
@@ -673,14 +684,29 @@ export default function SiteStudio() {
   const [showVersions, setShowVersions] = useState(false);
   const [showMedia, setShowMedia] = useState(false);
   const [showPerms, setShowPerms] = useState(false);
-  const [rightTab, setRightTab] = useState<"inspector" | "theme">("inspector");
+  const [rightTab, setRightTab] = useState<"inspector" | "theme" | "content">("inspector");
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [autosaveOn, setAutosaveOn] = useState(true);
   const pendingRef = useRef<Map<string, { props?: Record<string, unknown>; style?: ElementStyle }>>(new Map());
   const [savingNow, setSavingNow] = useState(false);
 
+  const editingSection = editingSectionId
+    ? (realPageDef?.sections.find((s) => s.id === editingSectionId) ?? null)
+    : null;
+
   useEffect(() => {
     if (!pageKey && pages?.length) setPageKey(pages[0].key);
   }, [pages, pageKey]);
+
+  // Auto-switch to content tab when a real page with editable sections is selected
+  useEffect(() => {
+    if (realPageDef && hasEditableSections && rightTab === "inspector") {
+      setRightTab("content");
+      if (!editingSectionId && realPageDef.sections.length > 0) {
+        setEditingSectionId(realPageDef.sections[0].id);
+      }
+    }
+  }, [realPageDef, hasEditableSections]);
 
   useEffect(() => {
     if (perms && !pages && perms.isFull) {
@@ -778,6 +804,9 @@ export default function SiteStudio() {
     setBusy("discard");
     try {
       await discard({ pageId });
+      if (configDraft?.hasDraftChanges && pageKey) {
+        await discardConfigDraft({ pageKey });
+      }
       toast.success("پیش‌نویس به آخرین نسخهٔ منتشرشده برگشت");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "بازگردانی ناموفق بود");
@@ -877,12 +906,26 @@ export default function SiteStudio() {
               بازگردانی
             </Button>
           )}
-          {has(perms, PERM_KEY.publish) && (
+          {has(perms, PERM_KEY.publish) && (hasDraft || configDraft?.hasDraftChanges) && (
             <Button
               size="sm"
               className="h-8 rounded-lg text-xs"
-              disabled={!pageId || busy !== null || !hasDraft}
-              onClick={doPublish}
+              disabled={!pageId || busy !== null}
+              onClick={async () => {
+                // Publish both block elements and page config
+                if (hasDraft) await doPublish();
+                if (configDraft?.hasDraftChanges && pageKey) {
+                  setBusy("publish");
+                  try {
+                    await publishConfig({ pageKey });
+                    toast.success("محتوای صفحه منتشر شد");
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : "انتشار ناموفق بود");
+                  } finally {
+                    setBusy(null);
+                  }
+                }
+              }}
             >
               {busy === "publish" ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -938,15 +981,15 @@ export default function SiteStudio() {
                           : "text-muted-foreground hover:bg-accent hover:text-foreground",
                       )}
                     >
-                      <span className="flex items-center gap-2 truncate">
+                      <span className="flex items-center gap-1.5 truncate">
                         <FileText className="size-3.5 shrink-0" />
-                        {p.title}
+                        <span className="truncate">{p.title}</span>
+                        {p.published ? (
+                          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0 text-[9px] text-emerald-400">عمومی</Badge>
+                        ) : (
+                          <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] text-amber-400">پیش‌نویس</Badge>
+                        )}
                       </span>
-                      {p.published ? (
-                        <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0 text-[9px] text-emerald-400">عمومی</Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[9px] text-amber-400">پیش‌نویس</Badge>
-                      )}
                     </button>
                   ))}
                 </div>
@@ -1162,8 +1205,9 @@ export default function SiteStudio() {
         <aside className="hidden w-72 shrink-0 flex-col border-r border-border/70 bg-card/40 md:flex">
           <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as "inspector" | "theme")} className="flex min-h-0 flex-1 flex-col">
             <div className="border-b border-border/70 p-2">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className={cn("grid w-full", hasEditableSections ? "grid-cols-3" : "grid-cols-2")}>
                 <TabsTrigger value="inspector" className="text-xs">تنظیمات بلوک</TabsTrigger>
+                {hasEditableSections && <TabsTrigger value="content" className="text-xs">محتوای صفحه</TabsTrigger>}
                 <TabsTrigger value="theme" className="text-xs">تم صفحه</TabsTrigger>
               </TabsList>
             </div>
@@ -1234,6 +1278,116 @@ export default function SiteStudio() {
                           );
                         })}
                       </div>
+                    </>
+                  )}
+                </div>
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="content" className="mt-0 min-h-0 flex-1">
+              <ScrollArea className="h-full">
+                <div className="space-y-3 p-3">
+                  {!hasEditableSections && (
+                    <div className="space-y-3 py-8 text-center">
+                      <FileText className="mx-auto size-8 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">این صفحه بخش‌های قابل ویرایش ندارد</p>
+                    </div>
+                  )}
+                  {hasEditableSections && (
+                    <>
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                        <p className="text-[11px] leading-5 text-muted-foreground">
+                          بخش‌های قابل ویرایش این صفحه را انتخاب کنید. تغییرات ذخیره خودکار و با انتشار اعمال می‌شوند.
+                        </p>
+                      </div>
+
+                      {/* Section list */}
+                      <div className="space-y-1">
+                        {(realPageDef?.sections ?? []).map((sec) => {
+                          const draftSec = (configDraft?.draft?.sections as Record<string, Record<string, unknown>> | undefined)?.[sec.id];
+                          const hasChanges = draftSec !== undefined && sec.id in (configDraft?.draft?.sections ?? {});
+                          return (
+                            <button
+                              key={sec.id}
+                              type="button"
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[13px] transition-colors",
+                                editingSectionId === sec.id
+                                  ? "bg-primary/15 font-medium text-primary"
+                                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                              )}
+                              onClick={() => {
+                                setEditingSectionId(sec.id);
+                              }}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                <Layers className="size-3.5 shrink-0" />
+                                {sec.label}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                {hasChanges && <span className="size-1.5 rounded-full bg-amber-400" />}
+                                {editingSectionId === sec.id && (
+                                  <Badge variant="outline" className="border-primary/30 px-1 py-0 text-[9px] text-primary">
+                                    فعال
+                                  </Badge>
+                                )}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Section editor */}
+                      {editingSection && (
+                        <div className="mt-3 space-y-3 border-t border-border/70 pt-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-bold">{editingSection.label}</p>
+    <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                if (!pageKey || !editingSectionId) return;
+                                const secDraft = (configDraft?.draft?.sections as Record<string, Record<string, unknown>> | undefined)?.[editingSectionId];
+                                void toggleSectionVis({
+                                  pageKey,
+                                  sectionId: editingSectionId,
+                                  visible: !(secDraft?._visible ?? true),
+                                }).catch((e: Error) => toast.error(e instanceof Error ? e.message : "خطا"));
+                              }}
+                            >
+                              <Eye className="ml-1 size-3.5" />
+                              {(() => { const secDraft = (configDraft?.draft?.sections as Record<string, Record<string, unknown>> | undefined)?.[editingSectionId!]; return (secDraft?._visible ?? true); })() ? "پنهان کردن" : "نمایش"}
+                            </Button>
+                          </div>
+
+                          {editingSection.fields.map((field) => {
+                            const secDraft2 = editingSectionId ? (configDraft?.draft?.sections as Record<string, Record<string, unknown>> | undefined)?.[editingSectionId] : undefined;
+                            const draftVal = (secDraft2 as Record<string, unknown> | undefined)?.[field.key]
+                              ?? (editingSectionId ? (SECTION_DEFAULTS[editingSectionId] as Record<string, unknown> | undefined)?.[field.key] : undefined)
+                              ?? "";
+                            return (
+                              <div key={field.key} className="space-y-1.5">
+                                <Label className="text-xs">{field.label}</Label>
+                                <FieldControl
+                                  field={field}
+                                  value={draftVal}
+                                  onChange={(v) => {
+                                    if (!pageKey || !editingSectionId) return;
+                                    void saveSection({
+                                      pageKey,
+                                      sectionId: editingSectionId,
+                                      props: {
+                                        ...((configDraft?.draft?.sections as Record<string, Record<string, unknown>> | undefined)?.[editingSectionId] as Record<string, unknown> ?? {}),
+                                        [field.key]: v,
+                                      },
+                                    }).catch((e) => toast.error(e instanceof Error ? e.message : "خطای ذخیره"));
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -1420,7 +1420,21 @@ const schema = defineSchema(
       .index("by_course", ["courseId"])
       .index("by_status", ["status"]),
 
-    // ── Site Studio (visual site builder) ──────────────────────────────────
+    // ── Page Configs (real-page editable content) ────────────────────────
+    // Stores per-section editable values for real React site pages.
+    // Sections are keyed by their sectionId (e.g. "hero", "categories").
+    // Only the "published" snapshot is read by the public site.
+    // Draft edits live in "draft" and are promoted on publish.
+    pageConfigs: defineTable({
+      pageKey: v.string(),          // matches real route key: "home", "courses", "about" …
+      draft: v.any(),               // { sections: { [sectionId]: { ...props } } }
+      published: v.any(),           // same shape, read by public site
+      hasDraftChanges: v.boolean(),
+      updatedBy: v.optional(v.id("users")),
+      updatedAt: v.number(),
+    }).index("by_key", ["pageKey"]),
+
+    //     // ── Site Studio (visual site builder) ──────────────────────────────────
     // Editable site pages. `key` is a stable identifier matching a real route
     // (e.g. "home", "about", "rules"). Content lives in studioElements.
     // Note: distinct from the legacy `sitePages` custom-HTML table above.

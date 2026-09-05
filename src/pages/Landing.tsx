@@ -44,6 +44,7 @@ import { Link } from "react-router";
 import { SeedBootstrap } from "@/components/site/SeedBootstrap";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery } from "@/hooks/useApiQuery";
+import { usePageConfig } from "@/hooks/usePageConfig";
 
 export default function Landing() {
   const { isIran } = useMode();
@@ -76,6 +77,21 @@ export default function Landing() {
 
   const heroCourses = popularCourses ?? featuredCourses ?? [];
 
+  // ── Page config (editable from Site Studio) ──────────────────────────
+  const { getSection, isSectionVisible } = usePageConfig("home");
+  const hero = getSection("hero");
+  const ecosystem = getSection("ecosystem");
+  const catSec = getSection("categories");
+  const popSec = getSection("popularCourses");
+  const diag = getSection("diagnosticTest");
+  const quiz = getSection("dailyQuiz");
+  const insSec = getSection("instructors");
+  const prodSec = getSection("products");
+  const freeSec = getSection("freeContent");
+  const advSec = getSection("advantages");
+  const testSec = getSection("testimonials");
+  const cta = getSection("cta");
+
   return (
     <PublicLayout>
       <SeedBootstrap />
@@ -93,7 +109,7 @@ export default function Landing() {
             >
               <Badge variant="outline" className="mb-5 rounded-full px-3 py-1.5 font-mono text-[12px] font-medium">
                 <span className="ml-1.5 inline-flex size-2 rounded-full bg-emerald-500" />
-                Genova · internal v0.1 · life-sciences stack
+                {hero.badge as string}
               </Badge>
             </motion.div>
             <motion.h1
@@ -102,9 +118,9 @@ export default function Landing() {
               transition={{ duration: 0.5, delay: 0.05 }}
               className="text-4xl font-black leading-[1.2] tracking-tight sm:text-5xl lg:text-[3.4rem] text-balance"
             >
-              یادگیری عمیق علوم زیستی،
+              {hero.title as string}
               <span className="mt-1 block bg-gradient-to-l from-primary to-emerald-600 bg-clip-text text-transparent">
-                از ترم اول تا امتحان و فراتر از آن
+                {hero.titleGradient as string}
               </span>
             </motion.h1>
             <motion.p
@@ -113,9 +129,7 @@ export default function Landing() {
               transition={{ duration: 0.5, delay: 0.12 }}
               className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg"
             >
-              Genova اکوسیستم آموزشی تیم ما برای دانشجویان میکروبیولوژی،
-              بیوتکنولوژی و علوم زیستی است: دوره، جزوه، فلش‌کارت، آزمون تعیین
-              سطح، کوئیز روزانه و همراهی واقعی — نه فقط فروش کلاس.
+              {hero.subtitle as string}
             </motion.p>
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -125,20 +139,20 @@ export default function Landing() {
             >
               <Button asChild size="lg" className="h-12 rounded-full px-7 text-[15px]">
                 <Link to="/courses">
-                  مشاهده دوره‌ها
+                  {hero.buttonText as string}
                   <ArrowLeft className="mr-2 size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 rounded-full px-7 text-[15px]">
                 <Link to="/tests">
                   <Microscope className="ml-2 size-4" />
-                  آزمون تعیین سطح رایگان
+                  {hero.secondaryButtonText as string}
                 </Link>
               </Button>
               <Button asChild size="lg" variant="ghost" className="h-12 rounded-full px-5 text-[15px]">
                 <Link to="/daily-quiz">
                   <Zap className="ml-2 size-4 text-amber-500" />
-                  کوئیز روزانه
+                  {hero.tertiaryButtonText as string}
                 </Link>
               </Button>
             </motion.div>
@@ -150,10 +164,10 @@ export default function Landing() {
               className="mt-10 grid max-w-md grid-cols-3 gap-4"
             >
               {[
-                ["+۴ هزار", "دانشجوی همراه"],
-                ["+۸ دوره", "تخصصی علوم زیستی"],
-                ["+۴۰ تست", "بانک سؤال استاندارد"],
-              ].map(([num, label]) => (
+                [hero.stat1Number as string, hero.stat1Label as string],
+                [hero.stat2Number as string, hero.stat2Label as string],
+                [hero.stat3Number as string, hero.stat3Label as string],
+              ].filter(([n]) => !!n).map(([num, label]) => (
                 <div key={label} className="rounded-2xl border border-border/70 bg-card/70 px-4 py-3 backdrop-blur">
                   <p className="text-lg font-extrabold text-primary">{num}</p>
                   <p className="text-xs text-muted-foreground">{label}</p>
@@ -233,12 +247,13 @@ export default function Landing() {
       </section>
 
       {/* ── Learning ecosystem flow ─────────────────────────────────────── */}
+      {isSectionVisible("ecosystem") && (
       <section className="border-y border-border/60 bg-card/50 py-14">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <SectionHeading
-            kicker="اکوسیستم یادگیری"
-            title="مسیری که دانشجو را همراهی می‌کند"
-            description="از محتوای رایگان و آزمون تعیین سطح شروع می‌کنی؛ نقاط ضعف مشخص می‌شود، مسیر پیشنهاد می‌شود و هر قدم پیشرفت تو قابل اندازه‌گیری است."
+            kicker={ecosystem.kicker as string}
+            title={ecosystem.title as string}
+            description={ecosystem.description as string}
           />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
             {[
@@ -273,12 +288,13 @@ export default function Landing() {
           </div>
         </div>
       </section>
+      )}
 
       {/* ── Categories ──────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <SectionHeading
-          kicker="دسته‌بندی آموزشی"
-          title="هر حوزه‌ای از علوم زیستی، یک مسیر دارد"
+          kicker={catSec.kicker as string}
+          title={catSec.title as string}
           actionLabel="همه دوره‌ها"
           actionTo="/courses"
         />
@@ -313,8 +329,8 @@ export default function Landing() {
       <section className="border-y border-border/60 bg-card/40 py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <SectionHeading
-            kicker="دوره‌های محبوب"
-            title="دوره‌هایی که دانشجوها به آن‌ها اعتماد کرده‌اند"
+            kicker={popSec.kicker as string}
+            title={popSec.title as string}
             actionLabel="همه دوره‌ها"
             actionTo="/courses"
           />
@@ -334,21 +350,19 @@ export default function Landing() {
           <div className="relative grid gap-8 lg:grid-cols-2 lg:items-center">
             <div>
               <Badge className="mb-4 border-0 bg-white/15 text-white backdrop-blur">
-                رایگان · بدون نیاز به ثبت‌نام دوره
+                {diag.badge as string}
               </Badge>
               <h2 className="text-2xl font-extrabold leading-9 sm:text-3xl text-balance">
-                نمی‌دانی از کجا شروع کنی؟ از آزمون تعیین سطح شروع کن.
+                {diag.title as string}
               </h2>
               <p className="mt-3 max-w-lg text-sm leading-6 text-white/80 sm:text-[15px]">
-                ده سؤال از مباحث اصلی علوم زیستی. نتیجه به‌صورت درصد و تحلیل
-                موضوعی (میکروب‌شناسی، ژنتیک، بیوشیمی و...) نشانت داده می‌شود تا
-                دقیقاً بدانی روی چه مباحثی تمرکز کنی.
+                {diag.description as string}
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="lg" className="h-11 rounded-full bg-white px-6 text-primary hover:bg-white/90">
                   <Link to="/tests">
                     <Microscope className="ml-2 size-4" />
-                    شروع آزمون رایگان
+                    {diag.buttonText as string}
                   </Link>
                 </Button>
                 <Button
@@ -401,9 +415,9 @@ export default function Landing() {
         <section className="border-y border-border/60 bg-card/40 py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6">
             <SectionHeading
-              kicker="کوئیز روزانه"
-              title="هر روز، یک تست با توضیح کامل"
-              description="یک عادت مطالعاتی کوچک که تفاوت بزرگی می‌سازد. هر روز یک سؤال جدید، پاسخ تشریحی و امتیاز."
+              kicker={quiz.kicker as string}
+              title={quiz.title as string}
+              description={quiz.description as string}
               actionLabel="حل کوئیز امروز"
               actionTo="/daily-quiz"
             />
@@ -449,9 +463,9 @@ export default function Landing() {
       {/* ── Instructors ─────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <SectionHeading
-          kicker="مدرس‌ها و تیم"
-          title="تیمی از جنس خود دانشجوها"
-          description="چهار دانشجوی میکروبیولوژی و یک دانشجوی بیوتکنولوژی + مدرسان مهمان متخصص — همه با تجربهٔ مستقیم از مسیری که شما طی می‌کنید."
+          kicker={insSec.kicker as string}
+          title={insSec.title as string}
+          description={insSec.description as string}
           actionLabel="همه مدرس‌ها"
           actionTo="/instructors"
         />
@@ -476,9 +490,9 @@ export default function Landing() {
       <section className="border-y border-border/60 bg-card/40 py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <SectionHeading
-            kicker="محصولات آموزشی فیزیکی"
-            title="یادگیری که از صفحهٔ نمایش بیرون می‌آید"
-            description="فلش‌کارت‌ها، کتابچه‌های جمع‌بندی و پوسترهای آموزشی برای مرور فعال و شب امتحان."
+            kicker={prodSec.kicker as string}
+            title={prodSec.title as string}
+            description={prodSec.description as string}
             actionLabel="همه محصولات"
             actionTo="/products"
           />
@@ -493,9 +507,9 @@ export default function Landing() {
       {/* ── Free content ────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
         <SectionHeading
-          kicker="محتوای رایگان"
-          title="آموزشی که قبل از خرید می‌توانی امتحانش کنی"
-          description="یادداشت‌های علمی، روش‌های مطالعه، نکات امتحانی، گفت‌وگوها و گزارش نشست‌ها — رایگان برای همه."
+          kicker={freeSec.kicker as string}
+          title={freeSec.title as string}
+          description={freeSec.description as string}
           actionLabel="همه مطالب"
           actionTo="/free-content"
         />
@@ -509,8 +523,8 @@ export default function Landing() {
       {/* ── Advantages ──────────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
         <SectionHeading
-          kicker="چرا Genova؟"
-          title="نه فقط ویدیو؛ یک سیستم یادگیری کامل"
+          kicker={advSec.kicker as string}
+          title={advSec.title as string}
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
@@ -563,8 +577,8 @@ export default function Landing() {
       <section className="border-y border-border/60 bg-card/40 py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <SectionHeading
-            kicker="نظر دانشجوها"
-            title="تجربه‌هایی که واقعاً اتفاق افتاده"
+            kicker={testSec.kicker as string}
+            title={testSec.title as string}
           />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {(testimonials ?? []).map((t) => (
@@ -598,24 +612,22 @@ export default function Landing() {
             <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Dna className="size-7" />
             </span>              <h2 className="mx-auto mt-5 max-w-2xl text-2xl font-extrabold leading-9 sm:text-3xl text-balance">
-                عضویت رایگان است؛ یادگیری جدی شروع می‌شود
+                {cta.title as string}
               </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-[15px]">
-              با حساب رایگانت به کوئیز روزانه، آزمون تعیین سطح، محتوای رایگان و
-              پروفایل یادگیری شخصی دسترسی پیدا می‌کنی. دوره‌ها و آزمون‌های
-              پیشرفته، وقتی آماده‌ای خریداری می‌شوند.
+              {cta.description as string}
             </p>
             <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
               <Button asChild size="lg" className="h-12 rounded-full px-8 text-[15px]">
                 <Link to="/auth?returnTo=%2Fdashboard">
-                  عضویت رایگان
+                  {cta.buttonText as string}
                   <ArrowUpLeft className="mr-2 size-4" />
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 rounded-full px-8 text-[15px]">
                 <Link to="/free-content">
                   <FileText className="ml-2 size-4" />
-                  اول محتوای رایگان
+                  {cta.secondaryButtonText as string}
                 </Link>
               </Button>
             </div>

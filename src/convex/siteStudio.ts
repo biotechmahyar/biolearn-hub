@@ -780,12 +780,21 @@ export const bootstrapPages = mutation({
     }
     const existing = await ctx.db.query("studioPages").first();
     if (existing) return "exists";
+    // All real site pages — Studio pages that map to actual React routes.
     const defaults = [
-      { key: "home", title: "صفحهٔ اصلی", route: "/", description: "بخش‌های قابل ویرایش صفحهٔ اصلی" },
-      { key: "about", title: "درباره ما", route: "/about", description: "متن‌ها و تصاویر صفحهٔ درباره ما" },
-      { key: "rules", title: "قوانین", route: "/rules", description: "متن قوانین و حریم خصوصی" },
-      { key: "header", title: "هدر و منو", route: "(header)", description: "لوگو، منو و بنر بالای سایت" },
-      { key: "footer", title: "فوتر", route: "(footer)", description: "لینک‌ها و متن‌های فوتر" },
+      { key: "home", title: "صفحهٔ اصلی", route: "/", description: "هیرو، ویژگی‌ها، دوره‌ها و بخش‌های صفحه اصلی" },
+      { key: "courses", title: "دوره‌ها", route: "/courses", description: "لیست دوره‌های آموزشی و فیلترها" },
+      { key: "workshops", title: "کارگاه‌ها", route: "/workshops", description: "کارگاه‌ها و نشست‌ها" },
+      { key: "tests", title: "آزمون‌ها", route: "/tests", description: "آزمون‌های تعیین سطح و ارزیابی" },
+      { key: "dictionary", title: "دیکشنری", route: "/dictionary", description: "دیکشنری تخصصی علوم زیستی" },
+      { key: "instructors", title: "مدرس‌ها", route: "/instructors", description: "تیم مدرسان و اساتید" },
+      { key: "about", title: "درباره ما", route: "/about", description: "درباره تیم Genova و ماموریت" },
+      { key: "products", title: "محصولات", route: "/products", description: "محصولات آموزشی فیزیکی" },
+      { key: "marketplace", title: "بازارچه", route: "/marketplace", description: "بازارچه محصولات دانشجویی" },
+      { key: "rules", title: "قوانین", route: "/rules", description: "قوانین، حریم خصوصی و بازگشت وجه" },
+      { key: "free-content", title: "محتوای رایگان", route: "/free-content", description: "مقاله‌ها و محتوای رایگان" },
+      { key: "header", title: "هدر و منو", route: "(header)", description: "لوگو، منوی اصلی و بنر بالای سایت" },
+      { key: "footer", title: "فوتر", route: "(footer)", description: "لینک‌ها، اطلاعات تماس و متن فوتر" },
     ];
     for (const d of defaults) {
       await ctx.db.insert("studioPages", { ...d, published: false });
@@ -793,3 +802,234 @@ export const bootstrapPages = mutation({
     return "seeded";
   },
 });
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── Real-page config (pageConfigs) ─────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// Public read: returns the published config for a page key (or null).
+// Used by real React pages to overlay editable content on hardcoded defaults.
+export const getPageConfig = query({
+  args: { pageKey: v.string() },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query("pageConfigs")
+      .withIndex("by_key", (q) => q.eq("pageKey", args.pageKey))
+      .first();
+    if (!row) return null;
+    return {
+      pageKey: row.pageKey,
+      sections: row.published ?? null,
+      updatedAt: row.updatedAt,
+    };
+  },
+});
+
+// Draft read (permission-gated) — used by the Studio editor.
+export const getPageConfigDraft = query({
+  args: { pageKey: v.string() },
+  handler: async (ctx, args) => {
+    await requirePerm(ctx, "preview");
+    const row = await ctx.db
+      .query("pageConfigs")
+      .withIndex("by_key", (q) => q.eq("pageKey", args.pageKey))
+      .first();
+    if (!row) return null;
+    return {
+      pageKey: row.pageKey,
+      draft: row.draft ?? null,
+      published: row.published ?? null,
+      hasDraftChanges: row.hasDraftChanges,
+      updatedAt: row.updatedAt,
+    };
+  },
+});
+
+// List all page configs (Studio page manager).
+export const listPageConfigs = query({
+  args: {},
+  handler: async (ctx) => {
+    await requirePerm(ctx, "preview");
+    const rows = await ctx.db.query("pageConfigs").collect();
+    return rows.map((r) => ({
+      pageKey: r.pageKey,
+      hasDraftChanges: r.hasDraftChanges,
+      updatedAt: r.updatedAt,
+    }));
+  },
+});
+
+// Save draft section edits (auto-save from Studio).
+export const savePageSection = mutation({
+  args: {
+    pageKey: v.string(),
+    sectionId: v.string(),
+    props: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const access = await requirePerm(ctx, "content.edit");
+    const existing = await ctx.db
+      .query("pageConfigs")
+      .withIndex("by_key", (q) => q.eq("pageKey", args.pageKey))
+      .first();
+
+    const now = Date.now();
+    if (existing) {
+      const draft = (existing.draft ?? { sections: {} }) as { sections?: Record<string, unknown> };
+      const sections = { ...(draft.sections ?? {}), [args.sectionId]: args.props };
+      await ctx.db.patch(existing._id, {
+        draft: { sections },
+        hasDraftChanges: true,
+        updatedBy: access.user._id,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("pageConfigs", {
+        pageKey: args.pageKey,
+        draft: { sections: { [args.sectionId]: args.props } },
+        published: null,
+        hasDraftChanges: true,
+        updatedBy: access.user._id,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+// Toggle section visibility in draft.
+export const toggleSectionVisibility = mutation({
+  args: {
+    pageKey: v.string(),
+    sectionId: v.string(),
+    visible: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const access = await requirePerm(ctx, "layout.edit");
+    const existing = await ctx.db
+      .query("pageConfigs")
+      .withIndex("by_key", (q) => q.eq("pageKey", args.pageKey))
+      .first();
+
+    const now = Date.now();
+    const draft = (existing?.draft ?? { sections: {} }) as { sections?: Record<string, Record<string, unknown>> };
+    const section = (draft.sections?.[args.sectionId] as Record<string, unknown>) ?? {};
+    const updatedSection = { ...section, _visible: args.visible };
+    const sections = { ...(draft.sections ?? {}), [args.sectionId]: updatedSection };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        draft: { sections },
+        hasDraftChanges: true,
+        updatedBy: access.user._id,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("pageConfigs", {
+        pageKey: args.pageKey,
+        draft: { sections },
+        published: null,
+        hasDraftChanges: true,
+        updatedBy: access.user._id,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+// Publish page config: promote draft → published.
+export const publishPageConfig = mutation({
+  args: { pageKey: v.string() },
+  handler: async (ctx, args) => {
+    const access = await requirePerm(ctx, "publish");
+    const existing = await ctx.db
+      .query("pageConfigs")
+      .withIndex("by_key", (q) => q.eq("pageKey", args.pageKey))
+      .first();
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        published: existing.draft ?? existing.published ?? null,
+        hasDraftChanges: false,
+        updatedBy: access.user._id,
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.insert("pageConfigs", {
+        pageKey: args.pageKey,
+        draft: null,
+        published: null,
+        hasDraftChanges: false,
+        updatedBy: access.user._id,
+        updatedAt: now,
+      });
+    }
+  },
+});
+
+// Discard draft: revert to published state.
+export const discardPageConfigDraft = mutation({
+  args: { pageKey: v.string() },
+  handler: async (ctx, args) => {
+    await requirePerm(ctx, "components.manage");
+    const existing = await ctx.db
+      .query("pageConfigs")
+      .withIndex("by_key", (q) => q.eq("pageKey", args.pageKey))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        draft: existing.published ?? null,
+        hasDraftChanges: false,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── Global site config (header/footer/theme overrides) ─────────────────
+// ══════════════════════════════════════════════════════════════════════════
+export const getGlobalSiteConfig = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("siteSettings").collect();
+    const config: Record<string, string> = {};
+    for (const r of rows) {
+      if (r.key.startsWith("site.")) {
+        try { config[r.key] = JSON.parse(r.value); } catch { config[r.key] = r.value; }
+      }
+    }
+    return config;
+  },
+});
+
+export const setGlobalSiteConfig = mutation({
+  args: {
+    key: v.string(),
+    value: v.string(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const access = await requirePerm(ctx, "theme.manage");
+    const existing = await ctx.db
+      .query("siteSettings")
+      .withIndex("by_key", (q) => q.eq("key", args.key))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        value: args.value,
+        description: args.description ?? existing.description,
+        updatedBy: access.user._id,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("siteSettings", {
+        key: args.key,
+        value: args.value,
+        description: args.description,
+        updatedBy: access.user._id,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
