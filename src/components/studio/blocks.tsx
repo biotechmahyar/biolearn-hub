@@ -28,7 +28,7 @@ export type PermKind =
   | "components"
   | "theme";
 
-export const PERM_KEY: Record<PermKind, string> = {
+export const PERM_KEY: Record<PermKind, string> & Record<string, string> = {
   content: "content.edit",
   media: "media.edit",
   links: "links.edit",
@@ -36,6 +36,17 @@ export const PERM_KEY: Record<PermKind, string> = {
   layout: "layout.edit",
   components: "components.manage",
   theme: "theme.manage",
+  "content.edit": "content.edit",
+  "media.edit": "media.edit",
+  "links.edit": "links.edit",
+  "style.edit": "style.edit",
+  "layout.edit": "layout.edit",
+  "components.manage": "components.manage",
+  "theme.manage": "theme.manage",
+  "pages.manage": "pages.manage",
+  "navigation.manage": "navigation.manage",
+  preview: "preview",
+  publish: "publish",
 };
 
 export const PERM_LABEL: Record<string, string> = {

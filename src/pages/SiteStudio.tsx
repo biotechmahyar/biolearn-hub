@@ -27,6 +27,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadBlob } from "@/lib/upload";
@@ -64,7 +65,6 @@ import {
   DEFAULT_THEME,
   PERM_KEY,
   PERM_LABEL,
-  SITE_STUDIO_PERMS_LABELS,
   THEME_FONTS,
   blockDef,
   themeToWrapperCss,
@@ -145,6 +145,16 @@ function FieldControl({
   const getUploadUrl = useMutation(api.upload.getUploadUrl);
   const addMedia = useMutation(api.siteStudio.addMedia);
   const [uploading, setUploading] = useState(false);
+  // Hook must run unconditionally; only pass args when this is a media field.
+  const media = useQuery(
+    api.siteStudio.listMedia,
+    field.type === "image" || field.type === "video" ? {} : "skip",
+  );
+  const mediaList = useMemo(() => media ?? [], [media]);
+  const mediaListRef = useRef(mediaList);
+  useEffect(() => {
+    mediaListRef.current = mediaList;
+  }, [mediaList]);
 
   const upload = async (file: File) => {
     setUploading(true);
@@ -154,19 +164,20 @@ function FieldControl({
       const kind: "image" | "video" = file.type.startsWith("video/")
         ? "video"
         : "image";
-      // Resolve a serving URL through the same storage deployment.
-      const serveUrl = await new Promise<string>((resolve) => {
-        // Convex storage serving URL format: <origin>/api/storage/<id>
-        resolve(`${(url.split("/upload")[0]).replace(/\/api\/storage.*$/, "")}/api/storage/${storageId}`);
-      });
       await addMedia({
         storageId: storageId as Id<"_storage">,
-        url: serveUrl,
         name: file.name,
         kind,
         size: file.size,
       });
-      onChange(serveUrl);
+      // The reactive listMedia updates within moments; poll the ref until the
+      // new item appears (its URL is resolved server-side), then select it.
+      let pickedUrl = "";
+      for (let i = 0; i < 20 && !pickedUrl; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        pickedUrl = mediaListRef.current.find((m) => m.storageId === storageId)?.url ?? "";
+      }
+      onChange(pickedUrl);
       toast.success("رسانه آپلود شد");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "آپلود ناموفق بود");
@@ -254,8 +265,7 @@ function FieldControl({
       );
     case "image":
     case "video": {
-      const media = useQuery(api.siteStudio.listMedia) ?? [];
-      const filtered = media.filter((m) =>
+      const filtered = mediaList.filter((m) =>
         field.type === "video" ? m.kind === "video" : m.kind === "image",
       );
       return (
@@ -540,7 +550,8 @@ function PermsManager({ open, onOpenChange }: { open: boolean; onOpenChange: (v:
       !(staff ?? []).some((s) => s.userId === u._id),
   );
   const [newUserId, setNewUserId] = useState("");
-  const ALL_PERMS = Object.values(PERM_KEY).concat(["pages.manage", "navigation.manage", "preview", "publish"]);
+  // Full canonical permission list (PERM_LABEL holds exactly the valid perms).
+  const ALL_PERMS = Object.keys(PERM_LABEL);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1056,7 +1067,7 @@ export default function SiteStudio() {
                         selectedId === el._id && "flex",
                       )}
                     >
-                      <def?.icon && <def.icon className="size-3" />}
+                      {def && <def.icon className="size-3" />}
                       {def?.label ?? el.type}
                       {!el.visible && <X className="size-3 text-amber-500" />}
                       {el.hasDraftChanges && <span className="size-1.5 rounded-full bg-amber-400" />}
@@ -1259,10 +1270,14 @@ export default function SiteStudio() {
 // Public preview of published content (opens in new tab from the toolbar).
 export function StudioPreviewPage() {
   const published = useQuery(api.siteStudio.listPublishedPages);
+  const location = useLocation();
+  // /studio-preview → home page; /studio-preview/about → route /about …
+  const route = location.pathname.replace(/^\/studio-preview/, "") || "/";
+  const page = (published ?? []).find((p) => p.route === route) ?? published?.[0];
   return (
     <div className="min-h-screen bg-background">
       <RequireAuth>
-        <StudioPreviewInner data={published} />
+        <StudioPreviewInner data={page} />
       </RequireAuth>
     </div>
   );
@@ -1278,13 +1293,18 @@ function StudioPreviewInner({
         route: string;
         theme: SiteTheme | null;
         elements: StudioElement[];
-      }[]
+      }
     | undefined;
 }) {
-  const elements = data?.[0]?.elements ?? [];
-  const theme = data?.[0]?.theme ?? null;
+  const elements = data?.elements ?? [];
+  const theme = data?.theme ?? null;
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-4" style={themeToWrapperCss(theme)}>
+      {data && data.route !== "/" && (
+        <p className="rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          پیش‌نمایش عمومی «{data.title}» ({data.route}) — آنچه بازدیدکنندگان می‌بینند.
+        </p>
+      )}
       {elements.length === 0 && (
         <p className="py-24 text-center text-sm text-muted-foreground">
           هنوز چیزی منتشر نشده است.

@@ -673,10 +673,11 @@ export const listMedia = query({
       const url = await ctx.storage.getUrl(m.storageId);
       out.push({
         _id: m._id,
+        storageId: m.storageId,
         name: m.name,
         kind: m.kind,
         size: m.size,
-        url: url ?? m.url ?? null,
+        url: url ?? m.url ?? undefined,
       });
     }
     return out;

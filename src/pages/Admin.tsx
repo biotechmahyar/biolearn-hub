@@ -46,6 +46,7 @@ import {
   ArrowUp,
   Award,
   BarChart3,
+  Blocks,
   Route as RouteIcon,
   Bot,
   BellRing,
@@ -383,6 +384,8 @@ export default function Admin() {
     { label: "مدیریت هوش مصنوعی", icon: Bot, to: "/panel/ai-management" },
     { label: "تلگرام بات", icon: Send, to: "/panel/telegram-bot" },
     { label: "مدیریت Telegram", icon: Bot, to: "/panel/telegram-admin" },
+    // Site Studio — permission-gated inside the page itself
+    { label: "طراحی سایت (Site Studio)", icon: Blocks, to: "/panel/site-studio" },
     // Only system admin (role === "admin") can see the super admin panel
     ...(user?.role === "admin" ? [{ label: "پنل مدیر سامانه", icon: Shield, to: "/panel/super-admin" }] : []),
   ];

@@ -59,6 +59,10 @@ const StoreProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
 const SellerPanel = lazy(() => import("./pages/SellerPanel.tsx"));
 const CartPage = lazy(() => import("./pages/CartPage.tsx"));
 const AdminMarketplacePanel = lazy(() => import("./pages/panels/AdminMarketplacePanel.tsx"));
+const SiteStudio = lazy(() => import("./pages/SiteStudio.tsx"));
+const StudioPreviewPage = lazy(() =>
+  import("./pages/SiteStudio.tsx").then((m) => ({ default: m.StudioPreviewPage })),
+);
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -280,7 +284,34 @@ createRoot(document.getElementById("root")!).render(
                 }
               />
 
-                            {/* Telegram Mini App (public) */}
+                            {/* Site Studio — permission-gated inside the page itself */}
+              <Route
+                path="/panel/site-studio"
+                element={
+                  <RequireAuth>
+                    <SiteStudio />
+                  </RequireAuth>
+                }
+              />
+              {/* Site Studio preview (published pages, auth-gated) */}
+              <Route
+                path="/studio-preview"
+                element={
+                  <RequireAuth>
+                    <StudioPreviewPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/studio-preview/*"
+                element={
+                  <RequireAuth>
+                    <StudioPreviewPage />
+                  </RequireAuth>
+                }
+              />
+
+              {/* Telegram Mini App (public) */}
               <Route path="/mini" element={<TelegramMiniApp />} />
 
               {/* Admin Marketplace Panel */}
