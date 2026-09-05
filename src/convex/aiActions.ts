@@ -796,3 +796,249 @@ export const generateCourseDesign = action({
     }
   },
 });
+
+// ── Helper: call AI provider with system+user prompt ──────────────────────
+async function callAIProvider(
+  rawConfig: any,
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 4096,
+): Promise<string> {
+  const { apiKey, baseUrl, model, provider, temperature } = rawConfig;
+  if (provider === "anthropic") {
+    const resp = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature: temperature ?? 0.7,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+      }),
+    });
+    const data = await resp.json() as any;
+    if (data.error) throw new Error(data.error.message ?? "AI error");
+    return data.content?.[0]?.text ?? "";
+  } else if (provider === "google") {
+    const resp = await fetch(
+      `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+          generationConfig: { temperature: temperature ?? 0.7, maxOutputTokens: maxTokens },
+        }),
+      }
+    );
+    const data = await resp.json() as any;
+    if (data.error) throw new Error(data.error.message ?? "AI error");
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+  } else {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: temperature ?? 0.7,
+        max_tokens: maxTokens,
+      }),
+    });
+    const data = await resp.json() as any;
+    if (data.error) throw new Error(data.error.message ?? "AI error");
+    return data.choices?.[0]?.message?.content ?? "";
+  }
+}
+
+// ── AI Workshop Structure Generation ──────────────────────────────────────
+
+export interface GeneratedWorkshopStructure {
+  title: string;
+  description: string;
+  goal: string;
+  audience: string;
+  level: string;
+  prerequisites: string[];
+  agenda: string[];
+  sessions: { title: string; durationMin: number; description: string }[];
+  expectedOutcome: string;
+  resources: string[];
+}
+
+export const generateWorkshopStructure = action({
+  args: {
+    topic: v.string(),
+    modelId: v.optional(v.id("aiModels")),
+  },
+  handler: async (ctx, args): Promise<{ workshop: GeneratedWorkshopStructure; raw: string }> => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی پیکربندی نشده است.");
+    }
+
+    const systemPrompt = `شما یک طراح کارگاه آموزشی متخصص در حوزه علوم زیستی هستید.
+
+قوانین:
+- ساختار کارگاه باید علمی، کاربردی و جذاب باشد.
+- جلسات باید منطقی و پیش‌رونده باشند.
+- زمان هر جلسه باید واقع‌بینانه باشد.
+- خروجی مورد انتظار باید مشخص و قابل سنجش باشد.
+
+پاسخ را دقیقاً به این فرمت JSON برگردانید (بدون متن اضافی):
+{
+  "title": "عنوان کارگاه",
+  "description": "توضیحات کارگاه",
+  "goal": "هدف آموزشی کارگاه",
+  "audience": "مخاطب هدف",
+  "level": "مبتدی/متوسط/پیشرفته",
+  "prerequisites": ["پیش‌نیاز ۱"],
+  "agenda": ["موضوع ۱", "موضوع ۲"],
+  "sessions": [{"title": "جلسه ۱", "durationMin": 60, "description": "توضیح جلسه"}],
+  "expectedOutcome": "خروجی مورد انتظار",
+  "resources": ["منبع ۱"]
+}
+
+فقط آبجکت JSON برگردانید.`;
+
+    const responseText = await callAIProvider(rawConfig, systemPrompt, `موضوع کارگاه: ${args.topic}`);
+    try {
+      let jsonStr = responseText.trim();
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) jsonStr = jsonMatch[0];
+      const workshop: GeneratedWorkshopStructure = JSON.parse(jsonStr);
+      if (!workshop.title) throw new Error("پاسخ ناقص است.");
+      return { workshop, raw: responseText };
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error("پاسخ هوش مصنوعی قابل پردازش نیست.");
+      throw e;
+    }
+  },
+});
+
+// ── AI Teaching Tips ──────────────────────────────────────────────────────
+
+export interface TeachingTips {
+  keyConcepts: string[];
+  difficultTopics: string[];
+  teachingTips: string[];
+  suggestedActivities: string[];
+  furtherReading: string[];
+}
+
+export const generateTeachingTips = action({
+  args: {
+    workshopTitle: v.string(),
+    agenda: v.array(v.string()),
+    modelId: v.optional(v.id("aiModels")),
+  },
+  handler: async (ctx, args): Promise<{ tips: TeachingTips; raw: string }> => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی پیکربندی نشده است.");
+    }
+
+    const systemPrompt = `شما یک متخصص آموزش علوم زیستی هستید.
+
+قوانین:
+- نکات تدریس باید عملی و کاربردی باشند.
+- مفاهیم دشوار باید شناسایی و راهکار ارائه شود.
+- پیشنهادات باید متنوع و جذاب باشند.
+
+پاسخ را دقیقاً به این فرمت JSON برگردانید (بدون متن اضافی):
+{
+  "keyConcepts": ["مفهوم مهم ۱"],
+  "difficultTopics": ["موضوع دشوار ۱"],
+  "teachingTips": ["نکته تدریس ۱"],
+  "suggestedActivities": ["فعالیت پیشنهادی ۱"],
+  "furtherReading": ["منبع تکمیلی ۱"]
+}
+
+فقط آبجکت JSON برگردانید.`;
+
+    const userPrompt = `عنوان کارگاه: ${args.workshopTitle}\nسرفصل‌ها: ${args.agenda.join("، ")}`;
+    const responseText = await callAIProvider(rawConfig, systemPrompt, userPrompt);
+    try {
+      let jsonStr = responseText.trim();
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) jsonStr = jsonMatch[0];
+      const tips: TeachingTips = JSON.parse(jsonStr);
+      return { tips, raw: responseText };
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error("پاسخ هوش مصنوعی قابل پردازش نیست.");
+      throw e;
+    }
+  },
+});
+
+// ── AI Academy Path Planning ──────────────────────────────────────────────
+
+export interface GeneratedAcademyPath {
+  title: string;
+  description: string;
+  level: string;
+  steps: { title: string; description: string; durationMin: number; prerequisites: string[] }[];
+  totalDuration: string;
+  learningOutcomes: string[];
+  suggestedResources: string[];
+}
+
+export const generateAcademyPath = action({
+  args: {
+    topic: v.string(),
+    audienceLevel: v.string(),
+    modelId: v.optional(v.id("aiModels")),
+  },
+  handler: async (ctx, args): Promise<{ path: GeneratedAcademyPath; raw: string }> => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی پیکربندی نشده است.");
+    }
+
+    const systemPrompt = `شما یک طراح مسیر آموزشی متخصص در حوزه علوم زیستی هستید.
+
+قوانین:
+- مسیر آموزشی باید منطقی و پیش‌رونده باشد.
+- هر قدم باید پیش‌نیاز مشخصی داشته باشد.
+- زمان کل باید واقع‌بینانه باشد.
+- نتایج یادگیری باید قابل سنجش باشند.
+
+پاسخ را دقیقاً به این فرمت JSON برگردانید (بدون متن اضافی):
+{
+  "title": "عنوان مسیر آموزشی",
+  "description": "توضیحات مسیر",
+  "level": "مبتدی/متوسط/پیشرفته/ترکیبی",
+  "steps": [{"title": "قدم ۱", "description": "توضیح", "durationMin": 60, "prerequisites": []}],
+  "totalDuration": "مدت کل پیشنهادی",
+  "learningOutcomes": ["نتیجه یادگیری ۱"],
+  "suggestedResources": ["منبع پیشنهادی ۱"]
+}
+
+فقط آبجکت JSON برگردانید.`;
+
+    const userPrompt = `موضوع مسیر: ${args.topic}\nسطح مخاطب: ${args.audienceLevel}`;
+    const responseText = await callAIProvider(rawConfig, systemPrompt, userPrompt);
+    try {
+      let jsonStr = responseText.trim();
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (jsonMatch) jsonStr = jsonMatch[0];
+      const path: GeneratedAcademyPath = JSON.parse(jsonStr);
+      if (!path.title) throw new Error("پاسخ ناقص است.");
+      return { path, raw: responseText };
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error("پاسخ هوش مصنوعی قابل پردازش نیست.");
+      throw e;
+    }
+  },
+});

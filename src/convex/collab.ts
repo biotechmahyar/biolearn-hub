@@ -945,3 +945,90 @@ export const checkSessionReminders = mutation({
     return { checked: upcoming.length, remindersSent };
   },
 });
+
+// ── Whiteboard File Upload (PDF/PPT) ────────────────────────────────────
+
+export const uploadWhiteboardFile = mutation({
+  args: {
+    roomId: v.id("classRooms"),
+    fileName: v.string(),
+    fileStorageId: v.string(),
+    fileType: v.string(), // "pdf" | "pptx" | "image"
+    fileSize: v.number(),
+    totalPages: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const room = await ctx.db.get(args.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس این کلاس می‌تواند فایل آپلود کند.");
+    return await ctx.db.insert("whiteboardFiles", {
+      roomId: room._id,
+      uploaderId: user._id,
+      fileName: args.fileName,
+      fileStorageId: args.fileStorageId,
+      fileType: args.fileType,
+      fileSize: args.fileSize,
+      totalPages: args.totalPages,
+      currentPage: 1,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const setWhiteboardFilePage = mutation({
+  args: {
+    fileId: v.id("whiteboardFiles"),
+    page: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const file = await ctx.db.get(args.fileId);
+    if (!file) throw new Error("فایل یافت نشد.");
+    const room = await ctx.db.get(file.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس می‌تواند صفحه را تغییر دهد.");
+    await ctx.db.patch(args.fileId, { currentPage: args.page });
+    return { ok: true };
+  },
+});
+
+export const removeWhiteboardFile = mutation({
+  args: { fileId: v.id("whiteboardFiles") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const file = await ctx.db.get(args.fileId);
+    if (!file) throw new Error("فایل یافت نشد.");
+    const room = await ctx.db.get(file.roomId);
+    if (!room) throw new Error("کلاس یافت نشد.");
+    const allowed = (await isInstructor(ctx)) && room.instructorId === user._id;
+    if (!allowed && !(await isAdmin(ctx))) throw new Error("فقط مدرس می‌تواند فایل را حذف کند.");
+    await ctx.db.delete(args.fileId);
+    return { ok: true };
+  },
+});
+
+export const listWhiteboardFiles = query({
+  args: { roomId: v.id("classRooms") },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    const files = await ctx.db
+      .query("whiteboardFiles")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .order("desc")
+      .collect();
+    const enriched = await Promise.all(
+      files.map(async (f) => {
+        const url = await ctx.storage.getUrl(f.fileStorageId);
+        return { ...f, url };
+      })
+    );
+    return enriched;
+  },
+});

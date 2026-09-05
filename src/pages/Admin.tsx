@@ -1703,11 +1703,63 @@ function AdminWorkshops() {
   const update = useMutation(api.admin.adminUpdateWorkshop);
   const toggle = useMutation(api.admin.adminTogglePublish);
   const remove = useMutation(api.admin.adminDeleteWorkshop);
+  const generateWorkshopAction = useAction(api.aiActions.generateWorkshopStructure);
+  const generateTeachingTipsAction = useAction(api.aiActions.generateTeachingTips);
 
   const empty = { title: "", instructorId: "", topic: "", date: "", time: "۱۸:۰۰", capacity: "30", price: "0", description: "", free: false, expertTalk: false, published: false };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; workshop: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
+  // AI Workshop Assistant state
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const [aiTipsResult, setAiTipsResult] = useState<any>(null);
+  const [aiTipsLoading, setAiTipsLoading] = useState(false);
+
+  const handleAIGenerate = async () => {
+    if (!aiTopic.trim()) return;
+    setAiGenerating(true);
+    setAiResult(null);
+    setAiTipsResult(null);
+    try {
+      const result = await generateWorkshopAction({ topic: aiTopic.trim() });
+      setAiResult(result.workshop);
+    } catch (e: any) {
+      toast.error(e?.message || "خطا در تولید ساختار کارگاه");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleAITips = async (title: string, agenda: string[]) => {
+    setAiTipsLoading(true);
+    setAiTipsResult(null);
+    try {
+      const result = await generateTeachingTipsAction({ workshopTitle: title, agenda });
+      setAiTipsResult(result.tips);
+    } catch (e: any) {
+      toast.error(e?.message || "خطا در تولید نکات تدریس");
+    } finally {
+      setAiTipsLoading(false);
+    }
+  };
+
+  const applyAISuggestion = () => {
+    if (!aiResult) return;
+    setForm({
+      ...form,
+      title: aiResult.title,
+      topic: aiTopic,
+      description: aiResult.description || "",
+    });
+    setAiDialogOpen(false);
+    setAiResult(null);
+    setAiTipsResult(null);
+    setAiTopic("");
+    toast.success("پیشنهاد هوش مصنوعی اعمال شد");
+  };
 
   const openCreate = () => { setForm(empty); setDialog({ mode: "create" }); };
   const openEdit = (w: any) => {
@@ -1763,10 +1815,16 @@ function AdminWorkshops() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <SectionHeader title="کارگاه‌ها" subtitle="content / workshops" count={workshops?.length} />
-        <Button className="rounded-lg" onClick={openCreate}>
-          <Plus className="ml-1.5 size-4" />
-          کارگاه جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="rounded-lg" onClick={() => { setAiDialogOpen(true); setAiResult(null); setAiTipsResult(null); setAiTopic(""); }}>
+            <Sparkles className="ml-1.5 size-4" />
+            دستیار هوش مصنوعی
+          </Button>
+          <Button className="rounded-lg" onClick={openCreate}>
+            <Plus className="ml-1.5 size-4" />
+            کارگاه جدید
+          </Button>
+        </div>
       </div>
 
       <Card className="border-border/70 shadow-sm">
@@ -1839,6 +1897,182 @@ function AdminWorkshops() {
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "ساخت کارگاه"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Workshop Assistant Dialog */}
+      <Dialog open={aiDialogOpen} onOpenChange={(o) => { if (!o) { setAiDialogOpen(false); setAiResult(null); setAiTipsResult(null); } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              دستیار هوش مصنوعی — ساخت کارگاه
+            </DialogTitle>
+            <DialogDescription>
+              موضوع کارگاه را وارد کنید تا ساختار پیشنهادی با جلسات، سرفصل‌ها و نکات تدریس تولید شود.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="موضوع کارگاه (مثلاً: میکروب‌شناسی صنعتی)"
+                value={aiTopic}
+                onChange={(e) => setAiTopic(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAIGenerate(); }}
+                className="flex-1"
+              />
+              <Button onClick={handleAIGenerate} disabled={aiGenerating || !aiTopic.trim()}>
+                {aiGenerating ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Sparkles className="ml-1.5 size-4" />}
+                {aiGenerating ? "در حال تولید..." : "تولید ساختار"}
+              </Button>
+            </div>
+
+            {aiGenerating && (
+              <div className="flex flex-col items-center gap-3 py-8">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">ساختار کارگاه در حال تولید است...</p>
+              </div>
+            )}
+
+            {aiResult && (
+              <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-primary">پیشنهاد هوش مصنوعی</h3>
+                  <Button size="sm" variant="outline" className="rounded-lg" onClick={applyAISuggestion}>
+                    <CheckCircle2 className="ml-1 size-3.5" />
+                    اعمال در فرم
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase">عنوان</p>
+                    <p className="text-sm font-bold">{aiResult.title}</p>
+                  </div>
+                  {aiResult.goal && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">هدف آموزشی</p>
+                      <p className="text-sm">{aiResult.goal}</p>
+                    </div>
+                  )}
+                  {aiResult.description && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">توضیحات</p>
+                      <p className="text-sm text-muted-foreground">{aiResult.description}</p>
+                    </div>
+                  )}
+                  {aiResult.audience && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">مخاطب هدف</p>
+                      <p className="text-sm">{aiResult.audience}</p>
+                    </div>
+                  )}
+                  {aiResult.level && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">سطح</p>
+                      <p className="text-sm">{aiResult.level}</p>
+                    </div>
+                  )}
+                  {aiResult.agenda?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">سرفصل‌ها</p>
+                      <ul className="mt-1 space-y-1">
+                        {aiResult.agenda.map((item: string, i: number) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {aiResult.sessions?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">جلسات پیشنهادی</p>
+                      <div className="mt-1 space-y-2">
+                        {aiResult.sessions.map((s: any, i: number) => (
+                          <div key={i} className="rounded-lg border border-border/60 bg-card/50 p-2.5">
+                            <p className="text-xs font-bold">{s.title} <span className="text-muted-foreground font-normal">({s.durationMin} دقیقه)</span></p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">{s.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {aiResult.prerequisites?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">پیش‌نیازها</p>
+                      <p className="text-sm">{aiResult.prerequisites.join("، ")}</p>
+                    </div>
+                  )}
+                  {aiResult.expectedOutcome && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">خروجی مورد انتظار</p>
+                      <p className="text-sm">{aiResult.expectedOutcome}</p>
+                    </div>
+                  )}
+                  {aiResult.resources?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">منابع پیشنهادی</p>
+                      <p className="text-sm">{aiResult.resources.join("، ")}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Teaching Tips Section */}
+                <div className="border-t border-primary/10 pt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => handleAITips(aiResult.title, aiResult.agenda || [])}
+                    disabled={aiTipsLoading}
+                  >
+                    💡 {aiTipsLoading ? "در حال تولید نکات..." : "نکات تدریس"}
+                  </Button>
+                  {aiTipsLoading && (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="size-5 animate-spin text-primary" />
+                    </div>
+                  )}
+                  {aiTipsResult && (
+                    <div className="mt-3 space-y-3">
+                      {aiTipsResult.keyConcepts?.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-primary uppercase">مفاهیم کلیدی</p>
+                          <p className="text-xs text-muted-foreground">{aiTipsResult.keyConcepts.join(" • ")}</p>
+                        </div>
+                      )}
+                      {aiTipsResult.difficultTopics?.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-amber-500 uppercase">موضوعات دشوار</p>
+                          <p className="text-xs text-muted-foreground">{aiTipsResult.difficultTopics.join(" • ")}</p>
+                        </div>
+                      )}
+                      {aiTipsResult.teachingTips?.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-emerald-500 uppercase">نکات تدریس</p>
+                          <ul className="mt-1 space-y-1">
+                            {aiTipsResult.teachingTips.map((tip: string, i: number) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                                <span className="mt-0.5 text-emerald-500">💡</span>
+                                {tip}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {aiTipsResult.suggestedActivities?.length > 0 && (
+                        <div>
+                          <p className="text-[11px] font-bold text-blue-500 uppercase">فعالیت‌های پیشنهادی</p>
+                          <p className="text-xs text-muted-foreground">{aiTipsResult.suggestedActivities.join(" • ")}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -4716,6 +4950,7 @@ function AdminAcademyPaths() {
   const addItem = useMutation(api.academyPaths.adminAddPathItem);
   const removeItem = useMutation(api.academyPaths.adminRemovePathItem);
   const moveItem = useMutation(api.academyPaths.adminMovePathItem);
+  const generateAcademyPathAction = useAction(api.aiActions.generateAcademyPath);
 
   const [dialog, setDialog] = useState(false);
   const [title, setTitle] = useState("");
@@ -4724,6 +4959,12 @@ function AdminAcademyPaths() {
   const [busy, setBusy] = useState(false);
   const [openPathId, setOpenPathId] = useState<string | null>(null);
   const [pickedWorkshop, setPickedWorkshop] = useState("");
+  // AI Academy Path Assistant state
+  const [aiPathDialogOpen, setAiPathDialogOpen] = useState(false);
+  const [aiPathTopic, setAiPathTopic] = useState("");
+  const [aiPathLevel, setAiPathLevel] = useState("مبتدی");
+  const [aiPathGenerating, setAiPathGenerating] = useState(false);
+  const [aiPathResult, setAiPathResult] = useState<any>(null);
 
   const handleCreate = async () => {
     if (!title.trim()) return;
@@ -4751,6 +4992,38 @@ function AdminAcademyPaths() {
     }
   };
 
+  const handleAIGeneratePath = async () => {
+    if (!aiPathTopic.trim()) return;
+    setAiPathGenerating(true);
+    setAiPathResult(null);
+    try {
+      const result = await generateAcademyPathAction({ topic: aiPathTopic.trim(), audienceLevel: aiPathLevel });
+      setAiPathResult(result.path);
+    } catch (e: any) {
+      toast.error(e?.message || "خطا در تولید مسیر آموزشی");
+    } finally {
+      setAiPathGenerating(false);
+    }
+  };
+
+  const applyAIPathSuggestion = async () => {
+    if (!aiPathResult) return;
+    try {
+      const id = await create({
+        title: aiPathResult.title,
+        description: aiPathResult.description || "",
+        level: aiPathResult.level?.toLowerCase() === "پیشرفته" ? "advanced" : aiPathResult.level?.toLowerCase() === "متوسط" ? "intermediate" : aiPathResult.level?.toLowerCase() === "ترکیبی" ? "mixed" : "beginner",
+      });
+      setOpenPathId(id as string);
+      setAiPathDialogOpen(false);
+      setAiPathResult(null);
+      setAiPathTopic("");
+      toast.success("مسیر از پیشنهاد هوش مصنوعی ساخته شد — کارگاه‌ها را اضافه کنید.");
+    } catch (e: any) {
+      toast.error(e?.message || "خطا");
+    }
+  };
+
   const LEVELS: Record<string, string> = {
     beginner: "مبتدی",
     intermediate: "متوسط",
@@ -4762,10 +5035,16 @@ function AdminAcademyPaths() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <SectionHeader title="مسیر آکادمی" subtitle="academy path / workshop series" count={paths?.length} />
-        <Button className="rounded-lg" onClick={() => setDialog(true)}>
-          <Plus className="ml-1.5 size-4" />
-          مسیر جدید
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" className="rounded-lg" onClick={() => { setAiPathDialogOpen(true); setAiPathResult(null); setAiPathTopic(""); }}>
+            <Sparkles className="ml-1.5 size-4" />
+            دستیار هوش مصنوعی
+          </Button>
+          <Button className="rounded-lg" onClick={() => setDialog(true)}>
+            <Plus className="ml-1.5 size-4" />
+            مسیر جدید
+          </Button>
+        </div>
       </div>
 
       {paths === undefined ? (
@@ -4888,6 +5167,123 @@ function AdminAcademyPaths() {
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               ساخت مسیر
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Academy Path Assistant Dialog */}
+      <Dialog open={aiPathDialogOpen} onOpenChange={(o) => { if (!o) { setAiPathDialogOpen(false); setAiPathResult(null); } }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="size-5 text-primary" />
+              دستیار هوش مصنوعی — مسیر آموزشی
+            </DialogTitle>
+            <DialogDescription>
+              موضوع مسیر و سطح مخاطب را وارد کنید تا ساختار پیشنهادی تولید شود.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Input
+                placeholder="موضوع مسیر آموزشی"
+                value={aiPathTopic}
+                onChange={(e) => setAiPathTopic(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleAIGeneratePath(); }}
+                className="sm:col-span-2"
+              />
+              <Select value={aiPathLevel} onValueChange={setAiPathLevel}>
+                <SelectTrigger><SelectValue placeholder="سطح مخاطب" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="مبتدی">مبتدی</SelectItem>
+                  <SelectItem value="متوسط">متوسط</SelectItem>
+                  <SelectItem value="پیشرفته">پیشرفته</SelectItem>
+                  <SelectItem value="ترکیبی">ترکیبی</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleAIGeneratePath} disabled={aiPathGenerating || !aiPathTopic.trim()}>
+              {aiPathGenerating ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Sparkles className="ml-1.5 size-4" />}
+              {aiPathGenerating ? "در حال تولید..." : "تولید مسیر آموزشی"}
+            </Button>
+
+            {aiPathGenerating && (
+              <div className="flex flex-col items-center gap-3 py-8">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">مسیر آموزشی در حال تولید است...</p>
+              </div>
+            )}
+
+            {aiPathResult && (
+              <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-primary">پیشنهاد مسیر آموزشی</h3>
+                  <Button size="sm" variant="outline" className="rounded-lg" onClick={applyAIPathSuggestion}>
+                    <CheckCircle2 className="ml-1 size-3.5" />
+                    ساخت مسیر
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase">عنوان</p>
+                    <p className="text-sm font-bold">{aiPathResult.title}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase">توضیحات</p>
+                    <p className="text-sm text-muted-foreground">{aiPathResult.description}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase">سطح</p>
+                    <p className="text-sm">{aiPathResult.level}</p>
+                  </div>
+                  {aiPathResult.totalDuration && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">مدت کل پیشنهادی</p>
+                      <p className="text-sm">{aiPathResult.totalDuration}</p>
+                    </div>
+                  )}
+                  {aiPathResult.steps?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">قدم‌های پیشنهادی</p>
+                      <div className="mt-1 space-y-2">
+                        {aiPathResult.steps.map((step: any, i: number) => (
+                          <div key={i} className="rounded-lg border border-border/60 bg-card/50 p-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">{i + 1}</span>
+                              <p className="text-xs font-bold">{step.title}</p>
+                              {step.durationMin && <span className="text-[10px] text-muted-foreground">({step.durationMin} دقیقه)</span>}
+                            </div>
+                            <p className="mt-1 mr-7 text-[11px] text-muted-foreground">{step.description}</p>
+                            {step.prerequisites?.length > 0 && (
+                              <p className="mr-7 mt-0.5 text-[10px] text-amber-500">پیش‌نیاز: {step.prerequisites.join("، ")}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {aiPathResult.learningOutcomes?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">نتایج یادگیری</p>
+                      <ul className="mt-1 space-y-0.5">
+                        {aiPathResult.learningOutcomes.map((item: string, i: number) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                            <CheckCircle2 className="mt-0.5 size-3 text-emerald-500" />
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {aiPathResult.suggestedResources?.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-muted-foreground uppercase">منابع پیشنهادی</p>
+                      <p className="text-xs text-muted-foreground">{aiPathResult.suggestedResources.join(" • ")}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
