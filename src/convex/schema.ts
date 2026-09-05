@@ -71,6 +71,7 @@ export const itemTypeValidator = v.union(
   v.literal("course"),
   v.literal("product"),
   v.literal("workshop"),
+  v.literal("path"),
 );
 export type ItemType = Infer<typeof itemTypeValidator>;
 
@@ -1331,6 +1332,15 @@ const schema = defineSchema(
     })
       .index("by_user", ["userId"])
       .index("by_workshop", ["workshopId"]),
+
+    // ── Academy Path full access (purchase of entire path) ─────────────────
+    // One row per user per path; grants access to all current + future items.
+    pathAccess: defineTable({
+      userId: v.id("users"),
+      pathId: v.id("academyPaths"),
+      orderId: v.optional(v.id("orders")),
+      purchasedAt: v.number(),
+    }).index("by_user", ["userId"]).index("by_path", ["pathId"]),
 
     // ── Academy Path (سلسله کارگاه‌ها) ───────────────────────────────────────
     academyPaths: defineTable({

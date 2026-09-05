@@ -266,3 +266,269 @@ export const listInstructorPaths = query({
     return result;
   },
 });
+
+
+// ── Public path detail by slug (with access state for current user) ─────────
+export const getPathBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, args) => {
+    const p = await ctx.db
+      .query("academyPaths")
+      .filter((q) => q.eq(q.field("slug"), args.slug))
+      .first();
+    if (!p || !p.published) return null;
+
+    const items = await ctx.db
+      .query("academyPathItems")
+      .withIndex("by_path", (q) => q.eq("pathId", p._id))
+      .collect();
+    const now = Date.now();
+    const enriched = [];
+    for (const item of items.sort((a, b) => a.order - b.order)) {
+      const w = item.workshopId ? await ctx.db.get(item.workshopId) : null;
+      if (!w) continue;
+      const workshopDate = w.date ? new Date(w.date).getTime() : null;
+      enriched.push({
+        itemId: item._id,
+        order: item.order,
+        workshopId: w._id,
+        title: w.title,
+        topic: w.topic,
+        description: w.description ?? "",
+        date: w.date,
+        time: w.time,
+        price: w.price,
+        free: w.free,
+        slug: w.slug,
+        instructorName: (w as any).instructorName ?? (w as any).instructor ?? null,
+        capacity: w.capacity ?? 0,
+        registeredCount: w.registeredCount ?? 0,
+        published: w.published ?? false,
+        isPast: workshopDate !== null && workshopDate < now,
+        // A workshop is "coming soon" when unpublished or missing schedule info
+        comingSoon: !w.published || !w.date,
+      });
+    }
+
+    // Determine access for the current user
+    const identity = await ctx.auth.getUserIdentity();
+    let hasFullAccess = false;
+    let ownedWorkshopIds: string[] = [];
+    if (identity) {
+      const userId = identity.subject as any;
+      const access = await ctx.db
+        .query("pathAccess")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .filter((q) => q.eq(q.field("pathId"), p._id))
+        .first();
+      hasFullAccess = !!access;
+
+      const enrolls = await ctx.db
+        .query("workshopEnrollments")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .collect();
+      const itemWs = new Set(items.map((i) => String(i.workshopId)));
+      ownedWorkshopIds = enrolls
+        .map((e) => String(e.workshopId))
+        .filter((id) => itemWs.has(id));
+    }
+
+    return {
+      _id: p._id,
+      title: p.title,
+      slug: p.slug,
+      description: p.description,
+      level: p.level,
+      color: p.color ?? "emerald",
+      price: p.price ?? 0,
+      discountPrice: p.discountPrice,
+      discountExpiresAt: p.discountExpiresAt,
+      items: enriched,
+      hasFullAccess,
+      ownedWorkshopIds,
+    };
+  },
+});
+
+// All published paths with pricing info (for the paths listing section)
+export const listPublishedPathsWithPricing = query({
+  args: {},
+  handler: async (ctx) => {
+    const paths = await ctx.db
+      .query("academyPaths")
+      .withIndex("by_published", (q) => q.eq("published", true))
+      .collect();
+    const now = Date.now();
+    return paths.map((p) => ({
+      _id: p._id,
+      title: p.title,
+      slug: p.slug,
+      description: p.description,
+      level: p.level,
+      color: p.color ?? "emerald",
+      price: p.price ?? 0,
+      discountPrice:
+        p.discountPrice && p.discountExpiresAt && p.discountExpiresAt > now
+          ? p.discountPrice
+          : undefined,
+    }));
+  },
+});
+
+// Purchase the full academy path (backend-enforced price + instant access)
+export const purchasePath = mutation({
+  args: {
+    pathId: v.id("academyPaths"),
+    couponCode: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("برای خرید ابتدا وارد حساب شوید.");
+
+    const p = await ctx.db.get(args.pathId);
+    if (!p || !p.published) throw new Error("مسیر یافت نشد.");
+
+    // Central payment gateway enforcement
+    const paymentSetting = await ctx.db
+      .query("siteSettings")
+      .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
+      .first();
+    const paymentEnabled = paymentSetting
+      ? (() => { try { return JSON.parse(paymentSetting.value); } catch { return true; } })()
+      : true;
+    if (!paymentEnabled && (p.price ?? 0) > 0) {
+      throw new Error("پرداخت آنلاین موقتاً غیرفعال است — بعداً تلاش کنید.");
+    }
+
+    // Already owned?
+    const existing = await ctx.db
+      .query("pathAccess")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("pathId"), p._id))
+      .first();
+    if (existing) throw new Error("شما از قبل به کل این مسیر دسترسی دارید.");
+
+    // Price from DB only — never trust the client
+    const now = Date.now();
+    let price = p.price ?? 0;
+    if (p.discountPrice && p.discountExpiresAt && p.discountExpiresAt > now) {
+      price = p.discountPrice;
+    }
+
+    let discountAmount = 0;
+    let couponCode: string | undefined;
+    if (args.couponCode && price > 0) {
+      const code = args.couponCode.trim().toUpperCase();
+      const coupon = await ctx.db
+        .query("coupons")
+        .withIndex("by_code", (q) => q.eq("code", code))
+        .first();
+      if (!coupon || !coupon.active) throw new Error("کد تخفیف نامعتبر است.");
+      if (coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses)
+        throw new Error("ظرفیت کد تخفیف تمام شده است.");
+      if (coupon.expiresAt && coupon.expiresAt < now)
+        throw new Error("کد تخفیف منقضی شده است.");
+      discountAmount = Math.round((price * coupon.percent) / 100);
+      couponCode = code;
+      await ctx.db.patch(coupon._id, { usedCount: coupon.usedCount + 1 });
+    }
+
+    const total = Math.max(0, price - discountAmount);
+    const invoiceNumber = `AP-${Date.now().toString().slice(-8)}`;
+
+    const orderId = await ctx.db.insert("orders", {
+      userId: user._id,
+      items: [{ type: "path" as any, refId: p._id as any, title: `مسیر آکادمی: ${p.title}`, price: total }],
+      subtotal: price,
+      discountAmount,
+      total,
+      couponCode,
+      status: "paid",
+      invoiceNumber,
+      createdAt: now,
+    });
+
+    await ctx.db.insert("pathAccess", {
+      userId: user._id,
+      pathId: p._id,
+      orderId,
+      purchasedAt: now,
+    });
+
+    return { orderId, invoiceNumber, total };
+  },
+});
+
+
+// Bulk-add AI-suggested workshop titles to a path as draft placeholders.
+// Creates unpublished workshop shells the admin can finalize (instructor,
+// date, price) later — nothing goes public automatically.
+export const adminBulkAddPathWorkshops = mutation({
+  args: {
+    pathId: v.id("academyPaths"),
+    workshops: v.array(
+      v.object({
+        title: v.string(),
+        description: v.optional(v.string()),
+        durationMin: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getCurrentUser(ctx);
+    if (!admin || (admin.role !== "admin" && admin.role !== "site_admin"))
+      throw new Error("دسترسی مدیریتی لازم است.");
+
+    const path = await ctx.db.get(args.pathId);
+    if (!path) throw new Error("مسیر یافت نشد.");
+
+    const existingItems = await ctx.db
+      .query("academyPathItems")
+      .withIndex("by_path", (q) => q.eq("pathId", args.pathId))
+      .collect();
+    let nextOrder = existingItems.length;
+
+    // Pick the first available instructor as a placeholder (admin reassigns later)
+    const firstInstructor = await ctx.db.query("instructors").first();
+    if (!firstInstructor)
+      throw new Error("ابتدا حداقل یک مدرس در سیستم ثبت کنید.");
+
+    const created: string[] = [];
+    for (const ws of args.workshops) {
+      const id = await ctx.db.insert("workshops", {
+        title: ws.title,
+        slug: `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        instructorId: firstInstructor._id,
+        topic: ws.description ?? "",
+        date: "",
+        time: "",
+        capacity: 30,
+        registeredCount: 0,
+        price: 0,
+        description: ws.description ?? "",
+        agenda: [],
+        free: true,
+        expertTalk: false,
+        published: false, // draft until admin finalizes instructor/date/price
+      });
+      await ctx.db.insert("academyPathItems", {
+        pathId: args.pathId,
+        workshopId: id,
+        order: nextOrder++,
+      });
+      created.push(String(id));
+    }
+
+    await ctx.db.insert("auditLogs", {
+      userId: admin._id,
+      userName: admin.name ?? admin.email ?? "—",
+      action: "academy_path.bulk_add",
+      entityType: "academyPath",
+      entityId: args.pathId,
+      details: JSON.stringify({ count: created.length }),
+      createdAt: Date.now(),
+    });
+
+    return { created };
+  },
+});

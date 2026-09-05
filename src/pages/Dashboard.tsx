@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { WhiteboardCanvas } from "@/components/site/WhiteboardCanvas";
+import { WhiteboardFilePanel } from "@/components/site/WhiteboardFilePanel";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import TelegramAccount from "@/components/site/TelegramAccount";
 import TelegramNotifications from "@/components/site/TelegramNotifications";
@@ -1709,6 +1710,11 @@ function LiveRoomView({
             />
           </CardContent>
         </Card>
+      )}
+
+      {/* Teaching file (PDF/PPT) shown live by instructor */}
+      {detail?.status === "live" && (
+        <WhiteboardFilePanel roomId={roomId} isInstructor={false} />
       )}
 
       {/* Voice request / active speaker section */}

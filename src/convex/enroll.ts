@@ -19,6 +19,19 @@ export const purchase = mutation({
     if (!user) throw new Error("برای خرید ابتدا وارد حساب شوید.");
     if (args.items.length === 0) throw new Error("سبد خرید خالی است.");
 
+    // Central payment gateway enforcement (source of truth: siteSettings)
+    const paymentSetting = await ctx.db
+      .query("siteSettings")
+      .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
+      .first();
+    const paymentEnabled = paymentSetting
+      ? (() => { try { return JSON.parse(paymentSetting.value); } catch { return true; } })()
+      : true;
+    const hasPaidItem = args.items.length > 0;
+    if (!paymentEnabled && hasPaidItem) {
+      throw new Error("پرداخت آنلاین موقتاً غیرفعال است — از پرداخت آفلاین استفاده کنید.");
+    }
+
     const lineItems: { type: "course" | "product" | "workshop"; refId: string; title: string; price: number }[] = [];
     for (const item of args.items) {
       if (item.type === "course") {

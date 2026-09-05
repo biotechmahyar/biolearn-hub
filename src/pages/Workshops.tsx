@@ -3,7 +3,7 @@ import { PublicLayout } from "@/components/site/PublicLayout";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { api } from "@/convex/_generated/api";
 import { useQuery } from "convex/react";
-import { Mic2 } from "lucide-react";
+import { Mic2, Route as RouteIcon, ChevronLeft } from "lucide-react";
 import { Link } from "react-router";
 
 import { useMode } from "@/hooks/useMode";
@@ -11,6 +11,7 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 
 export default function Workshops() {
   const { isIran } = useMode();
+  const paths = useQuery(api.academyPaths.listPublishedPathsWithPricing);
   const workshopsConvex = useQuery(api.content.listWorkshops);
   const { data: workshopsIran } = useApiQuery<any[]>("/api/content/workshops");
   const workshops = isIran ? workshopsIran : workshopsConvex;
@@ -30,6 +31,49 @@ export default function Workshops() {
             آشنایی با مسیرهای تخصصی و پژوهشی.
           </p>
         </div>
+
+        {/* Academy paths — multi-step learning programs */}
+        {paths && paths.length > 0 && (
+          <div className="mt-10">
+            <SectionHeading
+              kicker="مسیر آکادمی"
+              title="برنامه‌های آموزشی چندمرحله‌ای"
+              description="سلسله کارگاه‌های مرتبط از مقدماتی تا پیشرفته — کل مسیر را یکجا بخرید یا کارگاه‌به‌کارگاه جلو بروید."
+            />
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {paths.map((p) => (
+                <Link
+                  key={p._id}
+                  to={`/academy-path/${p.slug}`}
+                  className="group relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-bl from-primary/10 via-transparent to-transparent p-5 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
+                >
+                  <span className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary transition-transform group-hover:scale-110">
+                    <RouteIcon className="size-5" />
+                  </span>
+                  <h3 className="mt-3 text-[15px] font-extrabold leading-6">
+                    {p.title}
+                  </h3>
+                  <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                    {p.description}
+                  </p>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-xs font-bold text-primary">
+                      {p.discountPrice
+                        ? `تخفیف‌دار: ${p.discountPrice === 0 ? "رایگان" : p.discountPrice.toLocaleString("fa-IR") + " تومان"}`
+                        : p.price === 0
+                          ? "رایگان"
+                          : p.price.toLocaleString("fa-IR") + " تومان"}
+                    </span>
+                    <span className="flex items-center gap-1 text-xs font-bold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                      مشاهده مسیر
+                      <ChevronLeft className="size-3.5" />
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {freeTalks.length > 0 && (
           <div className="mt-10">

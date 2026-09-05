@@ -7,6 +7,7 @@ import TelegramNotifications from "@/components/site/TelegramNotifications";
 import { LessonContentEditor } from "@/components/site/LessonContentEditor";
 import { CourseManageView } from "@/components/site/CourseManageView";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
+import { WhiteboardFilePanel } from "@/components/site/WhiteboardFilePanel";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
@@ -2619,15 +2620,18 @@ function RoomView({
       )}
 
       {subTab === "board" && (
-        <BoardSection
-          isLive={isLive}
-          roomId={roomId}
-          strokes={boardStrokes}
-          boardBg={detail?.boardBg ?? "#0f172a"}
-          addStroke={addStroke}
-          clearStrokes={clearStrokes}
-          setBoardBg={setBoardBg}
-        />
+        <div className="space-y-3">
+          <BoardSection
+            isLive={isLive}
+            roomId={roomId}
+            strokes={boardStrokes}
+            boardBg={detail?.boardBg ?? "#0f172a"}
+            addStroke={addStroke}
+            clearStrokes={clearStrokes}
+            setBoardBg={setBoardBg}
+          />
+          <WhiteboardFilePanel roomId={roomId} isInstructor />
+        </div>
       )}
 
       {subTab === "chat" && (

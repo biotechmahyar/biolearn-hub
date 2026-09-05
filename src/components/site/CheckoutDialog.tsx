@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { uploadBlob } from "@/lib/upload";
 import { faNum, formatPrice } from "@/lib/format";
 import { useMutation, useQuery } from "convex/react";
-import { BadgeCheck, FileUp, Loader2, Receipt, ShieldCheck, Tag, X } from "lucide-react";
+import { BadgeCheck, FileUp, Loader2, Receipt, ShieldCheck, Tag, X, Ban } from "lucide-react";
 import { useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -53,7 +53,9 @@ export function CheckoutDialog({
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [payMethod, setPayMethod] = useState<"online" | "offline">("online");
+  const [payMethod, setPayMethodRaw] = useState<"online" | "offline">("online");
+  // Force offline when the central gateway is disabled.
+  const setPayMethod = (m: "online" | "offline") => setPayMethodRaw(m === "online" ? "offline" : m);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [offlineLoading, setOfflineLoading] = useState(false);
@@ -63,6 +65,10 @@ export function CheckoutDialog({
     api.enroll.getCouponInfo,
     appliedCode ? { code: appliedCode } : "skip",
   );
+  // Central payment gateway status (source of truth: siteSettings)
+  const paymentEnabled = useQuery(api.siteSettings.isPaymentEnabled) ?? true;
+  const onlineDisabled = !paymentEnabled;
+
   const couponPercent =
     appliedCode && couponInfo && couponInfo.valid ? couponInfo.percent : null;
   const couponError =
@@ -206,8 +212,16 @@ export function CheckoutDialog({
             {couponError && <p className="text-xs text-destructive">{couponError}</p>}
             {error && <p className="text-sm text-destructive">{error}</p>}
 
+            {/* Payment disabled banner — central gateway toggle */}
+            {onlineDisabled && !isFree && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-600 dark:text-amber-400">
+                <Ban className="mt-0.5 size-3.5 shrink-0" />
+                <span>پرداخت آنلاین موقتاً غیرفعال است — لطفاً از پرداخت آفلاین (فیش واریزی) استفاده کنید یا بعداً تلاش کنید.</span>
+              </div>
+            )}
+
             {/* Payment method toggle */}
-            {!isFree && (
+            {!isFree && !onlineDisabled && (
               <div className="flex gap-1 rounded-lg bg-muted p-1">
                 <button type="button" onClick={() => setPayMethod("online")} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${payMethod === "online" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   <span className="flex items-center justify-center gap-1.5"><ShieldCheck className="size-3.5" /> پرداخت آنلاین</span>
@@ -218,7 +232,7 @@ export function CheckoutDialog({
               </div>
             )}
 
-            {payMethod === "online" ? (
+            {payMethod === "online" && !onlineDisabled ? (
               <Button className="w-full" size="lg" onClick={handleSubmit} disabled={loading}>
                 {loading ? (<><Loader2 className="ml-2 size-4 animate-spin" /> در حال ثبت...</>) : isAuthenticated ? (isFree ? "ثبت‌نام رایگان" : `پرداخت ${formatPrice(total)}`) : "برای ادامه وارد شوید"}
               </Button>

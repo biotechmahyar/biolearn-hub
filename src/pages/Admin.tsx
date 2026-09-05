@@ -55,6 +55,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ClipboardList,
+  ScrollText,
   Compass,
   CreditCard,
   DollarSign,
@@ -155,7 +156,9 @@ type Section =
   | "promoBanners"
   | "discounts"
   | "academyPaths"
-  | "certificates";
+  | "certificates"
+  | "enrollments"
+  | "auditLogs";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -163,6 +166,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
     items: [
       { key: "overview", label: "نمای کلی", icon: Activity },
       { key: "users", label: "کاربران و دسترسی‌ها", icon: Users },
+      { key: "auditLogs", label: "گزارش فعالیت‌ها", icon: ScrollText },
       { key: "online", label: "آنلاین‌ها", icon: Wifi },
       { key: "profiles", label: "تأیید پروفایل‌ها", icon: UserCheck },
       { key: "inbox", label: "صندوق ورودی", icon: Inbox },
@@ -194,6 +198,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "promoBanners", label: "بنر تبلیغاتی", icon: Megaphone },
       { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon },
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
+      { key: "enrollments", label: "مدیریت ثبت‌نامی‌ها", icon: ClipboardList },
     ],
   },
   {
@@ -661,6 +666,8 @@ export default function Admin() {
             {section === "promoBanners" && <AdminPromoBanners />}
             {section === "academyPaths" && <AdminAcademyPaths />}
             {section === "certificates" && <AdminCertificates />}
+            {section === "enrollments" && <AdminEnrollments />}
+            {section === "auditLogs" && <AdminAuditLogs />}
           </div>
         </main>
       </div>
@@ -4951,6 +4958,7 @@ function AdminAcademyPaths() {
   const removeItem = useMutation(api.academyPaths.adminRemovePathItem);
   const moveItem = useMutation(api.academyPaths.adminMovePathItem);
   const generateAcademyPathAction = useAction(api.aiActions.generateAcademyPath);
+  const bulkAdd = useMutation(api.academyPaths.adminBulkAddPathWorkshops);
 
   const [dialog, setDialog] = useState(false);
   const [title, setTitle] = useState("");
@@ -5019,6 +5027,43 @@ function AdminAcademyPaths() {
       setAiPathResult(null);
       setAiPathTopic("");
       toast.success("مسیر از پیشنهاد هوش مصنوعی ساخته شد — کارگاه‌ها را اضافه کنید.");
+    } catch (e: any) {
+      toast.error(e?.message || "خطا");
+    }
+  };
+
+  // Create the path AND all AI-suggested workshops as editable drafts
+  const applyAIPathWithWorkshops = async () => {
+    if (!aiPathResult) return;
+    if (!confirm("مسیر و همهٔ کارگاه‌های پیشنهادی به‌صورت پیش‌نویس ساخته شوند؟")) return;
+    try {
+      const lvl =
+        aiPathResult.level?.includes("پیشرفته") ? "advanced"
+        : aiPathResult.level?.includes("متوسط") ? "intermediate"
+        : aiPathResult.level?.includes("ترکیبی") ? "mixed"
+        : "beginner";
+      const id = await create({
+        title: aiPathResult.title,
+        description: aiPathResult.description || "",
+        level: lvl,
+      });
+      if (aiPathResult.steps?.length) {
+        await bulkAdd({
+          pathId: id,
+          workshops: aiPathResult.steps.map((s: any) => ({
+            title: s.title,
+            description: s.description,
+            durationMin: s.durationMin,
+          })),
+        });
+      }
+      setOpenPathId(id as string);
+      setAiPathDialogOpen(false);
+      setAiPathResult(null);
+      setAiPathTopic("");
+      toast.success(
+        `مسیر با ${faNum(aiPathResult.steps?.length ?? 0)} کارگاه پیش‌نویس ساخته شد — استاد، تاریخ و قیمت را تکمیل کنید.`,
+      );
     } catch (e: any) {
       toast.error(e?.message || "خطا");
     }
@@ -5218,10 +5263,18 @@ function AdminAcademyPaths() {
               <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-primary">پیشنهاد مسیر آموزشی</h3>
-                  <Button size="sm" variant="outline" className="rounded-lg" onClick={applyAIPathSuggestion}>
-                    <CheckCircle2 className="ml-1 size-3.5" />
-                    ساخت مسیر
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="rounded-lg" onClick={applyAIPathSuggestion}>
+                      <CheckCircle2 className="ml-1 size-3.5" />
+                      ساخت مسیر
+                    </Button>
+                    {aiPathResult.steps?.length > 0 && (
+                      <Button size="sm" className="rounded-lg" onClick={applyAIPathWithWorkshops}>
+                        <Sparkles className="ml-1 size-3.5" />
+                        ساخت مسیر + کارگاه‌ها
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <div>
@@ -5414,6 +5467,279 @@ function AdminCertificates() {
       <Button variant="outline" className="rounded-lg text-xs" onClick={() => setShowAll((s) => !s)}>
         {showAll ? "بستن تاریخچه" : "نمایش تاریخچه کامل"}
       </Button>
+    </div>
+  );
+}
+
+// ── Enrollment Management (مدیریت ثبت‌نامی‌ها) ────────────────────────────────
+function AdminEnrollments() {
+  const [targetType, setTargetType] = useState<"course" | "workshop" | "exam" | "path">("course");
+  const [targetId, setTargetId] = useState("");
+  const [search, setSearch] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
+  const [addUserId, setAddUserId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const targets = useQuery(api.admin.adminListEnrollTargets, { kind: targetType });
+  const rows = useQuery(
+    api.admin.adminListEnrollments,
+    targetId ? { targetType, targetId } : { targetType },
+  );
+  const users = useQuery(api.admin.adminGetUsers);
+  const addEnroll = useMutation(api.admin.adminAddEnrollment);
+  const removeEnroll = useMutation(api.admin.adminRemoveEnrollment);
+
+  const filtered = (rows ?? []).filter(
+    (r) =>
+      !search.trim() ||
+      r.userName?.includes(search.trim()) ||
+      r.userEmail?.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+
+  const handleAdd = async () => {
+    if (!targetId || !addUserId) {
+      toast.error("ابتدا مورد و کاربر را انتخاب کنید.");
+      return;
+    }
+    if (!confirm("این کاربر به‌صورت دستی ثبت‌نام شود؟")) return;
+    setBusy(true);
+    try {
+      await addEnroll({ targetType: targetType as "course" | "workshop" | "path", targetId, userId: addUserId });
+      toast.success("ثبت‌نام دستی انجام شد");
+      setAddOpen(false);
+      setAddUserId("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async (enrollmentId: string, name: string) => {
+    if (!confirm(`ثبت‌نام «${name}» حذف شود؟ این عملیات در گزارش ثبت می‌شود.`)) return;
+    try {
+      await removeEnroll({ targetType: targetType as "course" | "workshop" | "path", enrollmentId });
+      toast.success("ثبت‌نام حذف شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  const exportCsv = () => {
+    if (!filtered.length) return;
+    const header = "Name,Email,Target,Date\n";
+    const body = filtered
+      .map((r) => `${r.userName},${r.userEmail},${r.targetTitle},${new Date(r.enrolledAt).toISOString()}`)
+      .join("\n");
+    const blob = new Blob(["\ufeff" + header + body], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `enrollments-${targetType}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const TYPE_LABELS: Record<string, string> = {
+    course: "دوره",
+    workshop: "کارگاه",
+    exam: "آزمون",
+    path: "مسیر آکادمی",
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="مدیریت ثبت‌نامی‌ها" subtitle="enrollment / management" count={filtered.length} />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="flex flex-wrap items-end gap-3 py-4">
+          <div className="min-w-36 flex-1">
+            <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">نوع</p>
+            <Select value={targetType} onValueChange={(v) => { setTargetType(v as any); setTargetId(""); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="course">دوره‌ها</SelectItem>
+                <SelectItem value="workshop">کارگاه‌ها</SelectItem>
+                <SelectItem value="exam">آزمون‌ها</SelectItem>
+                <SelectItem value="path">مسیرهای آکادمی</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-44 flex-1">
+            <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">مورد (اختیاری — همه)</p>
+            <Select value={targetId || undefined} onValueChange={setTargetId}>
+              <SelectTrigger><SelectValue placeholder="همه" /></SelectTrigger>
+              <SelectContent>
+                {(targets ?? []).map((t) => (
+                  <SelectItem key={t._id} value={t._id}>{t.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-40 flex-1">
+            <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">جستجوی کاربر</p>
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="نام یا ایمیل…" />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-lg" onClick={exportCsv} disabled={!filtered.length}>
+              خروجی CSV
+            </Button>
+            <Button className="rounded-lg" onClick={() => setAddOpen(true)}>
+              <Plus className="ml-1.5 size-4" />
+              افزودن دستی
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>کاربر</TableHead>
+                <TableHead>{TYPE_LABELS[targetType]}</TableHead>
+                <TableHead>تاریخ ثبت‌نام</TableHead>
+                <TableHead>پیشرفت</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows === undefined ? (
+                <TableRow><TableCell colSpan={5} className="py-10 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" /></TableCell></TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">ثبت‌نامی یافت نشد.</TableCell></TableRow>
+              ) : (
+                filtered.map((r) => (
+                  <TableRow key={r._id}>
+                    <TableCell>
+                      <p className="text-sm font-medium">{r.userName}</p>
+                      <p className="text-[11px] text-muted-foreground" dir="ltr">{r.userEmail}</p>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{r.targetTitle}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{formatJalaliDate(r.enrolledAt)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.targetType === "course" ? `${faNum(r.completedLessons)} جلسه تکمیل‌شده` : "—"}
+                    </TableCell>
+                    <TableCell className="text-left">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 rounded-md text-xs text-destructive hover:text-destructive"
+                        onClick={() => handleRemove(r._id, r.userName)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>افزودن دستی ثبت‌نام</DialogTitle>
+            <DialogDescription>
+              کاربر را به {TYPE_LABELS[targetType]} انتخاب‌شده اضافه کنید؛ این عملیات در گزارش فعالیت‌ها ثبت می‌شود.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Select value={addUserId || undefined} onValueChange={setAddUserId}>
+              <SelectTrigger><SelectValue placeholder="انتخاب کاربر" /></SelectTrigger>
+              <SelectContent>
+                {(users ?? []).map((u: any) => (
+                  <SelectItem key={u._id} value={u._id}>
+                    {u.name ?? "—"} ({u.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button className="w-full" onClick={handleAdd} disabled={busy || !addUserId || !targetId}>
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              افزودن ثبت‌نام
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Audit Log viewer (گزارش فعالیت‌ها) ────────────────────────────────────────
+function AdminAuditLogs() {
+  const logs = useQuery(api.siteSettings.listAuditLogs, { limit: 200 });
+  const [search, setSearch] = useState("");
+
+  const filtered = (logs ?? []).filter(
+    (l: any) =>
+      !search.trim() ||
+      l.userName?.includes(search.trim()) ||
+      l.action?.includes(search.trim()) ||
+      l.entityType?.includes(search.trim()),
+  );
+
+  const ACTION_LABELS: Record<string, string> = {
+    "payment.toggle": "تغییر وضعیت درگاه پرداخت",
+    "enrollment.add": "افزودن دستی ثبت‌نام",
+    "enrollment.remove": "حذف ثبت‌نام",
+    "certificate.approve": "صدور گواهی",
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="گزارش فعالیت‌ها" subtitle="audit / log" count={filtered.length} />
+
+      <Input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="جستجو بر اساس نام، عملیات یا نوع…"
+        className="max-w-sm"
+      />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>انجام‌دهنده</TableHead>
+                <TableHead>عملیات</TableHead>
+                <TableHead>موجودیت</TableHead>
+                <TableHead>جزئیات</TableHead>
+                <TableHead>زمان</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {logs === undefined ? (
+                <TableRow><TableCell colSpan={5} className="py-10 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" /></TableCell></TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">فعالیتی ثبت نشده است.</TableCell></TableRow>
+              ) : (
+                filtered.map((l: any) => (
+                  <TableRow key={l._id}>
+                    <TableCell className="text-sm font-medium">{l.userName ?? "—"}</TableCell>
+                    <TableCell>
+                      <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+                        {ACTION_LABELS[l.action] ?? l.action}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{l.entityType}</TableCell>
+                    <TableCell className="max-w-64 truncate text-[11px] text-muted-foreground" dir="ltr">
+                      {l.details ?? "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                      {formatDateTime(l.createdAt)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

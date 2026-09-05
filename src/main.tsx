@@ -44,6 +44,7 @@ const Products = lazy(() => import("./pages/Products.tsx"));
 const ProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
 const Workshops = lazy(() => import("./pages/Workshops.tsx"));
 const WorkshopDetail = lazy(() => import("./pages/WorkshopDetail.tsx"));
+const AcademyPathDetail = lazy(() => import("./pages/AcademyPathDetail.tsx"));
 const Instructors = lazy(() => import("./pages/Instructors.tsx"));
 const InstructorDetail = lazy(() => import("./pages/InstructorDetail.tsx"));
 const FreeContent = lazy(() => import("./pages/FreeContent.tsx"));
@@ -143,6 +144,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/products/:slug" element={<ProductDetail />} />
               <Route path="/workshops" element={<Workshops />} />
               <Route path="/workshops/:slug" element={<WorkshopDetail />} />
+              <Route path="/academy-path/:slug" element={<AcademyPathDetail />} />
               <Route path="/instructors" element={<Instructors />} />
               <Route path="/instructors/:slug" element={<InstructorDetail />} />
               <Route path="/free-content" element={<FreeContent />} />

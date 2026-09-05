@@ -457,6 +457,20 @@ export const purchaseProduct = mutation({
     if (!userId) throw new Error("برای خرید ابتدا وارد شوید.");
     if (args.quantity < 1) throw new Error("تعداد باید حداقل ۱ باشد.");
 
+    // Central payment gateway enforcement (wallet payments bypass the gateway)
+    if (!args.payWithWallet) {
+      const paymentSetting = await ctx.db
+        .query("siteSettings")
+        .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
+        .first();
+      const paymentEnabled = paymentSetting
+        ? (() => { try { return JSON.parse(paymentSetting.value); } catch { return true; } })()
+        : true;
+      if (!paymentEnabled) {
+        throw new Error("پرداخت آنلاین موقتاً غیرفعال است — از کیف پول استفاده کنید یا بعداً تلاش کنید.");
+      }
+    }
+
     const product = await ctx.db.get(args.productId);
     if (!product) throw new Error("محصول یافت نشد.");
     if (product.status !== "approved")

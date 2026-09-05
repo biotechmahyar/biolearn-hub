@@ -1719,3 +1719,254 @@ export const adminListProductsForDiscount = query({
   },
 });
 
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ── ENROLLMENT MANAGEMENT (مدیریت ثبت‌نامی‌ها) ───────────────────────────────
+// Unified view of enrollments across courses, workshops, exams and academy
+// paths, with manual add/remove (audited). Backend-enforced admin access.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const ENROLL_ADMIN_ACTIONS = "enrollment.manage";
+
+export const adminListEnrollments = query({
+  args: {
+    targetType: v.union(
+      v.literal("course"),
+      v.literal("workshop"),
+      v.literal("exam"),
+      v.literal("path"),
+    ),
+    targetId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    const targetId = args.targetId ? (args.targetId as any) : undefined;
+
+    let rows: any[] = [];
+    if (args.targetType === "course") {
+      const enrolls = targetId
+        ? await ctx.db
+            .query("enrollments")
+            .withIndex("by_course", (q) => q.eq("courseId", targetId))
+            .collect()
+        : await ctx.db.query("enrollments").collect();
+      rows = enrolls;
+    } else if (args.targetType === "workshop") {
+      const enrolls = targetId
+        ? await ctx.db
+            .query("workshopEnrollments")
+            .withIndex("by_workshop", (q) => q.eq("workshopId", targetId))
+            .collect()
+        : await ctx.db.query("workshopEnrollments").collect();
+      rows = enrolls;
+    } else if (args.targetType === "path") {
+      const accesses = targetId
+        ? await ctx.db
+            .query("pathAccess")
+            .withIndex("by_path", (q) => q.eq("pathId", targetId))
+            .collect()
+        : await ctx.db.query("pathAccess").collect();
+      rows = accesses;
+    } else {
+      // exam → examAttempts proxy
+      const attempts = targetId
+        ? await ctx.db
+            .query("examAttempts")
+            .withIndex("by_exam", (q) => q.eq("examId", targetId))
+            .collect()
+        : await ctx.db.query("examAttempts").collect();
+      rows = attempts;
+    }
+
+    // Enrich with user + target title
+    const enriched = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const userId = r.userId;
+      const key = `${args.targetType}:${r.courseId ?? r.workshopId ?? r.pathId ?? r.examId ?? "?"}:${userId}`;
+      if (seen.has(key)) continue; // dedupe exam attempts per user
+      seen.add(key);
+      const user: any = userId ? await ctx.db.get(userId) : null;
+      let targetTitle = "—";
+      const tid = r.courseId ?? r.workshopId ?? r.pathId ?? r.examId;
+      if (tid) {
+        const t: any = await ctx.db.get(tid);
+        targetTitle = t?.title ?? t?.name ?? "—";
+      }
+      enriched.push({
+        _id: r._id,
+        targetType: args.targetType,
+        targetId: tid ? String(tid) : "",
+        targetTitle,
+        userId: String(userId),
+        userName: user?.name ?? "—",
+        userEmail: user?.email ?? "—",
+        enrolledAt: r.enrolledAt ?? r.attemptedAt ?? r.purchasedAt ?? r.startedAt ?? r.createdAt ?? 0,
+        completedLessons: r.completedLessons?.length ?? 0,
+        status: r.status ?? null,
+      });
+    }
+    return enriched.sort((a, b) => b.enrolledAt - a.enrolledAt);
+  },
+});
+
+export const adminAddEnrollment = mutation({
+  args: {
+    targetType: v.union(
+      v.literal("course"),
+      v.literal("workshop"),
+      v.literal("path"),
+    ),
+    targetId: v.string(),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getCurrentUser(ctx);
+    if (!admin || (admin.role !== "admin" && admin.role !== "site_admin"))
+      throw new Error("دسترسی مدیریتی لازم است.");
+    const uid = args.userId as any;
+    const tid = args.targetId as any;
+    const user = await ctx.db.get(uid);
+    if (!user) throw new Error("کاربر یافت نشد.");
+    const target = await ctx.db.get(tid);
+    if (!target) throw new Error("مورد یافت نشد.");
+
+    let existing = null;
+    if (args.targetType === "course") {
+      existing = await ctx.db
+        .query("enrollments")
+        .withIndex("by_user", (q) => q.eq("userId", uid))
+        .filter((q) => q.eq(q.field("courseId"), tid))
+        .first();
+    } else if (args.targetType === "workshop") {
+      existing = await ctx.db
+        .query("workshopEnrollments")
+        .withIndex("by_workshop", (q) => q.eq("workshopId", tid))
+        .filter((q) => q.eq(q.field("userId"), uid))
+        .first();
+    } else {
+      existing = await ctx.db
+        .query("pathAccess")
+        .withIndex("by_user", (q) => q.eq("userId", uid))
+        .filter((q) => q.eq(q.field("pathId"), tid))
+        .first();
+    }
+    if (existing) throw new Error("این کاربر قبلاً ثبت‌نام کرده است.");
+
+    const now = Date.now();
+    if (args.targetType === "course") {
+      await ctx.db.insert("enrollments", {
+        userId: uid,
+        courseId: tid,
+        completedLessons: [],
+        enrolledAt: now,
+        lastActiveAt: now,
+        packageTier: "manual",
+      });
+    } else if (args.targetType === "workshop") {
+      await ctx.db.insert("workshopEnrollments", {
+        userId: uid,
+        workshopId: tid,
+        enrolledAt: now,
+      });
+      const w: any = await ctx.db.get(tid);
+      if (w) await ctx.db.patch(tid, { registeredCount: (w.registeredCount ?? 0) + 1 });
+    } else {
+      await ctx.db.insert("pathAccess", {
+        userId: uid,
+        pathId: tid,
+        purchasedAt: now,
+      });
+    }
+
+    await ctx.db.insert("auditLogs", {
+      userId: admin._id,
+      userName: admin.name ?? admin.email ?? "—",
+      action: "enrollment.add",
+      entityType: args.targetType,
+      entityId: args.targetId,
+      details: JSON.stringify({ targetUser: (user as any).email, manual: true }),
+      createdAt: now,
+    });
+    return { ok: true };
+  },
+});
+
+export const adminRemoveEnrollment = mutation({
+  args: {
+    targetType: v.union(
+      v.literal("course"),
+      v.literal("workshop"),
+      v.literal("path"),
+    ),
+    enrollmentId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getCurrentUser(ctx);
+    if (!admin || (admin.role !== "admin" && admin.role !== "site_admin"))
+      throw new Error("دسترسی مدیریتی لازم است.");
+    const eid = args.enrollmentId as any;
+    const row: any = await ctx.db.get(eid);
+    if (!row) throw new Error("ثبت‌نام یافت نشد.");
+
+    // Capture user info for the audit trail before deletion
+    const targetUser: any = row.userId ? await ctx.db.get(row.userId) : null;
+    await ctx.db.delete(eid);
+
+    // Keep counts consistent for workshops
+    if (args.targetType === "workshop" && row.workshopId) {
+      const w: any = await ctx.db.get(row.workshopId);
+      if (w && (w.registeredCount ?? 0) > 0) {
+        await ctx.db.patch(row.workshopId, {
+          registeredCount: Math.max(0, (w.registeredCount ?? 0) - 1),
+        });
+      }
+    }
+
+    await ctx.db.insert("auditLogs", {
+      userId: admin._id,
+      userName: admin.name ?? admin.email ?? "—",
+      action: "enrollment.remove",
+      entityType: args.targetType,
+      entityId: row.courseId ?? row.workshopId ?? row.pathId ?? undefined,
+      details: JSON.stringify({ targetUser: targetUser?.email ?? "—" }),
+      createdAt: Date.now(),
+    });
+    return { ok: true };
+  },
+});
+
+// Lightweight targets listing for the management UI dropdowns
+export const adminListEnrollTargets = query({
+  args: {
+    kind: v.union(
+      v.literal("course"),
+      v.literal("workshop"),
+      v.literal("exam"),
+      v.literal("path"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    if (args.kind === "course")
+      return (await ctx.db.query("courses").collect()).map((c) => ({
+        _id: c._id as any,
+        title: c.title,
+      }));
+    if (args.kind === "workshop")
+      return (await ctx.db.query("workshops").collect()).map((w) => ({
+        _id: w._id as any,
+        title: w.title,
+      }));
+    if (args.kind === "path")
+      return (await ctx.db.query("academyPaths").collect()).map((p) => ({
+        _id: p._id as any,
+        title: p.title,
+      }));
+    return (await ctx.db.query("exams").collect()).map((e) => ({
+      _id: e._id as any,
+      title: e.title,
+    }));
+  },
+});
