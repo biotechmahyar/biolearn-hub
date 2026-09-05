@@ -1340,6 +1340,10 @@ const schema = defineSchema(
       level: v.string(), // beginner | intermediate | advanced | mixed
       color: v.optional(v.string()),
       published: v.boolean(),
+      // Pricing (backward-compatible optional fields)
+      price: v.optional(v.number()),          // full path price in toman (0 or undefined = free)
+      discountPrice: v.optional(v.number()),  // discounted price when active
+      discountExpiresAt: v.optional(v.number()),
       createdAt: v.number(),
     }).index("by_published", ["published"]),
 
@@ -1484,6 +1488,53 @@ const schema = defineSchema(
       size: v.optional(v.number()),
       createdAt: v.number(),
     }).index("by_kind", ["kind"]),
+
+    // ── Site Settings (centralized key-value) ────────────────────────────────
+    // Stores global settings like payment gateway toggle, site name, etc.
+    // Key is a unique string identifier, value is JSON-encoded.
+    siteSettings: defineTable({
+      key: v.string(),            // e.g. "payment.enabled", "site.name"
+      value: v.string(),          // JSON-encoded value
+      description: v.optional(v.string()), // human-readable description
+      updatedBy: v.optional(v.id("users")),
+      updatedAt: v.number(),
+    }).index("by_key", ["key"]),
+
+    // ── Audit Log ────────────────────────────────────────────────────────────
+    // Tracks sensitive admin/staff actions for accountability.
+    auditLogs: defineTable({
+      userId: v.id("users"),      // who performed the action
+      userName: v.optional(v.string()),
+      action: v.string(),          // e.g. "payment.toggle", "course.publish", "certificate.approve"
+      entityType: v.string(),      // e.g. "course", "workshop", "payment", "certificate"
+      entityId: v.optional(v.string()),
+      details: v.optional(v.string()), // JSON-encoded extra details
+      createdAt: v.number(),
+    }).index("by_user", ["userId"])
+      .index("by_entity", ["entityType"])
+      .index("by_created", ["createdAt"]),
+
+    // ── Academy Path Pricing ──────────────────────────────────────────────────
+    // Per-path pricing: full path price and individual workshop prices.
+    // Extends existing academyPaths table with optional pricing fields.
+    // These are added as optional fields on academyPaths via migration:
+    //   price: v.optional(v.number()),       // full path price (0 = free)
+    //   discountPrice: v.optional(v.number()),
+    //   packageTier: v.optional(v.string()),
+
+    // ── Workshop file uploads for whiteboard ──────────────────────────────────
+    // Stores uploaded files (PDF/PPT) for display on whiteboard during live class
+    whiteboardFiles: defineTable({
+      roomId: v.id("classRooms"),
+      uploaderId: v.id("users"),
+      fileName: v.string(),
+      fileStorageId: v.string(),
+      fileType: v.string(),        // "pdf" | "pptx" | "image" etc.
+      fileSize: v.number(),
+      totalPages: v.optional(v.number()),
+      currentPage: v.number(),
+      createdAt: v.number(),
+    }).index("by_room", ["roomId"]),
   },
   {
     schemaValidation: false,
