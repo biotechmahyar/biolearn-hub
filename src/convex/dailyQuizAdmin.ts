@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, action, internalMutation } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -333,5 +334,104 @@ export const getQuestionBankStats = query({
 
     const questions = await ctx.db.query("questions").collect();
     return { totalQuestions: questions.length };
+  },
+});
+
+// ── Admin: AI-generate questions for daily quiz ────────────────────────────
+export const aiGenerateQuestions = action({
+  args: {
+    topic: v.string(),
+    date: v.string(),
+    count: v.number(),
+    pointsPerQuestion: v.number(),
+  },
+  handler: async (ctx, args): Promise<{ created: number; questionIds: string[] }> => {
+    // Use the existing AI question generation
+    const result = await ctx.runAction("aiActions:generateQuestions" as any, {
+      prompt: `سؤالات چهارگزینه‌ای درباره: ${args.topic}`,
+      count: args.count,
+      difficulty: 2,
+    });
+
+    if (!result.questions || result.questions.length === 0) {
+      throw new Error("سؤالی تولید نشد.");
+    }
+
+    // Save questions to the question bank
+    const questionIds: string[] = [];
+    for (const q of result.questions) {
+      const qId = await ctx.runMutation(internal.dailyQuizAdmin.saveGeneratedQuestion, {
+        text: q.text,
+        options: q.options,
+        correctIndex: q.correctIndex,
+        explanation: q.explanation,
+        difficulty: q.difficulty ?? 2,
+      });
+      questionIds.push(qId);
+    }
+
+    return { created: questionIds.length, questionIds };
+  },
+});
+
+// Internal: save a generated question to the bank
+export const saveGeneratedQuestion = internalMutation({
+  args: {
+    text: v.string(),
+    options: v.array(v.string()),
+    correctIndex: v.number(),
+    explanation: v.string(),
+    difficulty: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "site_admin"))
+      throw new Error("دسترسی غیرمجاز.");
+
+    const id = await ctx.db.insert("questions", {
+      text: args.text,
+      options: args.options,
+      correctIndex: args.correctIndex,
+      explanation: args.explanation,
+      difficulty: args.difficulty,
+      topicId: "" as any,
+    });
+    return id;
+  },
+});
+
+// ── Admin: publish multiple questions for a date ────────────────────────────
+export const publishMultipleForDate = mutation({
+  args: {
+    date: v.string(),
+    questionIds: v.array(v.id("questions")),
+    pointsPerQuestion: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "site_admin"))
+      throw new Error("دسترسی غیرمجاز.");
+
+    // Delete existing entries for this date
+    const existing = await ctx.db
+      .query("dailyQuiz")
+      .withIndex("by_date", (q) => q.eq("date", args.date))
+      .collect();
+    for (const e of existing) {
+      await ctx.db.delete(e._id);
+    }
+
+    // Insert new entries
+    let created = 0;
+    for (const qId of args.questionIds) {
+      await ctx.db.insert("dailyQuiz", {
+        date: args.date,
+        questionId: qId,
+        points: args.pointsPerQuestion,
+      });
+      created++;
+    }
+
+    return { created };
   },
 });

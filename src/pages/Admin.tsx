@@ -1087,6 +1087,13 @@ function AdminDailyQuiz() {
   const [autoPoints, setAutoPoints] = useState("10");
   const [tab, setTab] = useState<"entries" | "leaderboard" | "history">("entries");
   const [busy, setBusy] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiDate, setAiDate] = useState(dateKeyNow());
+  const [aiCount, setAiCount] = useState("20");
+  const [aiPoints, setAiPoints] = useState("3");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<{ created: number; questionIds: string[] } | null>(null);
+  const publishMultiple = useMutation(api.dailyQuizAdmin.publishMultipleForDate);
 
   function dateKeyNow() {
     const d = new Date();
@@ -1134,6 +1141,42 @@ function AdminDailyQuiz() {
     try {
       await deleteEntry({ id: id as any });
       toast.success("حذف شد.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  const aiGenerateAction = useAction(api.dailyQuizAdmin.aiGenerateQuestions);
+  const handleAIGenerate = async () => {
+    if (!aiTopic.trim()) { toast.error("موضوع را وارد کنید."); return; }
+    setAiGenerating(true);
+    setAiResult(null);
+    try {
+      const result = await aiGenerateAction({
+        topic: aiTopic.trim(),
+        date: aiDate,
+        count: Number(aiCount) || 20,
+        pointsPerQuestion: Number(aiPoints) || 3,
+      });
+      setAiResult(result);
+      toast.success(`${result.created} سؤال با هوش مصنوعی تولید شد!`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در تولید سؤال");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handlePublishAI = async () => {
+    if (!aiResult || aiResult.questionIds.length === 0) return;
+    try {
+      await publishMultiple({
+        date: aiDate,
+        questionIds: aiResult.questionIds as any,
+        pointsPerQuestion: Number(aiPoints) || 3,
+      });
+      toast.success(`${aiResult.questionIds.length} سؤال برای تاریخ ${aiDate} منتشر شد!`);
+      setAiResult(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
     }
@@ -1245,6 +1288,48 @@ function AdminDailyQuiz() {
               </div>
             </DialogContent>
           </Dialog>
+          {/* AI Question Generation */}
+          <Card className="border-purple-500/20 bg-purple-500/5">
+            <CardContent className="space-y-3 py-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="size-4 text-purple-500" />
+                <p className="text-sm font-bold">تولید سؤال با هوش مصنوعی</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">موضوع</label>
+                  <Input value={aiTopic} onChange={(e) => setAiTopic(e.target.value)} placeholder="مثلاً: میکروبیولوژی" className="text-xs" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">تاریخ</label>
+                  <Input value={aiDate} onChange={(e) => setAiDate(e.target.value)} className="font-mono text-xs" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">تعداد</label>
+                  <Input type="number" value={aiCount} onChange={(e) => setAiCount(e.target.value)} className="text-xs" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">امتیاز</label>
+                  <Input type="number" value={aiPoints} onChange={(e) => setAiPoints(e.target.value)} className="text-xs" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleAIGenerate} disabled={aiGenerating || !aiTopic.trim()}>
+                  {aiGenerating ? <Loader2 className="ml-1 size-3 animate-spin" /> : <Sparkles className="ml-1 size-3" />}
+                  تولید سؤال
+                </Button>
+                {aiResult && (
+                  <Button size="sm" variant="default" onClick={handlePublishAI}>
+                    انتشار {aiResult.questionIds.length} سؤال
+                  </Button>
+                )}
+              </div>
+              {aiResult && (
+                <p className="text-xs text-emerald-600">{aiResult.questionIds.length} سؤال تولید شد. برای انتشار دکمه بالا را بزنید.</p>
+              )}
+            </CardContent>
+          </Card>
+
           {autoStart && (
             <Card className="border-primary/30 bg-primary/5">
               <CardContent className="space-y-3 py-4">

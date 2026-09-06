@@ -175,14 +175,17 @@ export const getDailyQuiz = query({
     const user = await getCurrentUser(ctx);
     const today = dateKey(new Date());
 
-    const entry = await ctx.db
+    const entries = await ctx.db
       .query("dailyQuiz")
       .withIndex("by_date", (q) => q.eq("date", today))
-      .first();
-    if (!entry) return null;
+      .collect();
+    if (entries.length === 0) return null;
+
+    // Pick a random question from today's entries
+    const entry = entries[Math.floor(Math.random() * entries.length)];
     const question = await ctx.db.get(entry.questionId);
     if (!question) return null;
-    const topic = await ctx.db.get(question.topicId);
+    const topic = question.topicId ? await ctx.db.get(question.topicId) : null;
 
     let myAnswer: { chosenIndex: number; correct: boolean; correctIndex: number; points: number } | null =
       null;
@@ -241,6 +244,8 @@ export const answerDailyQuiz = mutation({
     const question = await ctx.db.get(entry.questionId);
     if (!question) throw new Error("سؤال یافت نشد.");
     const correct = args.chosenIndex === question.correctIndex;
+    // Scoring: correct = +3, wrong = -1, skip = 0
+    const points = correct ? 3 : -1;
 
     await ctx.db.insert("dailyQuizAnswers", {
       userId: user._id,
@@ -248,11 +253,11 @@ export const answerDailyQuiz = mutation({
       questionId: args.questionId,
       chosenIndex: args.chosenIndex,
       correct,
-      points: correct ? entry.points : 0,
+      points,
       answeredAt: Date.now(),
     });
 
-    return { correct, correctIndex: question.correctIndex, points: correct ? entry.points : 0 };
+    return { correct, correctIndex: question.correctIndex, points };
   },
 });
 

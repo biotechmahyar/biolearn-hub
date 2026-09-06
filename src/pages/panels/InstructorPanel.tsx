@@ -948,7 +948,7 @@ function CalendarView() {
   const rooms = useQuery(api.collab.listRooms) ?? [];
   const deleteRoom = useMutation(api.collab.deleteRoom);
   const setRoomStatus = useMutation(api.collab.setRoomStatus);
-  const myRooms = rooms.filter((r) => r.instructorName === useAuth().user?.name);
+  const myRooms = rooms.filter((r) => r.instructorId === useAuth().user?._id);
   const live = myRooms.filter((r) => r.status === "live");
   const past = myRooms.filter((r) => r.status === "ended");
 
@@ -2132,7 +2132,7 @@ function RoomsView({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {liveFiltered.map((room) => (
-          <RoomCard key={room._id} room={room} onOpen={onOpen} user={user} isOwner={(room.instructorName ?? "") === user?.name} isAdmin={isAdminOrManager} />
+          <RoomCard key={room._id} room={room} onOpen={onOpen} user={user} isOwner={room.instructorId === user?._id} isAdmin={isAdminOrManager} />
         ))}
       </div>
 
@@ -2161,7 +2161,7 @@ function RoomsView({
           </p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {past.map((room) => (
-              <RoomCard key={room._id} room={room} onOpen={onOpen} user={user} isOwner={(room.instructorName ?? "") === user?.name} isAdmin={isAdminOrManager} isPast onDelete={isAdminOrManager ? () => handleDeletePast(room._id) : undefined} />
+              <RoomCard key={room._id} room={room} onOpen={onOpen} user={user} isOwner={room.instructorId === user?._id} isAdmin={isAdminOrManager} isPast onDelete={isAdminOrManager || (room.instructorId === user?._id) ? () => handleDeletePast(room._id) : undefined} />
             ))}
           </div>
         </div>

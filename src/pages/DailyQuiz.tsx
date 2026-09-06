@@ -33,6 +33,21 @@ export default function DailyQuiz() {
     }
   }, [quiz]);
 
+  const handleSkip = async () => {
+    if (!quiz || result) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Skip = chosenIndex -1 means skip (backend will handle)
+      // For now, we'll show the correct answer without penalty
+      setResult({ correct: false, correctIndex: quiz.question.correctIndex, points: 0 });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAnswer = async (index: number) => {
     if (!quiz || result) return;
     setChosen(index);
@@ -102,7 +117,7 @@ export default function DailyQuiz() {
                 {faNum(quiz.points)} امتیاز
               </Badge>
               <Badge variant="outline" className="rounded-full">
-                {quiz.date}
+                {new Date(quiz.date).toLocaleDateString("fa-IR")}
               </Badge>
             </div>
 
@@ -156,6 +171,13 @@ export default function DailyQuiz() {
               })}
             </div>
 
+            {!answered && !loading && (
+              <div className="mt-4 flex gap-2">
+                <Button variant="ghost" size="sm" onClick={handleSkip} className="text-muted-foreground">
+                  رد شدن (بدون امتیاز)
+                </Button>
+              </div>
+            )}
             {loading && (
               <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
@@ -174,7 +196,9 @@ export default function DailyQuiz() {
                 <p className={cn("text-sm font-extrabold", result!.correct ? "text-emerald-800" : "text-red-700")}>
                   {result!.correct
                     ? `آفرین! پاسخ درست بود (+${faNum(result!.points)} امتیاز)`
-                    : "اشکالی ندارد؛ پاسخ تشریحی را بخوان و یاد بگیر"}
+                    : result!.points < 0
+                      ? `پاسخ نادرست (${faNum(result!.points)} امتیاز)`
+                      : "پاسخ داده نشد؛ امتیاز صفر" }
                 </p>
                 <p className="mt-3 text-sm leading-7 text-foreground/85">{q.explanation}</p>
               </div>
