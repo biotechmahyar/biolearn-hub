@@ -72,6 +72,7 @@ export const itemTypeValidator = v.union(
   v.literal("product"),
   v.literal("workshop"),
   v.literal("path"),
+  v.literal("ai_subscription"),
 );
 export type ItemType = Infer<typeof itemTypeValidator>;
 

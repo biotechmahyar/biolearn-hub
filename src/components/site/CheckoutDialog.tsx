@@ -17,7 +17,7 @@ import { useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 export type CheckoutItem = {
-  type: "course" | "product" | "workshop";
+  type: "course" | "product" | "workshop" | "ai_subscription";
   refId: string;
   title: string;
   price: number;

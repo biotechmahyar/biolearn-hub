@@ -1039,6 +1039,7 @@ function BookmarksTab() {
 // ── Support tab ────────────────────────────────────────────────────────────
 function SupportTab() {
   const { user } = useAuth();
+  const userId = user?._id;
   const tickets = useQuery(api.support.listMyTickets);
   const instructors = useQuery(api.support.listInstructors);
   const createTicket = useMutation(api.support.createTicket);
@@ -1050,7 +1051,7 @@ function SupportTab() {
   const [showNew, setShowNew] = useState(false);
   const [teacherId, setTeacherId] = useState("");
   const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
+  const [msgText, setMsgText] = useState("");
   const [creating, setCreating] = useState(false);
 
   const [openId, setOpenId] = useState<string | null>(null);
@@ -1062,27 +1063,30 @@ function SupportTab() {
   const [replying, setReplying] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const markReadDoneRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (openId && openTicket) {
-      void markRead({ ticketId: openId as any });
+    if (openId && openTicket && markReadDoneRef.current !== openId) {
+      markReadDoneRef.current = openId;
+      void markRead({ ticketId: openId as any }).catch(() => {});
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     }
-  }, [openId, openTicket]);
+    if (!openId) markReadDoneRef.current = null;
+  }, [openId, openTicket, markRead]);
 
   const handleCreate = async () => {
-    if (!teacherId || !subject.trim() || !message.trim()) return;
+    if (!teacherId || !subject.trim() || !msgText.trim()) return;
     setCreating(true);
     try {
       const result = await createTicket({
         teacherId: teacherId as any,
         subject: subject.trim(),
-        message: message.trim(),
+        message: msgText.trim(),
       });
       setShowNew(false);
       setTeacherId("");
       setSubject("");
-      setMessage("");
+      setMsgText("");
       if (result?.ticketId) setOpenId(result.ticketId);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
@@ -1147,6 +1151,15 @@ function SupportTab() {
     }
   };
 
+  // ── Render ──────────────────────────────────────────────────────────────
+  const ticketList = tickets ?? [];
+  const isTicketListEmpty = ticketList.length === 0;
+  const messages = openTicket?.messages ?? [];
+  const isOpen = !!openId;
+  const isLoadingTicket = isOpen && openTicket === undefined;
+  const ticketNotFound = isOpen && openTicket === null;
+  const ticketReady = isOpen && !!openTicket;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1156,14 +1169,16 @@ function SupportTab() {
             مستقیماً با استاد خود در ارتباط باشید.
           </p>
         </div>
-        <Button onClick={() => setShowNew(!showNew)}>
-          <Plus className="ml-1.5 size-4" />
-          درخواست جدید
-        </Button>
+        {!isOpen && (
+          <Button onClick={() => setShowNew(!showNew)}>
+            <Plus className="ml-1.5 size-4" />
+            درخواست جدید
+          </Button>
+        )}
       </div>
 
       {/* New ticket form */}
-      {showNew && (
+      {showNew && !isOpen && (
         <Card className="border-primary/20">
           <CardContent className="space-y-3 p-5">
             <p className="text-sm font-bold">📋 درخواست جدید</p>
@@ -1181,9 +1196,9 @@ function SupportTab() {
               </select>
             </div>
             <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="موضوع (مثلاً: مشکل در مشاهده جلسه ۴)" />
-            <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="توضیح کامل مشکل..." rows={3} />
+            <Textarea value={msgText} onChange={(e) => setMsgText(e.target.value)} placeholder="توضیح کامل مشکل..." rows={3} />
             <div className="flex gap-2">
-              <Button onClick={handleCreate} disabled={!teacherId || !subject.trim() || !message.trim() || creating}>
+              <Button onClick={handleCreate} disabled={!teacherId || !subject.trim() || !msgText.trim() || creating}>
                 {creating ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
                 ارسال درخواست
               </Button>
@@ -1193,18 +1208,24 @@ function SupportTab() {
         </Card>
       )}
 
-      {/* Ticket list */}
-      {tickets === undefined ? (
+      {/* Loading state */}
+      {tickets === undefined && (
         <Skeleton />
-      ) : tickets.length === 0 && !showNew ? (
+      )}
+
+      {/* Empty state */}
+      {tickets !== undefined && isTicketListEmpty && !showNew && !isOpen && (
         <EmptyState icon={MessageCircle} title="هنوز درخواستی ندارید" desc="اگر سؤالی دارید، درخواست پشتیبانی جدید بسازید." />
-      ) : !openId ? (
+      )}
+
+      {/* Ticket list */}
+      {tickets !== undefined && !isTicketListEmpty && !isOpen && (
         <div className="space-y-3">
-          {tickets.map((t: any) => (
+          {ticketList.map((t: any) => (
             <button
               key={t._id}
               type="button"
-              className="w-full"
+              className="w-full text-right"
               onClick={() => setOpenId(t._id)}
             >
               <Card className="border-border/70 text-right shadow-sm transition-colors hover:border-primary/30 hover:bg-accent/30">
@@ -1219,7 +1240,7 @@ function SupportTab() {
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    {t.unreadByStudent > 0 && (
+                    {(t.unreadByStudent ?? 0) > 0 && (
                       <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                         {t.unreadByStudent}
                       </span>
@@ -1233,17 +1254,17 @@ function SupportTab() {
             </button>
           ))}
         </div>
-      ) : null}
+      )}
 
       {/* Loading ticket conversation */}
-      {openId && openTicket === undefined && (
+      {isLoadingTicket && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-6 animate-spin text-primary/60" />
         </div>
       )}
 
-      {/* Ticket not found / no permission */}
-      {openId && openTicket === null && (
+      {/* Ticket not found */}
+      {ticketNotFound && (
         <Card className="border-dashed border-border">
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
             <MessageCircle className="size-8 text-muted-foreground/50" />
@@ -1257,7 +1278,7 @@ function SupportTab() {
       )}
 
       {/* Conversation view */}
-      {openId && openTicket && (
+      {ticketReady && openTicket && (
         <Card>
           <CardContent className="p-0">
             <div className="flex items-center gap-3 border-b p-4">
@@ -1282,8 +1303,8 @@ function SupportTab() {
               )}
             </div>
             <div className="max-h-[50vh] space-y-3 overflow-y-auto p-4">
-              {openTicket.messages.map((m: any) => {
-                const isMine = m.senderId === user?._id;
+              {messages.map((m: any) => {
+                const isMine = m.senderId === userId;
                 return (
                   <div key={m._id} className={cn("flex", isMine ? "justify-start" : "justify-end")}>
                     <div className={cn("max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6", isMine ? "bg-muted" : "bg-primary/10")}>
@@ -1305,7 +1326,7 @@ function SupportTab() {
             {openTicket.status !== "closed" && openTicket.status !== "resolved" && (
               <div className="flex items-center gap-2 border-t p-3">
                 <input ref={fileInputRef} type="file" hidden onChange={handleFileReply} />
-                <button onClick={() => fileInputRef.current?.click()} className="flex size-8 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors hover:bg-accent" title="فایل پیوست">
+                <button onClick={() => fileInputRef.current?.click()} className="flex size-8 items-center justify-center rounded-lg border bg-muted text-muted-foreground transition-colors hover:bg-accent" title="فایل پیست">
                   <Paperclip className="size-4" />
                 </button>
                 <Input value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleReply()} placeholder="پاسخ شما..." className="flex-1" />
@@ -1320,7 +1341,6 @@ function SupportTab() {
     </div>
   );
 }
-
 // ── Shared helpers ─────────────────────────────────────────────────────────
 function Skeleton() {
   return (

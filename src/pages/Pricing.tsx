@@ -5,6 +5,7 @@ import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
 import { faNum, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { CheckoutDialog } from "@/components/site/CheckoutDialog";
 import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
@@ -24,6 +25,8 @@ import {
   HelpCircle,
   ArrowLeft,
 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Link, useNavigate } from "react-router";
 
 const FADE_UP = {
@@ -135,6 +138,8 @@ export default function Pricing() {
   const tiers = useQuery(api.aiSubscriptions.getTiers);
   const subscription = useQuery(api.aiSubscriptions.getMySubscription);
   const navigate = useNavigate();
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutTier, setCheckoutTier] = useState<string | null>(null);
 
   const meta = (key: string) => TIER_META[key] ?? TIER_META.bronze;
 
@@ -252,8 +257,8 @@ export default function Pricing() {
                       size="lg"
                       onClick={() => {
                         if (isCurrent) return;
-                        // TODO: Connect to payment flow
-                        toast.info("درگاه پرداخت به زودی فعال می‌شود.");
+                        setCheckoutTier(tier.key);
+                        setCheckoutOpen(true);
                       }}
                       disabled={isCurrent}
                     >
@@ -393,9 +398,27 @@ export default function Pricing() {
           </Card>
         </motion.div>
       </div>
+      {/* Checkout Dialog */}
+      {checkoutTier && (
+        <CheckoutDialog
+          open={checkoutOpen}
+          onOpenChange={setCheckoutOpen}
+          items={[{
+            type: "ai_subscription",
+            refId: checkoutTier,
+            title: "اشتراک هوش مصنوعی",
+            price: checkoutTier === "bronze" ? 199000 : checkoutTier === "silver" ? 499000 : 1499000,
+          }]}
+          successTitle="اشتراک هوش مصنوعی فعال شد!"
+          successDescription="محدودیت پیام روزانه شما افزایش یافت. از AI Chat استفاده کنید."
+          onSuccess={() => {
+            setCheckoutOpen(false);
+            setCheckoutTier(null);
+          }}
+        />
+      )}
     </PublicLayout>
   );
 }
 
-// Need toast import
-import { toast } from "sonner";
+

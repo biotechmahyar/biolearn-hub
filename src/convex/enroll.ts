@@ -30,7 +30,7 @@ export const purchase = mutation({
       ? (() => { try { return JSON.parse(paymentSetting.value); } catch { return true; } })()
       : true;
 
-    const lineItems: { type: "course" | "product" | "workshop"; refId: string; title: string; price: number }[] = [];
+    const lineItems: { type: "course" | "product" | "workshop" | "ai_subscription"; refId: string; title: string; price: number }[] = [];
     for (const item of args.items) {
       if (item.type === "course") {
         const course = await getDoc(ctx, item.refId);
@@ -71,6 +71,21 @@ export const purchase = mutation({
           refId: workshop._id,
           title: workshop.title,
           price: workshop.free ? 0 : workshop.price,
+        });
+      } else if (item.type === "ai_subscription") {
+        // AI subscription: refId = tier key (bronze/silver/gold)
+        const tiers: Record<string, { label: string; price: number; dailyLimit: number }> = {
+          bronze: { label: "برنزی", price: 199000, dailyLimit: 25 },
+          silver: { label: "نقره‌ای", price: 499000, dailyLimit: 50 },
+          gold: { label: "طلایی", price: 1499000, dailyLimit: 150 },
+        };
+        const tier = tiers[item.refId];
+        if (!tier) throw new Error("سطح اشتراک نامعتبر است.");
+        lineItems.push({
+          type: "ai_subscription",
+          refId: item.refId,
+          title: "اشتراک هوش مصنوعی — " + tier.label,
+          price: tier.price,
         });
       } else {
         throw new Error("نوع آیتم نامعتبر است.");
@@ -148,6 +163,28 @@ export const purchase = mutation({
             registeredCount: workshop.registeredCount + 1,
           });
         }
+      }
+      if (item.type === "ai_subscription") {
+        // Activate AI subscription
+        const tierLimits: Record<string, number> = { bronze: 25, silver: 50, gold: 150 };
+        const now = Date.now();
+        // Deactivate existing subscriptions
+        const existing = await ctx.db
+          .query("aiSubscriptions")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .collect();
+        for (const s of existing) {
+          if (s.active) await ctx.db.patch(s._id, { active: false });
+        }
+        await ctx.db.insert("aiSubscriptions", {
+          userId: user._id,
+          tier: item.refId as any,
+          dailyLimit: tierLimits[item.refId] ?? 25,
+          startedAt: now,
+          expiresAt: now + 30 * 24 * 60 * 60 * 1000, // 30 days
+          orderId: orderId,
+          active: true,
+        });
       }
     }
 
