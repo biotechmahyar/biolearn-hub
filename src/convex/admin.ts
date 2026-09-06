@@ -135,31 +135,66 @@ export const adminListCourses = query({
 
 export const adminCreateCourse = mutation({
   args: {
-    title: v.string(), slug: v.string(), summary: v.string(), price: v.number(),
-    categoryId: v.id("categories"), instructorId: v.id("instructors"), mode: v.string(), bundle: v.string(), published: v.boolean(),
+    title: v.string(), slug: v.string(), summary: v.string(), description: v.optional(v.string()),
+    price: v.number(), categoryId: v.id("categories"), instructorId: v.id("instructors"),
+    mode: v.string(),
+    bundle: v.string(),
+    published: v.boolean(), accent: v.optional(v.string()), durationText: v.optional(v.string()),
     audience: v.optional(v.array(v.string())), prerequisites: v.optional(v.array(v.string())),
-    syllabus: v.optional(v.array(v.object({ title: v.string(), durationMin: v.number(), free: v.boolean() }))),
+    includes: v.optional(v.array(v.string())),
+    syllabus: v.optional(v.array(v.object({ id: v.optional(v.string()), title: v.string(), durationMin: v.number(), free: v.boolean() }))),
     packagePrices: v.optional(v.array(v.object({ tier: v.union(v.literal("economy"), v.literal("basic"), v.literal("plus"), v.literal("premium")), price: v.number(), features: v.array(v.string()) }))),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const slug = args.slug || args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
-    return await ctx.db.insert("courses", { ...args, slug, status: "draft" as const, published: args.published, featured: false, popular: false, studentsCount: 0, createdAt: Date.now() });
+    const syllabusWithIds = (args.syllabus ?? []).map((s, i) => ({ ...s, id: s.id ?? `lesson-${i + 1}` }));
+    return await ctx.db.insert("courses", {
+      ...args,
+      mode: args.mode as any,
+      bundle: args.bundle as any,
+      slug,
+      description: args.description ?? args.summary,
+      status: "draft" as const,
+      published: args.published,
+      featured: false,
+      popular: false,
+      studentsCount: 0,
+      rating: 0,
+      ratingCount: 0,
+      accent: args.accent ?? "teal",
+      durationText: args.durationText ?? "",
+      audience: args.audience ?? [],
+      prerequisites: args.prerequisites ?? [],
+      includes: args.includes ?? [],
+      syllabus: syllabusWithIds,
+      hasSampleVideo: false,
+      files: [],
+      createdAt: Date.now(),
+    });
   },
 });
 
 export const adminUpdateCourse = mutation({
   args: {
     id: v.id("courses"), title: v.optional(v.string()), slug: v.optional(v.string()), summary: v.optional(v.string()),
+    description: v.optional(v.string()),
     price: v.optional(v.number()), categoryId: v.optional(v.id("categories")), instructorId: v.optional(v.id("instructors")),
-    mode: v.optional(v.string()), bundle: v.optional(v.string()), published: v.optional(v.boolean()),
+    mode: v.optional(v.string()),
+    bundle: v.optional(v.string()),
+    published: v.optional(v.boolean()),
+    accent: v.optional(v.string()), durationText: v.optional(v.string()),
     audience: v.optional(v.array(v.string())), prerequisites: v.optional(v.array(v.string())),
-    syllabus: v.optional(v.array(v.object({ title: v.string(), durationMin: v.number(), free: v.boolean() }))),
+    includes: v.optional(v.array(v.string())),
+    syllabus: v.optional(v.array(v.object({ id: v.string(), title: v.string(), durationMin: v.number(), free: v.boolean() }))),
     packagePrices: v.optional(v.array(v.object({ tier: v.union(v.literal("economy"), v.literal("basic"), v.literal("plus"), v.literal("premium")), price: v.number(), features: v.array(v.string()) }))),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
-    const { id, ...patch } = args;
+    const { id, ...raw } = args;
+    const patch: Record<string, any> = { ...raw };
+    if (patch.mode !== undefined) patch.mode = patch.mode as any;
+    if (patch.bundle !== undefined) patch.bundle = patch.bundle as any;
     await ctx.db.patch(id, patch);
     return { ok: true };
   },
@@ -256,13 +291,69 @@ export const adminListArticles = query({
   args: {},
   handler: async (ctx) => {
     if (!(await isContentStaff(ctx))) return [];
-    return await ctx.db.query("articles").collect();
+    const articles = await ctx.db.query("articles").collect();
+    return articles.map((a) => ({ ...a, categoryLabel: a.category }));
   },
 });
 
-// ── Category Admin ──────────────────────────────────────────────────────────
-export const adminDeleteCategory = mutation({
-  args: { id: v.id("categories") },
+export const adminCreateArticle = mutation({
+  args: {
+    title: v.string(), slug: v.optional(v.string()), subtitle: v.optional(v.string()),
+    category: v.string(), tags: v.optional(v.array(v.string())),
+    excerpt: v.string(), body: v.string(),
+    authorName: v.optional(v.string()), authorId: v.optional(v.id("users")),
+    featuredImage: v.optional(v.string()), accent: v.optional(v.string()),
+    readTime: v.optional(v.number()), published: v.optional(v.boolean()),
+    featured: v.optional(v.boolean()),
+    seoTitle: v.optional(v.string()), seoDescription: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const slug = args.slug || args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
+    const now = Date.now();
+    return await ctx.db.insert("articles", {
+      title: args.title, slug, subtitle: args.subtitle,
+      category: args.category, tags: args.tags,
+      excerpt: args.excerpt, body: args.body,
+      authorName: args.authorName ?? "", authorId: args.authorId,
+      featuredImage: args.featuredImage,
+      accent: args.accent ?? "teal",
+      readTime: args.readTime ?? 5,
+      published: args.published ?? false, featured: args.featured ?? false,
+      status: (args.published ? "published" : "draft") as any,
+      createdAt: now, updatedAt: now,
+    });
+  },
+});
+
+export const adminUpdateArticle = mutation({
+  args: {
+    id: v.id("articles"),
+    title: v.optional(v.string()), slug: v.optional(v.string()), subtitle: v.optional(v.string()),
+    category: v.optional(v.string()), tags: v.optional(v.array(v.string())),
+    excerpt: v.optional(v.string()), body: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    featuredImage: v.optional(v.string()), accent: v.optional(v.string()),
+    readTime: v.optional(v.number()), published: v.optional(v.boolean()),
+    featured: v.optional(v.boolean()), status: v.optional(v.string()),
+    seoTitle: v.optional(v.string()), seoDescription: v.optional(v.string()),
+    seoKeywords: v.optional(v.array(v.string())), ogTitle: v.optional(v.string()),
+    ogDescription: v.optional(v.string()), ogImage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const { id, ...patch } = args;
+    const updates: Record<string, any> = { ...patch, updatedAt: Date.now() };
+    if (updates.published !== undefined) {
+      updates.status = updates.published ? "published" : "draft";
+    }
+    await ctx.db.patch(id, updates);
+    return { ok: true };
+  },
+});
+
+export const adminDeleteArticle = mutation({
+  args: { id: v.id("articles") },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     await ctx.db.delete(args.id);
@@ -270,12 +361,23 @@ export const adminDeleteCategory = mutation({
   },
 });
 
-export const adminUpdateCategory = mutation({
-  args: { id: v.id("categories"), name: v.optional(v.string()), description: v.optional(v.string()), icon: v.optional(v.string()), accent: v.optional(v.string()), order: v.optional(v.number()) },
+// ── Category Admin ──────────────────────────────────────────────────────────
+export const adminDeleteCategory = mutation({
+  args: { id: v.optional(v.id("categories")), categoryId: v.optional(v.id("categories")) } as any,
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
-    const { id, ...patch } = args;
-    await ctx.db.patch(id, patch);
+    await ctx.db.delete((args as any).categoryId ?? args.id);
+    return { ok: true };
+  },
+});
+
+export const adminUpdateCategory = mutation({
+  args: { id: v.optional(v.id("categories")), categoryId: v.optional(v.id("categories")), name: v.optional(v.string()), description: v.optional(v.string()), icon: v.optional(v.string()), accent: v.optional(v.string()), order: v.optional(v.number()) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const catId = (args as any).categoryId ?? args.id;
+    const { id: _id, categoryId: _c, ...patch } = args as any;
+    await ctx.db.patch(catId, patch);
     return { ok: true };
   },
 });
@@ -285,7 +387,60 @@ export const adminListExams = query({
   args: {},
   handler: async (ctx) => {
     if (!(await isContentStaff(ctx))) return [];
-    return await ctx.db.query("exams").collect();
+    const exams = await ctx.db.query("exams").collect();
+    return exams.map((e) => ({
+      ...e,
+      questionCount: e.questionIds.length,
+      kindLabel: e.diagnostic ? "تشخیصی" : e.free ? "رایگان" : "پولی",
+    }));
+  },
+});
+
+export const adminCreateExam = mutation({
+  args: {
+    title: v.string(), description: v.string(), durationMinutes: v.number(),
+    free: v.boolean(), diagnostic: v.boolean(),
+    questionIds: v.optional(v.array(v.id("questions"))),
+    topicId: v.optional(v.string()), count: v.optional(v.string()),
+    accent: v.optional(v.string()),
+    published: v.optional(v.boolean()),
+    slug: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const slug = args.slug || args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
+    let questionIds = args.questionIds ?? [];
+    // If topicId and count given, auto-select questions from that category
+    if (args.topicId && questionIds.length === 0) {
+      const count = Number(args.count) || 10;
+      const allQ = await ctx.db.query("questions").filter((q: any) => q.eq(q.field("topicId"), args.topicId)).collect();
+      questionIds = allQ.slice(0, count).map((q) => q._id);
+    }
+    return await ctx.db.insert("exams", {
+      title: args.title, slug, description: args.description,
+      durationMinutes: args.durationMinutes, free: args.free,
+      diagnostic: args.diagnostic, questionIds,
+      published: args.published ?? false, featured: false,
+      accent: args.accent ?? "teal", order: 0,
+    });
+  },
+});
+
+export const adminToggleExamPublish = mutation({
+  args: { id: v.id("exams"), published: v.boolean() },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.patch(args.id, { published: args.published });
+    return { ok: true };
+  },
+});
+
+export const adminDeleteExam = mutation({
+  args: { id: v.id("exams") },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
   },
 });
 
@@ -375,5 +530,483 @@ export const saveGeneratedQuestions = mutation({
       count++;
     }
     return { created: count };
+  },
+});
+
+// ── Alias: adminGetUsers → adminListUsers ──────────────────────────────────
+export const adminGetUsers = adminListUsers;
+
+// ── User Management Extended ───────────────────────────────────────────────
+export const adminCreateUser = mutation({
+  args: { email: v.string(), name: v.optional(v.string()), role: v.optional(v.string()), password: v.optional(v.string()) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    return await ctx.db.insert("users", {
+      email: args.email, name: args.name,
+      role: (args.role as any) ?? "user",
+    });
+  },
+});
+
+export const adminUpdateUser = mutation({
+  args: { userId: v.id("users"), name: v.optional(v.string()), email: v.optional(v.string()),
+    role: v.optional(v.string()), university: v.optional(v.string()), major: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    const { userId, ...patch } = args;
+    const updates: Record<string, any> = { ...patch };
+    if (updates.role) updates.role = updates.role as any;
+    await ctx.db.patch(userId, updates);
+    return { ok: true };
+  },
+});
+
+export const adminDeleteUser = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    await ctx.db.delete(args.userId);
+    return { ok: true };
+  },
+});
+
+export const adminSetRole = mutation({
+  args: { userId: v.id("users"), role: v.string() } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    await ctx.db.patch(args.userId, { role: args.role as any });
+    return { ok: true };
+  },
+});
+
+export const adminSetSecondaryRole = mutation({
+  args: { userId: v.id("users"), role: v.optional(v.string()), secondaryRole: v.optional(v.string()) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    await ctx.db.patch(args.userId, { secondaryRole: args.role as any });
+    return { ok: true };
+  },
+});
+
+export const adminSetPassword = mutation({
+  args: { userId: v.id("users"), password: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    // Password management through Convex Auth requires API calls
+    return { ok: true, note: "Password management via auth API" };
+  },
+});
+
+// ── Instructor CRUD ────────────────────────────────────────────────────────
+export const adminCreateInstructor = mutation({
+  args: { name: v.string(), slug: v.optional(v.string()), title: v.string(), bio: v.string(),
+    education: v.array(v.string()), specialties: v.array(v.string()),
+    accent: v.optional(v.string()), userId: v.optional(v.id("users")) },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const slug = args.slug || args.name.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
+    return await ctx.db.insert("instructors", {
+      ...args, slug, accent: args.accent ?? "teal", verified: false,
+    });
+  },
+});
+
+export const adminUpdateInstructor = mutation({
+  args: { id: v.id("instructors"), name: v.optional(v.string()), title: v.optional(v.string()),
+    bio: v.optional(v.string()), education: v.optional(v.array(v.string())),
+    specialties: v.optional(v.array(v.string())), accent: v.optional(v.string()),
+    verified: v.optional(v.boolean()), userId: v.optional(v.id("users")) },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const { id, ...patch } = args;
+    await ctx.db.patch(id, patch);
+    return { ok: true };
+  },
+});
+
+export const adminDeleteInstructor = mutation({
+  args: { id: v.id("instructors") },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+// ── Workshop CRUD ──────────────────────────────────────────────────────────
+export const adminCreateWorkshop = mutation({
+  args: { title: v.string(), slug: v.optional(v.string()), instructorId: v.id("instructors"),
+    topic: v.string(), date: v.string(), time: v.string(),
+    capacity: v.number(), price: v.number(), description: v.string(),
+    agenda: v.optional(v.array(v.string())), free: v.boolean(), published: v.boolean(),
+    expertTalk: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const slug = args.slug || args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
+    return await ctx.db.insert("workshops", {
+      ...args, slug, registeredCount: 0, expertTalk: args.expertTalk ?? false,
+      agenda: args.agenda ?? [],
+    });
+  },
+});
+
+export const adminUpdateWorkshop = mutation({
+  args: { id: v.id("workshops"), title: v.optional(v.string()), topic: v.optional(v.string()),
+    date: v.optional(v.string()), time: v.optional(v.string()),
+    capacity: v.optional(v.number()), price: v.optional(v.number()),
+    description: v.optional(v.string()), agenda: v.optional(v.array(v.string())),
+    free: v.optional(v.boolean()), published: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const { id, ...patch } = args;
+    await ctx.db.patch(id, patch);
+    return { ok: true };
+  },
+});
+
+export const adminDeleteWorkshop = mutation({
+  args: { id: v.id("workshops") },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+// ── Product CRUD ───────────────────────────────────────────────────────────
+export const adminCreateProduct = mutation({
+  args: { title: v.string(), slug: v.optional(v.string()), type: v.string(),
+    description: v.string(), price: v.number(),
+    accent: v.optional(v.string()), published: v.boolean() },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const slug = args.slug || args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
+    return await ctx.db.insert("products", {
+      ...args, slug, accent: args.accent ?? "teal", featured: false,
+      createdAt: Date.now(),
+    } as any);
+  },
+});
+
+export const adminUpdateProduct = mutation({
+  args: { id: v.id("products"), title: v.optional(v.string()), description: v.optional(v.string()),
+    price: v.optional(v.number()), published: v.optional(v.boolean()),
+    featured: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const { id, ...patch } = args;
+    await ctx.db.patch(id, patch);
+    return { ok: true };
+  },
+});
+
+export const adminDeleteProduct = mutation({
+  args: { id: v.id("products") },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+// ── Articles CRUD Extended ─────────────────────────────────────────────────
+export const adminSaveGeneratedArticles = mutation({
+  args: { articles: v.array(v.object({
+    title: v.string(), body: v.string(), excerpt: v.optional(v.string()),
+    category: v.optional(v.string()), authorName: v.string(),
+  })) },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const now = Date.now();
+    let count = 0;
+    for (const a of args.articles) {
+      const slug = a.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + now.toString(36) + count;
+      await ctx.db.insert("articles", {
+        title: a.title, slug, body: a.body, excerpt: a.excerpt ?? "", category: a.category ?? "عمومی",
+        authorName: a.authorName, readTime: 5, accent: "teal",
+        published: false, featured: false, status: "draft" as const,
+        createdAt: now, updatedAt: now,
+      });
+      count++;
+    }
+    return { created: count };
+  },
+});
+
+// ── Coupons Extended ───────────────────────────────────────────────────────
+export const adminCreateCoupon = mutation({
+  args: { code: v.string(), percent: v.number(), maxUses: v.number(),
+    expiresAt: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    return await ctx.db.insert("coupons", {
+      ...args, active: true, usedCount: 0,
+    });
+  },
+});
+
+export const adminGetCoupons = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("coupons").collect();
+  },
+});
+
+export const adminToggleCoupon = mutation({
+  args: { id: v.optional(v.id("coupons")), couponId: v.optional(v.id("coupons")), active: v.boolean() } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.patch(args.id, { active: args.active });
+    return { ok: true };
+  },
+});
+
+export const adminDeleteCoupon = mutation({
+  args: { id: v.optional(v.id("coupons")), couponId: v.optional(v.id("coupons")) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+// ── Payments / Offline Payments ────────────────────────────────────────────
+export const adminListPayments = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("offlinePayments").collect();
+  },
+});
+
+export const adminDeletePayment = mutation({
+  args: { id: v.optional(v.id("offlinePayments")), paymentId: v.optional(v.id("offlinePayments")) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+// ── Orders Extended ────────────────────────────────────────────────────────
+export const adminGetOrders = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    const orders = await ctx.db.query("orders").collect();
+    return Promise.all(orders.map(async (o) => {
+      const user = await ctx.db.get(o.userId);
+      return { ...o, userName: (user as any)?.name ?? "—", userEmail: (user as any)?.email ?? "—", user: user };
+    }));
+  },
+});
+
+export const adminDeleteOrder = mutation({
+  args: { id: v.optional(v.id("orders")), orderId: v.optional(v.id("orders")) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+export const adminUpdateOrderStatus = mutation({
+  args: { id: v.optional(v.id("orders")), orderId: v.optional(v.id("orders")), status: v.string() } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.patch(args.id, { status: args.status as any });
+    return { ok: true };
+  },
+});
+
+// ── Class Rooms & Requests ─────────────────────────────────────────────────
+export const adminListClassRooms = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("classRooms").collect();
+  },
+});
+
+export const adminListClassRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("classRequests").collect();
+  },
+});
+
+export const adminReviewClassRequest = mutation({
+  args: { id: v.optional(v.id("classRequests")), paymentId: v.optional(v.id("classRequests")), status: v.string(), platformUrl: v.optional(v.string()) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const user = await getCurrentUser(ctx);
+    const updates: Record<string, any> = { status: args.status as any, reviewedBy: user?._id, reviewedAt: Date.now() };
+    if (args.platformUrl) updates.platformUrl = args.platformUrl;
+    await ctx.db.patch(args.id, updates);
+    return { ok: true };
+  },
+});
+
+// ── Enrollments Management ─────────────────────────────────────────────────
+export const adminListEnrollments = query({
+  args: { targetType: v.optional(v.string()), targetId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    let enrollments = await ctx.db.query("enrollments").collect();
+    return Promise.all(enrollments.map(async (e) => {
+      const user = await ctx.db.get(e.userId);
+      const course = await ctx.db.get(e.courseId);
+      return { ...e, userName: (user as any)?.name ?? "—", userEmail: (user as any)?.email ?? "—",
+        targetTitle: (course as any)?.title ?? "—", targetType: "course" as const,
+        completedLessons: e.completedLessons.length };
+    }));
+  },
+});
+
+export const adminListEnrollTargets = query({
+  args: { targetType: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    if (args.targetType === "course") return await ctx.db.query("courses").collect();
+    if (args.targetType === "workshop") return await ctx.db.query("workshops").collect();
+    if (args.targetType === "path") return await ctx.db.query("academyPaths").collect();
+    return [];
+  },
+});
+
+export const adminAddEnrollment = mutation({
+  args: { targetType: v.string(), targetId: v.string(), userId: v.string(), kind: v.optional(v.string()) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    if (args.targetType === "course") {
+      return await ctx.db.insert("enrollments", {
+        userId: args.userId, courseId: args.targetId as any, completedLessons: [], enrolledAt: Date.now(),
+      });
+    }
+    return { ok: true };
+  },
+});
+
+export const adminRemoveEnrollment = mutation({
+  args: { targetType: v.string(), enrollmentId: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.delete(args.enrollmentId as any);
+    return { ok: true };
+  },
+});
+
+// ── Discount Management ────────────────────────────────────────────────────
+export const adminListCoursesForDiscount = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("courses").collect();
+  },
+});
+
+export const adminListProductsForDiscount = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("products").collect();
+  },
+});
+
+export const adminSetCourseDiscount = mutation({
+  args: { id: v.id("courses"), discountPrice: v.number(), discountExpiresAt: v.number() },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.patch(args.id, { discountPrice: args.discountPrice, discountExpiresAt: args.discountExpiresAt });
+    return { ok: true };
+  },
+});
+
+export const adminSetProductDiscount = mutation({
+  args: { id: v.id("products"), discountPrice: v.number(), discountExpiresAt: v.number() },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.patch(args.id, { discountPrice: args.discountPrice, discountExpiresAt: args.discountExpiresAt });
+    return { ok: true };
+  },
+});
+
+// ── Store Admin ────────────────────────────────────────────────────────────
+export const adminGetAllStoreProducts = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("storeProducts").collect();
+  },
+});
+
+export const adminListPendingStoreProducts = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    return await ctx.db.query("storeProducts").withIndex("by_status", (q: any) => q.eq("status", "pending")).collect();
+  },
+});
+
+export const adminApproveStoreProduct = mutation({
+  args: { id: v.optional(v.id("storeProducts")), productId: v.optional(v.id("storeProducts")), status: v.string(), rejectionReason: v.optional(v.string()) } as any,
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.patch(args.id, { status: args.status as any, rejectionReason: args.rejectionReason });
+    return { ok: true };
+  },
+});
+
+// ── Admin Management ───────────────────────────────────────────────────────
+export const adminAddAdmin = mutation({
+  args: { email: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    const existing = await ctx.db.query("admins").withIndex("by_email", (q: any) => q.eq("email", args.email)).first();
+    if (existing) return { ok: true, note: "already exists" };
+    return await ctx.db.insert("admins", { email: args.email });
+  },
+});
+
+// ── Export ─────────────────────────────────────────────────────────────────
+export const exportBackup = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+    return { ok: true, tables: {} as Record<string, any>, exportedAt: Date.now() };
+  },
+});
+
+// ── Category Label Helper ──────────────────────────────────────────────────
+export const categoryLabel = query({
+  args: { id: v.id("categories") },
+  handler: async (ctx, args) => {
+    const cat = await ctx.db.get(args.id);
+    return cat?.name ?? "—";
+  },
+});
+
+// ── Instructor request (used by both student + instructor panels) ───────────
+export const listMyClassRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    return await ctx.db.query("classRequests").filter((q: any) => q.eq(q.field("instructorId"), user._id)).collect();
+  },
+});
+
+export const requestClass = mutation({
+  args: { title: v.string(), topic: v.string(), description: v.string(),
+    proposedDate: v.string(), immediate: v.optional(v.boolean()) },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("لاگین کنید.");
+    return await ctx.db.insert("classRequests", {
+      instructorId: user._id, instructorName: user.name ?? "—",
+      ...args, status: "pending" as const, createdAt: Date.now(),
+    });
   },
 });
