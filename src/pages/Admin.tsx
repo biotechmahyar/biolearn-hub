@@ -159,7 +159,8 @@ type Section =
   | "academyPaths"
   | "certificates"
   | "enrollments"
-  | "auditLogs";
+  | "auditLogs"
+  | "dailyQuiz";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -198,6 +199,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "discounts", label: "تخفیفات ویژه", icon: Ticket },
       { key: "flashSales", label: "فروش ویژه", icon: Zap },
       { key: "promoBanners", label: "بنر تبلیغاتی", icon: Megaphone },
+      { key: "dailyQuiz", label: "کوئیز روزانه", icon: Zap },
       { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon },
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
       { key: "enrollments", label: "مدیریت ثبت‌نامی‌ها", icon: ClipboardList },
@@ -671,6 +673,7 @@ export default function Admin() {
             {section === "certificates" && <AdminCertificates />}
             {section === "enrollments" && <AdminEnrollments />}
             {section === "auditLogs" && <AdminAuditLogs />}
+            {section === "dailyQuiz" && <AdminDailyQuiz />}
           </div>
         </main>
       </div>
@@ -1054,6 +1057,285 @@ function AdminCourses() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Daily Quiz Admin (کوئیز روزانه) ──────────────────────────────────────
+function AdminDailyQuiz() {
+  const entries = useQuery(api.dailyQuizAdmin.listEntries);
+  const questions = useQuery(api.admin.adminGetQuestions);
+  const createEntry = useMutation(api.dailyQuizAdmin.createEntry);
+  const deleteEntry = useMutation(api.dailyQuizAdmin.deleteEntry);
+  const autoFill = useMutation(api.dailyQuizAdmin.autoFill);
+  const leaderboard = useQuery(api.dailyQuizAdmin.getLeaderboard, {});
+  const history = useQuery(api.dailyQuizAdmin.getLeaderboardHistory, {});
+  const resetMonth = useMutation(api.dailyQuizAdmin.resetMonth);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createDate, setCreateDate] = useState(dateKeyNow());
+  const [createQId, setCreateQId] = useState("");
+  const [createPoints, setCreatePoints] = useState("10");
+  const [autoStart, setAutoStart] = useState("");
+  const [autoEnd, setAutoEnd] = useState("");
+  const [autoPoints, setAutoPoints] = useState("10");
+  const [tab, setTab] = useState<"entries" | "leaderboard" | "history">("entries");
+  const [busy, setBusy] = useState(false);
+
+  function dateKeyNow() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  const handleCreate = async () => {
+    if (!createQId || !createDate) {
+      toast.error("تاریخ و سؤال را انتخاب کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await createEntry({ date: createDate, questionId: createQId as any, points: Number(createPoints) || 10 });
+      toast.success("کوئیز روزانه ساخته شد!");
+      setCreateOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAutoFill = async () => {
+    if (!autoStart || !autoEnd) {
+      toast.error("تاریخ شروع و پایان را وارد کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await autoFill({ startDate: autoStart, endDate: autoEnd, pointsPerQuestion: Number(autoPoints) || 10 });
+      toast.success(`${res.created} کوئیز خودکار ساخته شد!`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async (id: string, date: string) => {
+    if (!confirm(`کوئیز تاریخ ${date} حذف شود؟`)) return;
+    try {
+      await deleteEntry({ id: id as any });
+      toast.success("حذف شد.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  const handleResetMonth = async (month: string) => {
+    if (!confirm(`امتیازات ماه ${month} حذف شود؟`)) return;
+    setBusy(true);
+    try {
+      const res = await resetMonth({ month });
+      toast.success(`${res.deleted} پاسخ حذف شد.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="کوئیز روزانه" subtitle="daily quiz / management" count={entries?.length} />
+      <div className="flex gap-1 rounded-lg border border-border bg-muted/40 p-1">
+        {(["entries", "leaderboard", "history"] as const).map((t) => (
+          <button key={t} onClick={() => setTab(t)} className={cn("flex-1 rounded-md px-3 py-2 text-xs font-bold transition-colors", tab === t ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground")}>
+            {t === "entries" ? "📋 لیست روزها" : t === "leaderboard" ? "🏆 تابلو امتیازات" : "📅 تاریخچه"}
+          </button>
+        ))}
+      </div>
+      {tab === "entries" && (
+        <>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="flex flex-wrap items-end gap-3 py-4">
+              <Button className="rounded-lg" onClick={() => setCreateOpen(true)}>
+                <Plus className="ml-1.5 size-4" />
+                کوئیز جدید
+              </Button>
+              <Button variant="outline" className="rounded-lg" onClick={() => { setAutoStart(dateKeyNow()); setAutoEnd(""); setAutoPoints("10"); }}>
+                <Sparkles className="ml-1.5 size-4" />
+                پرکردن خودکار
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>تاریخ</TableHead>
+                    <TableHead>سؤال</TableHead>
+                    <TableHead>موضوع</TableHead>
+                    <TableHead>امتیاز</TableHead>
+                    <TableHead className="text-left">عملیات</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries === undefined ? (
+                    <TableRow><TableCell colSpan={5} className="py-10 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" /></TableCell></TableRow>
+                  ) : entries.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">هنوز کوئیزی تعریف نشده.</TableCell></TableRow>
+                  ) : (
+                    entries.map((e) => (
+                      <TableRow key={e._id}>
+                        <TableCell className="font-mono text-xs">{e.date}</TableCell>
+                        <TableCell className="max-w-md truncate text-sm">{e.questionText}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{e.topicName}</TableCell>
+                        <TableCell className="text-xs">{e.points}</TableCell>
+                        <TableCell className="text-left">
+                          <Button size="sm" variant="ghost" className="h-7 rounded-md text-xs text-destructive hover:text-destructive" onClick={() => handleDelete(e._id, e.date)}>
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>کوئیز جدید</DialogTitle>
+                <DialogDescription>یک سؤال از بانک سؤالات برای تاریخ مشخص انتخاب کنید.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-bold text-muted-foreground">تاریخ (YYYY-MM-DD)</label>
+                  <Input value={createDate} onChange={(e) => setCreateDate(e.target.value)} placeholder="2026-09-06" className="font-mono" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-bold text-muted-foreground">سؤال</label>
+                  <Select value={createQId} onValueChange={setCreateQId}>
+                    <SelectTrigger><SelectValue placeholder="انتخاب سؤال" /></SelectTrigger>
+                    <SelectContent className="max-h-60 overflow-y-auto">
+                      {(questions ?? []).map((q: any) => (
+                        <SelectItem key={q._id} value={q._id}>{q.text?.slice(0, 80) ?? q._id}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-bold text-muted-foreground">امتیاز</label>
+                  <Input type="number" value={createPoints} onChange={(e) => setCreatePoints(e.target.value)} />
+                </div>
+                <Button className="w-full" onClick={handleCreate} disabled={busy || !createQId || !createDate}>
+                  {busy && <Loader2 className="ml-1.5 size-4 animate-spin" />}
+                  ذخیره
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          {autoStart && (
+            <Card className="border-primary/30 bg-primary/5">
+              <CardContent className="space-y-3 py-4">
+                <p className="text-sm font-bold">پرکردن خودکار بازه زمانی</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">از تاریخ</label>
+                    <Input value={autoStart} onChange={(e) => setAutoStart(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">تا تاریخ</label>
+                    <Input value={autoEnd} onChange={(e) => setAutoEnd(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">امتیاز هر سؤال</label>
+                    <Input type="number" value={autoPoints} onChange={(e) => setAutoPoints(e.target.value)} className="font-mono text-xs" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleAutoFill} disabled={busy || !autoStart || !autoEnd}>
+                    {busy ? <Loader2 className="ml-1 size-3 animate-spin" /> : null}
+                    اجرا
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setAutoStart("")}>لغو</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+      {tab === "leaderboard" && (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">#</TableHead>
+                  <TableHead>نام</TableHead>
+                  <TableHead>درست</TableHead>
+                  <TableHead>کل</TableHead>
+                  <TableHead>امتیاز</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leaderboard === undefined ? (
+                  <TableRow><TableCell colSpan={5} className="py-10 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" /></TableCell></TableRow>
+                ) : (leaderboard?.leaderboard ?? []).length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">هنوز امتیازی ثبت نشده.</TableCell></TableRow>
+                ) : (
+                  (leaderboard?.leaderboard ?? []).map((r: any) => (
+                    <TableRow key={r.userId}>
+                      <TableCell className="font-mono text-xs font-bold">{faNum(r.rank)}</TableCell>
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell>{faNum(r.correct)}</TableCell>
+                      <TableCell>{faNum(r.total)}</TableCell>
+                      <TableCell className="font-bold text-primary">{faNum(r.points)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+      {tab === "history" && (
+        <div className="space-y-3">
+          {history === undefined ? (
+            <div className="flex justify-center py-10"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+          ) : (history ?? []).length === 0 ? (
+            <Card className="border-border/70 shadow-sm"><CardContent className="py-10 text-center text-sm text-muted-foreground">هنوز تاریخچه‌ای وجود ندارد.</CardContent></Card>
+          ) : (
+            (history ?? []).map((m: any) => (
+              <Card key={m.month} className="border-border/70 shadow-sm">
+                <CardContent className="p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-bold">{m.month}</p>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => handleResetMonth(m.month)} disabled={busy}>
+                      {busy ? <Loader2 className="ml-1 size-3 animate-spin" /> : null}
+                      حذف امتیازات
+                    </Button>
+                  </div>
+                  <div className="space-y-1.5">
+                    {m.top5.map((r: any, idx: number) => (
+                      <div key={r.userId} className="flex items-center gap-3 rounded-lg bg-muted/40 px-3 py-2">
+                        <span className="w-6 text-center font-mono text-xs font-bold text-primary">{idx + 1}</span>
+                        <span className="flex-1 text-sm font-medium">{r.name}</span>
+                        <span className="text-xs text-muted-foreground">{faNum(r.correct)}/{faNum(r.total)}</span>
+                        <span className="text-xs font-bold text-primary">{faNum(r.points)} 🏆</span>
+                      </div>
+                    ))}
+                    {m.top5.length === 0 && <p className="text-xs text-muted-foreground">بدون امتیاز</p>}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
