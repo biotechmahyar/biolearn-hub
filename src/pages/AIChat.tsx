@@ -64,6 +64,8 @@ export default function AIChat() {
   // Merge dual mode data
   const conversations = isIran ? conversationsIran : conversationsConvex;
   const activeModels = isIran ? activeModelsIran : activeModelsConvex;
+  const subConvex = useQuery(api.aiSubscriptions.getMySubscription, isAuthenticated ? {} : "skip");
+  const sub = isIran ? null : subConvex;
   const usage = isIran ? usageIran : usageConvex;
   const messages = isIran ? messagesIran : messagesConvex;
 
@@ -369,6 +371,11 @@ export default function AIChat() {
             <div className="flex items-center gap-1.5 rounded-full bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
               <Zap className="size-3 text-amber-500" />
               {remaining} پیام باقی‌مانده
+              {sub ? (
+                <span className="ml-1 text-[10px] font-bold text-amber-500">⭐ {sub.label}</span>
+              ) : (usage?.role === "user" || usage?.role === "member") ? (
+                <button onClick={() => navigate("/pricing")} className="ml-1 text-[10px] font-bold text-primary hover:underline">ارتقا ←</button>
+              ) : null}
             </div>
           )}
         </header>

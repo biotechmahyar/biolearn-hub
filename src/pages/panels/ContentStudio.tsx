@@ -1258,6 +1258,7 @@ export default function ContentStudio() {
     ogTitle: "",
     ogDescription: "",
     ogImage: "",
+    featuredImage: "",
   });
   const [busy, setBusy] = useState(false);
   const [imagePickerOpen, setImagePickerOpen] = useState(false);
@@ -1330,7 +1331,7 @@ export default function ContentStudio() {
       published: false,
       seoTitle: aiGenTitle,
       seoDescription: aiGenResult.replace(/<[^>]*>/g, "").slice(0, 160),
-      seoKeywords: "", seoCanonical: "", ogTitle: "", ogDescription: "", ogImage: "",
+      seoKeywords: "", seoCanonical: "", ogTitle: "", ogDescription: "", ogImage: "", featuredImage: "",
     });
     setDialog({ mode: "create" });
     setAiGenDialog(false);
@@ -1403,7 +1404,7 @@ export default function ContentStudio() {
     setForm({
       title: "", category: "عمومی", excerpt: "", body: "<p></p>", authorName: "", published: false,
       seoTitle: "", seoDescription: "", seoKeywords: "", seoCanonical: "",
-      ogTitle: "", ogDescription: "", ogImage: "",
+      ogTitle: "", ogDescription: "", ogImage: "", featuredImage: "",
     });
     setDialog({ mode: "create" });
   };
@@ -1413,7 +1414,7 @@ export default function ContentStudio() {
     setForm({
       title: a.title ?? "", category: a.category ?? "عمومی", excerpt: a.excerpt ?? "", body: a.body ?? "<p></p>", authorName: a.authorName ?? "", published: a.published ?? false,
       seoTitle: a.seoTitle ?? "", seoDescription: a.seoDescription ?? "", seoKeywords: kw,
-      seoCanonical: a.seoCanonical ?? "", ogTitle: a.ogTitle ?? "", ogDescription: a.ogDescription ?? "", ogImage: a.ogImage ?? "",
+      seoCanonical: a.seoCanonical ?? "", ogTitle: a.ogTitle ?? "", ogDescription: a.ogDescription ?? "", ogImage: a.ogImage ?? "", featuredImage: a.featuredImage ?? "",
     });
     setDialog({ mode: "edit", article: a });
   };
@@ -1448,6 +1449,7 @@ export default function ContentStudio() {
           ogTitle: form.ogTitle || undefined,
           ogDescription: form.ogDescription || undefined,
           ogImage: form.ogImage || undefined,
+          featuredImage: form.featuredImage || undefined,
         });
         toast.success("مقاله بروزرسانی شد");
       } else {
@@ -1467,6 +1469,7 @@ export default function ContentStudio() {
           ogTitle: form.ogTitle || undefined,
           ogDescription: form.ogDescription || undefined,
           ogImage: form.ogImage || undefined,
+          featuredImage: form.featuredImage || undefined,
         });
         toast.success("مقاله جدید ساخته شد");
       }
@@ -1557,6 +1560,7 @@ export default function ContentStudio() {
                       {article.published ? "منتشر" : "پیش‌نویس"}
                     </Badge>
                   </div>
+                  {article.featuredImage && (() => { try { new URL(article.featuredImage); return <img src={article.featuredImage} alt="" className="mt-1 h-24 w-full rounded-lg object-cover" />; } catch { return null; } })()}
                   <h3 className="text-sm font-bold text-white">
                     {article.title}
                   </h3>
@@ -1576,6 +1580,15 @@ export default function ContentStudio() {
                       onClick={() => openEdit(article)}
                     >
                       <Edit3 className="ml-1 h-3 w-3" /> ویرایش
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 text-xs text-slate-400 hover:text-cyan-400"
+                      onClick={() => openEdit(article)}
+                      title="تصویر جلد"
+                    >
+                      <Image className="h-3 w-3" />
                     </Button>
                     <Button
                       size="sm"
@@ -1782,6 +1795,11 @@ export default function ContentStudio() {
                     <div className="sm:col-span-2">
                       <label className="mb-1 block text-[10px] font-bold text-slate-400">OG Description</label>
                       <Input value={form.ogDescription} onChange={(e) => setForm((f) => ({ ...f, ogDescription: e.target.value }))} placeholder="Description for social media" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-[10px] font-bold text-cyan-400">🖼️ Cover Image URL</label>
+                      <Input value={form.featuredImage} onChange={(e) => setForm((f) => ({ ...f, featuredImage: e.target.value }))} placeholder="https://example.com/cover.jpg" className="h-8 border-cyan-400/20 bg-white/5 text-xs text-slate-200" dir="ltr" />
+                      {form.featuredImage && (() => { try { new URL(form.featuredImage); return <img src={form.featuredImage} alt="Cover Preview" className="mt-2 max-h-32 rounded-lg border border-cyan-400/20 object-cover" />; } catch { return null; } })()}
                     </div>
                     <div className="sm:col-span-2">
                       <label className="mb-1 block text-[10px] font-bold text-slate-400">Social Image URL</label>

@@ -177,7 +177,20 @@ export const getMyUsage = query({
       .first();
 
     const roleLimit = FREE_LIMITS[(user as any).role ?? "user"] ?? 3;
-    const dailyLimit = quota?.dailyLimit ?? roleLimit;
+
+    // Check for active AI subscription (higher limit than role)
+    const now = Date.now();
+    const subs = await ctx.db
+      .query("aiSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const activeSub = subs.find((s: any) => s.active && s.expiresAt > now);
+    const tierLimits: Record<string, number> = { bronze: 25, silver: 50, gold: 150 };
+    const subLimit = activeSub ? (tierLimits[(activeSub as any).tier] ?? 0) : 0;
+
+    // Use the highest available limit
+    const dailyLimit = Math.max(quota?.dailyLimit ?? 0, subLimit, roleLimit);
+    const tier = activeSub ? (activeSub as any).tier : null;
 
     return {
       messagesSent: usage?.messagesSent ?? 0,
@@ -185,6 +198,7 @@ export const getMyUsage = query({
       dailyLimit,
       remaining: Math.max(0, dailyLimit - (usage?.messagesSent ?? 0)),
       role: (user as any).role ?? "user",
+      subscription: tier ? { tier, dailyLimit: subLimit } : null,
     };
   },
 });
@@ -274,7 +288,18 @@ export const sendMessage = mutation({
       .first();
 
     const roleLimit = FREE_LIMITS[userRole] ?? 3;
-    const dailyLimit = quota?.dailyLimit ?? roleLimit;
+
+    // Check subscription tier
+    const subs = await ctx.db
+      .query("aiSubscriptions")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const now2 = Date.now();
+    const activeSub = subs.find((s: any) => s.active && s.expiresAt > now2);
+    const tierLimits: Record<string, number> = { bronze: 25, silver: 50, gold: 150 };
+    const subLimit = activeSub ? (tierLimits[(activeSub as any).tier] ?? 0) : 0;
+
+    const dailyLimit = Math.max(quota?.dailyLimit ?? 0, subLimit, roleLimit);
     const currentMessages = usage?.messagesSent ?? 0;
 
     if (currentMessages >= dailyLimit) {

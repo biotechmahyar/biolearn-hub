@@ -929,6 +929,19 @@ const schema = defineSchema(
     })
       .index("by_user", ["userId"]),
 
+    // ── AI Chat Subscriptions (paid tiers) ──────────────────────────────────
+    aiSubscriptions: defineTable({
+      userId: v.id("users"),
+      tier: v.union(v.literal("bronze"), v.literal("silver"), v.literal("gold")),
+      dailyLimit: v.number(),           // Messages per day for this tier
+      startedAt: v.number(),
+      expiresAt: v.number(),             // Subscription expiry
+      orderId: v.optional(v.string()),   // Reference to payment order
+      active: v.boolean(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_active", ["active"]),
+
     // ── Telegram Bot Configuration (admin-only) ─────────────────────────
     telegramBot: defineTable({
       tokenEncrypted: v.string(),       // Encrypted bot token (server-side only)

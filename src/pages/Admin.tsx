@@ -102,7 +102,8 @@ import {
   X,
   XCircle,
   Zap,
-} from "lucide-react";
+  Settings,
+  Command} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
@@ -160,7 +161,9 @@ type Section =
   | "certificates"
   | "enrollments"
   | "auditLogs"
-  | "dailyQuiz";
+  | "dailyQuiz"
+  | "telegram"
+  | "aiSubscriptions";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -200,6 +203,8 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "flashSales", label: "فروش ویژه", icon: Zap },
       { key: "promoBanners", label: "بنر تبلیغاتی", icon: Megaphone },
       { key: "dailyQuiz", label: "کوئیز روزانه", icon: Zap },
+      { key: "telegram", label: "تلگرام", icon: Bot },
+      { key: "aiSubscriptions", label: "اشتراک هوش مصنوعی", icon: Sparkles },
       { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon },
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
       { key: "enrollments", label: "مدیریت ثبت‌نامی‌ها", icon: ClipboardList },
@@ -674,6 +679,8 @@ export default function Admin() {
             {section === "enrollments" && <AdminEnrollments />}
             {section === "auditLogs" && <AdminAuditLogs />}
             {section === "dailyQuiz" && <AdminDailyQuiz />}
+            {section === "telegram" && <AdminTelegram />}
+            {section === "aiSubscriptions" && <AdminAISubscriptions />}
           </div>
         </main>
       </div>
@@ -5242,6 +5249,7 @@ function AdminAcademyPaths() {
   const addItem = useMutation(api.academyPaths.adminAddPathItem);
   const removeItem = useMutation(api.academyPaths.adminRemovePathItem);
   const moveItem = useMutation(api.academyPaths.adminMovePathItem);
+  const updateItem = useMutation(api.academyPaths.adminUpdatePathItem);
   const generateAcademyPathAction = useAction(api.aiActions.generateAcademyPath);
   const bulkAdd = useMutation(api.academyPaths.adminBulkAddPathWorkshops);
 
@@ -5258,6 +5266,14 @@ function AdminAcademyPaths() {
   const [aiPathLevel, setAiPathLevel] = useState("مبتدی");
   const [aiPathGenerating, setAiPathGenerating] = useState(false);
   const [aiPathResult, setAiPathResult] = useState<any>(null);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [pricingPath, setPricingPath] = useState<any>(null);
+  const [pricingValue, setPricingValue] = useState("");
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editingItemOpen, setEditingItemOpen] = useState(false);
+  const [editItemTitle, setEditItemTitle] = useState("");
+  const [editItemPrice, setEditItemPrice] = useState("");
+  const [editItemCapacity, setEditItemCapacity] = useState("");
 
   const handleCreate = async () => {
     if (!title.trim()) return;
@@ -5411,6 +5427,9 @@ function AdminAcademyPaths() {
                       <p className="mt-0.5 text-[11px] text-muted-foreground">{p.items.length} کارگاه در این مسیر</p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" title="تنظیم قیمت و رایگان" onClick={() => { setPricingPath(p); setPricingOpen(true); }}>
+                        <Settings className="size-3.5" />
+                      </Button>
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setOpenPathId(open ? null : p._id); setPickedWorkshop(""); }}>
                         {open ? "بستن" : "مدیریت کارگاه‌ها"}
                       </Button>
@@ -5445,6 +5464,9 @@ function AdminAcademyPaths() {
                               </Button>
                               <Button size="icon" variant="ghost" className="size-6" disabled={idx === p.items.length - 1} onClick={() => moveItem({ id: item._id, direction: "down" })}>
                                 <ArrowDown className="size-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="size-6 text-cyan-500 hover:text-cyan-400" title="ویرایش کارگاه" onClick={() => { setEditingItem(item); setEditingItemOpen(true); }}>
+                                <Pencil className="size-3" />
                               </Button>
                               <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => removeItem({ id: item._id })}>
                                 <Trash2 className="size-3" />
@@ -5625,6 +5647,387 @@ function AdminAcademyPaths() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Pricing Dialog ──────────────────────── */}
+      <Dialog open={pricingOpen} onOpenChange={setPricingOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="size-5 text-primary" />
+              تنظیم قیمت مسیر
+            </DialogTitle>
+            <DialogDescription>قیمت کل مسیر یا رایگان بودن آن را تعیین کنید.</DialogDescription>
+          </DialogHeader>
+          {pricingPath && (
+            <div className="space-y-4">
+              <p className="text-sm font-bold">{pricingPath.title}</p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={pricingPath.free ? "default" : "outline"}
+                    className="rounded-lg"
+                    onClick={async () => {
+                      try {
+                        await update({ id: pricingPath._id, free: true, price: 0 });
+                        setPricingOpen(false);
+                        toast.success("مسیر رایگان شد");
+                      } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+                    }}
+                  >
+                    <CheckCircle2 className="ml-1 size-3.5" />
+                    رایگان
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={!pricingPath.free ? "default" : "outline"}
+                    className="rounded-lg"
+                    onClick={() => setPricingValue(String(pricingPath.price || ""))}
+                  >
+                    پولی
+                  </Button>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-bold text-muted-foreground">قیمت (تومان)</label>
+                  <Input
+                    type="number"
+                    value={pricingValue}
+                    onChange={(e) => setPricingValue(e.target.value)}
+                    placeholder="مثلاً ۱۹۹۰۰۰"
+                    disabled={pricingPath.free}
+                  />
+                </div>
+              </div>
+              <Button
+                className="w-full"
+                disabled={pricingPath.free}
+                onClick={async () => {
+                  const price = Number(pricingValue) || 0;
+                  try {
+                    await update({ id: pricingPath._id, price, free: price === 0 });
+                    setPricingOpen(false);
+                    toast.success("قیمت ذخیره شد");
+                  } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+                }}
+              >
+                ذخیره قیمت
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Workshop Item Edit Dialog ──────────────── */}
+      <Dialog open={editingItemOpen} onOpenChange={setEditingItemOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="size-5 text-primary" />
+              ویرایش کارگاه در مسیر
+            </DialogTitle>
+            <DialogDescription>اطلاعات کارگاه در این مسیر را ویرایش کنید.</DialogDescription>
+          </DialogHeader>
+          {editingItem && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-muted-foreground">عنوان</label>
+                <Input value={editItemTitle} onChange={(e) => setEditItemTitle(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-muted-foreground">قیمت (تومان)</label>
+                <Input type="number" value={editItemPrice} onChange={(e) => setEditItemPrice(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-muted-foreground">ظرفیت</label>
+                <Input type="number" value={editItemCapacity} onChange={(e) => setEditItemCapacity(e.target.value)} />
+              </div>
+              <Button
+                className="w-full"
+                onClick={async () => {
+                  try {
+                    const patch: any = { id: editingItem._id };
+                    if (editItemTitle) patch.title = editItemTitle;
+                    if (editItemPrice) patch.price = Number(editItemPrice);
+                    if (editItemCapacity) patch.capacity = Number(editItemCapacity);
+                    await updateItem(patch);
+                    setEditingItemOpen(false);
+                    toast.success("کارگاه بروزرسانی شد");
+                  } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+                }}
+              >
+                ذخیره
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── AI Chat Subscriptions (Bronze/Silver/Gold) ─────────────────────────────
+function AdminAISubscriptions() {
+  const tiers = useQuery(api.aiSubscriptions.getTiers);
+  const subs = useQuery(api.aiSubscriptions.listSubscriptions);
+  const grant = useMutation(api.aiSubscriptions.grantSubscription);
+  const revoke = useMutation(api.aiSubscriptions.revokeSubscription);
+  const users = useQuery(api.admin.adminListUsers);
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [grantUserId, setGrantUserId] = useState("");
+  const [grantTier, setGrantTier] = useState<"bronze" | "silver" | "gold">("bronze");
+  const [grantDays, setGrantDays] = useState("30");
+  const [busy, setBusy] = useState(false);
+
+  const handleGrant = async () => {
+    if (!grantUserId) { toast.error("کاربر را انتخاب کنید."); return; }
+    setBusy(true);
+    try {
+      await grant({ userId: grantUserId as any, tier: grantTier, durationDays: Number(grantDays) || 30 });
+      toast.success("اشتراک فعال شد.");
+      setGrantOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRevoke = async (id: string) => {
+    if (!confirm("اشتراک غیرفعال شود؟")) return;
+    try {
+      await revoke({ id: id as any });
+      toast.success("غیرفعال شد.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    }
+  };
+
+  const TIER_COLORS: Record<string, string> = {
+    bronze: "border-amber-500/30 bg-amber-500/10 text-amber-600",
+    silver: "border-slate-400/30 bg-slate-400/10 text-slate-400",
+    gold: "border-yellow-500/30 bg-yellow-500/10 text-yellow-600",
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="اشتراک هوش مصنوعی" subtitle="AI Chat Subscriptions — Bronze / Silver / Gold" count={subs?.length} />
+
+      {/* Tier cards */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {(tiers ?? []).map((t: any) => (
+          <Card key={t.key} className={cn("border shadow-sm", TIER_COLORS[t.key] ?? "border-border/70")}>
+            <CardContent className="space-y-2 py-4 text-center">
+              <p className="text-lg font-extrabold">{t.label}</p>
+              <p className="text-2xl font-black">{faNum(t.price)} <span className="text-xs font-normal">تومان</span></p>
+              <p className="text-sm">{faNum(t.dailyLimit)} پیام روزانه</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="flex items-center justify-between py-4">
+          <p className="text-sm text-muted-foreground">{faNum(subs?.length ?? 0)} اشتراک فعال/تاریخی</p>
+          <Button className="rounded-lg" onClick={() => setGrantOpen(true)}>
+            <Plus className="ml-1.5 size-4" />
+            فعال‌سازی اشتراک
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Subscriptions list */}
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>کاربر</TableHead>
+                <TableHead>سطح</TableHead>
+                <TableHead>محدودیت روزانه</TableHead>
+                <TableHead>وضعیت</TableHead>
+                <TableHead>انقضا</TableHead>
+                <TableHead className="text-left">عملیات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {subs === undefined ? (
+                <TableRow><TableCell colSpan={6} className="py-10 text-center"><Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" /></TableCell></TableRow>
+              ) : subs.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">هنوز اشتراکی ثبت نشده.</TableCell></TableRow>
+              ) : (
+                subs.map((s: any) => (
+                  <TableRow key={s._id}>
+                    <TableCell>
+                      <div>
+                        <p className="text-xs font-bold">{s.userName}</p>
+                        <p className="text-[10px] text-muted-foreground">{s.userEmail}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell><Badge variant="outline" className={cn("text-[10px]", TIER_COLORS[s.tier])}>{s.tierLabel}</Badge></TableCell>
+                    <TableCell className="text-xs">{faNum(s.dailyLimit)} پیام</TableCell>
+                    <TableCell>{s.active ? <Badge className="bg-emerald-500/20 text-emerald-500 text-[10px]">فعال</Badge> : <Badge variant="outline" className="text-[10px]">غیرفعال</Badge>}</TableCell>
+                    <TableCell className="text-xs font-mono">{new Date(s.expiresAt).toLocaleDateString("fa-IR")}</TableCell>
+                    <TableCell className="text-left">
+                      {s.active && (
+                        <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => handleRevoke(s._id)}>
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Grant dialog */}
+      <Dialog open={grantOpen} onOpenChange={setGrantOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>فعال‌سازی اشتراک AI Chat</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-muted-foreground">کاربر</label>
+              <Select value={grantUserId} onValueChange={setGrantUserId}>
+                <SelectTrigger><SelectValue placeholder="انتخاب کاربر" /></SelectTrigger>
+                <SelectContent className="max-h-60 overflow-y-auto">
+                  {(users ?? []).map((u: any) => (
+                    <SelectItem key={u._id} value={u._id}>{u.name ?? u.email ?? u._id}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-muted-foreground">سطح</label>
+              <Select value={grantTier} onValueChange={(v) => setGrantTier(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bronze">برنزی — ۲۵ پیام/روز — ۱۹۹ هزار تومان</SelectItem>
+                  <SelectItem value="silver">نقره‌ای — ۵۰ پیام/روز — ۴۹۹ هزار تومان</SelectItem>
+                  <SelectItem value="gold">طلایی — ۱۵۰ پیام/روز — ۱,۴۹۹ هزار تومان</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-muted-foreground">مدت (روز)</label>
+              <Input type="number" value={grantDays} onChange={(e) => setGrantDays(e.target.value)} />
+            </div>
+            <Button className="w-full" onClick={handleGrant} disabled={busy || !grantUserId}>
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              فعال‌سازی
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Telegram Admin Controls ──────────────────────────────────────────────────
+function AdminTelegram() {
+  const botConfig = useQuery(api.telegramBot.getBotConfig);
+  const toggleActive = useMutation(api.telegramBot.toggleBotActive);
+  const [busy, setBusy] = useState(false);
+
+  const handleToggle = async () => {
+    if (!botConfig) return;
+    setBusy(true);
+    try {
+      await toggleActive({});
+      toast.success(botConfig.active ? "بات غیرفعال شد" : "بات فعال شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="تلگرام" subtitle="bot & mini-app management" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="space-y-3 py-4">
+            <div className="flex items-center gap-2">
+              <Bot className="size-5 text-blue-500" />
+              <p className="text-sm font-bold">وضعیت بات</p>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">نام</span><span className="font-mono">{botConfig?.botName ?? "—"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Username</span><span className="font-mono">{botConfig?.botUsername ? `@${botConfig.botUsername}` : "—"}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">اتصال</span><span>{botConfig?.connected ? <Badge className="bg-emerald-500/20 text-emerald-500">🟢 متصل</Badge> : <Badge variant="outline" className="text-destructive">🔴 قطع</Badge>}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">وضعیت</span><span>{botConfig?.active ? <Badge className="bg-emerald-500/20 text-emerald-500">فعال</Badge> : <Badge variant="outline" className="text-amber-500">غیرفعال</Badge>}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Webhook</span><span>{botConfig?.webhookUrl ? "🟢 فعال" : "🔴 غیرفعال"}</span></div>
+            </div>
+            <Button size="sm" variant={botConfig?.active ? "destructive" : "default"} className="w-full" onClick={handleToggle} disabled={busy || !botConfig}>
+              {busy ? <Loader2 className="ml-1 size-3 animate-spin" /> : null}
+              {botConfig?.active ? "غیرفعال کردن بات" : "فعال کردن بات"}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="space-y-3 py-4">
+            <div className="flex items-center gap-2">
+              <Zap className="size-5 text-amber-500" />
+              <p className="text-sm font-bold">Mini App</p>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">دامنه</span><span className="font-mono">nibrc.ir</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">وضعیت</span><Badge className="bg-emerald-500/20 text-emerald-500">فعال</Badge></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Start Message</span><span className="line-clamp-1 max-w-[200px] text-xs text-muted-foreground">{botConfig?.startMessage?.slice(0, 60) ?? "—"}</span></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="space-y-3 py-4">
+            <div className="flex items-center gap-2">
+              <Users className="size-5 text-purple-500" />
+              <p className="text-sm font-bold">کاربران متصل</p>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">دستورات ثبت‌شده</span><span>{botConfig?.commands?.length ?? 0}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">آخرین تست</span><span className="text-xs">{botConfig?.lastTestResult === "success" ? "✅ موفق" : botConfig?.lastTestResult ?? "—"}</span></div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="space-y-3 py-4">
+            <div className="flex items-center gap-2">
+              <Command className="size-5 text-cyan-500" />
+              <p className="text-sm font-bold">دستورات بات</p>
+            </div>
+            {(botConfig?.commands ?? []).length === 0 ? (
+              <p className="text-xs text-muted-foreground">هنوز دستوری ثبت نشده.</p>
+            ) : (
+              <div className="space-y-1">
+                {(botConfig?.commands ?? []).slice(0, 5).map((cmd: any, i: number) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="font-mono text-primary">/{cmd.command}</span>
+                    <span className="text-muted-foreground">{cmd.description}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex gap-2">
+        <Button variant="outline" className="rounded-lg" onClick={() => window.location.href = "/panel/telegram-bot"}>
+          <Send className="ml-1.5 size-4" />
+          پنل مدیریت بات
+        </Button>
+        <Button variant="outline" className="rounded-lg" onClick={() => window.location.href = "/panel/telegram-admin"}>
+          <Bot className="ml-1.5 size-4" />
+          مرکز مدیریت تلگرام
+        </Button>
+      </div>
     </div>
   );
 }
