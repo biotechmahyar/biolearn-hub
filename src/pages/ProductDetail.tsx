@@ -3,7 +3,7 @@ import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { api as iranApi } from "@/lib/apiClient";
-import { useMemo } from "react";
+import { useMemo, Component, type ReactNode } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import { useState, useEffect } from "react";
 import { addToRecentlyViewed } from "@/lib/recentlyViewed";
@@ -29,6 +29,40 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+/* ─── Error Boundary ─── */
+interface ErrorBoundaryProps { children: ReactNode; }
+interface ErrorBoundaryState { hasError: boolean; error: string | null; }
+
+class ProductErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[#071019] text-slate-200" dir="rtl">
+          <div className="text-center max-w-md px-4">
+            <ShoppingBag className="mx-auto size-12 text-red-400" />
+            <p className="mt-4 text-sm text-red-300 font-bold">خطا در نمایش محصول</p>
+            <p className="mt-2 text-xs text-slate-500">{this.state.error}</p>
+            <Link to="/marketplace">
+              <Button variant="ghost" size="sm" className="mt-4 text-cyan-300">
+                <ArrowRight className="ml-2 size-4" />
+                بازگشت به بازارچه
+              </Button>
+            </Link>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* ─── Constants ─── */
 const CONDITION_LABELS: Record<string, string> = {
   new: "نو",
   like_new: "تقریباً نو",
@@ -41,7 +75,19 @@ const CONDITION_COLORS: Record<string, string> = {
   used: "bg-amber-500/15 text-amber-300",
 };
 
-export default function ProductDetail() {
+/* ─── Helpers ─── */
+function safeStr(val: unknown, fallback = ""): string {
+  return typeof val === "string" ? val : fallback;
+}
+function safeNum(val: unknown, fallback = 0): number {
+  return typeof val === "number" && !isNaN(val) ? val : fallback;
+}
+function safeArr<T>(val: unknown): T[] {
+  return Array.isArray(val) ? val : [];
+}
+
+/* ─── Inner Component ─── */
+function ProductDetailInner() {
   const { slug } = useParams<{ slug: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -57,17 +103,23 @@ export default function ProductDetail() {
   const purchaseConvex = useMutation(api.marketplace.purchaseProduct);
   const toggleWishlistConvex = useMutation(api.marketplace.toggleWishlist);
   const addToCartConvex = useMutation(api.marketplace.addToCart);
-  const isWishlistedConvex = useQuery(api.marketplace.isWishlisted, productConvex ? { productId: productConvex._id as any } : "skip");
+  const isWishlistedConvex = useQuery(
+    api.marketplace.isWishlisted,
+    productConvex ? { productId: productConvex._id as any } : "skip",
+  );
+
   // Iran server
   const { data: productIran } = useApiQuery<any>(isIran && slug ? `/api/marketplace/products/${slug}` : "");
   const { data: walletIran } = useApiQuery<any>(isIran ? "/api/wallet" : "");
   const { mutate: purchaseIran } = useApiMutation("/api/marketplace/checkout", "POST");
   const { mutate: addToCartIran } = useApiMutation("/api/marketplace/cart", "POST");
   const { mutate: toggleWishlistIran } = useApiMutation("/api/marketplace/wishlist", "POST");
+
   const product = useMemo(() => {
     if (isIran && productIran) return { ...productIran, _id: productIran.id };
     return productConvex;
   }, [isIran, productIran, productConvex]);
+
   const wallet = isIran ? walletIran : walletConvex;
   const isWishlisted = isIran ? false : isWishlistedConvex;
   const [reviewRating, setReviewRating] = useState(5);
@@ -79,6 +131,7 @@ export default function ProductDetail() {
     product ? { productId: product._id as any, limit: 4 } : "skip",
   );
 
+  /* ── Loading ── */
   if (product === undefined) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#071019]">
@@ -87,6 +140,7 @@ export default function ProductDetail() {
     );
   }
 
+  /* ── Not found ── */
   if (!product) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#071019] text-slate-200" dir="rtl">
@@ -104,20 +158,39 @@ export default function ProductDetail() {
     );
   }
 
-  const isOwner = user?._id === product.sellerId;
+  // Normalize all product fields defensively
+  const pTitle = safeStr(product.title, "محصول");
+  const pDescription = safeStr(product.description);
+  const pSlug = safeStr(product.slug);
+  const pPrice = safeNum(product.price);
+  const pStock = safeNum(product.stock);
+  const pSoldCount = safeNum(product.soldCount);
+  const pCondition = safeStr(product.condition);
+  const pBoostLevel = safeStr(product.boostLevel, "none");
+  const pBoostExpiresAt = safeNum(product.boostExpiresAt);
+  const pCoverImage = safeStr(product.coverImage);
+  const pImages = safeArr<string>(product.images);
+  const pTags = safeArr<string>(product.tags);
+  const pReviews = safeArr<any>(product.reviews);
+  const pSellerName = safeStr((product as any).sellerName, "ناشناس");
+  const pSellerId = (product as any).sellerId;
+  const pStatus = safeStr((product as any).status);
+  const pId = (product as any)._id;
+
+  const isOwner = user?._id === pSellerId;
 
   // Track recently viewed
   useEffect(() => {
-    if (product && product.status === "approved") {
+    if (product && pStatus === "approved") {
       addToRecentlyViewed({
-        slug: product.slug,
-        title: product.title,
-        price: product.price,
-        coverImage: product.coverImage,
-        category: product.category,
+        slug: pSlug,
+        title: pTitle,
+        price: pPrice,
+        coverImage: pCoverImage || undefined,
+        category: safeStr((product as any).category),
       });
     }
-  }, [product?.slug]);
+  }, [pSlug]);
 
   const handlePurchase = async () => {
     if (!user) {
@@ -125,10 +198,10 @@ export default function ProductDetail() {
       return;
     }
     if (isOwner) {
-      toast.error("نمی‌توانید محصول خودتان را بخرید.");
+      toast.error("نمی\u200cتوانید محصول خودتان را بخرید.");
       return;
     }
-    if (product.stock < quantity) {
+    if (pStock < quantity) {
       toast.error("موجودی کافی نیست.");
       return;
     }
@@ -142,14 +215,14 @@ export default function ProductDetail() {
           deliveryNote: note || undefined,
         });
         if (res.ok) {
-          toast.success("خرید با موفقیت ثبت شد! 🎉");
+          toast.success("خرید با موفقیت ثبت شد!");
           setShowPurchase(false);
         } else {
           throw new Error(res.error || "خطا در خرید");
         }
       } else {
         const result = await purchaseConvex({
-          productId: product._id as any,
+          productId: pId,
           quantity,
           deliveryCity: "tabriz",
           deliveryAddress: address || undefined,
@@ -157,7 +230,7 @@ export default function ProductDetail() {
           payWithWallet: true,
         });
         if (result.ok) {
-          toast.success("خرید با موفقیت ثبت شد! 🎉");
+          toast.success("خرید با موفقیت ثبت شد!");
           setShowPurchase(false);
         }
       }
@@ -168,9 +241,9 @@ export default function ProductDetail() {
     }
   };
 
-  const hasStock = product.stock > 0;
+  const hasStock = pStock > 0;
   const canBuy = user && !isOwner && hasStock;
-  const hasEnoughBalance = (wallet?.balance ?? 0) >= product.price * quantity;
+  const hasEnoughBalance = (wallet?.balance ?? 0) >= pPrice * quantity;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#071019] via-[#0a1520] to-[#071019] text-slate-200" dir="rtl">
@@ -179,21 +252,34 @@ export default function ProductDetail() {
         <div className="mb-6 flex items-center gap-2 text-sm text-slate-500">
           <Link to="/marketplace" className="hover:text-cyan-300">بازارچه</Link>
           <ChevronLeft className="size-3" />
-          <span className="text-slate-300">{product.title}</span>
+          <span className="text-slate-300">{pTitle}</span>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           {/* Main Content */}
           <div className="space-y-6">
             {/* Images */}
-            {(product.images ?? []).length > 0 ? (
+            {pImages.length > 0 ? (
               <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-white/5">
                 <img
-                  src={(product.images ?? [])[0]}
-                  alt={product.title}
+                  src={pImages[0]}
+                  alt={pTitle}
                   className="size-full object-cover"
                 />
-                {product.boostLevel !== "none" && (product.boostExpiresAt ?? 0) > Date.now() && (
+                {pBoostLevel !== "none" && pBoostExpiresAt > Date.now() && (
+                  <Badge className="absolute left-4 top-4 border-0 bg-amber-500/90 text-[10px] text-white shadow-lg">
+                    ⚡ آگهی ویژه
+                  </Badge>
+                )}
+              </div>
+            ) : pCoverImage ? (
+              <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-white/5">
+                <img
+                  src={pCoverImage}
+                  alt={pTitle}
+                  className="size-full object-cover"
+                />
+                {pBoostLevel !== "none" && pBoostExpiresAt > Date.now() && (
                   <Badge className="absolute left-4 top-4 border-0 bg-amber-500/90 text-[10px] text-white shadow-lg">
                     ⚡ آگهی ویژه
                   </Badge>
@@ -207,32 +293,36 @@ export default function ProductDetail() {
 
             {/* Title & Info */}
             <div>
-              <h1 className="text-xl font-extrabold text-white sm:text-2xl">{product.title}</h1>
+              <h1 className="text-xl font-extrabold text-white sm:text-2xl">{pTitle}</h1>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Badge className={cn("border-0 text-[10px]", CONDITION_COLORS[product.condition])}>
-                  {CONDITION_LABELS[product.condition]}
-                </Badge>
+                {pCondition && CONDITION_LABELS[pCondition] && (
+                  <Badge className={cn("border-0 text-[10px]", CONDITION_COLORS[pCondition])}>
+                    {CONDITION_LABELS[pCondition]}
+                  </Badge>
+                )}
                 <Badge variant="outline" className="border-white/10 text-[10px] text-slate-400">
-                  موجودی: {product.stock}
+                  موجودی: {pStock}
                 </Badge>
-                {product.soldCount > 0 && (
+                {pSoldCount > 0 && (
                   <Badge variant="outline" className="border-white/10 text-[10px] text-slate-400">
-                    {product.soldCount} فروش
+                    {pSoldCount} فروش
                   </Badge>
                 )}
               </div>
             </div>
 
             {/* Description */}
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
-              <h3 className="mb-3 text-sm font-bold text-white">توضیحات</h3>
-              <p className="text-sm leading-7 text-slate-400 whitespace-pre-wrap">{product.description}</p>
-            </div>
+            {pDescription && (
+              <div className="rounded-xl border border-white/5 bg-white/[0.02] p-5">
+                <h3 className="mb-3 text-sm font-bold text-white">توضیحات</h3>
+                <p className="text-sm leading-7 text-slate-400 whitespace-pre-wrap">{pDescription}</p>
+              </div>
+            )}
 
             {/* Tags */}
-            {product.tags && product.tags.length > 0 && (
+            {pTags.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {product.tags.map((tag: any, i: number) => (
+                {pTags.map((tag: string, i: number) => (
                   <Badge key={i} variant="outline" className="border-white/10 text-[10px] text-slate-400">
                     {tag}
                   </Badge>
@@ -243,7 +333,7 @@ export default function ProductDetail() {
             {/* Reviews */}
             <div className="space-y-4">
               <h3 className="text-sm font-bold text-white">
-                نظرات خریداران ({product.reviews?.length ?? 0})
+                نظرات خریداران ({pReviews.length})
               </h3>
 
               {/* Review Form */}
@@ -252,7 +342,7 @@ export default function ProductDetail() {
                   <CardContent className="p-4 space-y-3">
                     <p className="text-xs font-bold text-slate-400">نظر شما</p>
                     <div className="flex items-center gap-1">
-                      {[1,2,3,4,5].map((s: any) => (
+                      {[1,2,3,4,5].map((s) => (
                         <button key={s} onClick={() => setReviewRating(s)}>
                           <Star className={cn("size-5 cursor-pointer", s <= reviewRating ? "fill-amber-400 text-amber-400" : "text-slate-600")} />
                         </button>
@@ -271,7 +361,7 @@ export default function ProductDetail() {
                         setReviewing(true);
                         try {
                           await submitReview({
-                            productId: product._id as any,
+                            productId: pId,
                             rating: reviewRating,
                             text: reviewText || undefined,
                           });
@@ -290,19 +380,19 @@ export default function ProductDetail() {
                   </CardContent>
                 </Card>
               )}
-              {product.reviews && product.reviews.length > 0 ? (
-                product.reviews.map((review: any) => (
+              {pReviews.length > 0 ? (
+                pReviews.map((review: any) => (
                   <Card key={review._id} className="border-white/5 bg-white/[0.02]">
                     <CardContent className="py-3">
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-sm font-medium text-white">{review.userName}</span>
+                        <span className="text-sm font-medium text-white">{safeStr(review.userName, "ناشناس")}</span>
                         <div className="flex items-center gap-1">
                           {Array.from({ length: 5 }).map((_, i) => (
                             <Star
                               key={i}
                               className={cn(
                                 "size-3",
-                                i < review.rating
+                                i < safeNum(review.rating)
                                   ? "fill-amber-400 text-amber-400"
                                   : "text-slate-600",
                               )}
@@ -312,7 +402,7 @@ export default function ProductDetail() {
                       </div>
                       {review.text && <p className="text-xs text-slate-400">{review.text}</p>}
                       <p className="mt-1 text-[10px] text-slate-600">
-                        {new Date(review.createdAt).toLocaleDateString("fa-IR")}
+                        {review.createdAt ? new Date(review.createdAt).toLocaleDateString("fa-IR") : ""}
                       </p>
                     </CardContent>
                   </Card>
@@ -323,31 +413,31 @@ export default function ProductDetail() {
             </div>
 
             {/* Similar Products */}
-            {similarProducts && similarProducts.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-bold text-white">محصولات مشابه</h3>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {similarProducts.map((sp: any) => (
-                      <Link key={sp._id} to={`/marketplace/${sp.slug}`}>
-                        <Card className="group overflow-hidden border-white/5 bg-white/[0.02] transition-all hover:-translate-y-0.5 hover:border-cyan-400/20">
-                          <div className="relative aspect-square overflow-hidden bg-white/5">
-                            {sp.coverImage ? (
-                              <img src={sp.coverImage} alt={sp.title} className="size-full object-cover" />
-                            ) : (
-                              <div className="flex size-full items-center justify-center">
-                                <ShoppingBag className="size-8 text-slate-700" />
-                              </div>
-                            )}
-                          </div>
-                          <div className="p-3">
-                            <h4 className="line-clamp-2 text-xs font-bold text-white group-hover:text-cyan-200">{sp.title}</h4>
-                            <p className="mt-1 text-sm font-extrabold text-cyan-300">{formatPriceNumber(sp.price)} <span className="text-[10px] font-normal text-slate-500">ت</span></p>
-                          </div>
-                        </Card>
-                      </Link>
-                    ))}
-                  </div>
+            {safeArr(similarProducts).length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-white">محصولات مشابه</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {safeArr<any>(similarProducts).map((sp: any) => (
+                    <Link key={sp._id} to={`/marketplace/${safeStr(sp.slug, "")}`}>
+                      <Card className="group overflow-hidden border-white/5 bg-white/[0.02] transition-all hover:-translate-y-0.5 hover:border-cyan-400/20">
+                        <div className="relative aspect-square overflow-hidden bg-white/5">
+                          {sp.coverImage ? (
+                            <img src={sp.coverImage} alt={safeStr(sp.title)} className="size-full object-cover" />
+                          ) : (
+                            <div className="flex size-full items-center justify-center">
+                              <ShoppingBag className="size-8 text-slate-700" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="p-3">
+                          <h4 className="line-clamp-2 text-xs font-bold text-white group-hover:text-cyan-200">{safeStr(sp.title)}</h4>
+                          <p className="mt-1 text-sm font-extrabold text-cyan-300">{formatPriceNumber(safeNum(sp.price))} <span className="text-[10px] font-normal text-slate-500">ت</span></p>
+                        </div>
+                      </Card>
+                    </Link>
+                  ))}
                 </div>
+              </div>
             )}
           </div>
 
@@ -358,7 +448,7 @@ export default function ProductDetail() {
               <CardContent className="space-y-4 p-5">
                 <div>
                   <p className="text-3xl font-extrabold text-white">
-                    {formatPriceNumber(product.price)}
+                    {formatPriceNumber(pPrice)}
                     <span className="mr-1 text-sm font-normal text-slate-400">تومان</span>
                   </p>
                 </div>
@@ -395,9 +485,9 @@ export default function ProductDetail() {
                         onClick={async () => {
                           try {
                             if (isIran) {
-                              await addToCartIran({ productId: product._id, quantity: 1 });
+                              await addToCartIran({ productId: pId, quantity: 1 });
                             } else {
-                              await addToCartConvex({ productId: product._id as any, quantity: 1 });
+                              await addToCartConvex({ productId: pId, quantity: 1 });
                             }
                             toast.success("به سبد خرید اضافه شد");
                           } catch (e: any) {
@@ -417,18 +507,18 @@ export default function ProductDetail() {
                           try {
                             let res: any;
                             if (isIran) {
-                              res = await iranApi.post("/api/marketplace/wishlist", { productId: product._id });
+                              res = await iranApi.post("/api/marketplace/wishlist", { productId: pId });
                               res = res.ok ? res.data : { wishlisted: false };
                             } else {
-                              res = await toggleWishlistConvex({ productId: product._id as any });
+                              res = await toggleWishlistConvex({ productId: pId });
                             }
-                            toast.success(res.wishlisted ? "به علاقه‌مندی‌ها اضافه شد" : "از علاقه‌مندی‌ها حذف شد");
+                            toast.success(res.wishlisted ? "به علاقه\u200cمندی\u200cها اضافه شد" : "از علاقه\u200cمندی\u200cها حذف شد");
                           } catch (e: any) {
                             toast.error(e.message);
                           }
                         }}
                       >
-                        {isWishlisted ? "❤️ حذف از علاقه‌مندی‌ها" : "🤍 افزودن به علاقه‌مندی‌ها"}
+                        {isWishlisted ? "❤️ حذف از علاقه\u200cمندی\u200cها" : "🤍 افزودن به علاقه\u200cمندی\u200cها"}
                       </Button>
                     </div>
                   ) : (
@@ -443,7 +533,7 @@ export default function ProductDetail() {
                         </button>
                         <span className="text-lg font-bold text-white">{quantity}</span>
                         <button
-                          onClick={() => setQuantity(Math.min(product.stock, quantity + 1))}
+                          onClick={() => setQuantity(Math.min(pStock, quantity + 1))}
                           className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
                         >
                           <Plus className="size-4" />
@@ -453,11 +543,11 @@ export default function ProductDetail() {
                       <div className="rounded-lg bg-white/5 p-3 text-sm">
                         <div className="flex justify-between text-slate-300">
                           <span>قیمت واحد</span>
-                          <span>{formatPriceNumber(product.price)} تومان</span>
+                          <span>{formatPriceNumber(pPrice)} تومان</span>
                         </div>
                         <div className="mt-1 flex justify-between font-bold text-white">
                           <span>جمع کل</span>
-                          <span>{formatPriceNumber(product.price * quantity)} تومان</span>
+                          <span>{formatPriceNumber(pPrice * quantity)} تومان</span>
                         </div>
                       </div>
 
@@ -488,7 +578,7 @@ export default function ProductDetail() {
                       >
                         {purchasing
                           ? "در حال ثبت..."
-                          : `پرداخت ${formatPriceNumber(product.price * quantity)} تومان`}
+                          : `پرداخت ${formatPriceNumber(pPrice * quantity)} تومان`}
                       </Button>
                       <Button
                         variant="ghost"
@@ -501,7 +591,7 @@ export default function ProductDetail() {
                     </div>
                   )
                 ) : !user ? (
-                  <Link to={'/auth?returnTo=' + encodeURIComponent(window.location.pathname)}>
+                  <Link to={"/auth?returnTo=" + encodeURIComponent(window.location.pathname)}>
                     <Button className="w-full bg-gradient-to-l from-cyan-500 to-cyan-600 text-white">
                       برای خرید وارد شوید
                     </Button>
@@ -526,7 +616,7 @@ export default function ProductDetail() {
                     <Store className="size-5 text-cyan-300" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white">{product.sellerName}</p>
+                    <p className="text-sm font-medium text-white">{pSellerName}</p>
                     <p className="text-[10px] text-slate-500">فروشنده</p>
                   </div>
                 </div>
@@ -536,5 +626,14 @@ export default function ProductDetail() {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ─── Exported with Error Boundary ─── */
+export default function ProductDetail() {
+  return (
+    <ProductErrorBoundary>
+      <ProductDetailInner />
+    </ProductErrorBoundary>
   );
 }

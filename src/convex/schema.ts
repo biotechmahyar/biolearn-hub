@@ -1152,7 +1152,8 @@ const schema = defineSchema(
       .index("by_seller", ["sellerId"])
       .index("by_status", ["status"])
       .index("by_category", ["category"])
-      .index("by_boost", ["boostLevel", "boostExpiresAt"]),
+      .index("by_boost", ["boostLevel", "boostExpiresAt"])
+      .index("by_slug", ["slug"]),
 
     // Store product reviews/ratings
     storeReviews: defineTable({

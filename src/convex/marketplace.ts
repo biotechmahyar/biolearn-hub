@@ -353,8 +353,11 @@ export const listProducts = query({
 export const getProduct = query({
   args: { slug: v.string() },
   handler: async (ctx, args) => {
-    const all = await ctx.db.query("storeProducts").collect();
-    const product = all.find((p) => p.slug === args.slug);
+    if (!args.slug) return null;
+    const product = await ctx.db
+      .query("storeProducts")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .first();
     if (!product || product.status !== "approved") return null;
 
     const seller = await ctx.db.get(product.sellerId);
