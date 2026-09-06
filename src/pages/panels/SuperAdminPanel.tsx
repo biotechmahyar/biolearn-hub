@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -34,7 +34,10 @@ export default function SuperAdminPanel() {
   const checkSession = useQuery(api.superAdmin.checkSession);
   const logoutSession = useMutation(api.superAdmin.logoutSession);
 
-  if (!authLoading && checkSession === true && !authenticated) setAuthenticated(true);
+  // Restore an active super-admin session once it resolves (never set state during render).
+  useEffect(() => {
+    if (!authLoading && checkSession === true) setAuthenticated(true);
+  }, [authLoading, checkSession]);
 
   const handleVerify = async () => {
     if (!password.trim()) return;

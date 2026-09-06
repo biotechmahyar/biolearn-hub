@@ -1,7 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { Scrypt } from "lucia";
 
 // Static super admin password (will be time-based later)
 const SUPER_ADMIN_PASSWORD = "GENOVA-SUPER-ADMIN-2024";

@@ -142,6 +142,7 @@ type Section =
   | "inbox"
   | "examReports"
   | "offlinePayments"
+  | "paymentGateway"
   | "myprofile"
   | "online"
   | "comments"
@@ -174,6 +175,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "orders", label: "سفارش‌ها", icon: CreditCard },
       { key: "offlinePayments", label: "پرداخت‌های آفلاین", icon: Receipt },
       { key: "payments", label: "پرداخت دستمزد", icon: Receipt },
+      { key: "paymentGateway", label: "درگاه پرداخت", icon: CreditCard },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
@@ -653,6 +655,7 @@ export default function Admin() {
             {section === "announcements" && <AdminAnnouncements />}
             {section === "comments" && <AdminComments />}
             {section === "payments" && <AdminPayments />}
+            {section === "paymentGateway" && <AdminPaymentGateway />}
             {section === "classRequests" && <AdminClassRequests />}
             {section === "studentReports" && <AdminStudentReports />}
             {section === "profiles" && <AdminProfiles />}
@@ -5740,6 +5743,110 @@ function AdminAuditLogs() {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+
+// ── Payment Gateway (درگاه پرداخت آنلاین) ────────────────────────────────
+// Single source of truth for online payments. Toggling here applies to ALL
+// purchase flows (courses, workshops, exams, academy paths, marketplace).
+function AdminPaymentGateway() {
+  const enabled = useQuery(api.siteSettings.isPaymentEnabled);
+  const togglePayment = useMutation(api.siteSettings.togglePayment);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState<boolean | null>(null);
+
+  const handleToggle = async (target: boolean) => {
+    setBusy(true);
+    try {
+      await togglePayment({ enabled: target });
+      toast.success(target ? "درگاه پرداخت آنلاین فعال شد" : "درگاه پرداخت آنلاین غیرفعال شد");
+      setConfirming(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="درگاه پرداخت آنلاین"
+        subtitle="فعال/غیرفعال کردن پرداخت آنلاین در کل سایت — منبع یکپارچه برای همه بخش‌ها"
+      />
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-4 py-5">
+          {enabled === undefined ? (
+            <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin" /></div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`flex size-11 items-center justify-center rounded-xl ${enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                    {enabled ? <CreditCard className="size-5" /> : <Lock className="size-5" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">{enabled ? "پرداخت آنلاین فعال است" : "پرداخت آنلاین غیرفعال است"}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {enabled
+                        ? "دانشجویان می‌توانند دوره، کارگاه، آزمون، مسیر آکادمی و محصولات بازارچه را آنلاین پرداخت کنند."
+                        : "دانشجویان فقط از طریق پرداخت آفلاین (کارت به کارت) می‌توانند خرید کنند."}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant={enabled ? "default" : "secondary"} className="text-xs">
+                  {enabled ? "فعال" : "غیرفعال"}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {enabled ? (
+                  <Button variant="destructive" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
+                    {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                    غیرفعال کردن درگاه
+                  </Button>
+                ) : (
+                  <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>
+                    {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                    فعال کردن درگاه
+                  </Button>
+                )}
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+                این تنظیم در <b>همهٔ بخش‌های فروش</b> اعمال می‌شود: دوره‌ها، کارگاه‌ها، آزمون‌ها،
+                مسیرهای آکادمی، بازارچه و هر محصول دیگر. وقتی غیرفعال باشد، گزینهٔ پرداخت آنلاین
+                در صفحهٔ خرید نمایش داده نمی‌شود و فقط روش آفلاین در دسترس است؛ سمت Backend نیز
+                پرداخت آنلاین را رد می‌کند تا امکان دور زدن UI وجود نداشته باشد.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      <Dialog open={confirming !== null} onOpenChange={(v) => { if (!v) setConfirming(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{confirming ? "فعال کردن درگاه پرداخت" : "غیرفعال کردن درگاه پرداخت"}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {confirming
+              ? "با فعال شدن، پرداخت آنلاین برای همهٔ بخش‌های فروش سایت فعال می‌شود. ادامه می‌دهید؟"
+              : "با غیرفعال شدن، هیچ کاربری نمی‌تواند آنلاین پرداخت کند و فقط روش آفلاین باقی می‌ماند. این تغییر بلافاصله در کل سایت اعمال می‌شود. ادامه می‌دهید؟"}
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setConfirming(null)}>انصراف</Button>
+            <Button
+              variant={confirming ? "default" : "destructive"}
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleToggle(confirming === true)}
+            >
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              {confirming ? "فعال کن" : "غیرفعال کن"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

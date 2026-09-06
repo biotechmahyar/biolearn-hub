@@ -956,6 +956,7 @@ export const uploadWhiteboardFile = mutation({
     fileType: v.string(), // "pdf" | "pptx" | "image"
     fileSize: v.number(),
     totalPages: v.optional(v.number()),
+    slideImages: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -973,6 +974,7 @@ export const uploadWhiteboardFile = mutation({
       fileSize: args.fileSize,
       totalPages: args.totalPages,
       currentPage: 1,
+      slideImages: args.slideImages,
       createdAt: Date.now(),
     });
   },
@@ -1026,7 +1028,10 @@ export const listWhiteboardFiles = query({
     const enriched = await Promise.all(
       files.map(async (f) => {
         const url = await ctx.storage.getUrl(f.fileStorageId);
-        return { ...f, url };
+        const slideUrls = f.slideImages?.length
+          ? await Promise.all(f.slideImages.map((id) => ctx.storage.getUrl(id)))
+          : undefined;
+        return { ...f, url, slideUrls };
       })
     );
     return enriched;

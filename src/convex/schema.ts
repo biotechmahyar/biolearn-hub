@@ -1557,6 +1557,8 @@ const schema = defineSchema(
       fileSize: v.number(),
       totalPages: v.optional(v.number()),
       currentPage: v.number(),
+      // Rendered slide images (storage IDs) for pptx — one per slide.
+      slideImages: v.optional(v.array(v.string())),
       createdAt: v.number(),
     }).index("by_room", ["roomId"]),
   },

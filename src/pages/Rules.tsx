@@ -1,47 +1,21 @@
 import { PublicLayout } from "@/components/site/PublicLayout";
+import { usePageConfig } from "@/hooks/usePageConfig";
 import { ChevronLeft } from "lucide-react";
 import { Link } from "react-router";
 
-const SECTIONS = [
-  {
-    title: "قوانین استفاده",
-    items: [
-      "محتوای پولی (دوره‌ها، جزوه‌ها و بانک سؤال) فقط با حساب کاربری خریداری‌شده قابل دسترسی است و اشتراک‌گذاری آن با دیگران مجاز نیست.",
-      "تیم زیست‌آکادمی متعهد به دقت علمی محتواست، اما محتوای آموزشی جایگزین نظر پزشک یا متخصص بالینی نیست.",
-      "هیچ ادعای غیرقابل اثباتی دربارهٔ نتایج آموزشی مطرح نمی‌کنیم؛ نتایج به تلاش و شرایط هر دانشجو بستگی دارد.",
-      "استفاده از نام و محتوای پلتفرم بدون اجازهٔ کتبی مجاز نیست.",
-    ],
-  },
-  {
-    title: "حریم خصوصی",
-    items: [
-      "اطلاعات حساب شما (ایمیل و مشخصات) فقط برای ارائهٔ خدمات، پیگیری سفارش‌ها و اطلاع‌رسانی استفاده می‌شود.",
-      "نتایج آزمون‌ها برای ساخت پروفایل یادگیری شخصی شما ذخیره می‌شود و بدون رضایت شما در اختیار شخص ثالث قرار نمی‌گیرد.",
-      "رمز عبور شما به‌صورت هش‌شده نگهداری می‌شود و دسترسی به داده‌های آموزشی فقط با احراز هویت ممکن است.",
-      "می‌توانید هر زمان درخواست حذف حساب و داده‌های خود را ارسال کنید.",
-    ],
-  },
-  {
-    title: "بازگشت وجه",
-    items: [
-      "تا ۷ روز پس از خرید دوره، اگر کمتر از ۲۰٪ محتوا مشاهده شده باشد، مبلغ به‌طور کامل بازگردانده می‌شود.",
-      "محصولات فیزیکی تا زمانی که مرسوله باز نشده باشد قابل بازگشت‌اند؛ هزینهٔ ارسال بازگشت با خریدار است.",
-      "کارگاه‌های زنده تا ۲۴ ساعت قبل از شروع، قابل انصراف با بازگشت کامل وجه هستند.",
-      "برای پیگیری بازگشت وجه از بخش پشتیبانی پنل دانشجویی تیکت ثبت کنید.",
-    ],
-  },
-  {
-    title: "تماس با ما",
-    items: [
-      "پشتیبانی و پاسخ‌گویی: شنبه تا پنجشنبه، ۹ تا ۱۸",
-      "ایمیل: hello@genova.team",
-      "تلگرام: @genova_team",
-      "پاسخ‌گویی سریع‌تر از طریق تیکت داخل پنل دانشجویی انجام می‌شود.",
-    ],
-  },
-];
+const SECTION_IDS = ["rulesUsage", "rulesPrivacy", "rulesRefund", "rulesContact"] as const;
 
 export default function Rules() {
+  const { getSection, isSectionVisible } = usePageConfig("rules");
+
+  const sections = SECTION_IDS.map((id) => {
+    const s = getSection(id) as Record<string, unknown>;
+    const items = [s.item1, s.item2, s.item3, s.item4].filter(
+      (v): v is string => typeof v === "string" && v.trim().length > 0,
+    );
+    return { id, title: String(s.title ?? ""), items, visible: isSectionVisible(id) };
+  }).filter((s) => s.visible && s.title);
+
   return (
     <PublicLayout>
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
@@ -58,12 +32,12 @@ export default function Rules() {
         </p>
 
         <div className="mt-10 space-y-8">
-          {SECTIONS.map((s) => (
-            <section key={s.title} className="rounded-2xl border border-border/70 bg-card/60 p-6">
+          {sections.map((s) => (
+            <section key={s.id} className="rounded-2xl border border-border/70 bg-card/60 p-6">
               <h2 className="text-lg font-extrabold">{s.title}</h2>
               <ul className="mt-4 space-y-3">
-                {s.items.map((item) => (
-                  <li key={item} className="flex items-start gap-2.5 text-sm leading-7 text-muted-foreground">
+                {s.items.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm leading-7 text-muted-foreground">
                     <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-primary" />
                     {item}
                   </li>

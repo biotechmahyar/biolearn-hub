@@ -114,6 +114,39 @@ export const SECTION_DEFAULTS: Record<string, Record<string, unknown>> = {
     secondaryButtonLink: "/free-content",
     _visible: true,
   },
+  // ── Rules page sections ────────────────────────────────────────────────
+  rulesUsage: {
+    title: "قوانین استفاده",
+    item1: "محتوای پولی (دوره‌ها، جزوه‌ها و بانک سؤال) فقط با حساب کاربری خریداری‌شده قابل دسترسی است و اشتراک‌گذاری آن با دیگران مجاز نیست.",
+    item2: "تیم زیست‌آکادمی متعهد به دقت علمی محتواست، اما محتوای آموزشی جایگزین نظر پزشک یا متخصص بالینی نیست.",
+    item3: "هیچ ادعای غیرقابل اثباتی دربارهٔ نتایج آموزشی مطرح نمی‌کنیم؛ نتایج به تلاش و شرایط هر دانشجو بستگی دارد.",
+    item4: "استفاده از نام و محتوای پلتفرم بدون اجازهٔ کتبی مجاز نیست.",
+    _visible: true,
+  },
+  rulesPrivacy: {
+    title: "حریم خصوصی",
+    item1: "اطلاعات حساب شما (ایمیل و مشخصات) فقط برای ارائهٔ خدمات، پیگیری سفارش‌ها و اطلاع‌رسانی استفاده می‌شود.",
+    item2: "نتایج آزمون‌ها برای ساخت پروفایل یادگیری شخصی شما ذخیره می‌شود و بدون رضایت شما در اختیار شخص ثالث قرار نمی‌گیرد.",
+    item3: "رمز عبور شما به‌صورت هش‌شده نگهداری می‌شود و دسترسی به داده‌های آموزشی فقط با احراز هویت ممکن است.",
+    item4: "می‌توانید هر زمان درخواست حذف حساب و داده‌های خود را ارسال کنید.",
+    _visible: true,
+  },
+  rulesRefund: {
+    title: "بازگشت وجه",
+    item1: "تا ۷ روز پس از خرید دوره، اگر کمتر از ۲۰٪ محتوا مشاهده شده باشد، مبلغ به‌طور کامل بازگردانده می‌شود.",
+    item2: "محصولات فیزیکی تا زمانی که مرسوله باز نشده باشد قابل بازگشت‌اند؛ هزینهٔ ارسال بازگشت با خریدار است.",
+    item3: "کارگاه‌های زنده تا ۲۴ ساعت قبل از شروع، قابل انصراف با بازگشت کامل وجه هستند.",
+    item4: "برای پیگیری بازگشت وجه از بخش پشتیبانی پنل دانشجویی تیکت ثبت کنید.",
+    _visible: true,
+  },
+  rulesContact: {
+    title: "تماس با ما",
+    item1: "پشتیبانی و پاسخ‌گویی: شنبه تا پنجشنبه، ۹ تا ۱۸",
+    item2: "ایمیل: hello@genova.team",
+    item3: "تلگرام: @genova_team",
+    item4: "پاسخ‌گویی سریع‌تر از طریق تیکت داخل پنل دانشجویی انجام می‌شود.",
+    _visible: true,
+  },
 };
 
 // ── Pages registry ──────────────────────────────────────────────────────
@@ -298,7 +331,36 @@ export const PAGE_REGISTRY: PageDef[] = [
     title: "قوانین",
     route: "/rules",
     description: "قوانین، حریم خصوصی و بازگشت وجه",
-    sections: [],
+    sections: [
+      { id: "rulesUsage", label: "قوانین استفاده", editable: true, order: 1, removable: false, fields: [
+        { key: "title", label: "عنوان بخش", type: "text", perm: "content" },
+        { key: "item1", label: "بند ۱", type: "textarea", perm: "content" },
+        { key: "item2", label: "بند ۲", type: "textarea", perm: "content" },
+        { key: "item3", label: "بند ۳", type: "textarea", perm: "content" },
+        { key: "item4", label: "بند ۴", type: "textarea", perm: "content" },
+      ]},
+      { id: "rulesPrivacy", label: "حریم خصوصی", editable: true, order: 2, removable: false, fields: [
+        { key: "title", label: "عنوان بخش", type: "text", perm: "content" },
+        { key: "item1", label: "بند ۱", type: "textarea", perm: "content" },
+        { key: "item2", label: "بند ۲", type: "textarea", perm: "content" },
+        { key: "item3", label: "بند ۳", type: "textarea", perm: "content" },
+        { key: "item4", label: "بند ۴", type: "textarea", perm: "content" },
+      ]},
+      { id: "rulesRefund", label: "بازگشت وجه", editable: true, order: 3, removable: false, fields: [
+        { key: "title", label: "عنوان بخش", type: "text", perm: "content" },
+        { key: "item1", label: "بند ۱", type: "textarea", perm: "content" },
+        { key: "item2", label: "بند ۲", type: "textarea", perm: "content" },
+        { key: "item3", label: "بند ۳", type: "textarea", perm: "content" },
+        { key: "item4", label: "بند ۴", type: "textarea", perm: "content" },
+      ]},
+      { id: "rulesContact", label: "تماس با ما", editable: true, order: 4, removable: false, fields: [
+        { key: "title", label: "عنوان بخش", type: "text", perm: "content" },
+        { key: "item1", label: "بند ۱", type: "textarea", perm: "content" },
+        { key: "item2", label: "بند ۲", type: "textarea", perm: "content" },
+        { key: "item3", label: "بند ۳", type: "textarea", perm: "content" },
+        { key: "item4", label: "بند ۴", type: "textarea", perm: "content" },
+      ]},
+    ],
   },
   {
     key: "free-content",
