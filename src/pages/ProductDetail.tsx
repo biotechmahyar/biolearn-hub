@@ -186,10 +186,10 @@ export default function ProductDetail() {
           {/* Main Content */}
           <div className="space-y-6">
             {/* Images */}
-            {product.images.length > 0 ? (
+            {(product.images ?? []).length > 0 ? (
               <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-white/5">
                 <img
-                  src={product.images[0]}
+                  src={(product.images ?? [])[0]}
                   alt={product.title}
                   className="size-full object-cover"
                 />

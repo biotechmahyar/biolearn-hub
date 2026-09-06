@@ -1983,6 +1983,7 @@ function RoomsView({
   const [immediate, setImmediate] = useState(false);
   const createRoom = useMutation(api.collab.createRoom);
   const setRoomStatus = useMutation(api.collab.setRoomStatus);
+  const deleteRoom = useMutation(api.collab.deleteRoom);
   const requestClass = useMutation(api.admin.requestClass);
   const myRequests = useQuery(api.admin.listMyClassRequests);
   const isAdminOrManager = user?.role === "admin" || user?.role === "site_admin";
@@ -2019,11 +2020,12 @@ function RoomsView({
   }
 
   async function handleDeletePast(roomId: string) {
+    if (!confirm("آیا از حذف این کلاس مطمئنید؟ این عمل قابل بازگشت نیست.")) return;
     try {
-      await setRoomStatus({ roomId: roomId as any, status: "ended" });
+      await deleteRoom({ roomId: roomId as any });
       toast.success("کلاس حذف شد");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "خطا");
+      toast.error(e instanceof Error ? e.message : "خطا در حذف");
     }
   }
 

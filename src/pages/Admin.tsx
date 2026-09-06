@@ -2884,7 +2884,9 @@ function AdminComments() {
   return (
     <div className="space-y-5">
       <SectionHeader title="دیدگاه‌ها" subtitle="تأیید یا رد دیدگاه‌های کاربران" count={pending?.length} />
-      {(!pending || pending.length === 0) ? (
+      {pending === undefined ? (
+        <Card className="border-border/70 shadow-sm"><CardContent className="flex justify-center py-10"><Loader2 className="size-5 animate-spin text-muted-foreground" /></CardContent></Card>
+      ) : pending.length === 0 ? (
         <Card className="border-border/70 shadow-sm">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <MessageSquare className="size-8 text-muted-foreground" />
