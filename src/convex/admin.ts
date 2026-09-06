@@ -186,7 +186,7 @@ export const adminUpdateCourse = mutation({
     accent: v.optional(v.string()), durationText: v.optional(v.string()),
     audience: v.optional(v.array(v.string())), prerequisites: v.optional(v.array(v.string())),
     includes: v.optional(v.array(v.string())),
-    syllabus: v.optional(v.array(v.object({ id: v.string(), title: v.string(), durationMin: v.number(), free: v.boolean() }))),
+    syllabus: v.optional(v.array(v.object({ id: v.optional(v.string()), title: v.string(), durationMin: v.number(), free: v.boolean() }))),
     packagePrices: v.optional(v.array(v.object({ tier: v.union(v.literal("economy"), v.literal("basic"), v.literal("plus"), v.literal("premium")), price: v.number(), features: v.array(v.string()) }))),
   },
   handler: async (ctx, args) => {
@@ -306,6 +306,8 @@ export const adminCreateArticle = mutation({
     readTime: v.optional(v.number()), published: v.optional(v.boolean()),
     featured: v.optional(v.boolean()),
     seoTitle: v.optional(v.string()), seoDescription: v.optional(v.string()),
+    seoKeywords: v.optional(v.array(v.string())), seoCanonical: v.optional(v.string()),
+    ogTitle: v.optional(v.string()), ogDescription: v.optional(v.string()), ogImage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
@@ -337,8 +339,8 @@ export const adminUpdateArticle = mutation({
     readTime: v.optional(v.number()), published: v.optional(v.boolean()),
     featured: v.optional(v.boolean()), status: v.optional(v.string()),
     seoTitle: v.optional(v.string()), seoDescription: v.optional(v.string()),
-    seoKeywords: v.optional(v.array(v.string())), ogTitle: v.optional(v.string()),
-    ogDescription: v.optional(v.string()), ogImage: v.optional(v.string()),
+    seoKeywords: v.optional(v.array(v.string())), seoCanonical: v.optional(v.string()),
+    ogTitle: v.optional(v.string()), ogDescription: v.optional(v.string()), ogImage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
@@ -401,7 +403,7 @@ export const adminCreateExam = mutation({
     title: v.string(), description: v.string(), durationMinutes: v.number(),
     free: v.boolean(), diagnostic: v.boolean(),
     questionIds: v.optional(v.array(v.id("questions"))),
-    topicId: v.optional(v.string()), count: v.optional(v.string()),
+    topicId: v.optional(v.string()), count: v.optional(v.union(v.string(), v.number())),
     accent: v.optional(v.string()),
     published: v.optional(v.boolean()),
     slug: v.optional(v.string()),
@@ -450,7 +452,7 @@ export const adminListWorkshops = query({
   handler: async (ctx) => {
     if (!(await isContentStaff(ctx))) return [];
     const workshops = await ctx.db.query("workshops").collect();
-    const enriched = await Promise.all(workshops.map(async (w) => ({ ...w, instructor: await ctx.db.get(w.instructorId) })));
+    const enriched = await Promise.all(workshops.map(async (w) => { const inst = await ctx.db.get(w.instructorId); return { ...w, instructor: (inst as any)?.name ?? "—" }; }));
     return enriched;
   },
 });
@@ -519,14 +521,17 @@ export const adminListAnnouncements = query({
 export const saveGeneratedQuestions = mutation({
   args: {
     questions: v.array(
-      v.object({ text: v.string(), options: v.array(v.string()), correctIndex: v.number(), explanation: v.optional(v.string()), topicId: v.id("categories"), difficulty: v.number() }),
+      v.object({ text: v.string(), options: v.array(v.string()), correctIndex: v.number(), explanation: v.optional(v.string()), topicId: v.optional(v.id("categories")), difficulty: v.number() }),
     ),
+    topicId: v.optional(v.id("categories")),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     let count = 0;
     for (const q of args.questions) {
-      await ctx.db.insert("questions", { ...q, explanation: q.explanation ?? "" });
+      const tid = q.topicId ?? args.topicId;
+      if (!tid) continue;
+      await ctx.db.insert("questions", { text: q.text, options: q.options, correctIndex: q.correctIndex, explanation: q.explanation ?? "", topicId: tid, difficulty: q.difficulty });
       count++;
     }
     return { created: count };
@@ -541,10 +546,11 @@ export const adminCreateUser = mutation({
   args: { email: v.string(), name: v.optional(v.string()), role: v.optional(v.string()), password: v.optional(v.string()) } as any,
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
-    return await ctx.db.insert("users", {
+    const id = await ctx.db.insert("users", {
       email: args.email, name: args.name,
       role: (args.role as any) ?? "user",
     });
+    return { ok: true, userId: id };
   },
 });
 
@@ -711,20 +717,25 @@ export const adminDeleteProduct = mutation({
 
 // ── Articles CRUD Extended ─────────────────────────────────────────────────
 export const adminSaveGeneratedArticles = mutation({
-  args: { articles: v.array(v.object({
-    title: v.string(), body: v.string(), excerpt: v.optional(v.string()),
-    category: v.optional(v.string()), authorName: v.string(),
-  })) },
+  args: {
+    articles: v.array(v.object({
+      title: v.string(), body: v.string(), excerpt: v.optional(v.string()),
+      category: v.optional(v.string()), authorName: v.optional(v.string()),
+    })),
+    authorName: v.optional(v.string()),
+    published: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const now = Date.now();
+    const author = args.authorName ?? "تیم Genova";
     let count = 0;
     for (const a of args.articles) {
       const slug = a.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + now.toString(36) + count;
       await ctx.db.insert("articles", {
         title: a.title, slug, body: a.body, excerpt: a.excerpt ?? "", category: a.category ?? "عمومی",
-        authorName: a.authorName, readTime: 5, accent: "teal",
-        published: false, featured: false, status: "draft" as const,
+        authorName: a.authorName ?? author, readTime: 5, accent: "teal",
+        published: args.published ?? false, featured: false, status: (args.published ? "published" : "draft") as any,
         createdAt: now, updatedAt: now,
       });
       count++;
@@ -866,12 +877,13 @@ export const adminListEnrollments = query({
 });
 
 export const adminListEnrollTargets = query({
-  args: { targetType: v.string() },
+  args: { targetType: v.optional(v.string()), kind: v.optional(v.string()) } as any,
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) return [];
-    if (args.targetType === "course") return await ctx.db.query("courses").collect();
-    if (args.targetType === "workshop") return await ctx.db.query("workshops").collect();
-    if (args.targetType === "path") return await ctx.db.query("academyPaths").collect();
+    const t = (args as any).targetType ?? (args as any).kind ?? "course";
+    if (t === "course") return await ctx.db.query("courses").collect();
+    if (t === "workshop") return await ctx.db.query("workshops").collect();
+    if (t === "path") return await ctx.db.query("academyPaths").collect();
     return [];
   },
 });
@@ -916,19 +928,23 @@ export const adminListProductsForDiscount = query({
 });
 
 export const adminSetCourseDiscount = mutation({
-  args: { id: v.id("courses"), discountPrice: v.number(), discountExpiresAt: v.number() },
+  args: { courseId: v.optional(v.id("courses")), id: v.optional(v.id("courses")), discountPercent: v.optional(v.number()), discountExpiresAt: v.optional(v.number()) } as any,
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
-    await ctx.db.patch(args.id, { discountPrice: args.discountPrice, discountExpiresAt: args.discountExpiresAt });
+    const cid = (args as any).courseId ?? args.id;
+    if (!cid) throw new Error("courseId لازم است");
+    await ctx.db.patch(cid, { discountPrice: (args as any).discountPercent ?? 0, discountExpiresAt: (args as any).discountExpiresAt });
     return { ok: true };
   },
 });
 
 export const adminSetProductDiscount = mutation({
-  args: { id: v.id("products"), discountPrice: v.number(), discountExpiresAt: v.number() },
+  args: { productId: v.optional(v.id("products")), id: v.optional(v.id("products")), discountPercent: v.optional(v.number()), discountExpiresAt: v.optional(v.number()) } as any,
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
-    await ctx.db.patch(args.id, { discountPrice: args.discountPrice, discountExpiresAt: args.discountExpiresAt });
+    const pid = (args as any).productId ?? args.id;
+    if (!pid) throw new Error("productId لازم است");
+    await ctx.db.patch(pid, { discountPrice: (args as any).discountPercent ?? 0, discountExpiresAt: (args as any).discountExpiresAt });
     return { ok: true };
   },
 });
@@ -975,7 +991,7 @@ export const exportBackup = query({
   args: {},
   handler: async (ctx) => {
     if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
-    return { ok: true, tables: {} as Record<string, any>, exportedAt: Date.now() };
+    return { ok: true, tables: {} as Record<string, any>, exportedAt: new Date().toISOString() };
   },
 });
 

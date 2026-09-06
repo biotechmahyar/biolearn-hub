@@ -3314,7 +3314,7 @@ function AdminUsers() {
                         variant="ghost"
                         size="sm"
                         className="rounded-lg text-xs"
-                        onClick={() => { setResetUser({ _id: u._id, name: u.name }); setResetPass(""); setResetErr(null); }}
+                        onClick={() => { setResetUser({ _id: u._id, name: u.name ?? null }); setResetPass(""); setResetErr(null); }}
                       >
                         تغییر رمز
                       </Button>
@@ -3335,7 +3335,7 @@ function AdminUsers() {
                         }
                         disabled={!isSystemAdmin && (u.role === "admin" || u.role === "site_admin")}
                         onClick={() => {
-                          setEditTarget({ _id: u._id, name: u.name, email: u.email, role: u.role });
+                          setEditTarget({ _id: u._id, name: u.name ?? null, email: u.email ?? null, role: u.role ?? null });
                           setEditName(u.name ?? "");
                           setEditEmail(u.email ?? "");
                           setEditErr(null);
@@ -3356,7 +3356,7 @@ function AdminUsers() {
                         }
                         disabled={me?._id === u._id || (!isSystemAdmin && (u.role === "admin" || u.role === "site_admin"))}
                         onClick={() => {
-                          setDeleteTarget({ _id: u._id, name: u.name });
+                          setDeleteTarget({ _id: u._id, name: u.name ?? null });
                           setDeleteErr(null);
                         }}
                       >
