@@ -709,7 +709,13 @@ export default function SiteStudio() {
   }, [realPageDef, hasEditableSections]);
 
   useEffect(() => {
-    if (perms && !pages && perms.isFull) {
+    // Re-run bootstrap when any real site page is missing from the studio
+    // list (the page registry grows over time; older databases lack pages
+    // like «قوانین»). bootstrapPages upserts only the missing ones.
+    const needsBootstrap =
+      perms?.isFull &&
+      (pages === undefined || (Array.isArray(pages) && pages.length < PAGE_REGISTRY.length));
+    if (needsBootstrap) {
       void bootstrap().then((r) => {
         if (r === "seeded") toast.success("صفحات پیش‌فرض ساخته شد");
       });

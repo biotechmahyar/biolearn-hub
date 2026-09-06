@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SlideDeckViewer } from "@/components/site/SlideDeckViewer";
 import { toast } from "sonner";
 import {
   BookOpen,
@@ -12,7 +13,6 @@ import {
   ChevronRight,
   Download,
   FileText,
-  LinkIcon,
   Lock,
   Play,
   Video,
@@ -260,7 +260,7 @@ export function LessonPlayer({
                     </Card>
                   )}
 
-                  {/* Attachments */}
+                  {/* Attachments — inline viewers for slides/PDFs, links otherwise */}
                   {currentContent.attachments &&
                     currentContent.attachments.length > 0 && (
                       <Card className="border-white/5 bg-white/[0.02]">
@@ -271,19 +271,12 @@ export function LessonPlayer({
                           </div>
                           <div className="space-y-1.5">
                             {currentContent.attachments.map((a: any, i: number) => (
-                              <a
+                              <SlideDeckViewer
                                 key={i}
-                                href={a.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-xs text-cyan-300 hover:bg-white/5"
-                              >
-                                <LinkIcon className="size-3 shrink-0" />
-                                <span className="truncate">{a.name}</span>
-                                <span className="mr-auto text-slate-500">
-                                  {(a.size / 1024).toFixed(0)} KB
-                                </span>
-                              </a>
+                                url={a.url}
+                                name={a.name ?? "فایل"}
+                                size={a.size}
+                              />
                             ))}
                           </div>
                         </CardContent>

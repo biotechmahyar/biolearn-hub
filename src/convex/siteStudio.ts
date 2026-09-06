@@ -778,8 +778,6 @@ export const bootstrapPages = mutation({
       if (existing) return "exists";
       return "denied";
     }
-    const existing = await ctx.db.query("studioPages").first();
-    if (existing) return "exists";
     // All real site pages — Studio pages that map to actual React routes.
     const defaults = [
       { key: "home", title: "صفحهٔ اصلی", route: "/", description: "هیرو، ویژگی‌ها، دوره‌ها و بخش‌های صفحه اصلی" },
@@ -796,10 +794,19 @@ export const bootstrapPages = mutation({
       { key: "header", title: "هدر و منو", route: "(header)", description: "لوگو، منوی اصلی و بنر بالای سایت" },
       { key: "footer", title: "فوتر", route: "(footer)", description: "لینک‌ها، اطلاعات تماس و متن فوتر" },
     ];
+    // Upsert: add any real page that is missing (the registry grows over time
+    // and old databases were seeded before pages like "rules" existed).
+    let added = 0;
     for (const d of defaults) {
+      const existing = await ctx.db
+        .query("studioPages")
+        .withIndex("by_key", (q) => q.eq("key", d.key))
+        .first();
+      if (existing) continue;
       await ctx.db.insert("studioPages", { ...d, published: false });
+      added++;
     }
-    return "seeded";
+    return added > 0 ? "seeded" : "exists";
   },
 });
 

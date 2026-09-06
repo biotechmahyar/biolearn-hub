@@ -19,7 +19,9 @@ export const purchase = mutation({
     if (!user) throw new Error("برای خرید ابتدا وارد حساب شوید.");
     if (args.items.length === 0) throw new Error("سبد خرید خالی است.");
 
-    // Central payment gateway enforcement (source of truth: siteSettings)
+    // Central payment gateway enforcement (source of truth: siteSettings).
+    // Read now, but only enforce once we know the real subtotal below so
+    // free enrollments keep working while the gateway is disabled.
     const paymentSetting = await ctx.db
       .query("siteSettings")
       .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
@@ -27,10 +29,6 @@ export const purchase = mutation({
     const paymentEnabled = paymentSetting
       ? (() => { try { return JSON.parse(paymentSetting.value); } catch { return true; } })()
       : true;
-    const hasPaidItem = args.items.length > 0;
-    if (!paymentEnabled && hasPaidItem) {
-      throw new Error("پرداخت آنلاین موقتاً غیرفعال است — از پرداخت آفلاین استفاده کنید.");
-    }
 
     const lineItems: { type: "course" | "product" | "workshop"; refId: string; title: string; price: number }[] = [];
     for (const item of args.items) {
@@ -80,6 +78,13 @@ export const purchase = mutation({
     }
 
     const subtotal = lineItems.reduce((acc, l) => acc + l.price, 0);
+
+    // Block only *paid* online purchases while the gateway is disabled;
+    // free items and offline flow remain available.
+    if (!paymentEnabled && subtotal > 0) {
+      throw new Error("پرداخت آنلاین موقتاً غیرفعال است — از پرداخت آفلاین استفاده کنید.");
+    }
+
     let discountAmount = 0;
     let couponCode: string | undefined;
 

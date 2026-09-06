@@ -17,6 +17,7 @@ import {
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { VideoRenderer } from "@/components/site/VideoRenderer";
 import { EmbedCodeRenderer } from "@/components/site/EmbedCodeRenderer";
+import { SlideDeckViewer } from "@/components/site/SlideDeckViewer";
 import { useAuth } from "@/hooks/use-auth";
 import {
   ArrowLeft,
@@ -335,37 +336,31 @@ export default function LessonPlayerPage() {
               </Card>
             )}
 
-            {/* Attachments */}
+            {/* Attachments — inline slide viewer for PDF/PPTX, links otherwise */}
             {currentLesson.attachments && currentLesson.attachments.length > 0 && (
               <Card className="border-border/70">
                 <CardContent className="py-4">
                   <h3 className="mb-3 text-sm font-bold">فایل‌های پیوست</h3>
                   <div className="space-y-2">
-                    {(attachmentUrls ?? currentLesson.attachments.map((att: any) => ({ name: att.name, fileSize: att.fileSize, url: null }))).map((att: any, i: number) => (
-                      <div key={i} className="flex items-center gap-3 rounded-lg border border-border/50 p-3">
-                        <FileText className="size-4 text-muted-foreground" />
-                        <div className="flex-1 min-w-0">
-                          <span className="block text-sm truncate">{att.name}</span>
-                          {att.fileSize && (
-                            <span className="text-[10px] text-muted-foreground">
-                              {att.fileSize > 1048576
-                                ? `${(att.fileSize / 1048576).toFixed(1)} مگابایت`
-                                : `${(att.fileSize / 1024).toFixed(0)} کیلوبایت`}
-                            </span>
-                          )}
-                        </div>
-                        {att.url ? (
-                          <Button size="sm" variant="ghost" asChild>
-                            <a href={att.url} download={att.name}>
-                              <Download className="ml-1 size-3.5" />
-                              دانلود
-                            </a>
-                          </Button>
-                        ) : (
+                    {(attachmentUrls ?? currentLesson.attachments.map((att: any) => ({ name: att.name, fileSize: att.fileSize, url: null }))).map((att: any, i: number) =>
+                      att.url ? (
+                        <SlideDeckViewer
+                          key={i}
+                          url={att.url}
+                          name={att.name ?? "فایل"}
+                          size={att.fileSize}
+                        />
+                      ) : (
+                        <div
+                          key={i}
+                          className="flex items-center gap-3 rounded-lg border border-border/50 p-3"
+                        >
+                          <FileText className="size-4 text-muted-foreground" />
+                          <span className="flex-1 truncate text-sm">{att.name}</span>
                           <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      ),
+                    )}
                   </div>
                 </CardContent>
               </Card>
