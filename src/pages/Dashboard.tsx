@@ -1235,6 +1235,27 @@ function SupportTab() {
         </div>
       ) : null}
 
+      {/* Loading ticket conversation */}
+      {openId && openTicket === undefined && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="size-6 animate-spin text-primary/60" />
+        </div>
+      )}
+
+      {/* Ticket not found / no permission */}
+      {openId && openTicket === null && (
+        <Card className="border-dashed border-border">
+          <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+            <MessageCircle className="size-8 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">تیکت یافت نشد یا دسترسی ندارید.</p>
+            <Button variant="outline" size="sm" onClick={() => setOpenId(null)}>
+              <ChevronLeft className="ml-1 size-4" />
+              بازگشت به لیست
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Conversation view */}
       {openId && openTicket && (
         <Card>
@@ -1254,7 +1275,7 @@ function SupportTab() {
                   variant="ghost"
                   size="sm"
                   className="text-xs text-muted-foreground"
-                  onClick={() => void updateStatus({ ticketId: openId as any, status: "closed" })}
+                  onClick={async () => { try { await updateStatus({ ticketId: openId as any, status: "closed" }); } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); } }}
                 >
                   بستن
                 </Button>

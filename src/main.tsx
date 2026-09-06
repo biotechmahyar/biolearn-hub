@@ -51,6 +51,7 @@ const FreeContent = lazy(() => import("./pages/FreeContent.tsx"));
 const ArticleDetail = lazy(() => import("./pages/ArticleDetail.tsx"));
 const Dictionary = lazy(() => import("./pages/Dictionary.tsx"));
 const AIChat = lazy(() => import("./pages/AIChat.tsx"));
+const Pricing = lazy(() => import("./pages/Pricing.tsx"));
 const AIManagementPanel = lazy(() => import("./pages/panels/AIManagementPanel.tsx"));
 const SuperAdminPanel = lazy(() => import("./pages/panels/SuperAdminPanel.tsx"));
 const Rules = lazy(() => import("./pages/Rules.tsx"));
@@ -159,6 +160,7 @@ createRoot(document.getElementById("root")!).render(
 
               {/* AI Chat — requires auth, redirects to /auth if not logged in */}
               <Route path="/ai-chat" element={<AIChat />} />
+              <Route path="/pricing" element={<Pricing />} />
 
               {/* Authenticated */}
               <Route
