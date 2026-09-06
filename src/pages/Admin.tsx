@@ -34,7 +34,7 @@ import { api } from "@/convex/_generated/api";
 import { useMode } from "@/hooks/useMode";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAuth } from "@/hooks/use-auth";
-import { accent, faNum, formatDate, formatDateTime, formatJalaliDate, formatPrice } from "@/lib/format";
+import { accent, faNum, formatDate, formatDateTime, formatJalaliDate, formatJalaliDateString, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
@@ -387,6 +387,11 @@ export default function Admin() {
     courses: "courses",
     offlinePayments: "offlinePayments",
     classRequests: "classRequests",
+    storeApproval: "storeApproval",
+    comments: "comments",
+    certificates: "certificates",
+    dailyQuiz: "dailyQuiz",
+    announcements: "announcements",
   };
 
   // Staff panels the admin can jump into (every role except student).
@@ -810,6 +815,7 @@ function AdminCourses() {
     pkgBasic: "", pkgBasicFeatures: "",
     pkgPlus: "", pkgPlusFeatures: "",
     pkgPremium: "", pkgPremiumFeatures: "",
+    coverImage: "",
   };
   type CourseForm = typeof empty;
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; course: any } | null>(null);
@@ -840,6 +846,7 @@ function AdminCourses() {
       pkgBasic: bsc ? String(bsc.price) : "", pkgBasicFeatures: bsc ? bsc.features.join("\n") : "",
       pkgPlus: pls ? String(pls.price) : "", pkgPlusFeatures: pls ? pls.features.join("\n") : "",
       pkgPremium: prm ? String(prm.price) : "", pkgPremiumFeatures: prm ? prm.features.join("\n") : "",
+      coverImage: c.coverImage ?? "",
     });
     setErr(null);
     setActiveTab("basic");
@@ -879,6 +886,7 @@ function AdminCourses() {
         prerequisites: parseLines(form.prerequisitesText),
         syllabus: parseSyllabus(form.syllabusItems),
         packagePrices: packagePrices.length > 0 ? packagePrices : undefined,
+        coverImage: form.coverImage || undefined,
       };
       if (dialog?.mode === "edit") {
         await update({ id: dialog.course._id, ...payload });
@@ -998,6 +1006,10 @@ function AdminCourses() {
                   </Select>
                 </div>
                 <PublishPicker value={form.published} onChange={(v) => setForm({ ...form, published: v })} />
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">URL Cover Image</label>
+                  <Input placeholder="https://example.com/image.jpg" value={form.coverImage} onChange={(e) => setForm({ ...form, coverImage: e.target.value })} className="text-xs" dir="ltr" />
+                </div>
               </TabsContent>
               <TabsContent value="detail" className="space-y-3 pt-2">
                 <div>
@@ -1239,7 +1251,7 @@ function AdminDailyQuiz() {
                   ) : (
                     entries.map((e) => (
                       <TableRow key={e._id}>
-                        <TableCell className="font-mono text-xs">{e.date}</TableCell>
+                        <TableCell className="font-mono text-xs">{formatJalaliDateString(e.date)}</TableCell>
                         <TableCell className="max-w-md truncate text-sm">{e.questionText}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">{e.topicName}</TableCell>
                         <TableCell className="text-xs">{e.points}</TableCell>
@@ -2090,7 +2102,7 @@ function AdminWorkshops() {
   const generateWorkshopAction = useAction(api.aiActions.generateWorkshopStructure);
   const generateTeachingTipsAction = useAction(api.aiActions.generateTeachingTips);
 
-  const empty = { title: "", instructorId: "", topic: "", date: "", time: "۱۸:۰۰", capacity: "30", price: "0", description: "", free: false, expertTalk: false, published: false };
+  const empty = { title: "", instructorId: "", topic: "", date: "", time: "۱۸:۰۰", capacity: "30", price: "0", description: "", free: false, expertTalk: false, published: false, coverImage: "" };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; workshop: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
@@ -2159,6 +2171,7 @@ function AdminWorkshops() {
       free: w.free,
       expertTalk: w.expertTalk,
       published: w.published,
+      coverImage: w.coverImage ?? "",
     });
     setDialog({ mode: "edit", workshop: w });
   };
@@ -2180,6 +2193,7 @@ function AdminWorkshops() {
         free: form.free || Number(form.price) === 0,
         expertTalk: form.expertTalk,
         published: form.published,
+        coverImage: form.coverImage || undefined,
       };
       if (dialog?.mode === "edit") {
         const { slug: _slug, ...rest } = payload;
@@ -2275,6 +2289,10 @@ function AdminWorkshops() {
                 <input type="checkbox" checked={form.expertTalk} onChange={(e) => setForm({ ...form, expertTalk: e.target.checked })} />
                 نشست رایگان (Expert Talk)
               </label>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">URL Cover Image</label>
+              <Input placeholder="https://example.com/image.jpg" value={form.coverImage} onChange={(e) => setForm({ ...form, coverImage: e.target.value })} className="text-xs" dir="ltr" />
             </div>
             <PublishPicker value={form.published} onChange={(v) => setForm({ ...form, published: v })} />
             <Button className="w-full" onClick={handleSave} disabled={busy}>
@@ -5351,6 +5369,7 @@ function AdminAcademyPaths() {
   const [aiPathLevel, setAiPathLevel] = useState("مبتدی");
   const [aiPathGenerating, setAiPathGenerating] = useState(false);
   const [aiPathResult, setAiPathResult] = useState<any>(null);
+  const [pathCoverImage, setPathCoverImage] = useState("");
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingPath, setPricingPath] = useState<any>(null);
   const [pricingValue, setPricingValue] = useState("");
@@ -5364,10 +5383,10 @@ function AdminAcademyPaths() {
     if (!title.trim()) return;
     setBusy(true);
     try {
-      const id = await create({ title: title.trim(), description: description.trim(), level });
+      const id = await create({ title: title.trim(), description: description.trim(), level, coverImage: pathCoverImage || undefined });
       setOpenPathId(id as string);
       setDialog(false);
-      setTitle(""); setDescription(""); setLevel("beginner");
+      setTitle(""); setDescription(""); setLevel("beginner"); setPathCoverImage("");
       toast.success("مسیر ساخته شد — حالا کارگاه‌ها را اضافه کنید");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
@@ -5600,6 +5619,10 @@ function AdminAcademyPaths() {
                 <SelectItem value="mixed">ترکیبی</SelectItem>
               </SelectContent>
             </Select>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">URL Cover Image</label>
+              <Input placeholder="https://example.com/image.jpg" value={pathCoverImage} onChange={(e) => setPathCoverImage(e.target.value)} className="text-xs" dir="ltr" />
+            </div>
             <Button className="w-full" onClick={handleCreate} disabled={busy || !title.trim()}>
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               ساخت مسیر

@@ -1,4 +1,5 @@
 // Persian formatting + brand accent/icon helpers
+import * as jalaali from "jalaali-js";
 
 export function faNum(n: number | string): string {
   return Number(n).toLocaleString("fa-IR");
@@ -62,6 +63,19 @@ export function formatJalaliDate(ts: number): string {
     month: "2-digit",
     day: "2-digit",
   });
+}
+
+/** Convert YYYY-MM-DD string to Jalali display (e.g. 1404/06/15) */
+export function formatJalaliDateString(isoDate: string): string {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length !== 3) return isoDate;
+  try {
+    const j = jalaali.toJalaali(+parts[0], +parts[1], +parts[2]);
+    return `${j.jy}/${String(j.jm).padStart(2, "0")}/${String(j.jd).padStart(2, "0")}`;
+  } catch {
+    return isoDate;
+  }
 }
 
 export function todayKey(): string {

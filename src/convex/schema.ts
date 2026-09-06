@@ -296,6 +296,7 @@ const schema = defineSchema(
       free: v.boolean(),
       expertTalk: v.boolean(),
       published: v.boolean(),
+      coverImage: v.optional(v.string()),
     }).index("by_slug", ["slug"]),
 
     articles: defineTable({
@@ -1368,6 +1369,7 @@ const schema = defineSchema(
       price: v.optional(v.number()),          // full path price in toman (0 or undefined = free)
       discountPrice: v.optional(v.number()),  // discounted price when active
       discountExpiresAt: v.optional(v.number()),
+      coverImage: v.optional(v.string()),
       createdAt: v.number(),
     }).index("by_published", ["published"]),
 

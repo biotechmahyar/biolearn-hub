@@ -113,7 +113,32 @@ export const getSectionNotifications = query({
     const pendingPayments = await ctx.db.query("offlinePayments").withIndex("by_status", (q: any) => q.eq("status", "pending")).collect();
     const allClassRequests = await ctx.db.query("classRequests").collect();
     const pendingClassRequests = allClassRequests.filter((cr: any) => cr.status === "pending").length;
-    return { support: openTickets.length, examReports: openReports.length, profiles: pendingProfiles, courses: pendingCourses, offlinePayments: pendingPayments.length, classRequests: pendingClassRequests, storeApproval: 0, comments: 0, inbox: 0 };
+    // Marketplace: pending products
+    const pendingProducts = await ctx.db.query("storeProducts").withIndex("by_status", (q: any) => q.eq("status", "pending")).collect();
+    // Comments: unread comments
+    const allComments = await ctx.db.query("comments").collect();
+    const unreadComments = allComments.filter((c: any) => !c.approved).length;
+    // Certificates: pending requests
+    const pendingCerts = await ctx.db.query("certificates").withIndex("by_status", (q: any) => q.eq("status", "requested")).collect();
+    // Workshop class requests
+    const pendingClassReqs = allClassRequests.filter((cr: any) => cr.status === "pending").length;
+    // Daily quiz: entries today without answers
+    const today = new Date().toISOString().slice(0, 10);
+    const todayEntries = await ctx.db.query("dailyQuiz").collect();
+    const todayQuizCount = todayEntries.filter((e: any) => e.date === today).length;
+    return {
+      support: openTickets.length,
+      examReports: openReports.length,
+      profiles: pendingProfiles,
+      courses: pendingCourses,
+      offlinePayments: pendingPayments.length,
+      classRequests: pendingClassReqs,
+      storeApproval: pendingProducts.length,
+      comments: unreadComments,
+      certificates: pendingCerts.length,
+      dailyQuiz: todayQuizCount,
+      announcements: 0,
+    };
   },
 });
 
@@ -144,6 +169,7 @@ export const adminCreateCourse = mutation({
     includes: v.optional(v.array(v.string())),
     syllabus: v.optional(v.array(v.object({ id: v.optional(v.string()), title: v.string(), durationMin: v.number(), free: v.boolean() }))),
     packagePrices: v.optional(v.array(v.object({ tier: v.union(v.literal("economy"), v.literal("basic"), v.literal("plus"), v.literal("premium")), price: v.number(), features: v.array(v.string()) }))),
+    coverImage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
@@ -645,7 +671,7 @@ export const adminCreateWorkshop = mutation({
     topic: v.string(), date: v.string(), time: v.string(),
     capacity: v.number(), price: v.number(), description: v.string(),
     agenda: v.optional(v.array(v.string())), free: v.boolean(), published: v.boolean(),
-    expertTalk: v.optional(v.boolean()) },
+    expertTalk: v.optional(v.boolean()), coverImage: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const slug = args.slug || args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
@@ -661,7 +687,7 @@ export const adminUpdateWorkshop = mutation({
     date: v.optional(v.string()), time: v.optional(v.string()),
     capacity: v.optional(v.number()), price: v.optional(v.number()),
     description: v.optional(v.string()), agenda: v.optional(v.array(v.string())),
-    free: v.optional(v.boolean()), published: v.optional(v.boolean()) },
+    free: v.optional(v.boolean()), published: v.optional(v.boolean()), coverImage: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const { id, ...patch } = args;
@@ -970,7 +996,9 @@ export const adminApproveStoreProduct = mutation({
   args: { id: v.optional(v.id("storeProducts")), productId: v.optional(v.id("storeProducts")), status: v.string(), rejectionReason: v.optional(v.string()) } as any,
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
-    await ctx.db.patch(args.id, { status: args.status as any, rejectionReason: args.rejectionReason });
+    const docId = args.id ?? args.productId;
+    if (!docId) throw new Error("شناسه محصول الزامی است.");
+    await ctx.db.patch(docId, { status: args.status as any, rejectionReason: args.rejectionReason });
     return { ok: true };
   },
 });
