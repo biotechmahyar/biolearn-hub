@@ -50,6 +50,7 @@ export const adminCreatePath = mutation({
     level: v.string(),
     color: v.optional(v.string()),
     coverImage: v.optional(v.string()),
+    instructorId: v.optional(v.id("instructors")),
   },
   handler: async (ctx, args) => {
     if (!(await isStaff(ctx))) throw new Error("دسترسی لازم است.");
@@ -61,6 +62,7 @@ export const adminCreatePath = mutation({
       level: args.level,
       color: args.color ?? "emerald",
       coverImage: args.coverImage,
+      instructorId: args.instructorId,
       published: false,
       createdAt: Date.now(),
     });
@@ -75,6 +77,7 @@ export const adminUpdatePath = mutation({
     level: v.optional(v.string()),
     color: v.optional(v.string()),
     published: v.optional(v.boolean()),
+    instructorId: v.optional(v.id("instructors")),
     price: v.optional(v.number()),
     free: v.optional(v.boolean()),
     discountPrice: v.optional(v.number()),

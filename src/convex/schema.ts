@@ -1366,9 +1366,9 @@ const schema = defineSchema(
       level: v.string(), // beginner | intermediate | advanced | mixed
       color: v.optional(v.string()),
       published: v.boolean(),
-      // Pricing (backward-compatible optional fields)
-      price: v.optional(v.number()),          // full path price in toman (0 or undefined = free)
-      discountPrice: v.optional(v.number()),  // discounted price when active
+      instructorId: v.optional(v.id("instructors")),
+      price: v.optional(v.number()),
+      discountPrice: v.optional(v.number()),
       discountExpiresAt: v.optional(v.number()),
       coverImage: v.optional(v.string()),
       createdAt: v.number(),

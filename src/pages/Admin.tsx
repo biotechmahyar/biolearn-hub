@@ -3425,7 +3425,9 @@ function AdminUsers() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="rounded-lg text-xs"
+                        className="rounded-lg text-xs disabled:opacity-30"
+                        disabled={!isSystemAdmin && (u.role === "admin" || u.role === "site_admin")}
+                        title={!isSystemAdmin && (u.role === "admin" || u.role === "site_admin") ? "فقط ادمین سامانه می‌تواند رمز ادمین را تغییر دهد" : ""}
                         onClick={() => { setResetUser({ _id: u._id, name: u.name ?? null }); setResetPass(""); setResetErr(null); }}
                       >
                         تغییر رمز
@@ -3650,8 +3652,12 @@ function AdminCoupons() {
 
   const handleCreate = async () => {
     setErr(null);
+    if (!code.trim()) {
+      setErr("نام کد تخفیف را وارد کنید.");
+      return;
+    }
     try {
-      await create({ code, percent: Number(percent), maxUses: Number(maxUses) || 0 });
+      await create({ code: code.trim(), percent: Number(percent), maxUses: Number(maxUses) || 0 });
       setCode("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "خطا");
@@ -5348,6 +5354,7 @@ function AdminPromoBanners() {
 function AdminAcademyPaths() {
   const paths = useQuery(api.academyPaths.adminListPaths);
   const workshops = useQuery(api.admin.adminListWorkshops);
+  const instructors = useQuery(api.admin.adminListInstructors);
   const create = useMutation(api.academyPaths.adminCreatePath);
   const update = useMutation(api.academyPaths.adminUpdatePath);
   const remove = useMutation(api.academyPaths.adminDeletePath);
@@ -5372,6 +5379,7 @@ function AdminAcademyPaths() {
   const [aiPathGenerating, setAiPathGenerating] = useState(false);
   const [aiPathResult, setAiPathResult] = useState<any>(null);
   const [pathCoverImage, setPathCoverImage] = useState("");
+  const [pathInstructorId, setPathInstructorId] = useState("");
   const [pricingOpen, setPricingOpen] = useState(false);
   const [pricingPath, setPricingPath] = useState<any>(null);
   const [pricingValue, setPricingValue] = useState("");
@@ -5385,10 +5393,10 @@ function AdminAcademyPaths() {
     if (!title.trim()) return;
     setBusy(true);
     try {
-      const id = await create({ title: title.trim(), description: description.trim(), level, coverImage: pathCoverImage || undefined });
+      const id = await create({ title: title.trim(), description: description.trim(), level, coverImage: pathCoverImage || undefined, instructorId: (pathInstructorId || undefined) as any });
       setOpenPathId(id as string);
       setDialog(false);
-      setTitle(""); setDescription(""); setLevel("beginner"); setPathCoverImage("");
+      setTitle(""); setDescription(""); setLevel("beginner"); setPathCoverImage(""); setPathInstructorId("");
       toast.success("مسیر ساخته شد — حالا کارگاه‌ها را اضافه کنید");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
@@ -5622,6 +5630,17 @@ function AdminAcademyPaths() {
               </SelectContent>
             </Select>
             <div>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">استاد</label>
+              <Select value={pathInstructorId} onValueChange={setPathInstructorId}>
+                <SelectTrigger><SelectValue placeholder="انتخاب استاد (اختیاری)" /></SelectTrigger>
+                <SelectContent>
+                  {(instructors ?? []).map((inst: any) => (
+                    <SelectItem key={inst._id} value={inst._id}>{inst.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <label className="mb-1 block text-[10px] font-bold text-muted-foreground">URL Cover Image</label>
               <Input placeholder="https://example.com/image.jpg" value={pathCoverImage} onChange={(e) => setPathCoverImage(e.target.value)} className="text-xs" dir="ltr" />
             </div>
@@ -5771,6 +5790,23 @@ function AdminAcademyPaths() {
           {pricingPath && (
             <div className="space-y-4">
               <p className="text-sm font-bold">{pricingPath.title}</p>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-muted-foreground">استاد</label>
+                <Select value={pricingPath.instructorId || ""} onValueChange={async (v) => {
+                  try {
+                    await update({ id: pricingPath._id, instructorId: (v || undefined) as any });
+                    setPricingPath({ ...pricingPath, instructorId: v });
+                    toast.success("استاد بروزرسانی شد");
+                  } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="انتخاب استاد" /></SelectTrigger>
+                  <SelectContent>
+                    {(instructors ?? []).map((inst: any) => (
+                      <SelectItem key={inst._id} value={inst._id}>{inst.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Button

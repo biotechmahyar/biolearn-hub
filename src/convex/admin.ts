@@ -1019,7 +1019,29 @@ export const exportBackup = query({
   args: {},
   handler: async (ctx) => {
     if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
-    return { ok: true, tables: {} as Record<string, any>, exportedAt: new Date().toISOString() };
+    const tableNames = [
+      "users", "courses", "workshops", "exams", "questions", "topics",
+      "articles", "dictionaryTerms", "categories", "instructors",
+      "storeProducts", "storeReviews", "storeOrders", "enrollments",
+      "payments", "coupons", "announcements", "supportTickets",
+      "dailyQuizEntries", "dailyQuizQuestions", "certificates",
+      "aiChatConversations", "aiChatMessages", "aiSubscriptions",
+      "wallets", "walletTransactions", "inboxMessages",
+      "academyPaths", "academyPathItems", "classRequests",
+      "collabRooms", "collabRoomMembers", "siteSettings",
+      "sitePages", "siteAnnouncements", "notifications",
+      "comments", "instructorPayments", "instructorProfiles",
+      "courseStudioItems", "flashSaleItems", "savedCourseItems",
+    ];
+    const tables: Record<string, any[]> = {};
+    for (const name of tableNames) {
+      try {
+        tables[name] = await ctx.db.query(name as any).collect();
+      } catch {
+        tables[name] = [];
+      }
+    }
+    return { ok: true, tables, exportedAt: new Date().toISOString() };
   },
 });
 

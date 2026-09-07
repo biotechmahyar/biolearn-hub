@@ -400,7 +400,7 @@ function ProductDetailInner() {
                           ))}
                         </div>
                       </div>
-                      {review.text && <p className="text-xs text-slate-400">{review.text}</p>}
+                      {review.text && typeof review.text === "string" && <p className="text-xs text-slate-400">{review.text}</p>}
                       <p className="mt-1 text-[10px] text-slate-600">
                         {review.createdAt ? new Date(review.createdAt).toLocaleDateString("fa-IR") : ""}
                       </p>
