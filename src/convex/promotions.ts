@@ -242,6 +242,28 @@ export const resolveCertificate = mutation({
 });
 
 // Resolve a certificate storage id into a downloadable URL
+export const verifyCertificate = query({
+  args: { certificateId: v.string() },
+  handler: async (ctx, args) => {
+    const allCerts = await ctx.db.query("certificates").collect();
+    const cert = allCerts.find((c: any) => 
+      c._id === args.certificateId || c.certificateUrl === args.certificateId
+    ) as any;
+    
+    if (!cert || cert.status !== "approved") return null;
+    
+    const user = await ctx.db.get(cert.userId) as any;
+    const course = await ctx.db.get(cert.courseId) as any;
+    return {
+      _id: cert._id,
+      studentName: user?.name || user?.email || "—",
+      courseTitle: course?.title || "—",
+      issuedAt: cert.resolvedAt || cert.requestedAt,
+      certificateUrl: cert.certificateUrl,
+    };
+  },
+});
+
 export const getCertificateFileUrl = query({
   args: { storageId: v.string() },
   handler: async (ctx, args) => {

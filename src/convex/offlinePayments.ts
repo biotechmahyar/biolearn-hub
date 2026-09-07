@@ -4,6 +4,56 @@ import { getCurrentUser } from "./users";
 import { isAnyAdmin } from "./admin";
 
 // Student submits an offline payment with receipt image + tracking number
+export const adminAddOfflinePayment = mutation({
+  args: {
+    userId: v.id("users"),
+    courseId: v.id("courses"),
+    tier: v.union(v.literal("economy"), v.literal("basic"), v.literal("plus"), v.literal("premium")),
+    amount: v.number(),
+    trackingNumber: v.string(),
+    receiptStorageId: v.string(),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const admin = await getCurrentUser(ctx);
+    if (!admin || (admin.role !== "admin" && admin.role !== "site_admin")) throw new Error("فقط مدیر سایت.");
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("کاربر یافت نشد.");
+    const course = await ctx.db.get(args.courseId);
+    if (!course) throw new Error("دوره یافت نشد.");
+    if (!args.trackingNumber.trim()) throw new Error("شماره رهگیری لازم است.");
+
+    await ctx.db.insert("offlinePayments", {
+      userId: args.userId,
+      courseId: args.courseId,
+      tier: args.tier,
+      amount: args.amount,
+      trackingNumber: args.trackingNumber,
+      receiptStorageId: args.receiptStorageId,
+      status: "approved",
+      note: args.note,
+      createdAt: Date.now(),
+    });
+
+    // Auto-enroll the user in the course
+    const existingEnroll = await ctx.db
+      .query("enrollments")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    if (!existingEnroll.some((e) => e.courseId === args.courseId)) {
+      await ctx.db.insert("enrollments", {
+        userId: args.userId,
+        courseId: args.courseId,
+        completedLessons: [],
+        enrolledAt: Date.now(),
+        packageTier: args.tier,
+      });
+    }
+
+    return { ok: true };
+  },
+});
+
 export const submitOfflinePayment = mutation({
   args: {
     courseId: v.id("courses"),

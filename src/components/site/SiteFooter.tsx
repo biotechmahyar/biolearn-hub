@@ -42,6 +42,7 @@ export function SiteFooter() {
               <li><Link to="/daily-quiz" className="transition-colors hover:text-foreground">کوئیز روزانه</Link></li>
               <li><Link to="/free-content" className="transition-colors hover:text-foreground">محتوای رایگان</Link></li>
               <li><Link to="/dictionary" className="transition-colors hover:text-foreground">دیکشنری تخصصی</Link></li>
+              <li><Link to="/verify-certificate" className="inline-flex items-center gap-1.5 transition-colors hover:text-foreground"><ShieldCheck className="size-3.5 text-emerald-500" /> اعتبارسنجی مدرک</Link></li>
             </ul>
           </div>
 

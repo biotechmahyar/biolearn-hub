@@ -569,6 +569,19 @@ export const adminBulkAddPathWorkshops = mutation({
 
 // ── Path Suggestions (from instructors to admin) ───────────────────────────
 
+export const listMySuggestions = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    return await ctx.db
+      .query("academyPathSuggestions")
+      .withIndex("by_instructor", (q) => q.eq("instructorId", userId))
+      .order("desc")
+      .collect();
+  },
+});
+
 export const submitPathSuggestion = mutation({
   args: {
     title: v.string(),
@@ -619,6 +632,25 @@ export const listAllSuggestions = query({
       .query("academyPathSuggestions")
       .order("desc")
       .collect();
+  },
+});
+
+export const cancelSuggestion = mutation({
+  args: {
+    id: v.id("academyPathSuggestions"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ابتدا وارد شوید.");
+    const suggestion = await ctx.db.get(args.id);
+    if (!suggestion) throw new Error("پیشنهاد یافت نشد.");
+    if (suggestion.instructorId !== userId) throw new Error("فقط ارائه‌دهنده می‌تواند پیشنهاد را لغو کند.");
+    if (suggestion.status === "pending") {
+      await ctx.db.delete(args.id);
+    } else {
+      await ctx.db.patch(args.id, { status: "pending" });
+    }
+    return { ok: true };
   },
 });
 

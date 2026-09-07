@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import {
   Select,
@@ -4438,7 +4439,41 @@ function AdminOfflinePayments() {
   const approve = useMutation(api.offlinePayments.approveOfflinePayment);
   const reject = useMutation(api.offlinePayments.rejectOfflinePayment);
   const remove = useMutation(api.offlinePayments.deleteOfflinePayment);
+  const adminAdd = useMutation(api.offlinePayments.adminAddOfflinePayment);
+  const courses = useQuery(api.admin.adminListCourses);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [addUserId, setAddUserId] = useState("");
+  const [addCourseId, setAddCourseId] = useState("");
+  const [addTier, setAddTier] = useState("basic");
+  const [addAmount, setAddAmount] = useState("");
+  const [addTracking, setAddTracking] = useState("");
+  const [addNote, setAddNote] = useState("");
+  const [addBusy, setAddBusy] = useState(false);
+  const users = useQuery(api.admin.adminListUsers);
+
+  const handleAdd = async () => {
+    if (!addUserId || !addCourseId || !addAmount || !addTracking) return;
+    setAddBusy(true);
+    try {
+      await adminAdd({
+        userId: addUserId as any,
+        courseId: addCourseId as any,
+        tier: addTier as "economy" | "basic" | "plus" | "premium",
+        amount: Number(addAmount),
+        trackingNumber: addTracking,
+        receiptStorageId: "admin-manual",
+        note: addNote || undefined,
+      });
+      toast.success("پرداخت آفلاین ثبت شد و دوره فعال شد");
+      setShowAddDialog(false);
+      setAddUserId(""); setAddCourseId(""); setAddAmount(""); setAddTracking(""); setAddNote("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setAddBusy(false);
+    }
+  };
 
   const TIER: Record<string, string> = { economy: "اقتصادی", basic: "پایه", plus: "پلاس", premium: "پرمیوم" };
   const STATUS: Record<string, { label: string; cls: string }> = {
@@ -4463,7 +4498,12 @@ function AdminOfflinePayments() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">پرداخت‌های آفلاین</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold">پرداخت‌های آفلاین</h2>
+        <Button size="sm" onClick={() => setShowAddDialog(true)}>
+          <Plus className="ml-1 size-3.5" /> افزودن پرداخت
+        </Button>
+      </div>
       <Card className="border-white/5 bg-[#0b1a2a]">
         <CardContent className="p-0">
           <Table>
@@ -4529,6 +4569,70 @@ function AdminOfflinePayments() {
           </Table>
         </CardContent>
       </Card>
+      {/* Add Manual Payment Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>افزودن پرداخت آفلاین</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">دانشجو</Label>
+              <Select value={addUserId} onValueChange={setAddUserId}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="انتخاب دانشجو" /></SelectTrigger>
+                <SelectContent>
+                  {(users ?? []).map((u: any) => (
+                    <SelectItem key={u._id} value={u._id}>{u.name || u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">دوره</Label>
+              <Select value={addCourseId} onValueChange={setAddCourseId}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="انتخاب دوره" /></SelectTrigger>
+                <SelectContent>
+                  {(courses ?? []).map((c: any) => (
+                    <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">پکیج</Label>
+                <Select value={addTier} onValueChange={setAddTier}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="basic">پایه</SelectItem>
+                    <SelectItem value="plus">پلاس</SelectItem>
+                    <SelectItem value="premium">پرمیوم</SelectItem>
+                    <SelectItem value="economy">اقتصادی</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">مبلغ (تومان)</Label>
+                <Input type="number" value={addAmount} onChange={(e) => setAddAmount(e.target.value)} placeholder="مبلغ" className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">شماره پیگیری / رهگیری</Label>
+              <Input value={addTracking} onChange={(e) => setAddTracking(e.target.value)} placeholder="شماره پیگیری فیش" className="mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">یادداشت (اختیاری)</Label>
+              <Input value={addNote} onChange={(e) => setAddNote(e.target.value)} placeholder="یادداشت" className="mt-1" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowAddDialog(false)}>انصراف</Button>
+              <Button disabled={addBusy || !addUserId || !addCourseId || !addAmount || !addTracking} onClick={handleAdd}>
+                {addBusy ? "در حال ثبت..." : "ثبت و فعال‌سازی"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -4912,7 +5016,7 @@ function AdminStoreApproval() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+          </div>
   );
 }
 
