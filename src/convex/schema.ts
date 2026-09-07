@@ -1581,6 +1581,29 @@ const schema = defineSchema(
       slideImages: v.optional(v.array(v.string())),
       createdAt: v.number(),
     }).index("by_room", ["roomId"]),
+
+    // ── Academy Path Suggestions (from instructors) ─────────────────────────
+    academyPathSuggestions: defineTable({
+      instructorId: v.id("users"),
+      instructorName: v.string(),
+      title: v.string(),
+      description: v.optional(v.string()),
+      level: v.optional(v.string()),
+      steps: v.optional(v.array(v.object({
+        title: v.string(),
+        description: v.optional(v.string()),
+        durationMin: v.optional(v.number()),
+      }))),
+      status: v.union(
+        v.literal("pending"),
+        v.literal("approved"),
+        v.literal("rejected"),
+      ),
+      adminNote: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_status", ["status"])
+      .index("by_instructor", ["instructorId"]),
   },
   {
     schemaValidation: false,

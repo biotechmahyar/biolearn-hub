@@ -1042,3 +1042,63 @@ export const generateAcademyPath = action({
     }
   },
 });
+
+export const generateDictionaryTerms = action({
+  args: {
+    topic: v.string(),
+    count: v.optional(v.number()),
+    modelId: v.optional(v.id("aiModels")),
+  },
+  handler: async (ctx, args): Promise<{ terms: any[]; raw: string }> => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, { modelId: args.modelId ?? undefined });
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی پیکربندی نشده است.");
+    }
+
+    const systemPrompt = `شما یک متخصص میکروبیولوژی و علوم زیستی هستید که دیکشنری تخصصی می‌سازید.
+
+قوانین:
+- هر اصطلاح باید دقیق و علمی باشد.
+- اطلاعات باید مناسب آزمون و مطالعه باشد.
+- از منابع معتبر علمی استفاده کنید.
+
+پاسخ را دقیقاً به این فرمت JSON برگردانید (بدون متن اضافی):
+{
+  "terms": [{
+    "term": "نام اصطلاح (انگلیسی)",
+    "fullName": "نام کامل فارسی",
+    "gramStatus": "وضعیت دستوری (اختیاری)",
+    "shape": "شکل ظاهری (اختیاری)",
+    "oxygen": "نیاز اکسیژنی (اختیاری)",
+    "habitat": "زیستگاه (اختیاری)",
+    "diseases": "بیماری‌های مرتبط (اختیاری)",
+    "virulence": "عامل بیماری‌زایی (اختیاری)",
+    "diagnosis": "روش تشخیص (اختیاری)",
+    "characteristics": "ویژگی‌های کلیدی (اختیاری)",
+    "examNotes": "نکات آزمونی (اختیاری)"
+  }]
+}
+
+تعداد اصطلاحات: ${args.count ?? 5}
+موضوع: ${args.topic}`;
+
+    const responseText = await callAIProvider(
+      rawConfig,
+      systemPrompt,
+      `لطفاً ${args.count ?? 5} اصطلاح تخصصی درباره "${args.topic}" ایجاد کنید.`,
+      3000,
+    );
+
+    try {
+      let jsonStr = responseText;
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) jsonStr = jsonMatch[0];
+      const result = JSON.parse(jsonStr);
+      if (!result.terms) throw new Error("پاسخ ناقص است.");
+      return { terms: result.terms, raw: responseText };
+    } catch (e) {
+      if (e instanceof SyntaxError) throw new Error("پاسخ هوش مصنوعی قابل پردازش نیست.");
+      throw e;
+    }
+  },
+});

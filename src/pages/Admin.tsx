@@ -158,6 +158,7 @@ type Section =
   | "promoBanners"
   | "discounts"
   | "academyPaths"
+  | "pathSuggestions"
   | "certificates"
   | "enrollments"
   | "auditLogs"
@@ -205,7 +206,8 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "dailyQuiz", label: "کوئیز روزانه", icon: Zap },
       { key: "telegram", label: "تلگرام", icon: Bot },
       { key: "aiSubscriptions", label: "اشتراک هوش مصنوعی", icon: Sparkles },
-      { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon },
+      { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon } as any,
+      { key: "pathSuggestions", label: "مسیرهای پیشنهادی", icon: RouteIcon, notifKey: "pathSuggestions" } as any,
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
       { key: "enrollments", label: "مدیریت ثبت‌نامی‌ها", icon: ClipboardList },
     ],
@@ -392,6 +394,7 @@ export default function Admin() {
     certificates: "certificates",
     dailyQuiz: "dailyQuiz",
     announcements: "announcements",
+    pathSuggestions: "pathSuggestions",
   };
 
   // Staff panels the admin can jump into (every role except student).
@@ -680,6 +683,7 @@ export default function Admin() {
             {section === "flashSales" && <AdminFlashSales />}
             {section === "promoBanners" && <AdminPromoBanners />}
             {section === "academyPaths" && <AdminAcademyPaths />}
+            {section === "pathSuggestions" && <AdminPathSuggestions />}
             {section === "certificates" && <AdminCertificates />}
             {section === "enrollments" && <AdminEnrollments />}
             {section === "auditLogs" && <AdminAuditLogs />}
@@ -4913,6 +4917,108 @@ function AdminStoreApproval() {
 }
 
 // ── Discount Management ────────────────────────────────────────────────────
+function AdminPathSuggestions() {
+  const pending = useQuery(api.academyPaths.listPendingSuggestions);
+  const all = useQuery(api.academyPaths.listAllSuggestions);
+  const review = useMutation(api.academyPaths.reviewSuggestion);
+  const [tab, setTab] = useState<"pending" | "all">("pending");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [noteDialog, setNoteDialog] = useState<{ id: string; action: "approved" | "rejected" } | null>(null);
+  const [adminNote, setAdminNote] = useState("");
+
+  const handleReview = async (id: string, status: "approved" | "rejected", note?: string) => {
+    setBusyId(id);
+    try {
+      await review({ id: id as any, status, adminNote: note || undefined });
+      toast.success(status === "approved" ? "مسیر تأیید شد" : "مسیر رد شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusyId(null);
+      setNoteDialog(null);
+      setAdminNote("");
+    }
+  };
+
+  const list = tab === "pending" ? pending : all;
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader title="مسیرهای پیشنهادی استادان" subtitle="instructor path suggestions" count={pending?.length} />
+      <div className="flex gap-2">
+        <Button size="sm" variant={tab === "pending" ? "default" : "outline"} onClick={() => setTab("pending")}>
+          در انتظار بررسی {pending?.length ? `(${pending.length})` : ""}
+        </Button>
+        <Button size="sm" variant={tab === "all" ? "default" : "outline"} onClick={() => setTab("all")}>
+          همه پیشنهادات
+        </Button>
+      </div>
+      {(!list || list.length === 0) ? (
+        <Card className="border-border/70 shadow-sm"><CardContent className="py-12 text-center text-sm text-muted-foreground">
+          {tab === "pending" ? "پیشنهادی در انتظار بررسی نیست." : "هنوز پیشنهادی ثبت نشده."}
+        </CardContent></Card>
+      ) : (
+        <div className="space-y-3">
+          {list.map((s: any) => (
+            <Card key={s._id} className="border-border/70 shadow-sm">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold">{s.title}</p>
+                      <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-bold",
+                        s.status === "approved" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" :
+                        s.status === "rejected" ? "border-red-500/30 bg-red-500/10 text-red-500" :
+                        "border-amber-500/30 bg-amber-500/10 text-amber-500"
+                      )}>
+                        {s.status === "approved" ? "تأیید شده" : s.status === "rejected" ? "رد شده" : "در انتظار"}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">ارائه‌دهنده: {s.instructorName} • {new Date(s.createdAt).toLocaleDateString("fa-IR")}</p>
+                    {s.description && <p className="mt-1 text-sm text-muted-foreground">{s.description}</p>}
+                    {s.steps?.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {s.steps.map((step: any, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                            <span className="text-primary font-bold">{i + 1}.</span>
+                            <span>{step.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {s.adminNote && <p className="mt-2 text-xs text-muted-foreground italic">یادداشت مدیر: {s.adminNote}</p>}
+                  </div>
+                  {s.status === "pending" && (
+                    <div className="flex gap-1 shrink-0">
+                      <Button size="sm" className="h-7 text-xs" disabled={busyId === s._id} onClick={() => handleReview(s._id, "approved")}>
+                        تأیید
+                      </Button>
+                      <Button size="sm" variant="destructive" className="h-7 text-xs" disabled={busyId === s._id} onClick={() => setNoteDialog({ id: s._id, action: "rejected" })}>
+                        رد
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+      {/* Note Dialog */}
+      <Dialog open={!!noteDialog} onOpenChange={() => setNoteDialog(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>یادداشت رد</DialogTitle></DialogHeader>
+          <Textarea value={adminNote} onChange={(e) => setAdminNote(e.target.value)} placeholder="دلیل رد (اختیاری)" rows={3} />
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setNoteDialog(null)}>انصراف</Button>
+            <Button variant="destructive" disabled={busyId === noteDialog?.id} onClick={() => noteDialog && handleReview(noteDialog.id, "rejected", adminNote)}>رد</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function AdminDiscounts() {
   const courses = useQuery(api.admin.adminListCoursesForDiscount);
   const products = useQuery(api.admin.adminListProductsForDiscount);
@@ -5372,6 +5478,9 @@ function AdminAcademyPaths() {
   const [busy, setBusy] = useState(false);
   const [openPathId, setOpenPathId] = useState<string | null>(null);
   const [pickedWorkshop, setPickedWorkshop] = useState("");
+  const [quickMode, setQuickMode] = useState(false);
+  const [quickTitle, setQuickTitle] = useState("");
+  const quickCreate = useMutation(api.admin.quickCreateWorkshop);
   // AI Academy Path Assistant state
   const [aiPathDialogOpen, setAiPathDialogOpen] = useState(false);
   const [aiPathTopic, setAiPathTopic] = useState("");
@@ -5403,6 +5512,18 @@ function AdminAcademyPaths() {
       toast.error(e instanceof Error ? e.message : "خطا");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleQuickAdd = async () => {
+    if (!openPathId || !quickTitle.trim()) return;
+    try {
+      const workshopId = await quickCreate({ title: quickTitle.trim() });
+      await addItem({ pathId: openPathId as any, workshopId });
+      setQuickTitle("");
+      toast.success("کارگاه ساخته شد و به مسیر اضافه شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
     }
   };
 
@@ -5590,19 +5711,37 @@ function AdminAcademyPaths() {
                           ))}
                         </div>
                       )}
-                      <div className="flex gap-2">
-                        <Select value={pickedWorkshop} onValueChange={setPickedWorkshop}>
-                          <SelectTrigger className="flex-1"><SelectValue placeholder="کارگاه را انتخاب کنید…" /></SelectTrigger>
-                          <SelectContent>
-                            {(workshops ?? []).map((w: any) => (
-                              <SelectItem key={w._id} value={w._id}>{w.title} — {w.topic}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button size="sm" className="h-9" disabled={!pickedWorkshop} onClick={handleAddItem}>
-                          <Plus className="ml-1 size-3.5" />
-                          افزودن
-                        </Button>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground">
+                            <input type="checkbox" checked={quickMode} onChange={(e) => setQuickMode(e.target.checked)} className="size-3.5 rounded border-border accent-primary" />
+                            ساخت سریع کارگاه
+                          </label>
+                        </div>
+                        {quickMode ? (
+                          <div className="flex gap-2">
+                            <Input value={quickTitle} onChange={(e) => setQuickTitle(e.target.value)} placeholder="نام کارگاه جدید" className="flex-1 h-9 text-xs" />
+                            <Button size="sm" className="h-9" disabled={!quickTitle.trim()} onClick={handleQuickAdd}>
+                              <Plus className="ml-1 size-3.5" />
+                              ساخت و افزودن
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Select value={pickedWorkshop} onValueChange={setPickedWorkshop}>
+                              <SelectTrigger className="flex-1"><SelectValue placeholder="کارگاه را انتخاب کنید…" /></SelectTrigger>
+                              <SelectContent>
+                                {(workshops ?? []).map((w: any) => (
+                                  <SelectItem key={w._id} value={w._id}>{w.title} — {w.topic}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button size="sm" className="h-9" disabled={!pickedWorkshop} onClick={handleAddItem}>
+                              <Plus className="ml-1 size-3.5" />
+                              افزودن
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

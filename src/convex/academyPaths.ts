@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { query, mutation } from "./_generated/server";
 import { getCurrentUser } from "./users";
 
@@ -563,5 +564,76 @@ export const adminBulkAddPathWorkshops = mutation({
     });
 
     return { created };
+  },
+});
+
+// ── Path Suggestions (from instructors to admin) ───────────────────────────
+
+export const submitPathSuggestion = mutation({
+  args: {
+    title: v.string(),
+    description: v.optional(v.string()),
+    level: v.optional(v.string()),
+    steps: v.optional(v.array(v.object({
+      title: v.string(),
+      description: v.optional(v.string()),
+      durationMin: v.optional(v.number()),
+    }))),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ابتدا وارد شوید.");
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("کاربر یافت نشد.");
+    const id = await ctx.db.insert("academyPathSuggestions", {
+      instructorId: userId,
+      instructorName: user.name || user.email || "استاد",
+      title: args.title,
+      description: args.description,
+      level: args.level,
+      steps: args.steps,
+      status: "pending",
+      createdAt: Date.now(),
+    });
+    return { ok: true, id };
+  },
+});
+
+export const listPendingSuggestions = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isStaff(ctx))) return [];
+    return await ctx.db
+      .query("academyPathSuggestions")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .order("desc")
+      .collect();
+  },
+});
+
+export const listAllSuggestions = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isStaff(ctx))) return [];
+    return await ctx.db
+      .query("academyPathSuggestions")
+      .order("desc")
+      .collect();
+  },
+});
+
+export const reviewSuggestion = mutation({
+  args: {
+    id: v.id("academyPathSuggestions"),
+    status: v.union(v.literal("approved"), v.literal("rejected")),
+    adminNote: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!(await isStaff(ctx))) throw new Error("دسترسی لازم است.");
+    await ctx.db.patch(args.id, {
+      status: args.status,
+      adminNote: args.adminNote,
+    });
+    return { ok: true };
   },
 });

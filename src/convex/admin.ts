@@ -138,6 +138,7 @@ export const getSectionNotifications = query({
       certificates: pendingCerts.length,
       dailyQuiz: todayQuizCount,
       announcements: 0,
+      pathSuggestions: (await ctx.db.query("academyPathSuggestions").withIndex("by_status", (q: any) => q.eq("status", "pending")).collect()).length,
     };
   },
 });
@@ -678,6 +679,30 @@ export const adminCreateWorkshop = mutation({
     return await ctx.db.insert("workshops", {
       ...args, slug, registeredCount: 0, expertTalk: args.expertTalk ?? false,
       agenda: args.agenda ?? [],
+    });
+  },
+});
+
+export const quickCreateWorkshop = mutation({
+  args: { title: v.string() },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const slug = args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
+    return await ctx.db.insert("workshops", {
+      title: args.title,
+      slug,
+      instructorId: "" as any,
+      topic: "",
+      date: "",
+      time: "",
+      capacity: 0,
+      price: 0,
+      description: "",
+      free: false,
+      published: false,
+      registeredCount: 0,
+      expertTalk: false,
+      agenda: [],
     });
   },
 });

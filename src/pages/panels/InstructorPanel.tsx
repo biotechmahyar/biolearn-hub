@@ -4241,12 +4241,32 @@ function AcademyPathView() {
     }
   };
 
-  const submitAIPathForReview = () => {
+  const submitSuggestion = useMutation(api.academyPaths.submitPathSuggestion);
+  const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
+
+  const submitAIPathForReview = async () => {
     if (!aiResult) return;
-    toast.info("پیشنهاد مسیر آموزشی شما برای بررسی مدیران سایت ارسال شد.");
-    setAiDialogOpen(false);
-    setAiResult(null);
-    setAiTopic("");
+    setSubmittingSuggestion(true);
+    try {
+      await submitSuggestion({
+        title: aiResult.title,
+        description: aiResult.description,
+        level: aiResult.level,
+        steps: aiResult.steps?.map((s: any) => ({
+          title: s.title,
+          description: s.description,
+          durationMin: s.durationMin,
+        })),
+      });
+      toast.info("پیشنهاد مسیر آموزشی شما برای بررسی مدیران سایت ارسال شد.");
+      setAiDialogOpen(false);
+      setAiResult(null);
+      setAiTopic("");
+    } catch (e: any) {
+      toast.error(e?.message || "خطا در ارسال پیشنهاد");
+    } finally {
+      setSubmittingSuggestion(false);
+    }
   };
 
   const handleEnroll = async (wid: string, free: boolean) => {

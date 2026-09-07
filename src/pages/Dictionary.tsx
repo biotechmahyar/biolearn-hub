@@ -8,7 +8,7 @@ import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum } from "@/lib/format";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { BookOpen, Loader2, Microscope, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -245,6 +245,13 @@ export default function Dictionary() {
   const terms = isIran ? termsIran : termsConvex;
   const removeTerm = useMutation(api.content.deleteDictionaryTerm);
   const [removing, setRemoving] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiCount, setAiCount] = useState("5");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<any[]>([]);
+  const generateTerms = useAction(api.aiActions.generateDictionaryTerms);
+  const bulkCreate = useMutation(api.content.createDictionaryTerm);
 
   useEffect(() => {
     if (terms && terms.length > 0 && !selected) {
@@ -254,6 +261,47 @@ export default function Dictionary() {
       setSelected(terms[0]._id);
     }
   }, [terms, selected]);
+
+  const handleAIGenerate = async () => {
+    if (!aiTopic.trim()) return;
+    setAiGenerating(true);
+    setAiResult([]);
+    try {
+      const result = await generateTerms({ topic: aiTopic.trim(), count: Number(aiCount) || 5 });
+      setAiResult(result.terms);
+    } catch (e: any) {
+      toast.error(e?.message || "خطا در تولید اصطلاحات");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleSaveAITerms = async () => {
+    let saved = 0;
+    for (const term of aiResult) {
+      try {
+        await bulkCreate({
+          term: term.term || "",
+          fullName: term.fullName || "",
+          gramStatus: term.gramStatus || "",
+          shape: term.shape || "",
+          oxygen: term.oxygen || "",
+          habitat: term.habitat || "",
+          diseases: (term.diseases || "").split("\n").filter(Boolean),
+          virulence: (term.virulence || "").split("\n").filter(Boolean),
+          diagnosis: term.diagnosis || "",
+          characteristics: (term.characteristics || "").split("\n").filter(Boolean),
+          examNotes: (term.examNotes || "").split("\n").filter(Boolean),
+          sources: [],
+        });
+        saved++;
+      } catch { /* skip failed */ }
+    }
+    toast.success(`${saved} اصطلاح ذخیره شد.`);
+    setAiDialogOpen(false);
+    setAiResult([]);
+    setAiTopic("");
+  };
 
   const active = terms?.find((t) => t._id === selected);
 
@@ -296,6 +344,16 @@ export default function Dictionary() {
             >
               <Plus className="ml-2 size-4" />
               افزودن اصطلاح
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAiDialogOpen(true)}
+              className="rounded-full"
+            >
+              🤖 تولید با هوش مصنوعی
             </Button>
           )}
         </div>
@@ -410,6 +468,56 @@ export default function Dictionary() {
           </div>
         </div>
       </div>
+
+      {aiDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="mx-4 w-full max-w-lg rounded-2xl border border-border bg-background p-6 shadow-2xl">
+            <h3 className="text-lg font-bold">🤖 تولید اصطلاحات با هوش مصنوعی</h3>
+            <p className="mt-1 text-xs text-muted-foreground">موضوع را وارد کنید تا اصطلاحات تخصصی مرتبط تولید شوند.</p>
+            <input
+              type="text"
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="مثلاً: باکتری‌های گرم منفی"
+              className="mt-4 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+            />
+            <div className="mt-3 flex items-center gap-2">
+              <label className="text-xs text-muted-foreground">تعداد:</label>
+              <input
+                type="number"
+                value={aiCount}
+                onChange={(e) => setAiCount(e.target.value)}
+                min="1"
+                max="20"
+                className="w-16 rounded-lg border border-input bg-background px-3 py-2 text-sm text-center"
+              />
+            </div>
+            {aiResult.length > 0 && (
+              <div className="mt-4 max-h-60 overflow-y-auto space-y-2">
+                {aiResult.map((t: any, i: number) => (
+                  <div key={i} className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                    <p className="text-sm font-bold">{t.term} — {t.fullName}</p>
+                    {t.characteristics && <p className="mt-1 text-xs text-muted-foreground">{t.characteristics}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Button size="sm" className="bg-primary text-primary-foreground" disabled={!aiTopic.trim() || aiGenerating} onClick={handleAIGenerate}>
+                {aiGenerating ? "در حال تولید..." : "تولید اصطلاحات"}
+              </Button>
+              {aiResult.length > 0 && (
+                <Button size="sm" variant="outline" onClick={handleSaveAITerms}>
+                  ذخیره همه ({aiResult.length})
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => { setAiDialogOpen(false); setAiResult([]); setAiTopic(""); }}>
+                بستن
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <TermDialog open={dialogOpen} onClose={() => setDialogOpen(false)} editing={editing} />
 
