@@ -131,6 +131,19 @@ function ProductDetailInner() {
     product ? { productId: product._id as any, limit: 4 } : "skip",
   );
 
+  // Track recently viewed — MUST be before any early return to satisfy Rules of Hooks
+  useEffect(() => {
+    if (product && safeStr((product as any).status) === "approved") {
+      addToRecentlyViewed({
+        slug: safeStr(product.slug),
+        title: safeStr(product.title, "محصول"),
+        price: safeNum(product.price),
+        coverImage: safeStr(product.coverImage) || undefined,
+        category: safeStr((product as any).category),
+      });
+    }
+  }, [product?.slug]);
+
   /* ── Loading ── */
   if (product === undefined) {
     return (
@@ -178,19 +191,6 @@ function ProductDetailInner() {
   const pId = (product as any)._id;
 
   const isOwner = user?._id === pSellerId;
-
-  // Track recently viewed
-  useEffect(() => {
-    if (product && pStatus === "approved") {
-      addToRecentlyViewed({
-        slug: pSlug,
-        title: pTitle,
-        price: pPrice,
-        coverImage: pCoverImage || undefined,
-        category: safeStr((product as any).category),
-      });
-    }
-  }, [pSlug]);
 
   const handlePurchase = async () => {
     if (!user) {
