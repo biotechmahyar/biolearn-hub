@@ -1,0 +1,1813 @@
+# ============================================================
+# GENOVABIO - COMPLETE TECHNICAL SNAPSHOT
+# Generated: September 7, 2026
+# Project: Genova - Biology Education Platform
+# Stack: React 19 + TypeScript 5.9 + Vite 7 + Convex + Tailwind CSS 4 + shadcn/ui
+# ============================================================
+
+# ============================================================
+# 1. PROJECT STRUCTURE (COMPLETE TREE)
+# ============================================================
+
+/
+├── index.html                          # Vite entry HTML
+├── package.json                        # Dependencies and scripts
+├── vite.config.ts                      # Vite configuration
+├── tsconfig.json                       # TypeScript config (references)
+├── components.json                     # shadcn/ui component config
+├── README.md
+├── VPS_DEPLOYMENT_GUIDE.md
+├── integrations.md
+│
+├── public/
+│   ├── logo.svg                        # Genova logo
+│   └── manifest.webmanifest            # PWA manifest
+│
+├── src/
+│   ├── main.tsx                        # React entry point + all routes
+│   ├── index.css                       # Global styles + Tailwind + CSS vars
+│   ├── instrumentation.tsx             # Vly/freebuff instrumentation provider
+│   ├── vite-env.d.ts                   # Vite type declarations
+│   │
+│   ├── types/
+│   │   └── global.d.ts                 # Global TypeScript declarations
+│   │
+│   ├── assets/
+│   │   └── logo.svg                    # Logo asset
+│   │
+│   ├── components/
+│   │   ├── RequireAuth.tsx             # Auth route guard
+│   │   ├── RoleGate.tsx                # Role-based route guard
+│   │   ├── LogoDropdown.tsx            # Logo with dropdown menu
+│   │   │
+│   │   ├── site/                       # Public site components
+│   │   │   ├── SiteHeader.tsx          # Main site header/nav
+│   │   │   ├── SiteFooter.tsx          # Site footer
+│   │   │   ├── PublicLayout.tsx        # Public page layout wrapper
+│   │   │   ├── BrandLogo.tsx           # Brand logo component
+│   │   │   ├── CourseCard.tsx           # Course listing card
+│   │   │   ├── WorkshopCard.tsx         # Workshop listing card
+│   │   │   ├── ProductCard.tsx          # Physical product card
+│   │   │   ├── ArticleCard.tsx          # Article listing card
+│   │   │   ├── InstructorAvatar.tsx     # Instructor avatar + info
+│   │   │   ├── CourseManageView.tsx     # Course management view
+│   │   │   ├── CheckoutDialog.tsx       # Checkout/purchase dialog
+│   │   │   ├── CategoryField.tsx        # Category picker field
+│   │   │   ├── SectionHeading.tsx       # Section heading component
+│   │   │   ├── LessonPlayer.tsx         # Video/text lesson player
+│   │   │   ├── LessonContentEditor.tsx  # Lesson content editor (instructor)
+│   │   │   ├── SlideDeckViewer.tsx      # PDF/PPTX slide viewer
+│   │   │   ├── WhiteboardCanvas.tsx     # Live class whiteboard
+│   │   │   ├── WhiteboardFilePanel.tsx  # Whiteboard file panel
+│   │   │   ├── ClassTimer.tsx           # Live class countdown timer
+│   │   │   ├── JalaliDatePicker.tsx     # Jalali/Shamsi date picker
+│   │   │   ├── EmbedCodeRenderer.tsx    # HTML embed code renderer
+│   │   │   ├── VideoRenderer.tsx        # Video player (HLS/direct)
+│   │   │   ├── MemberProfileEditor.tsx  # Member profile editor
+│   │   │   ├── ModeSwitcher.tsx         # Dark/Light mode switcher
+│   │   │   ├── NotificationCenter.tsx   # Notification center dropdown
+│   │   │   ├── TelegramAccount.tsx      # Telegram account linking UI
+│   │   │   ├── TelegramAutoLinker.tsx   # Auto Telegram linking on load
+│   │   │   ├── TelegramNotifications.tsx # Telegram notification settings
+│   │   │   └── icons.ts               # Custom icon components
+│   │   │
+│   │   ├── studio/                     # Site Studio components
+│   │   │   ├── BlockRenderer.tsx        # Studio block renderer
+│   │   │   ├── blocks.tsx              # Studio block definitions
+│   │   │   └── pageRegistry.ts         # Studio page registry
+│   │   │
+│   │   └── ui/                         # shadcn/ui components (60+ files)
+│   │       ├── accordion.tsx
+│   │       ├── alert-dialog.tsx
+│   │       ├── alert.tsx
+│   │       ├── aspect-ratio.tsx
+│   │       ├── avatar.tsx
+│   │       ├── badge.tsx
+│   │       ├── breadcrumb.tsx
+│   │       ├── button-group.tsx
+│   │       ├── button.tsx
+│   │       ├── calendar.tsx
+│   │       ├── card.tsx
+│   │       ├── carousel.tsx
+│   │       ├── chart.tsx
+│   │       ├── checkbox.tsx
+│   │       ├── collapsible.tsx
+│   │       ├── command.tsx
+│   │       ├── context-menu.tsx
+│   │       ├── dialog.tsx
+│   │       ├── drawer.tsx
+│   │       ├── dropdown-menu.tsx
+│   │       ├── empty.tsx
+│   │       ├── field.tsx
+│   │       ├── form.tsx
+│   │       ├── hover-card.tsx
+│   │       ├── index.ts
+│   │       ├── input-group.tsx
+│   │       ├── input-otp.tsx
+│   │       ├── input.tsx
+│   │       ├── item.tsx
+│   │       ├── kbd.tsx
+│   │       ├── label.tsx
+│   │       ├── menubar.tsx
+│   │       ├── navigation-menu.tsx
+│   │       ├── pagination.tsx
+│   │       ├── password-input.tsx
+│   │       ├── popover.tsx
+│   │       ├── progress.tsx
+│   │       ├── radio-group.tsx
+│   │       ├── resizable.tsx
+│   │       ├── scroll-area.tsx
+│   │       ├── select.tsx
+│   │       ├── separator.tsx
+│   │       ├── sheet.tsx
+│   │       ├── sidebar.tsx
+│   │       ├── skeleton.tsx
+│   │       ├── slider.tsx
+│   │       ├── sonner.tsx
+│   │       ├── spinner.tsx
+│   │       ├── switch.tsx
+│   │       ├── table.tsx
+│   │       ├── tabs.tsx
+│   │       ├── textarea.tsx
+│   │       ├── toggle-group.tsx
+│   │       ├── toggle.tsx
+│   │       └── tooltip.tsx
+│   │
+│   ├── hooks/
+│   │   ├── use-auth.ts                 # useAuth() - main auth hook
+│   │   ├── use-live.ts                 # WebRTC live stream hook
+│   │   ├── use-mobile.ts               # Mobile breakpoint detection
+│   │   ├── use-voice-recorder.ts       # Voice recording hook
+│   │   ├── useApiQuery.ts              # Safe Convex query wrapper
+│   │   ├── useMode.ts                  # Dark/Light mode hook
+│   │   └── usePageConfig.ts            # Site Studio page config hook
+│   │
+│   ├── lib/
+│   │   ├── format.ts                   # formatPrice, formatDate, formatJalaliDateString
+│   │   ├── jalali.ts                   # jalaali-js wrapper utilities
+│   │   ├── utils.ts                    # cn(), general utilities
+│   │   ├── upload.ts                   # uploadBlob(), formatFileSize(), fileKindFromMime()
+│   │   ├── apiClient.ts                # HTTP API client for Iran server
+│   │   ├── modeStore.ts                # Zustand-like mode store
+│   │   ├── pptxSlides.ts              # PPTX to slide images converter
+│   │   ├── recentlyViewed.ts           # Recently viewed items (localStorage)
+│   │   ├── settings.tsx                # Theme/accent/font settings context
+│   │   ├── videoResolver.ts            # Video URL resolver (HLS, etc.)
+│   │   └── vly-integrations.ts         # Vly/freebuff integration utilities
+│   │
+│   ├── pages/
+│   │   ├── Landing.tsx                 # Public landing page (home)
+│   │   ├── Auth.tsx                    # Auth page (login/register)
+│   │   ├── Dashboard.tsx               # Student dashboard (tabs)
+│   │   ├── Admin.tsx                   # Admin panel (~6647 lines)
+│   │   ├── Courses.tsx                 # Course catalog
+│   │   ├── CourseDetail.tsx            # Single course page
+│   │   ├── LessonPlayerPage.tsx        # Lesson player page
+│   │   ├── Tests.tsx                   # Exam catalog
+│   │   ├── TestTake.tsx                # Take an exam
+│   │   ├── TestResult.tsx              # Exam result
+│   │   ├── DailyQuiz.tsx               # Daily quiz page
+│   │   ├── Products.tsx                # Physical products catalog
+│   │   ├── ProductDetail.tsx           # Product detail page (also marketplace)
+│   │   ├── Workshops.tsx               # Workshop catalog
+│   │   ├── WorkshopDetail.tsx          # Workshop detail page
+│   │   ├── AcademyPathDetail.tsx       # Academy path detail
+│   │   ├── Instructors.tsx             # Instructor listing
+│   │   ├── InstructorDetail.tsx        # Instructor profile
+│   │   ├── FreeContent.tsx             # Free articles listing
+│   │   ├── ArticleDetail.tsx           # Single article page
+│   │   ├── Dictionary.tsx              # Biology dictionary/glossary
+│   │   ├── AIChat.tsx                  # AI Chat interface
+│   │   ├── Pricing.tsx                 # AI subscription pricing page
+│   │   ├── Marketplace.tsx             # Marketplace listing
+│   │   ├── SellerPanel.tsx             # Seller panel
+│   │   ├── CartPage.tsx                # Shopping cart
+│   │   ├── SiteStudio.tsx              # Site Studio CMS editor
+│   │   ├── TelegramMiniApp.tsx         # Telegram Mini App
+│   │   ├── ProfileCompletion.tsx       # Profile completion form
+│   │   ├── NotFound.tsx                # 404 page
+│   │   ├── About.tsx                   # About page
+│   │   ├── Rules.tsx                   # Rules page
+│   │   │
+│   │   └── panels/
+│   │       ├── InstructorPanel.tsx     # Instructor studio (~4309 lines)
+│   │       ├── MentorPanel.tsx         # Mentor panel
+│   │       ├── SupportPanel.tsx        # Support panel
+│   │       ├── ContentPanel.tsx        # Content manager panel
+│   │       ├── ContentStudio.tsx       # Rich text content studio (~2057 lines)
+│   │       ├── AIManagementPanel.tsx   # AI model/prompt management
+│   │       ├── SuperAdminPanel.tsx     # Super admin panel
+│   │       ├── TelegramBotPanel.tsx    # Telegram bot configuration
+│   │       ├── TelegramAdminCenter.tsx # Telegram admin center
+│   │       └── AdminMarketplacePanel.tsx # Admin marketplace management
+│   │
+│   ├── convex/                         # Convex backend
+│   │   ├── schema.ts                   # Complete database schema (~1587 lines)
+│   │   ├── auth.ts                     # Auth providers configuration
+│   │   ├── auth.config.ts              # Auth config (JWT, Freebuff federated)
+│   │   ├── http.ts                     # HTTP routes (Telegram webhook, sync)
+│   │   ├── users.ts                    # User queries (currentUser, getCurrentUser)
+│   │   ├── admin.ts                    # Admin CRUD operations
+│   │   ├── content.ts                  # Public content queries
+│   │   ├── contentStudio.ts            # Content studio operations
+│   │   ├── courseStudio.ts             # Course studio operations
+│   │   ├── academyPaths.ts             # Academy path CRUD
+│   │   ├── enroll.ts                   # Enrollment, purchases, bookmarks, flashcards
+│   │   ├── tests.ts                    # Exams, attempts, daily quiz
+│   │   ├── dailyQuizAdmin.ts           # Daily quiz admin operations
+│   │   ├── comments.ts                 # Comment system
+│   │   ├── support.ts                  # Support ticket system
+│   │   ├── tickets.ts                  # Support tickets (legacy)
+│   │   ├── collab.ts                   # Live rooms, whiteboard, presence, mentoring
+│   │   ├── marketplace.ts              # Marketplace wallet, products, orders
+│   │   ├── aiChat.ts                   # AI chat core logic
+│   │   ├── aiActions.ts                # AI actions (callAI, generateQuestions, etc.)
+│   │   ├── aiManagement.ts             # AI model management
+│   │   ├── aiSubscriptions.ts          # AI subscription tiers
+│   │   ├── telegramBot.ts              # Telegram bot config management
+│   │   ├── telegramBotActions.ts       # Telegram bot actions
+│   │   ├── telegramWebhook.ts          # Telegram webhook handler
+│   │   ├── telegramSetupWebhook.ts     # Telegram webhook setup
+│   │   ├── telegramNotifications.ts    # Telegram notification system
+│   │   ├── offlinePayments.ts          # Offline payment handling
+│   │   ├── notifications.ts            # In-app notifications + reminders
+│   │   ├── inbox.ts                    # Admin-to-user inbox messages
+│   │   ├── profiles.ts                 # Profile management
+│   │   ├── promotions.ts               # Flash sales, promo banners, certificates
+│   │   ├── siteSettings.ts             # Site settings (payment toggle, etc.)
+│   │   ├── siteStudio.ts               # Site Studio CMS operations
+│   │   ├── superAdmin.ts               # Super admin operations
+│   │   ├── instructorTools.ts          # Instructor tools
+│   │   ├── mentor.ts                   # Mentor operations
+│   │   ├── classEnroll.ts              # Class enrollment requests
+│   │   ├── emailOtp.ts                 # Email OTP auth
+│   │   ├── googleAuth.ts              # Google auth
+│   │   ├── sendOtpEmail.ts            # OTP email sending
+│   │   ├── upload.ts                   # File upload utilities
+│   │   ├── seed.ts                     # Seed data for categories, instructors, etc.
+│   │   ├── seedBioDiagnostic.ts        # Bio diagnostic seed data
+│   │   ├── syncData.ts                 # Iran mirror sync
+│   │   ├── examReports.ts              # Exam question reports
+│   │   └── _generated/                 # Convex generated files (DO NOT EDIT)
+│   │
+│   └── iran-server/                    # Iran mirror server (backup/local deployment)
+│       ├── package.json
+│       ├── drizzle.config.ts
+│       └── src/
+│           ├── main.ts                 # Express/Hono server
+│           ├── auth.ts                 # Local auth
+│           ├── db.ts                   # Database connection
+│           ├── schema.ts               # Drizzle ORM schema
+│           ├── sync.ts                 # Data sync
+│           └── routes/
+│               ├── admin.ts
+│               ├── ai.ts
+│               ├── aiManagement.ts
+│               ├── articles.ts
+│               ├── classes.ts
+│               ├── courses.ts
+│               ├── dashboard.ts
+│               ├── examRoutes.ts
+│               ├── instructor.ts
+│               ├── notifications.ts
+│               ├── products.ts
+│               ├── support.ts
+│               ├── users.ts
+│               └── wallet.ts
+
+# ============================================================
+# 2. DEPENDENCIES (from package.json)
+# ============================================================
+
+## Production Dependencies:
+- @convex-dev/auth: ^0.0.90          # Convex Auth (Google, Password, Anonymous, EmailOTP)
+- @hookform/resolvers: ^5.2.2        # React Hook Form validation
+- @tiptap/* (15 packages): ^3.30.5   # Rich text editor (TipTap)
+- @vly-ai/integrations: ^0.6.13      # Vly/Freebuff platform integrations
+- axios: ^1.13.2                     # HTTP client
+- class-variance-authority: ^0.7.1   # CVA for component variants
+- clsx: ^2.1.1                       # Conditional className
+- cmdk: ^1.1.1                       # Command palette
+- convex: ^1.30.0                    # Convex backend client
+- date-fns: ^4.1.0                   # Date utilities
+- embla-carousel-react: ^8.6.0       # Carousel
+- framer-motion: ^12.23.25          # Animations
+- hls.js: ^1.7.2                     # HLS video streaming
+- hono: ^4.10.7                      # HTTP framework (Iran server)
+- input-otp: ^1.4.2                  # OTP input
+- jalaali-js: ^2.0.1                 # Jalali/Shamsi date conversion
+- jszip: ^3.10.1                     # ZIP file handling
+- lowlight: ^3.3.0                   # Code syntax highlighting
+- lucide-react: ^0.555.0             # Icons
+- next-themes: ^0.4.6                # Theme management
+- react: ^19.2.0                     # React
+- react-day-picker: 9.13.0           # Calendar
+- react-dom: ^19.2.0                 # React DOM
+- react-hook-form: ^7.67.0           # Form management
+- react-intersection-observer: ^10.0.0 # Intersection observer
+- react-resizable-panels: ^3.0.6     # Resizable panels
+- react-router: ^7.10.0              # Client-side routing
+- recharts: ^2.15.4                  # Charts
+- sonner: ^2.0.7                     # Toast notifications
+- tailwind-merge: ^3.4.0             # Tailwind class merging
+- tailwindcss: ^4.1.17               # Tailwind CSS
+- vaul: ^1.1.2                       # Drawer component
+- zod: ^4.1.13                       # Schema validation
+
+## Dev Dependencies:
+- @eslint/js: ^9.39.1
+- @types/node: ^24.10.1
+- @types/react: ^19.2.7
+- @types/react-dom: ^19.2.3
+- @vitejs/plugin-react: ^5.1.1
+- eslint: ^9.39.1
+- eslint-config-prettier: ^10.1.8
+- eslint-plugin-react-hooks: ^7.0.1
+- eslint-plugin-react-refresh: ^0.4.24
+- globals: ^16.5.0
+- prettier: 3.7.3
+- tw-animate-css: ^1.4.0
+- typescript: ~5.9.3
+- typescript-eslint: ^8.48.1
+- vite: ^7.2.6
+
+# ============================================================
+# 3. NPM SCRIPTS
+# ============================================================
+- "dev": "vite"                       # Start Vite dev server
+- "build": "tsc -b && vite build"     # TypeScript check + production build
+- "lint": "eslint ."                  # Run ESLint
+- "format": "prettier --write ."      # Format code
+- "preview": "vite preview"           # Preview production build
+- "convex:deploy": "convex deploy"    # Deploy Convex backend
+
+# ============================================================
+# 4. ROUTING (from src/main.tsx)
+# ============================================================
+
+## Public Routes (no auth required):
+| Route                        | Component            | Auth     | Description                      |
+|------------------------------|----------------------|----------|----------------------------------|
+| /                            | Landing              | Public   | Landing page                     |
+| /auth                        | AuthPage             | Public   | Login/Register                   |
+| /courses                     | Courses              | Public   | Course catalog                   |
+| /courses/:slug               | CourseDetail         | Public   | Course detail page               |
+| /courses/:slug/lesson/:lessonId| LessonPlayerPage   | Public   | Lesson player                   |
+| /tests                       | Tests                | Public   | Exam catalog                     |
+| /tests/:slug                 | TestTake             | Auth     | Take an exam                     |
+| /tests/result/:attemptId     | TestResult           | Auth     | Exam result                      |
+| /daily-quiz                  | DailyQuiz            | Public   | Daily quiz                       |
+| /products                    | Products             | Public   | Physical products catalog        |
+| /products/:slug              | ProductDetail        | Public   | Product detail                   |
+| /workshops                   | Workshops            | Public   | Workshop catalog                 |
+| /workshops/:slug             | WorkshopDetail       | Public   | Workshop detail                  |
+| /academy-path/:slug          | AcademyPathDetail    | Public   | Academy path detail              |
+| /instructors                 | Instructors          | Public   | Instructor listing               |
+| /instructors/:slug           | InstructorDetail     | Public   | Instructor profile               |
+| /free-content                | FreeContent          | Public   | Free articles                    |
+| /free-content/:slug          | ArticleDetail        | Public   | Article detail                   |
+| /dictionary                  | Dictionary           | Public   | Biology dictionary               |
+| /rules                       | Rules                | Public   | Rules page                       |
+| /about                       | About                | Public   | About page                       |
+| /marketplace                 | Marketplace          | Public   | Marketplace listing              |
+| /marketplace/:slug           | StoreProductDetail   | Public   | Marketplace product detail       |
+| /ai-chat                     | AIChat               | Public*  | AI chat (shows login if needed)  |
+| /pricing                     | Pricing              | Public   | AI subscription pricing          |
+| /mini                        | TelegramMiniApp      | Public   | Telegram Mini App                |
+
+## Protected Routes (RequireAuth wrapper):
+| Route                        | Component            | Auth     | Description                      |
+|------------------------------|----------------------|----------|----------------------------------|
+| /dashboard                   | Dashboard            | Auth     | Student dashboard                |
+| /dashboard/store/sell        | SellerPanel          | Auth     | Seller panel                     |
+| /cart                        | CartPage             | Auth     | Shopping cart                    |
+| /complete-profile            | ProfileCompletion    | Auth     | Profile completion               |
+| /admin                       | Admin                | Auth     | Admin panel                      |
+| /panel/site-studio           | SiteStudio           | Auth     | Site Studio CMS                  |
+| /studio-preview              | StudioPreviewPage    | Auth     | Site Studio preview              |
+| /studio-preview/*            | StudioPreviewPage    | Auth     | Site Studio preview (wildcard)   |
+
+## Role-Gated Routes (RoleGate wrapper):
+| Route                        | Component            | Allowed Roles              |
+|------------------------------|----------------------|----------------------------|
+| /panel/ai-management         | AIManagementPanel    | admin, site_admin           |
+| /panel/super-admin           | SuperAdminPanel      | admin                      |
+| /panel/telegram-bot          | TelegramBotPanel     | admin, site_admin           |
+| /panel/telegram-admin        | TelegramAdminCenter  | admin, site_admin           |
+| /panel/instructor            | InstructorPanel      | instructor, admin, site_admin |
+| /panel/mentor                | MentorPanel          | mentor, admin, site_admin   |
+| /panel/support               | SupportPanel         | support, admin, site_admin  |
+| /panel/content               | ContentPanel         | content_manager, admin, site_admin |
+| /panel/content-studio        | ContentStudio        | content_manager, admin, site_admin |
+| /panel/admin-marketplace     | AdminMarketplacePanel| admin, site_admin           |
+
+## Route Guards:
+- RequireAuth: checks useAuth() → redirects to /auth?returnTo=... if not authenticated
+- RoleGate: checks user.role (and secondaryRole) against allowed array → redirects to panelForRole() if no access
+
+# ============================================================
+# 5. AUTHENTICATION SYSTEM
+# ============================================================
+
+## Auth Providers (src/convex/auth.ts):
+1. EmailOTP (custom provider - emailOtp.ts)
+2. Password (built-in)
+3. Anonymous (guest access)
+4. GoogleProvider (ConvexCredentials - pre-verified via googleAuth:verifyGoogleToken)
+
+## Auth Config (src/convex/auth.config.ts):
+- Provider 1: Convex self-issued JWTs (iss = CONVEX_SITE_URL)
+- Provider 2: Freebuff federated tokens (type: "customJwt", issuer: VLY_CONVEX_AUTH_ISSUER)
+
+## Auth Flow:
+1. User → /auth → selects login method
+2. signIn() from useAuthActions() → Convex Auth
+3. On success → ConvexAuthProvider sets identity
+4. useAuth() hook reads: isLoading, isAuthenticated, user (via api.users.currentUser)
+5. getCurrentUser(ctx) in backend → getAuthUserId(ctx) → ctx.db.get(userId)
+
+## Key Auth Files:
+- src/convex/auth.ts: Auth provider setup
+- src/convex/auth.config.ts: JWT config for federated auth
+- src/convex/users.ts: getCurrentUser(), currentUser query
+- src/hooks/use-auth.ts: useAuth() hook
+- src/components/RequireAuth.tsx: Route guard
+- src/components/RoleGate.tsx: Role-based route guard
+
+# ============================================================
+# 6. ROLE & PERMISSION SYSTEM
+# ============================================================
+
+## Roles (from schema.ts):
+ADMIN = "admin"           # Full system admin
+SITE_ADMIN = "site_admin" # Site management admin
+USER = "user"             # Regular student
+MEMBER = "member"         # Profile-completed member
+INSTRUCTOR = "instructor" # Course instructor
+MENTOR = "mentor"         # Mentor/tutor
+CONTENT_MANAGER = "content_manager" # Content creation manager
+SUPPORT = "support"       # Support staff
+
+## Role Assignments:
+- Stored in users.role (primary) and users.secondaryRole (secondary)
+- Admin assigns roles via adminSetRole mutation (admin-only)
+- Users detected as admin via admins table email match
+
+## Access Control Matrix:
+
+### admin (System Admin):
+- Full admin panel access
+- All CRUD operations on all entities
+- User management (create/edit/delete users, set roles)
+- Payment management (online + offline)
+- Certificate management
+- Super admin panel access
+- Site Studio full access
+- AI Management full access
+- Telegram Bot full access
+- Academy Path management
+
+### site_admin (Site Admin):
+- Same as admin for most operations
+- Cannot create/delete system admins
+- Site Studio full access
+- AI Management full access
+- Telegram Bot full access
+
+### instructor:
+- Instructor Panel (create rooms, manage classes, whiteboard, broadcasts)
+- Content Studio (create/edit own courses via courseStudio)
+- Create class requests
+- Manage mentor groups (if role = mentor)
+- Delete own rooms
+- Request voice/speaker in own rooms
+
+### mentor:
+- Mentor Panel
+- Create/manage mentor groups
+- Schedule sessions with students
+- Answer mentor questions
+
+### content_manager:
+- Content Panel
+- Content Studio (create/edit articles)
+- Default Site Studio permissions: content.edit, media.edit, links.edit, preview
+
+### support:
+- Support Panel (view/support tickets)
+
+### user/member:
+- Student Dashboard
+- Take exams, daily quiz
+- Browse courses, workshops, products
+- AI Chat (role-based limits)
+- Support tickets to instructors
+- Marketplace (buy + sell)
+- Comment on articles/courses
+
+## Backend Authorization Checks:
+- isAnyAdmin(ctx): role === "admin" || role === "site_admin"
+- isContentStaff(ctx): role in ["admin", "site_admin", "content_manager"]
+- isAdmin(ctx): role === "admin"
+- isSiteAdmin(ctx): role === "site_admin"
+- isSystemAdmin(ctx): role === "admin"
+
+## Site Studio Permissions:
+- content.edit, media.edit, links.edit, style.edit, layout.edit
+- components.manage, theme.manage, pages.manage, navigation.manage
+- preview, publish
+
+# ============================================================
+# 7. DATABASE SCHEMA (COMPLETE - from schema.ts)
+# ============================================================
+
+## Auth Tables (from @convex-dev/auth/server):
+- users (extended with custom fields - see below)
+- Standard authTables (sessions, accounts, etc.)
+
+## users Table:
+- name: v.optional(v.string())
+- image: v.optional(v.string())
+- email: v.optional(v.string())
+- emailVerificationTime: v.optional(v.number())
+- isAnonymous: v.optional(v.boolean())
+- role: v.optional(roleValidator)        # Primary role
+- secondaryRole: v.optional(roleValidator) # Secondary role
+- university: v.optional(v.string())
+- major: v.optional(v.string())
+- firstName: v.optional(v.string())
+- lastName: v.optional(v.string())
+- avatarStorageId: v.optional(v.string())
+- about: v.optional(v.string())
+- phone: v.optional(v.string())
+- address: v.optional(v.string())
+- postalCode: v.optional(v.string())
+- suggestedCourseIds: v.optional(v.array(v.id("courses")))
+- pendingProfile: v.optional(v.object({firstName, lastName, avatarStorageId, about, submittedAt}))
+- telegramId: v.optional(v.number())
+- telegramUsername: v.optional(v.string())
+- telegramFirstName: v.optional(v.string())
+- telegramLinkedAt: v.optional(v.number())
+- telegramNotificationsEnabled: v.optional(v.boolean())
+- bankName: v.optional(v.string())
+- bankAccountNumber: v.optional(v.string())
+- bankCardNumber: v.optional(v.string())
+- bankSheba: v.optional(v.string())
+Indexes: by_email[email], by_telegramId[telegramId]
+
+## categories Table:
+- name: v.string()
+- slug: v.string()
+- description: v.string()
+- icon: v.string()                      # lucide icon name
+- accent: v.string()                    # color accent
+- order: v.number()
+Indexes: by_slug[slug]
+
+## instructors Table:
+- name, slug, title, bio, education: v.array, specialties: v.array, accent, verified, userId
+Indexes: by_slug[slug], by_user[userId]
+
+## courses Table:
+- title, slug, categoryId, instructorId, summary, description
+- audience: v.array, prerequisites: v.array
+- syllabus: v.array({id, title, durationMin, free})
+- durationText, mode (live/recorded/hybrid), price, discountPrice, discountExpiresAt
+- rating, ratingCount, studentsCount, accent, bundle (economy/basic/plus/premium)
+- includes: v.array, hasSampleVideo, files: v.array({name,size,type})
+- published, featured, popular, createdAt
+- packagePrices: v.optional(v.array({tier, price, features}))
+- authorId: v.optional (course creator user), status (draft/pending/approved/rejected)
+- reviewNote, coverImage
+Indexes: by_slug, by_category, by_published, by_featured, by_author
+
+## courseSections Table:
+- courseId, title, description, order, createdAt
+Indexes: by_course, by_course_order
+
+## courseLessons Table:
+- courseId, sectionId, title, description, order
+- contentType (video/videoUrl/text/file/embedCode)
+- videoUrl, videoStorageId, textContent, embedCode
+- showVideo, showText, showFiles
+- attachments: v.optional(v.array({name, storageId, fileType, fileSize}))
+- durationMin, isPreview, isPublished, createdAt, updatedAt
+Indexes: by_section, by_course, by_course_section, by_section_order
+
+## lessonContent Table:
+- courseId, lessonId, videoUrl, textContent, attachments, order, updatedAt
+Indexes: by_course, by_course_lesson
+
+## lessonProgress Table:
+- userId, courseId, lessonId, completed, completedAt
+- lastPositionSeconds, lastViewedAt
+Indexes: by_user_course, by_user_course_lesson
+
+## products Table:
+- title, slug, type (flashcards/guide/poster/notes/book/package/other)
+- description, price, discountPrice, discountExpiresAt, accent, published, featured
+- coverImage, stock, createdAt
+Indexes: by_slug
+
+## workshops Table:
+- title, slug, instructorId, topic, date, time, capacity, registeredCount
+- price, description, agenda: v.array, free, expertTalk, published, coverImage
+Indexes: by_slug
+
+## articles Table:
+- title, slug, subtitle, category, tags, excerpt, body (HTML from TipTap)
+- authorName, authorId, featuredImage, accent, readTime
+- level (beginner/intermediate/advanced), status (draft/in_review/scheduled/published/archived)
+- scheduledAt, published, featured
+- SEO: seoTitle, seoDescription, seoKeywords, seoCanonical, ogTitle, ogDescription, ogImage
+- references: v.optional(v.array({title, authors, journal, year, doi, url}))
+- createdAt, updatedAt
+Indexes: by_slug, by_status, by_author
+
+## dictionaryTerms Table:
+- term, slug, fullName, gramStatus, shape, oxygen, habitat
+- diseases: v.array, virulence: v.array, diagnosis, characteristics: v.array
+- examNotes: v.array, sources: v.array
+Indexes: by_slug, by_term
+
+## questions Table:
+- text, options: v.array, correctIndex, explanation, topicId, difficulty (1|2|3)
+Indexes: by_topic
+
+## exams Table:
+- title, slug, description, durationMinutes, questionIds: v.array(v.id("questions"))
+- free, published, featured, diagnostic, accent, order
+Indexes: by_slug
+
+## examAttempts Table:
+- userId, examId, answers: v.array({questionId, chosenIndex})
+- score, total, percent
+- topicBreakdown: v.array({topicId, topicName, correct, total, percent})
+- startedAt, finishedAt
+Indexes: by_user, by_exam
+
+## examReports Table:
+- userId, examId, questionId, comment, status (open/resolved), createdAt
+Indexes: by_status, by_user, by_exam
+
+## dailyQuiz Table:
+- date: string (YYYY-MM-DD), questionId, points
+Indexes: by_date
+
+## dailyQuizAnswers Table:
+- userId, date, questionId, chosenIndex, correct, points, answeredAt
+Indexes: by_user, by_date
+
+## orders Table:
+- userId, items: v.array({type, refId, title, price})
+- subtotal, discountAmount, total, couponCode
+- status (paid/pending/cancelled), invoiceNumber, createdAt
+Indexes: by_user, by_status, by_created
+
+## coupons Table:
+- code, percent, active, maxUses, usedCount, expiresAt
+Indexes: by_code
+
+## enrollments Table:
+- userId, courseId, completedLessons: v.array(v.string)
+- enrolledAt, lastActiveAt, packageTier, orderId, lastLessonId
+Indexes: by_user, by_course
+
+## reminders Table:
+- userId, kind (exam_new/exam_next/course_nudge), refId, title, body, link
+- shownCount, createdAt
+Indexes: by_user, by_user_kind
+
+## announcements Table:
+- authorId, authorName, authorRole
+- targetType (all/course/exam), targetId, targetTitle
+- title, body, createdAt
+Indexes: by_created, by_author
+
+## bookmarks Table:
+- userId, contentType, contentId, createdAt
+Indexes: by_user
+
+## flashcards Table:
+- userId, front, back, category, createdAt
+Indexes: by_user
+
+## presence Table:
+- userId, name, role, location, lastSeen
+Indexes: by_user, by_lastSeen
+
+## classRooms Table:
+- instructorId, instructorName, title, topic, description
+- status (live/scheduled/ended), broadcasting, broadcastKind (camera/screen)
+- boardBg, speakers: v.optional(v.array(v.id("users")))
+- createdAt, platformUrl, scheduledDate
+Indexes: by_instructor, by_status
+
+## classRequests Table:
+- instructorId, instructorName, title, topic, description
+- proposedDate, immediate, status (pending/approved/rejected)
+- createdAt, reviewedBy, reviewedAt, platformUrl
+Indexes: by_instructor, by_status
+
+## whiteboardStrokes Table:
+- roomId, layer (board/screen), tool (pen/highlighter/eraser)
+- color, size, points: v.array({x, y}), createdAt
+Indexes: by_room_layer, by_room_layer_created
+
+## roomMessages Table:
+- roomId, userId, name, role, type (question/message/answer)
+- text, answer, attachmentType, attachmentName, attachmentStorageId, attachmentSize
+- createdAt
+Indexes: by_room, by_room_created
+
+## signals Table:
+- roomId, from, to, type (offer/answer/candidate), data, createdAt
+Indexes: by_room
+
+## mentorGroups Table:
+- mentorId, mentorName, title, description, meetingDay, meetingTime
+- capacity, memberCount, createdAt
+Indexes: by_mentor, by_created
+
+## groupMembers Table:
+- groupId, userId, userName, joinedAt
+Indexes: by_group, by_user, by_group_user
+
+## mentorQuestions Table:
+- studentId, studentName, topic, text, status (open/answered)
+- answer, answeredByName, answeredAt, createdAt
+Indexes: by_student, by_status, by_created
+
+## mentorSessions Table:
+- mentorId, mentorName, studentId, title, date, time, notes
+- status (scheduled/done/cancelled), createdAt
+Indexes: by_mentor, by_student, by_created
+
+## groupAnnouncements Table:
+- groupId, mentorId, mentorName, title, message, createdAt
+Indexes: by_group
+
+## tickets Table (legacy support):
+- userId, subject, status (open/answered/closed), createdAt, updatedAt
+- messages: v.array({author, text, at})
+Indexes: by_user, by_status
+
+## supportTickets Table (student→teacher):
+- studentId, studentName, teacherId, courseId, courseName
+- subject, status (open/waiting_for_teacher/waiting_for_student/resolved/closed)
+- createdAt, updatedAt, lastMessageAt, unreadByStudent, unreadByTeacher
+Indexes: by_student, by_teacher, by_teacher_status, by_student_status
+
+## supportMessages Table:
+- ticketId, senderId, senderName, senderRole, message
+- attachmentStorageId, attachmentName, attachmentSize
+- createdAt, readAt
+Indexes: by_ticket, by_ticket_created
+
+## comments Table:
+- contentType, contentId, userId, userName, text
+- approved, rejected, createdAt
+Indexes: by_content, by_user, by_approved
+
+## courseResources Table:
+- courseId, roomId, instructorId, title, description
+- fileUrl, fileName, fileSize, fileType, isFree, price, commission
+- resourceType (file/link), linkUrl, createdAt
+Indexes: by_course, by_room
+
+## attendance Table:
+- roomId, instructorId, studentId, studentName, present, note, markedAt
+Indexes: by_room, by_student
+
+## instructorPayments Table:
+- instructorId, amount, description, status (pending/paid/rejected)
+- receiptUrl, paidAt, createdAt
+Indexes: by_instructor
+
+## directMessages Table:
+- senderId, receiverId, text, read, createdAt
+Indexes: by_receiver, by_sender
+
+## testimonials Table:
+- name, role, text, rating, course, accent
+
+## admins Table:
+- email
+Indexes: by_email
+
+## offlinePayments Table:
+- userId, courseId, tier, amount, trackingNumber, receiptStorageId
+- status (pending/approved/rejected), note, createdAt
+Indexes: by_user, by_status, by_course
+
+## classEnrollRequests Table:
+- userId, roomId, status (pending/approved/rejected), createdAt
+Indexes: by_room, by_user, by_status
+
+## inboxMessages Table:
+- userId, title, body, readAt, createdAt
+Indexes: by_user, by_created
+
+## aiConfig Table:
+- provider, model, baseUrl, apiKeyEncrypted, maxTokensPerRequest
+- temperature, systemPrompt, updatedAt, updatedBy
+
+## aiModels Table:
+- name, provider, model, baseUrl, apiKey
+- isFree, dailyLimit, pricePerMessage, description, systemPrompt
+- maxTokens, temperature, active, sortOrder, createdBy, createdAt
+
+## aiPrompts Table:
+- name, content, category, isDefault, createdBy, createdAt
+Indexes: by_category
+
+## aiConversations Table:
+- userId, title, promptId, modelId, createdAt, updatedAt
+Indexes: by_user
+
+## aiMessages Table:
+- conversationId, role (user/assistant/system), content, tokensUsed, createdAt
+Indexes: by_conversation
+
+## aiUsage Table:
+- userId, date (YYYY-MM-DD), messagesSent, tokensUsed
+Indexes: by_user_date
+
+## aiTokenQuotas Table:
+- userId, dailyLimit, extraTokens, grantedAt, grantedBy, note
+Indexes: by_user
+
+## aiSubscriptions Table:
+- userId, tier (bronze/silver/gold), dailyLimit, startedAt, expiresAt
+- orderId, active
+Indexes: by_user, by_active
+
+## telegramBot Table:
+- tokenEncrypted, botId, botName, botUsername, webhookUrl
+- connected, active, startMessage, lastTestedAt, lastTestResult
+- commands, commandsSyncedAt, updatedBy, updatedAt, createdAt
+
+## telegramLinkingCodes Table:
+- userId, code, createdAt, expiresAt, usedAt, telegramId
+Indexes: by_code, by_user
+
+## telegramNotifPrefs Table:
+- userId, mentorReplies, tasks, deadlines, meetings, groupNotifs, articles, system
+Indexes: by_user
+
+## telegramNotifLog Table:
+- userId, type, key, sentAt, success
+Indexes: by_key, by_user_type
+
+## superAdminSessions Table:
+- userId, createdAt, expiresAt
+Indexes: by_user
+
+## sitePages Table (legacy):
+- slug, title, htmlContent, createdBy, updatedAt
+Indexes: by_slug
+
+## siteTexts Table:
+- key, value, updatedBy, updatedAt
+Indexes: by_key
+
+## mediaItems Table:
+- url, name, alt, caption, category, size, mimeType, uploadedBy, createdAt
+Indexes: by_uploader
+
+## articleVersions Table:
+- articleId, body, title, savedBy, createdAt
+Indexes: by_article
+
+## wallet Table:
+- userId, balance, frozenBalance, totalEarned, totalSpent, updatedAt
+Indexes: by_user
+
+## walletTransactions Table:
+- userId, type (deposit/withdrawal/purchase/sale/refund/commission/boost)
+- amount, description, relatedOrderId, relatedProductId, createdAt
+Indexes: by_user, by_user_date
+
+## storeProducts Table:
+- sellerId, title, slug, description
+- category (notes/flashcards/book/package/other)
+- condition (new/like_new/used)
+- price, images: v.array(v.string), coverImage, stock, soldCount
+- rating, ratingCount, status (draft/pending/approved/rejected/sold_out)
+- rejectionReason, boostLevel (none/silver/gold), boostExpiresAt
+- deliveryCities, tags, createdAt, updatedAt
+Indexes: by_seller, by_status, by_category, by_boost, by_slug
+
+## storeReviews Table:
+- productId, userId, rating, text, createdAt
+Indexes: by_product, by_user_product
+
+## storeOrders Table:
+- buyerId, sellerId, productId, quantity, unitPrice, commission, total, sellerEarning
+- status (pending_payment/paid/shipped/delivered/completed/cancelled/refunded)
+- deliveryCity, deliveryAddress, deliveryNote, paidWithWallet
+- invoiceNumber, createdAt, updatedAt
+Indexes: by_buyer, by_seller, by_product, by_status
+
+## boostTransactions Table:
+- productId, sellerId, boostLevel (silver/gold), amount, durationDays, expiresAt, createdAt
+Indexes: by_product, by_seller
+
+## storeCoupons Table:
+- code, percent, maxDiscount, minPurchase, active, maxUses, usedCount, expiresAt, createdAt
+Indexes: by_code
+
+## storeCart Table:
+- userId, productId, quantity, createdAt
+Indexes: by_user, by_user_product
+
+## storeWishlists Table:
+- userId, productId, createdAt
+Indexes: by_user, by_user_product
+
+## storeMessages Table:
+- senderId, receiverId, productId, orderId, text, read, createdAt
+Indexes: by_receiver, by_sender, by_product
+
+## sellerProfiles Table:
+- userId, verified, bio, totalSales, avgRating, joinedAt
+Indexes: by_user
+
+## notifications Table:
+- userId, type, title, body, entityType, entityId, isRead, createdAt
+Indexes: by_user, by_user_read
+
+## workshopEnrollments Table:
+- userId, workshopId, enrolledAt
+Indexes: by_user, by_workshop
+
+## pathAccess Table:
+- userId, pathId, orderId, purchasedAt
+Indexes: by_user, by_path
+
+## academyPaths Table:
+- title, slug, description, level, color, published
+- price, discountPrice, discountExpiresAt, coverImage, createdAt
+Indexes: by_published
+
+## academyPathItems Table:
+- pathId, workshopId, order
+Indexes: by_path, by_workshop
+
+## flashSales Table:
+- title, targetType (course/workshop/product/all), targetId, percent
+- startsAt, expiresAt, active, createdBy, createdAt
+Indexes: by_active, by_target
+
+## promoBanners Table:
+- text, link, sticker, color, priority, active
+- repeatCount, startsAt, expiresAt, createdBy, createdAt
+Indexes: by_active
+
+## certificates Table:
+- userId, courseId, status (requested/approved/rejected)
+- certificateUrl, certificateStorageId
+- requestedAt, resolvedAt, resolvedBy, note
+Indexes: by_user, by_course, by_status
+
+## pageConfigs Table:
+- pageKey, draft (any), published (any), hasDraftChanges, updatedBy, updatedAt
+Indexes: by_key
+
+## studioPages Table:
+- key, title, route, description, published, updatedBy, updatedAt
+Indexes: by_key
+
+## studioElements Table:
+- pageId, type, label, order, visible
+- props, style, publishedProps, publishedStyle, publishedVisible, publishedOrder
+- hasDraftChanges, updatedBy, updatedAt
+Indexes: by_page, by_page_order
+
+## studioThemes Table:
+- pageId, draft, published, hasDraftChanges, updatedBy, updatedAt
+Indexes: by_page
+
+## studioVersions Table:
+- pageId, version, label, snapshot (any), createdBy, createdAt
+Indexes: by_page
+
+## studioStaffPerms Table:
+- userId, perms: v.array(v.string), updatedBy, updatedAt
+Indexes: by_user
+
+## studioMedia Table:
+- storageId, url, name, kind (image/video), width, height, size, createdAt
+Indexes: by_kind
+
+## siteSettings Table:
+- key, value (JSON string), description, updatedBy, updatedAt
+Indexes: by_key
+
+## auditLogs Table:
+- userId, userName, action, entityType, entityId, details, createdAt
+Indexes: by_user, by_entity, by_created
+
+## whiteboardFiles Table:
+- roomId, uploaderId, fileName, fileStorageId, fileType, fileSize
+- totalPages, currentPage, slideImages, createdAt
+Indexes: by_room
+
+# ============================================================
+# 8. CONVEX BACKEND FUNCTIONS (COMPLETE LIST)
+# ============================================================
+
+## src/convex/users.ts:
+- currentUser: query() → current user object
+- getCurrentUser: async function(ctx) → user or null
+- listAllUsers: query() → all users (admin only)
+
+## src/convex/admin.ts:
+- isAnyAdmin(ctx): helper → boolean
+- isContentStaff(ctx): helper → boolean
+- isAdmin(ctx): helper → boolean
+- isSiteAdmin(ctx): helper → boolean
+- isSystemAdmin(ctx): helper → boolean
+- amIAdmin: query()
+- getAdminStats: query() → dashboard statistics
+- getRevenueSeries: query() → revenue chart data
+- getEnrollmentStats: query() → enrollment chart data
+- getSectionNotifications: query() → notification counts per section
+- adminListCourses: query()
+- adminCreateCourse: mutation()
+- adminUpdateCourse: mutation()
+- adminTogglePublish: mutation()
+- adminDeleteCourse: mutation()
+- adminGetQuestions: query()
+- adminGetQuestionGroups: query()
+- adminCreateQuestion: mutation()
+- adminDeleteQuestion: mutation()
+- adminUpdateQuestion: mutation()
+- adminListUsers: query()
+- adminUpdateRole: mutation()
+- adminListArticles: query()
+- adminCreateArticle: mutation()
+- adminUpdateArticle: mutation()
+- adminDeleteArticle: mutation()
+- adminDeleteCategory: mutation()
+- adminUpdateCategory: mutation()
+- adminListExams: query()
+- adminCreateExam: mutation()
+- adminToggleExamPublish: mutation()
+- adminDeleteExam: mutation()
+- adminListWorkshops: query()
+- adminListInstructors: query()
+- adminListProducts: query()
+- adminListOrders: query()
+- adminListCoupons: query()
+- adminListTickets: query()
+- adminListAnnouncements: query()
+- saveGeneratedQuestions: mutation()
+- adminCreateUser: mutation()
+- adminUpdateUser: mutation()
+- adminDeleteUser: mutation()
+- adminSetRole: mutation()
+- adminSetSecondaryRole: mutation()
+- adminSetPassword: mutation()
+- adminCreateInstructor: mutation()
+- adminUpdateInstructor: mutation()
+- adminDeleteInstructor: mutation()
+- adminCreateWorkshop: mutation()
+- adminUpdateWorkshop: mutation()
+- adminDeleteWorkshop: mutation()
+- adminCreateProduct: mutation()
+- adminUpdateProduct: mutation()
+- adminDeleteProduct: mutation()
+- adminSaveGeneratedArticles: mutation()
+- adminCreateCoupon: mutation()
+- adminGetCoupons: query()
+- adminToggleCoupon: mutation()
+- adminDeleteCoupon: mutation()
+- adminListPayments: query()
+- adminDeletePayment: mutation()
+- adminGetOrders: query()
+- adminDeleteOrder: mutation()
+- adminUpdateOrderStatus: mutation()
+- adminListClassRooms: query()
+- adminListClassRequests: query()
+- adminReviewClassRequest: mutation()
+- adminListEnrollments: query()
+- adminListEnrollTargets: query()
+- adminAddEnrollment: mutation()
+- adminRemoveEnrollment: mutation()
+- adminListCoursesForDiscount: query()
+- adminListProductsForDiscount: query()
+- adminSetCourseDiscount: mutation()
+- adminSetProductDiscount: mutation()
+- adminGetAllStoreProducts: query()
+- adminListPendingStoreProducts: query()
+- adminApproveStoreProduct: mutation()
+- adminAddAdmin: mutation()
+- exportBackup: query()
+- categoryLabel: query()
+- listMyClassRequests: query()
+- requestClass: mutation()
+
+## src/convex/content.ts:
+- listCategories: query()
+- createCategory: mutation()
+- listCourses: query() → published courses with category/instructor enrichment
+- getCourseBySlug: query() → single course with enrollment state
+- getCoursesByIds: query()
+- listProducts: query() → published products
+- getProductBySlug: query()
+- listWorkshops: query() → published workshops with instructor
+- getWorkshopBySlug: query()
+- listInstructors: query()
+- getInstructorBySlug: query() → instructor with their courses/workshops
+- listArticles: query() → published articles
+- getArticleBySlug: query()
+- searchDictionary: query()
+- getDictionaryTerm: query()
+- createDictionaryTerm: mutation()
+- updateDictionaryTerm: mutation()
+- deleteDictionaryTerm: mutation()
+- listTestimonials: query()
+
+## src/convex/enroll.ts:
+- purchase: mutation() → buy courses/products/workshops/AI subscriptions
+- getCouponInfo: query() → validate coupon
+- getMyOrders: query() → user's order history
+- getMyEnrollments: query() → enrolled courses with progress
+- markLessonComplete: mutation() → track lesson completion
+- getMyDownloads: query() → downloadable files from enrolled courses
+- toggleBookmark: mutation()
+- getMyBookmarks: query()
+- isBookmarked: query()
+- addFlashcard: mutation()
+- deleteFlashcard: mutation()
+- getMyFlashcards: query()
+
+## src/convex/tests.ts:
+- listExams: query() → published exams
+- getExam: query() → exam by slug with questions
+- getExamById: query() → exam by ID
+- submitExam: mutation() → submit answers, calculate score
+- getAttempt: query() → attempt detail with answers
+- getMyAttempts: query() → user's exam history
+- getDailyQuiz: query() → today's daily quiz question
+- answerDailyQuiz: mutation() → submit answer (correct=+3, wrong=-1, skip=0)
+- getMyLearningProfile: query() → topic breakdown stats
+
+## src/convex/dailyQuizAdmin.ts:
+- listEntries: query() → all quiz entries (admin)
+- createEntry: mutation() → create quiz for date
+- deleteEntry: mutation()
+- autoFill: mutation() → auto-fill dates from question bank
+- getLeaderboard: query() → monthly leaderboard
+- getLeaderboardHistory: query() → past months
+- resetMonth: mutation() → delete month's answers
+- getPublicLeaderboard: query() → top 10 for site display
+- getQuestionBankStats: query()
+- aiGenerateQuestions: action() → AI generates questions
+- saveGeneratedQuestion: internalMutation()
+- publishMultipleForDate: mutation() → publish multiple questions for a date
+
+## src/convex/marketplace.ts:
+- getMyWallet: query()
+- getMyTransactions: query()
+- depositToWallet: mutation() → admin deposit
+- withdrawFromWallet: mutation() → admin withdraw
+- createProduct: mutation() → seller creates product listing
+- updateProduct: mutation()
+- deleteProduct: mutation()
+- listProducts: query() → approved products with pagination/filter/sort
+- getProduct: query() → single product by slug with reviews
+- getMyProducts: query() → seller's products
+- adminListAllProducts: query()
+- adminReviewProduct: mutation() → approve/reject
+- purchaseProduct: mutation() → buy marketplace product
+- addReview: mutation() → add product review
+- toggleWishlist: mutation()
+- getMyWishlist: query()
+- addToCart: mutation()
+- removeFromCart: mutation()
+- getMyCart: query()
+- getSimilarProducts: query()
+
+## src/convex/support.ts:
+- createTicket: mutation()
+- listMyTickets: query()
+- listTeacherTickets: query()
+- getTicket: query() → ticket with messages
+- sendMessage: mutation() → send message in ticket
+- markAsRead: mutation()
+- updateTicketStatus: mutation()
+- getUnreadCounts: query()
+- listNotifications: query()
+- markNotificationsRead: mutation()
+- getUploadUrl: mutation()
+- listInstructors: query()
+
+## src/convex/comments.ts:
+- addComment: mutation()
+- listComments: query() → approved comments
+- listPending: query() → pending comments (admin)
+- approveComment: mutation()
+- rejectComment: mutation()
+- deleteComment: mutation()
+
+## src/convex/collab.ts:
+- touchPresence: mutation()
+- listOnline: query()
+- listRoomParticipants: query()
+- listAllUsersWithPresence: query()
+- toggleRaiseHand: mutation()
+- requestVoice: mutation()
+- approveSpeaker: mutation()
+- removeSpeaker: mutation()
+- listVoiceRequests: query()
+- createRoom: mutation()
+- deleteRoom: mutation()
+- setRoomStatus: mutation()
+- listRooms: query()
+- getRoom: query() → room with messages
+- sendMessage: mutation() → room message
+- getUploadUrl: mutation()
+- startBroadcast: mutation()
+- endBroadcast: mutation()
+- setBoardBg: mutation()
+- addStroke: mutation()
+- clearStrokes: mutation()
+- listStrokes: query()
+- sendSignal: mutation() → WebRTC signaling
+- listSignals: query()
+- answerQuestion: mutation()
+- listMentorGroups: query()
+- createMentorGroup: mutation()
+- deleteMentorGroup: mutation()
+- joinGroup: mutation()
+- leaveGroup: mutation()
+- listGroupMembers: query()
+- isGroupMember: query()
+
+## src/convex/aiChat.ts:
+- listActiveModels: query()
+- listMyConversations: query()
+- getConversationMessages: query()
+- getMyUsage: query() → usage stats with subscription awareness
+- createConversation: mutation()
+- sendMessage: mutation() → saves message + triggers AI response
+- deleteConversation: mutation()
+- renameConversation: mutation()
+- deleteMessage: mutation()
+- saveAIMessage: internalMutation()
+- getAIConfigRaw: internalQuery()
+- getConversationMessagesInternal: internalQuery()
+
+## src/convex/aiActions.ts ("use node"):
+- callAI: action() → call AI provider (OpenAI/Anthropic/Google)
+- testConnection: action() → test AI API connection
+- generateQuestions: action() → AI generates exam questions
+- generateArticles: action() → AI generates articles
+- rewriteText: action() → AI writing assistant
+- generateCourseDesign: action() → AI designs course structure
+- generateWorkshopStructure: action() → AI designs workshop
+- generateTeachingTips: action() → AI teaching tips
+- generateAcademyPath: action() → AI academy path planning
+
+## src/convex/aiSubscriptions.ts:
+- getTiers: query() → tier definitions
+- getMySubscription: query() → current user's active subscription
+- listSubscriptions: query() → all subscriptions (admin)
+- grantSubscription: mutation() → admin grants subscription
+- revokeSubscription: mutation() → admin revokes
+- getEffectiveDailyLimit: query()
+
+Tier definitions:
+- bronze: 25 messages/day, 199,000 Toman
+- silver: 50 messages/day, 499,000 Toman
+- gold: 150 messages/day, 1,499,000 Toman
+
+## src/convex/siteStudio.ts:
+- myPerms: query()
+- listStaffPerms: query()
+- setStaffPerms: mutation()
+- listPages: query()
+- listPublishedPages: query() → public published pages
+- getPage: query()
+- upsertPage: mutation()
+- removePage: mutation()
+- createElement, updateElement, reorderElements, toggleElementVisibility, deleteElement: mutations
+- getTheme, upsertTheme: mutation
+- publishPage, revertDraft: mutations
+- listVersions: query(), saveVersion: mutation(), restoreVersion: mutation()
+- listMedia: query(), uploadMedia: mutation(), deleteMedia: mutation()
+
+## src/convex/siteSettings.ts:
+- getSetting: query()
+- getSettings: query()
+- listAllSettings: query()
+- setSetting: mutation()
+- isPaymentEnabled: query()
+- togglePayment: mutation()
+- listAuditLogs: query()
+
+## src/convex/offlinePayments.ts:
+- submitOfflinePayment: mutation()
+- listOfflinePayments: query() → admin list
+- approveOfflinePayment: mutation() → creates enrollment + order
+- rejectOfflinePayment: mutation()
+- deleteOfflinePayment: mutation()
+- myOfflinePayments: query()
+
+## src/convex/notifications.ts:
+- createAnnouncement: mutation()
+- deleteAnnouncement: mutation()
+- listAnnouncements: query() → user-visible announcements
+- listAllAnnouncements: query() → admin list
+- listMyAnnouncements: query()
+- refreshReminders: mutation() → generates exam + course reminders
+- markReminderShown: mutation()
+- armNextExamReminder: mutation()
+- getArmedNextExam: query()
+
+## src/convex/inbox.ts:
+- sendInboxMessage: mutation()
+- deleteInboxMessage: mutation()
+- listMyInbox: query()
+- markInboxRead: mutation()
+- adminListInbox: query()
+
+## src/convex/profiles.ts:
+- getMyProfile: query()
+- getProfileUploadUrl: mutation()
+- updateMyProfile: mutation() → staged for admin approval (or immediate for admins)
+- listPendingProfiles: query()
+- approveProfile: mutation()
+- rejectProfile: mutation()
+- toggleSuggestedCourse: mutation()
+- listSuggestedCourses: query()
+
+## src/convex/promotions.ts:
+- listActiveFlashSales: query()
+- listAllFlashSales: query()
+- createFlashSale: mutation()
+- toggleFlashSale: mutation()
+- deleteFlashSale: mutation()
+- listActivePromoBanners: query()
+- listAllPromoBanners: query()
+- createPromoBanner: mutation()
+- togglePromoBanner: mutation()
+- deletePromoBanner: mutation()
+- requestCertificate: mutation()
+- listMyCertificates: query()
+- listAllCertRequests: query()
+- resolveCertificate: mutation()
+- getCertificateFileUrl: query()
+- enrollWorkshop: mutation()
+- listMyWorkshopEnrollments: query()
+
+## src/convex/telegramBot.ts:
+- getBotConfigPublic: query()
+- updateBotConfig: mutation()
+- testBot: action()
+- syncCommands: action()
+- generateLinkingCode: mutation()
+- _findLinkingCode: internalQuery()
+- _completeLinking: internalMutation()
+- _findUserByTelegramId: internalQuery()
+
+## src/convex/telegramWebhook.ts:
+- handleTelegramWebhook: httpAction() → handles /start, /help, /profile, /questions, /sessions, /tasks, /notifications, /groups, /settings, callback queries
+
+## src/convex/telegramNotifications.ts:
+- getNotifPrefs: query()
+- updateNotifPrefs: mutation()
+- broadcastNotification: action() → send notifications to multiple users
+- sendSingleNotification: action()
+
+## src/convex/telegramSetupWebhook.ts:
+- setupWebhookOnce: httpAction()
+
+## src/convex/academyPaths.ts:
+- listPublishedPaths: query()
+- getPathBySlug: query()
+- listAllPaths: query()
+- adminCreatePath: mutation()
+- adminUpdatePath: mutation()
+- adminDeletePath: mutation()
+- listPathItems: query()
+- addPathItem: mutation()
+- removePathItem: mutation()
+- reorderPathItems: mutation()
+- purchasePath: mutation()
+- getPathAccess: query()
+
+## src/convex/contentStudio.ts:
+- listArticles: query()
+- getArticle: query()
+- createArticle: mutation()
+- updateArticle: mutation()
+- quickSave: mutation()
+- togglePublish: mutation()
+- deleteArticle: mutation()
+- saveVersion: mutation()
+- listVersions: query()
+- restoreVersion: mutation()
+- listMedia: query()
+- addMedia: mutation()
+- updateMedia: mutation()
+- deleteMedia: mutation()
+- generateArticleWithAI: action()
+
+## src/convex/http.ts (HTTP Endpoints):
+- POST /telegram/webhook → handleTelegramWebhook
+- GET /telegram/setup-webhook → setupWebhookOnce
+- GET /sync/data → handleSyncData (Iran mirror)
+- POST /sync/push → handleSyncPush (Iran mirror)
+
+# ============================================================
+# 9. ENVIRONMENT VARIABLES
+# ============================================================
+
+## Frontend (Vite):
+- VITE_CONVEX_URL          # Convex deployment URL (required)
+
+## Backend (Convex):
+- CONVEX_SITE_URL          # Convex site URL (auto-provided)
+- VLY_CONVEX_AUTH_ISSUER   # Freebuff auth issuer URL (default: https://auth.freebuff.app)
+- OPENAI_API_KEY           # OpenAI API key (optional, for AI features)
+- ANTHROPIC_API_KEY        # Anthropic API key (optional, for AI features)
+- TELEGRAM_BOT_TOKEN       # Telegram bot token (stored encrypted in telegramBot table)
+
+## Convex Secrets (managed via Keys/UI):
+- AI provider API keys     # Stored in aiConfig.apiKeyEncrypted or aiModels.apiKey
+- Telegram bot token       # Stored in telegramBot.tokenEncrypted
+
+Note: Environment variables are NOT stored in .env files.
+The user manages secrets through the Keys/API keys UI in the project dashboard.
+
+# ============================================================
+# 10. KEY FEATURE FLOWS
+# ============================================================
+
+## Authentication Flow:
+1. User visits /auth → selects Google, Email OTP, or Password
+2. Frontend calls signIn("google"|"password"|"emailOtp"|"anonymous", credentials)
+3. Convex Auth processes → creates/updates user in users table
+4. currentUser query returns user data including role
+5. RequireAuth checks isAuthenticated → redirects to /auth?returnTo=... if not
+6. RoleGate checks user.role against allowed roles → redirects to panelForRole()
+
+## Purchase Flow (Course):
+1. User clicks "خرید" on CourseDetail page
+2. CheckoutDialog opens with package selection (economy/basic/plus/premium)
+3. User selects package → can enter coupon code
+4. Frontend calls enroll.purchase({items, bundleTier, couponCode})
+5. Backend: validates course exists/published, calculates price from DB (not frontend)
+6. Backend: checks payment.enabled in siteSettings
+7. Backend: validates coupon (code, active, maxUses, expiresAt)
+8. Backend: creates order with status "paid"
+9. Backend: creates enrollment record
+10. Backend: if AI subscription → creates aiSubscriptions record
+
+## Offline Payment Flow:
+1. Student fills form: courseId, tier, amount, trackingNumber, receiptImage
+2. Frontend uploads receipt via collab.getUploadUrl() → gets storageId
+3. Frontend calls offlinePayments.submitOfflinePayment()
+4. Backend: creates offlinePayments record with status "pending"
+5. Admin sees in Admin panel → reviews receipt image
+6. Admin approves → backend: creates enrollment + order, updates course studentCount
+
+## AI Chat Flow:
+1. User opens /ai-chat → sees conversation list + chat interface
+2. User creates new conversation → aiChat.createConversation()
+3. User types message → aiChat.sendMessage()
+4. Backend: checks daily limit (role-based + subscription + quota override)
+5. Backend: saves user message to aiMessages
+6. Backend: increments aiUsage for today
+7. Backend: schedules aiActions.callAI action via scheduler.runAfter(0, ...)
+8. Action: reads AI config from aiConfig/aiModels (server-side, key never reaches browser)
+9. Action: reads conversation history from aiMessages
+10. Action: calls AI provider (OpenAI/Anthropic/Google)
+11. Action: saves AI response via internal mutation aiChat.saveAIMessage
+12. Frontend: sees response via reactive query subscription
+
+## Telegram Bot Flow:
+1. User sends /start [CODE] to Telegram bot
+2. Webhook handler: telegramWebhook.handleTelegramWebhook
+3. If CODE present → account linking flow (validates code, links telegramId to user)
+4. If no code → sends welcome message with inline keyboard
+5. Bot commands: /profile, /questions, /sessions, /tasks, /notifications, /groups, /settings
+6. Each command: looks up user by telegramId → queries relevant data → sends formatted message
+7. Callback queries route to same handlers via callback_data
+
+## Daily Quiz Flow:
+1. Admin creates quiz entries for dates via dailyQuizAdmin.createEntry or autoFill
+2. Or AI generates questions via dailyQuizAdmin.aiGenerateQuestions
+3. Student opens /daily-quiz → tests.getDailyQuiz()
+4. Backend: gets today's entries, picks random one, checks if user already answered
+5. Student answers → tests.answerDailyQuiz()
+6. Scoring: correct = +3, wrong = -1, skip (not answered) = 0
+7. Admin views leaderboard via dailyQuizAdmin.getLeaderboard()
+
+## Site Studio Flow:
+1. Admin opens /panel/site-studio → SiteStudio component
+2. Loads pages from studioPages table
+3. Each page has studioElements (blocks) and studioThemes
+4. Editor shows draft + published states separately
+5. Staff edits elements → changes saved to draft fields
+6. On publish: draft fields copied to published fields
+7. Public site reads only published fields via listPublishedPages query
+8. Version history: each publish creates studioVersions entry
+9. Can restore previous versions
+
+# ============================================================
+# 11. AI SUBSCRIPTION SYSTEM
+# ============================================================
+
+## Free Tier Limits (per day):
+- user/member: 3 messages
+- instructor/mentor/content_manager/support: 10 messages
+- admin/site_admin: 100 messages
+
+## Paid Tiers:
+| Tier    | Daily Limit | Price (Toman) | Color  |
+|---------|-------------|---------------|--------|
+| Bronze  | 25          | 199,000       | amber  |
+| Silver  | 50          | 499,000       | slate  |
+| Gold    | 150         | 1,499,000     | yellow |
+
+## Limit Resolution:
+dailyLimit = max(quota.dailyLimit, subLimit, roleLimit)
+
+## Payment:
+- Online: via enroll.purchase() with item type "ai_subscription"
+- Offline: via offline payments system
+- Subscription lasts 30 days from purchase
+
+# ============================================================
+# 12. PAYMENT SYSTEM
+# ============================================================
+
+## Payment Types:
+1. **Online Payment**: Controlled by siteSettings "payment.enabled"
+   - If enabled → purchases proceed normally
+   - If disabled → blocks paid purchases, allows free items
+   - NOT IMPLEMENTED: actual payment gateway integration (currently simulates "paid" status)
+
+2. **Offline Payment**: Bank transfer with receipt image
+   - Student submits: tracking number + receipt photo
+   - Admin reviews and approves/rejects
+   - Approval creates enrollment + order record
+
+## Order Flow:
+1. Frontend builds items array [{type, refId}]
+2. Backend validates each item from DB (never trusts frontend prices)
+3. Applies coupon discount if valid
+4. Creates order with invoiceNumber "ZA-{timestamp}"
+5. Grants access (enrollment, workshop registration, AI subscription)
+
+## Marketplace Wallet:
+- Every user has a wallet with balance, frozenBalance, totalEarned, totalSpent
+- Transactions tracked in walletTransactions table
+- Sellers receive payment from buyers (minus platform commission)
+- Boost system: sellers can boost listings (silver: 1 week, gold: 1 month)
+
+# ============================================================
+# 13. KEY CONFIGURATION FILES
+# ============================================================
+
+## vite.config.ts:
+- Plugins: vlyPlugin(), react(), tailwindcss()
+- Resolve alias: @/ → ./src/
+- Build: chunk splitting (react-vendor, convex-vendor, radix-ui, framer-motion, charts, forms)
+- optimizeDeps: react, react-dom, react-router, @convex-dev/auth/react
+- server.hmr: { overlay: false }
+
+## tsconfig.json:
+- References: tsconfig.app.json, tsconfig.node.json
+- baseUrl: .
+- paths: @/* → ./src/*
+
+## Tailwind CSS:
+- Uses @tailwindcss/vite plugin (v4 style)
+- CSS variables for theming in src/index.css
+- Dark mode via class strategy (root dark/light class)
+- Accent colors: teal, emerald, sky, indigo, violet, rose, amber
+- RTL support (dir="rtl" on root)
+
+# ============================================================
+# 14. DUAL-MODE ARCHITECTURE
+# ============================================================
+
+## Global Mode (Convex):
+- Default mode for all deployments
+- Requires internet access to *.convex.cloud
+- Real-time subscriptions, file storage, auth
+- VITE_CONVEX_URL points to Convex deployment
+
+## Iran Mode (Local Server):
+- src/iran-server/ directory
+- Hono/Express server with Drizzle ORM
+- PostgreSQL/SQLite database
+- All API calls stay local (no global internet needed)
+- Env: VITE_API_URL points to Iran server
+- Sync endpoint: POST /sync/push, GET /sync/data (protected by X-Sync-Key)
+
+## Features available in both modes:
+- Authentication, Courses, Articles, Marketplace, AI Chat
+- Daily Quiz, Support, Dashboard, Admin, Instructor Panel
+- Notifications, Exams, Workshops
+
+## Features limited in Iran mode:
+- Real-time subscriptions (polling instead of WebSocket)
+- Convex file storage (needs local alternative)
+- Full-text search
+
+# ============================================================
+# 15. SITE STUDIO / CMS
+# ============================================================
+
+## Architecture:
+- Pages stored in studioPages table (key, title, route)
+- Elements stored in studioElements table (type, props, style)
+- Theme stored in studioThemes table (colors, fonts, spacing)
+- Draft + published snapshots side-by-side
+- Permission-based access (not just role-based)
+
+## Block Types:
+hero, heading, text, image, button, card, gallery, video, and custom blocks
+Defined in src/components/studio/blocks.tsx and pageRegistry.ts
+
+## Draft → Publish Flow:
+1. Admin edits element props → saved to draft fields
+2. hasDraftChanges flag set to true
+3. Publish copies draft → published fields
+4. Version snapshot created in studioVersions
+5. Public site reads only published fields
+
+# ============================================================
+# 16. CURRENT PROJECT STATUS
+# ============================================================
+
+## IMPLEMENTED:
+- Authentication (Google, Password, EmailOTP, Anonymous)
+- Role-based access control (8 roles)
+- Course catalog with CRUD, packages, discount pricing
+- Hierarchical curriculum (sections + lessons)
+- Lesson player (video/text/files/embed)
+- Exam system with attempts, scoring, topic breakdown
+- Daily quiz with AI question generation, leaderboard, Jalali dates
+- Physical products (flashcards, guides, notes, books, packages)
+- Marketplace (seller profiles, product listings, cart, orders, reviews, boost)
+- Digital wallet system
+- Workshop system with enrollment
+- Academy paths (bundled workshop sequences)
+- Instructor panel with live rooms, whiteboard, broadcasts, WebRTC
+- Mentor system (groups, questions, sessions)
+- Support tickets (student→teacher)
+- AI chat with multi-model support, conversations, daily limits
+- AI subscriptions (bronze/silver/gold tiers)
+- AI content generation (questions, articles, course design, workshops)
+- Content Studio with TipTap rich text editor
+- Site Studio CMS with draft/publish workflow
+- Telegram Bot with commands, account linking, notifications
+- Telegram Mini App
+- Comments system with moderation
+- Notification system with reminders
+- Inbox messages
+- Profile management with admin approval
+- Flash sales and promo banners
+- Certificate requests
+- Bookmarking and flashcards
+- Free content / articles with SEO
+- Biology dictionary/glossary
+- File upload via Convex storage
+- Dark/Light theme with accent color selection
+- Jalali/Shamsi date support
+- RTL layout
+- Iran mirror server (Drizzle ORM)
+- Audit logging
+
+## PARTIAL:
+- Payment gateway: Order creation works but actual online payment processing is simulated (status always set to "paid")
+- Flash sales: Backend implemented, frontend integration partial
+- Certificate system: Request/approval works, actual certificate file generation not implemented
+
+## NOT IMPLEMENTED:
+- Real payment gateway integration (ZarinPal, Pay.ir, etc.)
+- Certificate PDF generation
+- Video hosting/upload for courses (videoUrl points to external sources)
+- Email notifications (only Telegram notifications implemented)
+- Full admin analytics dashboard charts
+- Course completion certificates auto-generation
+- Bulk import/export functionality
+- Mobile app (PWA via manifest.webmanifest only)
+- Multi-language support (Persian only)
+- Real-time presence in non-classroom contexts
+
+# ============================================================
+# 17. KNOWN ISSUES
+# ============================================================
+
+1. Payment gateway is simulated - orders are immediately marked "paid"
+2. Admin.tsx is ~6647 lines - very large file, hard to maintain
+3. Some Convex mutations use `as any` type casts due to flexible arg handling
+4. support.ts had auth mismatch (old ctx.auth.getUserIdentity vs new getAuthUserId) - FIXED
+5. Marketplace product page had runtime errors with null/undefined fields - FIXED
+6. Instructor panel delete room used wrong API (setRoomStatus vs deleteRoom) - FIXED
+7. Comments section showed empty during loading state - FIXED
+8. Daily quiz date display was Gregorian, now Jalali - FIXED
+9. Schema validation disabled (schemaValidation: false) in Convex config
+10. Some `isGroupMember` query may be defined in collab.ts but referenced from telegramWebhook.ts
+
+# ============================================================
+# 18. IMPORTANT ROUTES SUMMARY
+# ============================================================
+
+| Route                          | Component           | Role Required               |
+|--------------------------------|---------------------|-----------------------------|
+| /                              | Landing             | Public                      |
+| /auth                          | Auth                | Public                      |
+| /courses                       | Courses             | Public                      |
+| /courses/:slug                 | CourseDetail        | Public                      |
+| /tests                         | Tests               | Public                      |
+| /tests/:slug                   | TestTake            | Auth                        |
+| /daily-quiz                    | DailyQuiz           | Public                      |
+| /products                      | Products            | Public                      |
+| /workshops                     | Workshops           | Public                      |
+| /marketplace                   | Marketplace         | Public                      |
+| /marketplace/:slug             | ProductDetail       | Public                      |
+| /ai-chat                       | AIChat              | Auth (redirects)            |
+| /pricing                       | Pricing             | Public                      |
+| /dictionary                    | Dictionary          | Public                      |
+| /free-content                  | FreeContent         | Public                      |
+| /free-content/:slug            | ArticleDetail       | Public                      |
+| /dashboard                     | Dashboard           | Auth                        |
+| /admin                         | Admin               | Auth (admin/site_admin)     |
+| /panel/instructor              | InstructorPanel     | instructor/admin/site_admin |
+| /panel/mentor                  | MentorPanel         | mentor/admin/site_admin     |
+| /panel/support                 | SupportPanel        | support/admin/site_admin    |
+| /panel/content                 | ContentPanel        | content_manager/admin/site_admin |
+| /panel/content-studio          | ContentStudio       | content_manager/admin/site_admin |
+| /panel/site-studio             | SiteStudio          | Auth (permission-gated)     |
+| /panel/ai-management           | AIManagementPanel   | admin/site_admin            |
+| /panel/telegram-bot            | TelegramBotPanel    | admin/site_admin            |
+| /panel/telegram-admin          | TelegramAdminCenter | admin/site_admin            |
+| /panel/admin-marketplace       | AdminMarketplacePanel| admin/site_admin           |
+| /panel/super-admin             | SuperAdminPanel     | admin                       |
+| /mini                          | TelegramMiniApp     | Public                      |
+
+# ============================================================
+# 19. PROJECT STATISTICS
+# ============================================================
+
+- Total files: ~234
+- Total TypeScript/TSX lines: ~246,000
+- Convex backend files: 46
+- React page components: 30+
+- Panel components: 10
+- UI components (shadcn/ui): 60+
+- Custom site components: 30+
+- Database tables: 50+
+- Convex queries: 100+
+- Convex mutations: 120+
+- Convex actions: 10
+- HTTP endpoints: 4
+- React routes: 40+
+- Hooks: 7
+- Roles: 8
+- AI models supported: OpenAI, Anthropic, Google, Custom
+- Payment types: Online (simulated), Offline (bank transfer), Wallet
+
+# ============================================================
+# 20. DEPLOYMENT NOTES
+# ============================================================
+
+## Convex Backend:
+```bash
+bun convex dev --once   # Push functions to Convex
+bun convex deploy       # Deploy to production
+```
+
+## Frontend Build:
+```bash
+bun tsc -b --noEmit     # TypeScript check
+bun run build           # Production build
+```
+
+## Development:
+```bash
+bun run dev             # Start Vite dev server
+```
+
+## Vite Config:
+- HMR: overlay disabled (server.hmr: { overlay: false })
+- Build target: esnext
+- Minify: esbuild
+- Sourcemap: disabled
+
+## Package Manager: Bun
+All commands should use `bun` not `npm` or `yarn`.
+
+# ============================================================
+# END OF SNAPSHOT
+# Generated: 2026-09-07
+# ============================================================
