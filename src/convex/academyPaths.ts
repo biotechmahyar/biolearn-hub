@@ -86,12 +86,13 @@ export const adminUpdatePath = mutation({
   },
   handler: async (ctx, args) => {
     if (!(await isStaff(ctx))) throw new Error("دسترسی لازم است.");
-    const { id, ...patch } = args;
+    const { id, free, ...patch } = args;
     const clean: Record<string, unknown> = {};
     for (const [k, val] of Object.entries(patch)) {
       if (val !== undefined) clean[k] = val;
     }
-    if (clean.free === true) clean.price = 0;
+    // free is a UI helper: free=true means price should be 0
+    if (free === true) clean.price = 0;
     if (Object.keys(clean).length > 0) await ctx.db.patch(id, clean);
   },
 });
@@ -99,12 +100,6 @@ export const adminUpdatePath = mutation({
 export const adminUpdatePathItem = mutation({
   args: {
     id: v.id("academyPathItems"),
-    title: v.optional(v.string()),
-    description: v.optional(v.string()),
-    price: v.optional(v.number()),
-    capacity: v.optional(v.number()),
-    date: v.optional(v.string()),
-    time: v.optional(v.string()),
     instructorId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {

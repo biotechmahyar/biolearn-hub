@@ -5572,6 +5572,7 @@ function AdminAcademyPaths() {
   const removeItem = useMutation(api.academyPaths.adminRemovePathItem);
   const moveItem = useMutation(api.academyPaths.adminMovePathItem);
   const updateItem = useMutation(api.academyPaths.adminUpdatePathItem);
+  const updateWorkshop = useMutation(api.admin.adminUpdateWorkshop);
   const generateAcademyPathAction = useAction(api.aiActions.generateAcademyPath);
   const bulkAdd = useMutation(api.academyPaths.adminBulkAddPathWorkshops);
 
@@ -6146,12 +6147,18 @@ function AdminAcademyPaths() {
                 className="w-full"
                 onClick={async () => {
                   try {
-                    const patch: any = { id: editingItem._id };
-                    if (editItemTitle) patch.title = editItemTitle;
-                    if (editItemPrice) patch.price = Number(editItemPrice);
-                    if (editItemCapacity) patch.capacity = Number(editItemCapacity);
-                    if (editItemInstructorId) patch.instructorId = editItemInstructorId;
-                    await updateItem(patch);
+                    // Update workshop properties via adminUpdateWorkshop
+                    if (editingItem.workshopId) {
+                      const wsPatch: any = { id: editingItem.workshopId };
+                      if (editItemTitle) wsPatch.title = editItemTitle;
+                      if (editItemPrice) wsPatch.price = Number(editItemPrice);
+                      if (editItemCapacity) wsPatch.capacity = Number(editItemCapacity);
+                      await updateWorkshop(wsPatch);
+                    }
+                    // Update instructor assignment on the path item
+                    if (editItemInstructorId) {
+                      await updateItem({ id: editingItem._id, instructorId: editItemInstructorId as any });
+                    }
                     setEditingItemOpen(false);
                     toast.success("کارگاه بروزرسانی شد");
                   } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
@@ -6437,6 +6444,14 @@ function AdminTelegram() {
 // ── Certificate requests (درخواست‌های گواهی) ──────────────────────────────────
 function AdminCertificates() {
   const requests = useQuery(api.promotions.listAllCertRequests);
+  const issueCert = useMutation(api.promotions.adminIssueCertificate);
+  const users = useQuery(api.admin.adminListUsers);
+  const courses = useQuery(api.admin.adminListCourses);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issueUserId, setIssueUserId] = useState("");
+  const [issueCourseId, setIssueCourseId] = useState("");
+  const [issueNote, setIssueNote] = useState("");
+  const [issueBusy, setIssueBusy] = useState(false);
   const all = useQuery(api.promotions.listMyCertificates) as any[] | undefined;
   const resolve = useMutation(api.promotions.resolveCertificate);
   const getUploadUrl = useMutation(api.upload.getUploadUrl);
@@ -6554,9 +6569,70 @@ function AdminCertificates() {
           </CardContent>
         </Card>
       )}
-      <Button variant="outline" className="rounded-lg text-xs" onClick={() => setShowAll((s) => !s)}>
-        {showAll ? "بستن تاریخچه" : "نمایش تاریخچه کامل"}
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" className="rounded-lg text-xs" onClick={() => setShowAll((s) => !s)}>
+          {showAll ? "بستن تاریخچه" : "نمایش تاریخچه کامل"}
+        </Button>
+        <Button className="rounded-lg text-xs" onClick={() => setIssueOpen(true)}>
+          <Plus className="ml-1 size-3.5" />
+          صدور گواهی
+        </Button>
+      </div>
+
+      <Dialog open={issueOpen} onOpenChange={setIssueOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>صدور دستی گواهی</DialogTitle>
+            <DialogDescription>کاربر و دوره را انتخاب کنید تا گواهی صادر شود.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">دانشجو</label>
+              <Select value={issueUserId} onValueChange={setIssueUserId}>
+                <SelectTrigger><SelectValue placeholder="انتخاب دانشجو" /></SelectTrigger>
+                <SelectContent>
+                  {(users ?? []).map((u: any) => (
+                    <SelectItem key={u._id} value={u._id}>{u.name || u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">دوره</label>
+              <Select value={issueCourseId} onValueChange={setIssueCourseId}>
+                <SelectTrigger><SelectValue placeholder="انتخاب دوره" /></SelectTrigger>
+                <SelectContent>
+                  {(courses ?? []).map((c: any) => (
+                    <SelectItem key={c._id} value={c._id}>{c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">یادداشت (اختیاری)</label>
+              <Input value={issueNote} onChange={(e) => setIssueNote(e.target.value)} placeholder="دلیل صدور یا توضیحات" />
+            </div>
+            <Button className="w-full" disabled={!issueUserId || !issueCourseId || issueBusy} onClick={async () => {
+              setIssueBusy(true);
+              try {
+                await issueCert({ userId: issueUserId as any, courseId: issueCourseId as any, note: issueNote || undefined });
+                toast.success("گواهی صادر شد");
+                setIssueOpen(false);
+                setIssueUserId("");
+                setIssueCourseId("");
+                setIssueNote("");
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "خطا");
+              } finally {
+                setIssueBusy(false);
+              }
+            }}>
+              {issueBusy ? <Loader2 className="ml-1 size-4 animate-spin" /> : null}
+              صدور گواهی
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

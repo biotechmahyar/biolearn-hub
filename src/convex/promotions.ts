@@ -333,3 +333,30 @@ export const listMyWorkshopEnrollments = query({
     return result;
   },
 });
+
+// ── Admin: Manually issue a certificate without a prior request ──────────────
+export const adminIssueCertificate = mutation({
+  args: {
+    userId: v.id("users"),
+    courseId: v.id("courses"),
+    certificateUrl: v.optional(v.string()),
+    certificateStorageId: v.optional(v.string()),
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("ورود لازم است.");
+    const id = await ctx.db.insert("certificates", {
+      userId: args.userId,
+      courseId: args.courseId,
+      status: "approved",
+      certificateUrl: args.certificateUrl,
+      certificateStorageId: args.certificateStorageId,
+      requestedAt: Date.now(),
+      resolvedAt: Date.now(),
+      resolvedBy: identity.subject as any,
+      note: args.note,
+    });
+    return { ok: true, id };
+  },
+});
