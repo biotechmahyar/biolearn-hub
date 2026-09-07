@@ -454,14 +454,15 @@ export const purchaseProduct = mutation({
     deliveryNote: v.optional(v.string()),
     couponCode: v.optional(v.string()),
     payWithWallet: v.boolean(),
+    payMethod: v.optional(v.union(v.literal("wallet"), v.literal("online"), v.literal("offline"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("برای خرید ابتدا وارد شوید.");
     if (args.quantity < 1) throw new Error("تعداد باید حداقل ۱ باشد.");
 
-    // Central payment gateway enforcement (wallet payments bypass the gateway)
-    if (!args.payWithWallet) {
+    // Central payment gateway enforcement (wallet and offline payments bypass the gateway)
+    if (!args.payWithWallet && args.payMethod !== "offline") {
       const paymentSetting = await ctx.db
         .query("siteSettings")
         .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
@@ -554,11 +555,12 @@ export const purchaseProduct = mutation({
       commission,
       total,
       sellerEarning,
-      status: args.payWithWallet ? "paid" : "pending_payment",
+      status: args.payMethod === "offline" ? "pending_payment" : args.payWithWallet ? "paid" : "pending_payment",
       deliveryCity: args.deliveryCity,
       deliveryAddress: args.deliveryAddress,
       deliveryNote: args.deliveryNote,
       paidWithWallet: args.payWithWallet,
+      payMethod: args.payMethod ?? (args.payWithWallet ? "wallet" : "online"),
       invoiceNumber,
       createdAt: Date.now(),
       updatedAt: Date.now(),

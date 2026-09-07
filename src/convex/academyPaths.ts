@@ -104,6 +104,7 @@ export const adminUpdatePathItem = mutation({
     capacity: v.optional(v.number()),
     date: v.optional(v.string()),
     time: v.optional(v.string()),
+    instructorId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     if (!(await isStaff(ctx))) throw new Error("دسترسی لازم است.");

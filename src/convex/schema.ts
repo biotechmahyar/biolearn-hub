@@ -456,6 +456,7 @@ const schema = defineSchema(
       total: v.number(),
       couponCode: v.optional(v.string()),
       status: v.union(v.literal("paid"), v.literal("pending"), v.literal("cancelled")),
+      payMethod: v.optional(v.union(v.literal("wallet"), v.literal("online"), v.literal("offline"))),
       invoiceNumber: v.string(),
       createdAt: v.number(),
     })
@@ -1189,6 +1190,7 @@ const schema = defineSchema(
       deliveryNote: v.optional(v.string()),
       // Payment
       paidWithWallet: v.boolean(),
+      payMethod: v.optional(v.union(v.literal("wallet"), v.literal("online"), v.literal("offline"))),
       invoiceNumber: v.string(),
       createdAt: v.number(),
       updatedAt: v.number(),
@@ -1378,6 +1380,7 @@ const schema = defineSchema(
       pathId: v.id("academyPaths"),
       workshopId: v.id("workshops"),
       order: v.number(),
+      instructorId: v.optional(v.id("users")),
     })
       .index("by_path", ["pathId"])
       .index("by_workshop", ["workshopId"]),

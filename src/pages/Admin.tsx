@@ -5388,6 +5388,7 @@ function AdminAcademyPaths() {
   const [editItemTitle, setEditItemTitle] = useState("");
   const [editItemPrice, setEditItemPrice] = useState("");
   const [editItemCapacity, setEditItemCapacity] = useState("");
+  const [editItemInstructorId, setEditItemInstructorId] = useState("");
 
   const handleCreate = async () => {
     if (!title.trim()) return;
@@ -5579,7 +5580,7 @@ function AdminAcademyPaths() {
                               <Button size="icon" variant="ghost" className="size-6" disabled={idx === p.items.length - 1} onClick={() => moveItem({ id: item._id, direction: "down" })}>
                                 <ArrowDown className="size-3" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="size-6 text-cyan-500 hover:text-cyan-400" title="ویرایش کارگاه" onClick={() => { setEditingItem(item); setEditingItemOpen(true); }}>
+                              <Button size="icon" variant="ghost" className="size-6 text-cyan-500 hover:text-cyan-400" title="ویرایش کارگاه" onClick={() => { setEditingItem(item); setEditItemTitle(item.title || ""); setEditItemPrice(item.price ? String(item.price) : ""); setEditItemCapacity(item.capacity ? String(item.capacity) : ""); setEditItemInstructorId(item.instructorId || ""); setEditingItemOpen(true); }}>
                                 <Pencil className="size-3" />
                               </Button>
                               <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => removeItem({ id: item._id })}>
@@ -5887,6 +5888,17 @@ function AdminAcademyPaths() {
                 <label className="mb-1 block text-[11px] font-bold text-muted-foreground">ظرفیت</label>
                 <Input type="number" value={editItemCapacity} onChange={(e) => setEditItemCapacity(e.target.value)} />
               </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-muted-foreground">استاد</label>
+                <Select value={editItemInstructorId} onValueChange={setEditItemInstructorId}>
+                  <SelectTrigger><SelectValue placeholder="انتخاب استاد" /></SelectTrigger>
+                  <SelectContent>
+                    {(instructors ?? []).map((inst: any) => (
+                      <SelectItem key={inst._id} value={inst._id}>{inst.name || inst.email}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <Button
                 className="w-full"
                 onClick={async () => {
@@ -5895,6 +5907,7 @@ function AdminAcademyPaths() {
                     if (editItemTitle) patch.title = editItemTitle;
                     if (editItemPrice) patch.price = Number(editItemPrice);
                     if (editItemCapacity) patch.capacity = Number(editItemCapacity);
+                    if (editItemInstructorId) patch.instructorId = editItemInstructorId;
                     await updateItem(patch);
                     setEditingItemOpen(false);
                     toast.success("کارگاه بروزرسانی شد");

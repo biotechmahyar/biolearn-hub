@@ -96,6 +96,7 @@ function ProductDetailInner() {
   const [address, setAddress] = useState("");
   const [note, setNote] = useState("");
   const [purchasing, setPurchasing] = useState(false);
+  const [payMethod, setPayMethod] = useState<"wallet" | "online" | "offline">("wallet");
 
   const { isIran } = useMode();
   const productConvex = useQuery(api.marketplace.getProduct, { slug: slug ?? "" });
@@ -227,7 +228,8 @@ function ProductDetailInner() {
           deliveryCity: "tabriz",
           deliveryAddress: address || undefined,
           deliveryNote: note || undefined,
-          payWithWallet: true,
+          payWithWallet: payMethod === "wallet",
+          payMethod,
         });
         if (result.ok) {
           toast.success("خرید با موفقیت ثبت شد!");
@@ -564,21 +566,69 @@ function ProductDetailInner() {
                         className="min-h-[60px] border-white/10 bg-white/5 text-sm text-slate-100"
                       />
 
-                      {!hasEnoughBalance && (
+                      {/* Payment method selection */}
+                      <div className="space-y-2">
+                        <p className="text-xs text-slate-400">روش پرداخت:</p>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setPayMethod("wallet")}
+                            className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                              payMethod === "wallet"
+                                ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300"
+                                : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
+                            }`}
+                          >
+                            کیف پول
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPayMethod("online")}
+                            className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                              payMethod === "online"
+                                ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300"
+                                : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
+                            }`}
+                          >
+                            پرداخت آنلاین
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPayMethod("offline")}
+                            className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                              payMethod === "offline"
+                                ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300"
+                                : "border-white/10 bg-white/5 text-slate-400 hover:border-white/20"
+                            }`}
+                          >
+                            پرداخت آفلاین
+                          </button>
+                        </div>
+                      </div>
+
+                      {payMethod === "wallet" && !hasEnoughBalance && (
                         <p className="text-xs text-amber-400">
                           موجودی کیف پول: {formatPriceNumber(wallet?.balance ?? 0)} تومان
                           (کافی نیست)
                         </p>
                       )}
 
+                      {payMethod === "offline" && (
+                        <p className="text-xs text-slate-400">
+                          پس از ثبت سفارش، مبلغ را به کارت بانکی واریز کرده و شماره پیگیری را ارسال کنید.
+                        </p>
+                      )}
+
                       <Button
                         className="w-full bg-gradient-to-l from-cyan-500 to-cyan-600 text-white hover:from-cyan-400 hover:to-cyan-500"
-                        disabled={purchasing || !hasEnoughBalance}
+                        disabled={purchasing || (payMethod === "wallet" && !hasEnoughBalance)}
                         onClick={handlePurchase}
                       >
                         {purchasing
                           ? "در حال ثبت..."
-                          : `پرداخت ${formatPriceNumber(pPrice * quantity)} تومان`}
+                          : payMethod === "offline"
+                            ? `ثبت سفارش (${formatPriceNumber(pPrice * quantity)} تومان)`
+                            : `پرداخت ${formatPriceNumber(pPrice * quantity)} تومان`}
                       </Button>
                       <Button
                         variant="ghost"

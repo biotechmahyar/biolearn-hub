@@ -1028,6 +1028,8 @@ function CalendarView() {
           </CardContent>
         </Card>
       )}
+
+
     </div>
   );
 }
@@ -4206,7 +4208,8 @@ function InstructorSupportView() {
         </Card>
       ) : null}
     </div>
-  );
+
+        );
 }
 
 // ── Academy Path view (مسیر آکادمی) ─────────────────────────────────────────
@@ -4214,9 +4217,37 @@ function AcademyPathView() {
   const paths = useQuery(api.academyPaths.listInstructorPaths);
   const enrolledWorkshops = useQuery(api.academyPaths.listMyPathProgress);
   const enroll = useMutation(api.promotions.enrollWorkshop);
+  const generateAcademyPathAction = useAction(api.aiActions.generateAcademyPath);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiLevel, setAiLevel] = useState("مبتدي");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
 
   const isEnrolled = (wid: string) => (enrolledWorkshops ?? []).includes(wid as any);
+
+  const handleAIGenerate = async () => {
+    if (!aiTopic.trim()) return;
+    setAiGenerating(true);
+    setAiResult(null);
+    try {
+      const result = await generateAcademyPathAction({ topic: aiTopic.trim(), audienceLevel: aiLevel });
+      setAiResult(result.path);
+    } catch (e: any) {
+      toast.error(e?.message || "خطا در تولید مسیر آموزشی");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const submitAIPathForReview = () => {
+    if (!aiResult) return;
+    toast.info("پیشنهاد مسیر آموزشی شما برای بررسی مدیران سایت ارسال شد.");
+    setAiDialogOpen(false);
+    setAiResult(null);
+    setAiTopic("");
+  };
 
   const handleEnroll = async (wid: string, free: boolean) => {
     if (!free) {
@@ -4242,6 +4273,9 @@ function AcademyPathView() {
           سلسله کارگاه‌های آکادمی — مسیرهای منتشر شده و جایگاه کارگاه‌های شما در آن‌ها.
         </p>
       </div>
+        <Button size="sm" variant="outline" className="mt-3 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10" onClick={() => setAiDialogOpen(true)}>
+          🤖 پیشنهاد مسیر آموزشی با هوش مصنوعی
+        </Button>
 
       {paths === undefined ? (
         <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-cyan-400" /></div>
@@ -4302,6 +4336,62 @@ function AcademyPathView() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* AI Path Dialog */}
+      {aiDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="mx-4 w-full max-w-lg rounded-2xl border border-white/10 bg-[#0b1a2a] p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">🤖 پیشنهاد مسیر آموزشی</h3>
+            <p className="mt-1 text-xs text-slate-400">موضوع را وارد کنید تا هوش مصنوعی یک مسیر آموزشی پیشنهاد دهد.</p>
+            <input
+              type="text"
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="مثلاً: میکروبیولوژی عمومی"
+              className="mt-4 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+            <select
+              value={aiLevel}
+              onChange={(e) => setAiLevel(e.target.value)}
+              className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+            >
+              <option value="مبتدی">مبتدی</option>
+              <option value="متوسط">متوسط</option>
+              <option value="پیشرفته">پیشرفته</option>
+              <option value="ترکیبی">ترکیبی</option>
+            </select>
+            {aiResult && (
+              <div className="mt-4 rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-4">
+                <p className="text-sm font-bold text-cyan-300">{aiResult.title}</p>
+                {aiResult.description && <p className="mt-1 text-xs text-slate-400">{aiResult.description}</p>}
+                {aiResult.steps?.length > 0 && (
+                  <div className="mt-3 space-y-1.5">
+                    {aiResult.steps.map((step: any, i: number) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                        <span className="text-cyan-400">{i + 1}.</span>
+                        <span>{step.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="mt-4 flex gap-2">
+              <Button size="sm" className="bg-cyan-500 text-white hover:bg-cyan-400" disabled={!aiTopic.trim() || aiGenerating} onClick={handleAIGenerate}>
+                {aiGenerating ? "در حال تولید..." : "تولید مسیر"}
+              </Button>
+              {aiResult && (
+                <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-300" onClick={submitAIPathForReview}>
+                  ارسال برای مدیران
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="text-slate-400" onClick={() => { setAiDialogOpen(false); setAiResult(null); setAiTopic(""); }}>
+                بستن
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
