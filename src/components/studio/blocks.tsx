@@ -247,7 +247,7 @@ export const BLOCKS: BlockDef[] = [
     label: "آمار / اعداد",
     icon: BarChart3,
     description: "ردیف اعداد — هر خط: عدد | برچسب",
-    defaultProps: { items: "+۴ هزار | دانشجوی همراه\n+۸ دوره | تخصصی علوم زیستی" },
+    defaultProps: { items: "+۲ هزار | دانشجوی همراه\n+۸ دوره | تخصصی علوم زیستی" },
     fields: [{ key: "items", label: "موارد (عدد | برچسب)", type: "textarea", perm: "content" }],
   },
   {

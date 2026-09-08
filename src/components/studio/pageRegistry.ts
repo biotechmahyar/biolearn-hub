@@ -39,7 +39,7 @@ export const SECTION_DEFAULTS: Record<string, Record<string, unknown>> = {
     secondaryButtonLink: "/tests",
     tertiaryButtonText: "کوئیز روزانه",
     tertiaryButtonLink: "/daily-quiz",
-    stat1Number: "+۴ هزار",
+    stat1Number: "+۲ هزار",
     stat1Label: "دانشجوی همراه",
     stat2Number: "+۸ دوره",
     stat2Label: "تخصصی علوم زیستی",
