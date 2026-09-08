@@ -135,20 +135,75 @@ export default function VerifyCertificate() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 rounded-lg border border-border/50 bg-background p-4 sm:grid-cols-2">
-                      <div className="flex items-center gap-2">
-                        <User className="size-4 text-muted-foreground" />
-                        <div>
-                          <p className="text-[11px] text-muted-foreground">دریافت‌کننده</p>
-                          <p className="text-sm font-medium">{result.studentName}</p>
+                      {result.firstName || result.lastName ? (
+                        <div className="flex items-center gap-2 sm:col-span-2">
+                          <User className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">نام و نام خانوادگی</p>
+                            <p className="text-sm font-medium">{result.firstName} {result.lastName}</p>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="flex items-center gap-2 sm:col-span-2">
+                          <User className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">دریافت‌کننده</p>
+                            <p className="text-sm font-medium">{result.studentName}</p>
+                          </div>
+                        </div>
+                      )}
+                      {result.fatherName && (
+                        <div className="flex items-center gap-2">
+                          <User className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">نام پدر</p>
+                            <p className="text-sm font-medium">{result.fatherName}</p>
+                          </div>
+                        </div>
+                      )}
+                      {result.nationalCode && (
+                        <div className="flex items-center gap-2">
+                          <Hash className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">کد ملی</p>
+                            <p className="text-sm font-medium" dir="ltr">{result.nationalCode}</p>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <BookOpen className="size-4 text-muted-foreground" />
                         <div>
                           <p className="text-[11px] text-muted-foreground">دوره</p>
-                          <p className="text-sm font-medium">{result.courseTitle}</p>
+                          <p className="text-sm font-medium">{result.courseName || result.courseTitle}</p>
                         </div>
                       </div>
+                      {result.courseDuration && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">مدت زمان دوره</p>
+                            <p className="text-sm font-medium">{result.courseDuration}</p>
+                          </div>
+                        </div>
+                      )}
+                      {result.instructorName && (
+                        <div className="flex items-center gap-2">
+                          <User className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">نام استاد دوره</p>
+                            <p className="text-sm font-medium">{result.instructorName}</p>
+                          </div>
+                        </div>
+                      )}
+                      {result.grade && (
+                        <div className="flex items-center gap-2">
+                          <Award className="size-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-[11px] text-muted-foreground">درجه گواهینامه</p>
+                            <p className="text-sm font-medium">{result.grade}</p>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <Calendar className="size-4 text-muted-foreground" />
                         <div>

@@ -5025,6 +5025,7 @@ function AdminPathSuggestions() {
   const pending = useQuery(api.academyPaths.listPendingSuggestions);
   const all = useQuery(api.academyPaths.listAllSuggestions);
   const review = useMutation(api.academyPaths.reviewSuggestion);
+  const deleteSugg = useMutation(api.academyPaths.deleteSuggestion);
   const [tab, setTab] = useState<"pending" | "all">("pending");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [noteDialog, setNoteDialog] = useState<{ id: string; action: "approved" | "rejected" } | null>(null);
@@ -6445,6 +6446,7 @@ function AdminTelegram() {
 function AdminCertificates() {
   const requests = useQuery(api.promotions.listAllCertRequests);
   const issueCert = useMutation(api.promotions.adminIssueCertificate);
+  const updateCert = useMutation(api.promotions.adminUpdateCertificate);
   const users = useQuery(api.admin.adminListUsers);
   const courses = useQuery(api.admin.adminListCourses);
   const [issueOpen, setIssueOpen] = useState(false);
@@ -6458,6 +6460,9 @@ function AdminCertificates() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [editingCert, setEditingCert] = useState<any>(null);
+  const [editField, setEditField] = useState("");
+  const [editValue, setEditValue] = useState("");
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, id: any) => {
     const file = e.target.files?.[0];
@@ -6552,9 +6557,9 @@ function AdminCertificates() {
                     <TableCell className="text-xs">{c.courseTitle}</TableCell>
                     <TableCell>
                       <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold",
-                        c.status === "approved" ? "bg-emerald-500/15 text-emerald-600" : c.status === "rejected" ? "bg-red-500/15 text-red-600" : "bg-amber-500/15 text-amber-600"
+                        c.status === "approved" ? "bg-emerald-500/15 text-emerald-600" : c.status === "rejected" ? "bg-red-500/15 text-red-600" : c.status === "draft" ? "bg-blue-500/15 text-blue-600" : "bg-amber-500/15 text-amber-600"
                       )}>
-                        {c.status === "approved" ? "صادر شده" : c.status === "rejected" ? "رد شده" : "در انتظار"}
+                        {c.status === "approved" ? "صادر شده" : c.status === "rejected" ? "رد شده" : c.status === "draft" ? "پیش‌نویس" : "در انتظار"}
                       </span>
                     </TableCell>
                     <TableCell>

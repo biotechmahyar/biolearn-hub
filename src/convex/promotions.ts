@@ -271,11 +271,17 @@ export const listAllCertificates = query({
 export const listAllCertRequests = query({
   args: {},
   handler: async (ctx) => {
-    const requests = await ctx.db
+    const requested = await ctx.db
       .query("certificates")
       .withIndex("by_status", (q) => q.eq("status", "requested"))
       .order("desc")
       .collect();
+    const drafts = await ctx.db
+      .query("certificates")
+      .withIndex("by_status", (q) => q.eq("status", "draft"))
+      .order("desc")
+      .collect();
+    const requests = [...requested, ...drafts].sort((a, b) => b.requestedAt - a.requestedAt);
     const result = [];
     for (const r of requests) {
       const user = await ctx.db.get(r.userId);
@@ -297,6 +303,7 @@ export const resolveCertificate = mutation({
       v.literal("approved"),
       v.literal("rejected"),
       v.literal("revoked"),
+      v.literal("draft"),
     ),
     certificateUrl: v.optional(v.string()),
     certificateStorageId: v.optional(v.string()),
@@ -413,7 +420,15 @@ export const verifyCertificate = query({
       studentName: user?.firstName && user?.lastName
         ? `${user.firstName} ${user.lastName}`
         : user?.name || "—",
+      firstName: cert.firstName ?? user?.firstName ?? "",
+      lastName: cert.lastName ?? user?.lastName ?? "",
+      fatherName: cert.fatherName ?? "",
+      nationalCode: cert.nationalCode ?? "",
       courseTitle: course?.title || "—",
+      courseName: cert.courseName ?? (course?.title || "—"),
+      courseDuration: cert.courseDuration ?? "",
+      instructorName: cert.instructorName ?? "",
+      grade: cert.grade ?? "عالی",
       issuedAt: cert.resolvedAt || cert.requestedAt,
     };
   },
@@ -497,28 +512,83 @@ export const adminIssueCertificate = mutation({
     certificateUrl: v.optional(v.string()),
     certificateStorageId: v.optional(v.string()),
     note: v.optional(v.string()),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    fatherName: v.optional(v.string()),
+    nationalCode: v.optional(v.string()),
+    courseName: v.optional(v.string()),
+    courseDuration: v.optional(v.string()),
+    instructorName: v.optional(v.string()),
+    grade: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const staff = await getCurrentUser(ctx);
     if (!staff || (staff.role !== "admin" && staff.role !== "site_admin")) {
       throw new Error("فقط مدیر سایت یا ادمین مجاز است.");
     }
-    // Every issued certificate gets a unique tracking code at issuance time.
-    const verificationCode = await generateUniqueTrackingCode(ctx);
     const now = Date.now();
+    // Certificate starts as draft — admin must finalize it later
     const id = await ctx.db.insert("certificates", {
       userId: args.userId,
       courseId: args.courseId,
-      status: "approved",
+      status: "draft",
+      firstName: args.firstName,
+      lastName: args.lastName,
+      fatherName: args.fatherName,
+      nationalCode: args.nationalCode,
+      courseName: args.courseName,
+      courseDuration: args.courseDuration,
+      instructorName: args.instructorName,
+      grade: args.grade ?? "عالی",
       certificateUrl: args.certificateUrl,
       certificateStorageId: args.certificateStorageId,
       requestedAt: now,
-      resolvedAt: now,
-      resolvedBy: staff._id,
       note: args.note,
-      verificationCode,
-      certificateNumber: verificationCode,
     });
-    return { ok: true, id, verificationCode };
+    return { ok: true, id };
+  },
+});
+
+export const adminUpdateCertificate = mutation({
+  args: {
+    id: v.id("certificates"),
+    firstName: v.optional(v.string()),
+    lastName: v.optional(v.string()),
+    fatherName: v.optional(v.string()),
+    nationalCode: v.optional(v.string()),
+    courseName: v.optional(v.string()),
+    courseDuration: v.optional(v.string()),
+    instructorName: v.optional(v.string()),
+    grade: v.optional(v.string()),
+    certificateUrl: v.optional(v.string()),
+    certificateStorageId: v.optional(v.string()),
+    note: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("draft"), v.literal("approved"), v.literal("rejected"))),
+  },
+  handler: async (ctx, args) => {
+    const staff = await getCurrentUser(ctx);
+    if (!staff || (staff.role !== "admin" && staff.role !== "site_admin")) {
+      throw new Error("فقط مدیر سایت یا ادمین مجاز است.");
+    }
+    const cert = await ctx.db.get(args.id);
+    if (!cert) throw new Error("گواهی یافت نشد.");
+
+    const { id, ...patch } = args;
+
+    // When approving, generate tracking code if not already present
+    let verificationCode = cert.verificationCode;
+    let certificateNumber = cert.certificateNumber;
+    if (patch.status === "approved" && !verificationCode) {
+      verificationCode = await generateUniqueTrackingCode(ctx);
+      certificateNumber = verificationCode;
+    }
+
+    await ctx.db.patch(id, {
+      ...patch,
+      ...(verificationCode ? { verificationCode } : {}),
+      ...(certificateNumber ? { certificateNumber } : {}),
+      ...(patch.status === "approved" ? { resolvedAt: Date.now(), resolvedBy: staff._id } : {}),
+    });
+    return { ok: true };
   },
 });

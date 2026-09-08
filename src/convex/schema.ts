@@ -1370,6 +1370,7 @@ const schema = defineSchema(
       published: v.boolean(),
       instructorId: v.optional(v.id("instructors")),
       price: v.optional(v.number()),
+      free: v.optional(v.boolean()),
       discountPrice: v.optional(v.number()),
       discountExpiresAt: v.optional(v.number()),
       coverImage: v.optional(v.string()),
@@ -1426,10 +1427,20 @@ const schema = defineSchema(
       courseId: v.id("courses"),
       status: v.union(
         v.literal("requested"),
+        v.literal("draft"),
         v.literal("approved"),
         v.literal("rejected"),
         v.literal("revoked"),
       ),
+      // Certificate holder details (entered by admin during issuance)
+      firstName: v.optional(v.string()),
+      lastName: v.optional(v.string()),
+      fatherName: v.optional(v.string()),
+      nationalCode: v.optional(v.string()),
+      courseName: v.optional(v.string()),
+      courseDuration: v.optional(v.string()),
+      instructorName: v.optional(v.string()),
+      grade: v.optional(v.string()), // default: "عالی"
       certificateUrl: v.optional(v.string()), // uploaded by admin
       certificateStorageId: v.optional(v.string()),
       requestedAt: v.number(),
