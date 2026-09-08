@@ -86,7 +86,7 @@ export const listCourses = query({
       courses.map(async (c) => {
         const [category, instructor] = await Promise.all([
           ctx.db.get(c.categoryId),
-          ctx.db.get(c.instructorId),
+          c.instructorId ? ctx.db.get(c.instructorId) : null,
         ]);
         return {
           ...c,
@@ -113,7 +113,7 @@ export const getCourseBySlug = query({
 
     const [category, instructor] = await Promise.all([
       ctx.db.get(course.categoryId),
-      ctx.db.get(course.instructorId),
+      course.instructorId ? ctx.db.get(course.instructorId) : null,
     ]);
 
     // enrollment state for signed-in users
@@ -188,7 +188,7 @@ export const listWorkshops = query({
     const enriched = await Promise.all(
       workshops.map(async (w) => ({
         ...w,
-        instructor: await ctx.db.get(w.instructorId),
+        instructor: await w.instructorId ? ctx.db.get(w.instructorId) : null,
       })),
     );
     return enriched.sort((a, b) => a.date.localeCompare(b.date));
@@ -203,7 +203,7 @@ export const getWorkshopBySlug = query({
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
     if (!workshop || !workshop.published) return null;
-    return { ...workshop, instructor: await ctx.db.get(workshop.instructorId) };
+    return { ...workshop, instructor: await workshop.instructorId ? ctx.db.get(workshop.instructorId) : null };
   },
 });
 

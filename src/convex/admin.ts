@@ -479,7 +479,7 @@ export const adminListWorkshops = query({
   handler: async (ctx) => {
     if (!(await isContentStaff(ctx))) return [];
     const workshops = await ctx.db.query("workshops").collect();
-    const enriched = await Promise.all(workshops.map(async (w) => { const inst = await ctx.db.get(w.instructorId); return { ...w, instructor: (inst as any)?.name ?? "—" }; }));
+    const enriched = await Promise.all(workshops.map(async (w) => { const inst = w.instructorId ? await ctx.db.get(w.instructorId) : null; return { ...w, instructor: (inst as any)?.name ?? "—" }; }));
     return enriched;
   },
 });

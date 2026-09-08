@@ -75,7 +75,7 @@ export const listMyCourseStudio = query({
     for (const c of all) {
       const [category, instructor] = await Promise.all([
         ctx.db.get(c.categoryId),
-        ctx.db.get(c.instructorId),
+        c.instructorId ? ctx.db.get(c.instructorId) : null,
       ]);
       out.push({
         _id: c._id,

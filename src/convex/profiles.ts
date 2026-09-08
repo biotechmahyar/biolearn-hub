@@ -203,7 +203,7 @@ export const listSuggestedCourses = query({
       if (!c) continue;
       const [category, instructor] = await Promise.all([
         ctx.db.get(c.categoryId),
-        ctx.db.get(c.instructorId),
+        c.instructorId ? ctx.db.get(c.instructorId) : null,
       ]);
       mine.push({
         _id: c._id,
@@ -228,7 +228,7 @@ export const listSuggestedCourses = query({
         if (c.authorId === user._id) continue;
         const [category, instructor] = await Promise.all([
           ctx.db.get(c.categoryId),
-          ctx.db.get(c.instructorId),
+          c.instructorId ? ctx.db.get(c.instructorId) : null,
         ]);
         out.push({
           _id: c._id,
