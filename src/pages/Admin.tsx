@@ -5045,6 +5045,17 @@ function AdminPathSuggestions() {
     }
   };
 
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('پیشنهاد حذف شود؟')) return;
+    try {
+      await deleteSugg({ id: id as any });
+      toast.success('پیشنهاد حذف شد');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'خطا');
+    }
+  };
+
   const list = tab === "pending" ? pending : all;
 
   return (
@@ -5093,16 +5104,21 @@ function AdminPathSuggestions() {
                     )}
                     {s.adminNote && <p className="mt-2 text-xs text-muted-foreground italic">یادداشت مدیر: {s.adminNote}</p>}
                   </div>
-                  {s.status === "pending" && (
-                    <div className="flex gap-1 shrink-0">
-                      <Button size="sm" className="h-7 text-xs" disabled={busyId === s._id} onClick={() => handleReview(s._id, "approved")}>
-                        تأیید
-                      </Button>
-                      <Button size="sm" variant="destructive" className="h-7 text-xs" disabled={busyId === s._id} onClick={() => setNoteDialog({ id: s._id, action: "rejected" })}>
-                        رد
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex gap-1 shrink-0">
+                    {s.status === "pending" && (
+                      <>
+                        <Button size="sm" className="h-7 text-xs" disabled={busyId === s._id} onClick={() => handleReview(s._id, "approved")}>
+                          تأیید
+                        </Button>
+                        <Button size="sm" variant="destructive" className="h-7 text-xs" disabled={busyId === s._id} onClick={() => setNoteDialog({ id: s._id, action: "rejected" })}>
+                          رد
+                        </Button>
+                      </>
+                    )}
+                    <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => handleDelete(s._id)}>
+                      حذف
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -6456,6 +6472,7 @@ function AdminCertificates() {
   const [issueBusy, setIssueBusy] = useState(false);
   const all = useQuery(api.promotions.listAllCertificates) as any[] | undefined;
   const resolve = useMutation(api.promotions.resolveCertificate);
+  const deleteCert = useMutation(api.promotions.deleteCertificate);
   const getUploadUrl = useMutation(api.upload.getUploadUrl);
   const [uploading, setUploading] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -6546,15 +6563,20 @@ function AdminCertificates() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>دانشجو</TableHead>
                   <TableHead>دوره</TableHead>
+                  <TableHead>کد رهگیری</TableHead>
                   <TableHead>وضعیت</TableHead>
-                  <TableHead>فایل گواهی</TableHead>
+                  <TableHead>فایل</TableHead>
+                  <TableHead className="text-left">عملیات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(all ?? []).map((c: any) => (
                   <TableRow key={c._id}>
+                    <TableCell className="text-xs font-medium">{c.userName || "—"}</TableCell>
                     <TableCell className="text-xs">{c.courseTitle}</TableCell>
+                    <TableCell className="font-mono text-[10px]" dir="ltr">{c.verificationCode || "—"}</TableCell>
                     <TableCell>
                       <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold",
                         c.status === "approved" ? "bg-emerald-500/15 text-emerald-600" : c.status === "rejected" ? "bg-red-500/15 text-red-600" : c.status === "draft" ? "bg-blue-500/15 text-blue-600" : "bg-amber-500/15 text-amber-600"
@@ -6566,6 +6588,25 @@ function AdminCertificates() {
                       {(c.fileUrl || c.certificateUrl) ? (
                         <a href={c.fileUrl ?? c.certificateUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline">دانلود</a>
                       ) : "—"}
+                    </TableCell>
+                    <TableCell className="text-left">
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" className="h-7 text-[10px]"
+                          onClick={() => {
+                            setEditingCert(c);
+                            setEditField("firstName");
+                            setEditValue(c.firstName || "");
+                          }}>
+                          ویرایش
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-[10px] text-destructive hover:text-destructive"
+                          onClick={async () => {
+                            if (!confirm("گواهی حذف شود؟")) return;
+                            try { await deleteCert({ id: c._id }); toast.success("گواهی حذف شد"); } catch (e) { toast.error("خطا"); }
+                          }}>
+                          حذف
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -6640,7 +6681,7 @@ function AdminCertificates() {
       </Dialog>
     </div>
   );
-}
+      {/* Certificate Edit Dialog */}      <Dialog open={!!editingCert} onOpenChange={() => setEditingCert(null)}>        <DialogContent className="sm:max-w-lg">          <DialogHeader>            <DialogTitle>ویرایش گواهی</DialogTitle>            <DialogDescription>مشخصات گواهی را ویرایش کنید و سپس ثبت نهایی کنید.</DialogDescription>          </DialogHeader>          {editingCert && (            <div className="space-y-3">              <div className="grid grid-cols-2 gap-3">                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">نام</label>                  <Input value={editingCert.firstName ?? ""} onChange={(e) => setEditingCert({ ...editingCert, firstName: e.target.value })} placeholder="نام" />                </div>                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">نام خانوادگی</label>                  <Input value={editingCert.lastName ?? ""} onChange={(e) => setEditingCert({ ...editingCert, lastName: e.target.value })} placeholder="نام خانوادگی" />                </div>                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">نام پدر</label>                  <Input value={editingCert.fatherName ?? ""} onChange={(e) => setEditingCert({ ...editingCert, fatherName: e.target.value })} placeholder="نام پدر" />                </div>                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">کد ملی</label>                  <Input value={editingCert.nationalCode ?? ""} onChange={(e) => setEditingCert({ ...editingCert, nationalCode: e.target.value })} placeholder="کد ملی" dir="ltr" />                </div>                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">نام دوره</label>                  <Input value={editingCert.courseName ?? ""} onChange={(e) => setEditingCert({ ...editingCert, courseName: e.target.value })} placeholder="نام دوره" />                </div>                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">مدت زمان دوره</label>                  <Input value={editingCert.courseDuration ?? ""} onChange={(e) => setEditingCert({ ...editingCert, courseDuration: e.target.value })} placeholder="مثلاً ۴۰ ساعت" />                </div>                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">نام استاد</label>                  <Input value={editingCert.instructorName ?? ""} onChange={(e) => setEditingCert({ ...editingCert, instructorName: e.target.value })} placeholder="نام استاد دوره" />                </div>                <div>                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">درجه گواهینامه</label>                  <Input value={editingCert.grade ?? "عالی"} onChange={(e) => setEditingCert({ ...editingCert, grade: e.target.value })} placeholder="عالی" />                </div>              </div>              <div>                <label className="mb-1 block text-[10px] font-bold text-muted-foreground">یادداشت</label>                <Textarea value={editingCert.note ?? ""} onChange={(e) => setEditingCert({ ...editingCert, note: e.target.value })} placeholder="یادداشت اختیاری" rows={2} />              </div>              {editingCert.verificationCode && (                <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">                  کد رهگیری: <span className="font-mono font-bold" dir="ltr">{editingCert.verificationCode}</span>                </div>              )}              <div className="flex gap-2 justify-end">                <Button variant="outline" size="sm" onClick={() => setEditingCert(null)}>انصراف</Button>                <Button size="sm" onClick={async () => {                  try {                    await updateCert({                      id: editingCert._id,                      firstName: editingCert.firstName || undefined,                      lastName: editingCert.lastName || undefined,                      fatherName: editingCert.fatherName || undefined,                      nationalCode: editingCert.nationalCode || undefined,                      courseName: editingCert.courseName || undefined,                      courseDuration: editingCert.courseDuration || undefined,                      instructorName: editingCert.instructorName || undefined,                      grade: editingCert.grade || "عالی",                      note: editingCert.note || undefined,                    });                    toast.success("گواهی بروزرسانی شد");                    setEditingCert(null);                  } catch (e) { toast.error("خطا"); }                }}>ذخیره</Button>                {editingCert.status !== "approved" && (                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500" onClick={async () => {                    try {                      await updateCert({                        id: editingCert._id,                        firstName: editingCert.firstName || undefined,                        lastName: editingCert.lastName || undefined,                        fatherName: editingCert.fatherName || undefined,                        nationalCode: editingCert.nationalCode || undefined,                        courseName: editingCert.courseName || undefined,                        courseDuration: editingCert.courseDuration || undefined,                        instructorName: editingCert.instructorName || undefined,                        grade: editingCert.grade || "عالی",                        note: editingCert.note || undefined,                        status: "approved",                      });                      toast.success("گواهی نهایی و صادر شد");                      setEditingCert(null);                    } catch (e) { toast.error("خطا"); }                  }}>ثبت نهایی و صدور</Button>                )}              </div>            </div>          )}        </DialogContent>      </Dialog>}
 
 // ── Enrollment Management (مدیریت ثبت‌نامی‌ها) ────────────────────────────────
 function AdminEnrollments() {
@@ -6836,6 +6877,7 @@ function AdminEnrollments() {
           </div>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

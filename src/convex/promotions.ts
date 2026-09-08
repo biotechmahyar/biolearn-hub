@@ -360,6 +360,21 @@ export const resolveCertificate = mutation({
 // Revoke an issued certificate (admin/site_admin only). The tracking code is
 // kept so the public verification page can show a clear "revoked" state
 // instead of "not found".
+// Delete a certificate entirely (admin/site_admin only).
+export const deleteCertificate = mutation({
+  args: {
+    id: v.id("certificates"),
+  },
+  handler: async (ctx, args) => {
+    const staff = await getCurrentUser(ctx);
+    if (!staff || (staff.role !== "admin" && staff.role !== "site_admin")) {
+      throw new Error("فقط مدیر سایت یا ادمین مجاز است.");
+    }
+    await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
 export const revokeCertificate = mutation({
   args: {
     id: v.id("certificates"),
