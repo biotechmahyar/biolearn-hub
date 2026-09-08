@@ -11,8 +11,7 @@ export function SiteFooter() {
             <BrandLogo />
           <p className="mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
             Genova پلتفرم داخلی تیم ما برای آموزش تخصصی علوم زیستی است؛
-            ساخته‌شده توسط تیمی از دانشجویان میکروبیولوژی و بیوتکنولوژی تا مسیر
-            یادگیری از ترم اول تا امتحان و پژوهش، شفاف و همراهانه باشد.
+            طراحی توسط مهیار اسفندیاری — تمامی حقوق این سایت برای تیم Genova محفوظ است.
           </p>
             <div className="mt-5 flex gap-3">
               <a
@@ -67,7 +66,7 @@ export function SiteFooter() {
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
           <p>© {new Date().getFullYear()} Genova — ابزار داخلی تیم برای علوم زیستی</p>
           <p className="flex items-center gap-1.5">
-            ساخته‌شده توسط ۴ دانشجوی میکروبیولوژی + ۱ دانشجوی بیوتکنولوژی
+            طراحی توسط مهیار اسفندیاری — تمامی حقوق این سایت برای تیم Genova محفوظ است.
           </p>
         </div>
       </div>
