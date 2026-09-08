@@ -1,14 +1,17 @@
 /**
  * TelegramAutoLinker
  *
- * Detects when the app is opened inside a Telegram Mini App
- * and auto-links the Telegram account to the current Genova user
- * using Telegram WebApp initData validation.
+ * Detects when the app is opened inside a Mini App
+ * and auto-links the platform account to the current Genova user
+ * using the platform's initData validation.
+ *
+ * Currently handles Telegram only. Bale will be added later.
  */
 import { useEffect, useRef } from "react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
+import { platform } from "@/lib/miniApp/platform";
 
 export function TelegramAutoLinker() {
   const linkByTelegramInitData = useAction(api.telegramBotActions.linkByTelegramInitData);
@@ -21,15 +24,12 @@ export function TelegramAutoLinker() {
     if (isLoading) return; // Wait for auth to resolve
     if (!user) return; // Not signed in — skip
 
-    // Check if running inside Telegram WebApp
-    // Telegram.WebApp is available when opened as a Mini App
-    const tg = (window as any).Telegram?.WebApp;
-    if (!tg) return; // Not in Telegram — skip
+    // Get initData through the platform adapter instead of directly
+    // accessing window.Telegram.WebApp.
+    const initData = platform.getInitData();
+    if (!initData) return; // Not in a Mini App or no initData
 
-    const initData: string | undefined = tg.initData;
-    if (!initData) return; // No initData available
-
-    // initData must be non-empty and contain a hash
+    // initData must contain a hash for Telegram HMAC validation
     if (!initData.includes("hash=")) return;
 
     doneRef.current = true;

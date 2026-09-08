@@ -27,6 +27,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { platform } from "@/lib/miniApp/platform";
 
 type Tab = "home" | "questions" | "sessions" | "tasks" | "notifications" | "groups" | "profile";
 
@@ -80,7 +81,7 @@ export default function TelegramMiniApp() {
         </p>
         <Button
           onClick={() => {
-            window.open("https://nibrc.ir/auth?returnTo=/", "_blank");
+            platform.openLink("https://nibrc.ir/auth?returnTo=/");
           }}
           className="bg-teal-600 hover:bg-teal-700"
         >
@@ -487,7 +488,7 @@ function ProfileTab({ user, linkingStatus, notifPrefs }: any) {
       <Button
         variant="outline"
         className="w-full"
-        onClick={() => window.open("https://nibrc.ir/dashboard", "_blank")}
+        onClick={() => platform.openLink("https://nibrc.ir/dashboard")}
       >
         باز کردن پنل کامل
         <ExternalLink className="mr-2 size-4" />
