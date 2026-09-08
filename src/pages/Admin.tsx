@@ -40,11 +40,13 @@ import { cn } from "@/lib/utils";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { uploadBlob } from "@/lib/upload";
+import { Component } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   Activity,
   ArrowDown,
   ArrowUp,
+  AlertTriangle,
   Award,
   BarChart3,
   Blocks,
@@ -5578,7 +5580,30 @@ function AdminPromoBanners() {
 }
 
 // ── Academy Path (مسیر آکادمی — سلسله کارگاه‌ها) ────────────────────────────────
-function AdminAcademyPaths() {
+// Error boundary for Academy Paths
+class AcademyPathsBoundary extends Component<{children: React.ReactNode}, {error: string | null}> {
+  state = { error: null as string | null };
+  static getDerivedStateFromError(err: unknown) {
+    return { error: err instanceof Error ? err.message : "خطای ناشناخته" };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <AlertTriangle className="size-8 text-destructive" />
+            <p className="text-sm font-bold text-destructive">خطا در نمایش مسیر آکادمی</p>
+            <p className="text-xs text-muted-foreground">{this.state.error}</p>
+            <Button size="sm" variant="outline" onClick={() => this.setState({ error: null })}>تلاش مجدد</Button>
+          </CardContent>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function AdminAcademyPathsInner() {
   const paths = useQuery(api.academyPaths.adminListPaths);
   const workshops = useQuery(api.admin.adminListWorkshops);
   const instructors = useQuery(api.admin.adminListInstructors);
@@ -5762,7 +5787,7 @@ function AdminAcademyPaths() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {paths.map((p: any) => {
+          {paths.filter((p: any) => p && p.items).map((p: any) => {
             const open = openPathId === p._id;
             return (
               <Card key={p._id} className="border-border/70 shadow-sm">
@@ -5853,8 +5878,8 @@ function AdminAcademyPaths() {
                             <Select value={pickedWorkshop} onValueChange={setPickedWorkshop}>
                               <SelectTrigger className="flex-1"><SelectValue placeholder="کارگاه را انتخاب کنید…" /></SelectTrigger>
                               <SelectContent>
-                                {(workshops ?? []).map((w: any) => (
-                                  <SelectItem key={w._id} value={w._id}>{w.title} — {w.topic}</SelectItem>
+                                {(workshops ?? []).filter(Boolean).map((w: any) => (
+                                  <SelectItem key={w._id} value={w._id}>{w.title ?? "—"}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -5896,8 +5921,8 @@ function AdminAcademyPaths() {
               <Select value={pathInstructorId} onValueChange={setPathInstructorId}>
                 <SelectTrigger><SelectValue placeholder="انتخاب استاد (اختیاری)" /></SelectTrigger>
                 <SelectContent>
-                  {(instructors ?? []).map((inst: any) => (
-                    <SelectItem key={inst._id} value={inst._id}>{inst.name}</SelectItem>
+                  {(instructors ?? []).filter(Boolean).map((inst: any) => (
+                    <SelectItem key={inst._id} value={inst._id}>{inst.name ?? "—"}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -6077,7 +6102,7 @@ function AdminAcademyPaths() {
                     className="rounded-lg"
                     onClick={async () => {
                       try {
-                        await update({ id: pricingPath._id, free: true, price: 0 });
+                        await update({ id: pricingPath._id, free: true, price: 0 } as any);
                         setPricingOpen(false);
                         toast.success("مسیر رایگان شد");
                       } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
@@ -6112,7 +6137,7 @@ function AdminAcademyPaths() {
                 onClick={async () => {
                   const price = Number(pricingValue) || 0;
                   try {
-                    await update({ id: pricingPath._id, price, free: price === 0 });
+                    await update({ id: pricingPath._id, price, free: price === 0 } as any);
                     setPricingOpen(false);
                     toast.success("قیمت ذخیره شد");
                   } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
@@ -6188,6 +6213,15 @@ function AdminAcademyPaths() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Wrap with error boundary
+function AdminAcademyPaths() {
+  return (
+    <AcademyPathsBoundary>
+      <AdminAcademyPathsInner />
+    </AcademyPathsBoundary>
   );
 }
 
