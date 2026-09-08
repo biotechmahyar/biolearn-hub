@@ -11,7 +11,8 @@ export function SiteFooter() {
             <BrandLogo />
           <p className="mt-4 max-w-sm text-sm leading-6 text-muted-foreground">
             Genova پلتفرم داخلی تیم ما برای آموزش تخصصی علوم زیستی است؛
-            طراحی توسط مهیار اسفندیاری — تمامی حقوق این سایت برای تیم Genova محفوظ است.
+            ساخته‌شده توسط تیم Genova تا مسیر
+            یادگیری از ترم اول تا امتحان و پژوهش، شفاف و همراهانه باشد.
           </p>
             <div className="mt-5 flex gap-3">
               <a
