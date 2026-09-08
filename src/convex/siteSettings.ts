@@ -206,5 +206,60 @@ export const listAuditLogs = query({
   },
 });
 
+export const isMarketplaceEnabled = query({
+  args: {},
+  handler: async (ctx) => {
+    const row = await ctx.db
+      .query("siteSettings")
+      .withIndex("by_key", (q) => q.eq("key", "marketplace.enabled"))
+      .first();
+    if (!row) return true; // default: enabled
+    try {
+      return JSON.parse(row.value);
+    } catch {
+      return true;
+    }
+  },
+});
+
+export const toggleMarketplace = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
+      throw new Error("دسترسی مدیریتی لازم است.");
+    }
+
+    const existing = await ctx.db
+      .query("siteSettings")
+      .withIndex("by_key", (q) => q.eq("key", "marketplace.enabled"))
+      .first();
+
+    const value = JSON.stringify(args.enabled);
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        value,
+        updatedBy: user._id,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("siteSettings", {
+        key: "marketplace.enabled",
+        value,
+        description: "فعال/غیرفعال بودن بازارچه",
+        updatedBy: user._id,
+        updatedAt: Date.now(),
+      });
+    }
+
+    await logAudit(ctx, user, "marketplace.toggle", "marketplace", undefined, {
+      enabled: args.enabled,
+    });
+
+    return { ok: true };
+  },
+});
+
 /** Export logAudit for use in other modules */
 export { logAudit };

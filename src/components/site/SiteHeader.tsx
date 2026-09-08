@@ -37,7 +37,7 @@ import { useSettings } from "@/lib/settings";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 
-const NAV = [
+const BASE_NAV = [
   { to: "/courses", label: "دوره‌ها" },
   { to: "/tests", label: "آزمون‌ها" },
   { to: "/free-content", label: "محتوای رایگان" },
@@ -63,6 +63,8 @@ const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> 
 
 export function SiteHeader() {
   const { isAuthenticated, user, signOut } = useAuth();
+  const marketplaceEnabled = useQuery(api.siteSettings.isMarketplaceEnabled);
+  const NAV = marketplaceEnabled === false ? BASE_NAV.filter((item) => item.to !== "/marketplace") : BASE_NAV;
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [switchingTo, setSwitchingTo] = useState<{ label: string; path: string; role: string } | null>(null);

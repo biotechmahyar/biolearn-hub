@@ -90,6 +90,7 @@ import {
   Save,
   Send,
   Shield,
+  Store,
   ShieldCheck,
   Terminal,
   Ticket,
@@ -147,6 +148,7 @@ type Section =
   | "examReports"
   | "offlinePayments"
   | "paymentGateway"
+  | "marketplaceToggle"
   | "myprofile"
   | "online"
   | "comments"
@@ -184,6 +186,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "offlinePayments", label: "پرداخت‌های آفلاین", icon: Receipt },
       { key: "payments", label: "پرداخت دستمزد", icon: Receipt },
       { key: "paymentGateway", label: "درگاه پرداخت", icon: CreditCard },
+      { key: "marketplaceToggle", label: "بازارچه", icon: Store },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
@@ -674,6 +677,7 @@ export default function Admin() {
             {section === "comments" && <AdminComments />}
             {section === "payments" && <AdminPayments />}
             {section === "paymentGateway" && <AdminPaymentGateway />}
+            {section === "marketplaceToggle" && <AdminMarketplaceToggle />}
             {section === "classRequests" && <AdminClassRequests />}
             {section === "studentReports" && <AdminStudentReports />}
             {section === "profiles" && <AdminProfiles />}
@@ -1079,6 +1083,105 @@ function AdminCourses() {
             >
               <XCircle className="ml-1.5 size-4" />
               رد و بازگشت به مدرس
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Marketplace Toggle (فعال/غیرفعال کردن بازارچه) ─────────────────────────
+function AdminMarketplaceToggle() {
+  const enabled = useQuery(api.siteSettings.isMarketplaceEnabled);
+  const toggleMarketplace = useMutation(api.siteSettings.toggleMarketplace);
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState<boolean | null>(null);
+
+  const handleToggle = async (target: boolean) => {
+    setBusy(true);
+    try {
+      await toggleMarketplace({ enabled: target });
+      toast.success(target ? "بازارچه فعال شد" : "بازارچه غیرفعال شد");
+      setConfirming(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="بازارچه"
+        subtitle="فعال/غیرفعال کردن بازارچه در کل سایت"
+      />
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-4 py-5">
+          {enabled === undefined ? (
+            <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin" /></div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`flex size-11 items-center justify-center rounded-xl ${enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"}`}>
+                    {enabled ? <Store className="size-5" /> : <Lock className="size-5" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">{enabled ? "بازارچه فعال است" : "بازارچه غیرفعال است"}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {enabled
+                        ? "محصولات بازارچه برای همه کاربران قابل مشاهده و خرید هستند."
+                        : "محصولات بازارچه در سایت نمایش داده نمی‌شوند و لینک بازارچه از هدر حذف می‌شود."}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant={enabled ? "default" : "secondary"} className="text-xs">
+                  {enabled ? "فعال" : "غیرفعال"}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {enabled ? (
+                  <Button variant="destructive" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
+                    {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                    غیرفعال کردن بازارچه
+                  </Button>
+                ) : (
+                  <Button size="sm" disabled={busy} onClick={() => setConfirming(true)}>
+                    {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                    فعال کردن بازارچه
+                  </Button>
+                )}
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+                وقتی بازارچه غیرفعال باشد، لینک «بازارچه» از هدر سایت حذف می‌شود، صفحه بازارچه قابل دسترسی نیست،
+                و امکان خرید محصولات بازارچه وجود نخواهد داشت. تأیید محصولات جدید نیز متوقف می‌شود.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      <Dialog open={confirming !== null} onOpenChange={(v) => { if (!v) setConfirming(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{confirming ? "فعال کردن بازارچه" : "غیرفعال کردن بازارچه"}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {confirming
+              ? "با فعال شدن، بازارچه در سایت نمایش داده شده و کاربران می‌توانند محصولات را مشاهده و خریداری کنند. ادامه می‌دهید؟"
+              : "با غیرفعال شدن، لینک بازارچه از هدر حذف شده و محصولات قابل مشاهده نخواهند بود. ادامه می‌دهید؟"}
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setConfirming(null)}>انصراف</Button>
+            <Button
+              variant={confirming ? "default" : "destructive"}
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleToggle(confirming === true)}
+            >
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              {confirming ? "فعال کن" : "غیرفعال کن"}
             </Button>
           </div>
         </DialogContent>
