@@ -1428,6 +1428,7 @@ const schema = defineSchema(
         v.literal("requested"),
         v.literal("approved"),
         v.literal("rejected"),
+        v.literal("revoked"),
       ),
       certificateUrl: v.optional(v.string()), // uploaded by admin
       certificateStorageId: v.optional(v.string()),
@@ -1435,10 +1436,19 @@ const schema = defineSchema(
       resolvedAt: v.optional(v.number()),
       resolvedBy: v.optional(v.id("users")),
       note: v.optional(v.string()),
+
+      // Tracking / verification code (e.g. "GEN-XXXX-XXXX-XXXX"), generated
+      // server-side at issuance time. Unique across the certificates table.
+      verificationCode: v.optional(v.string()),
+      certificateNumber: v.optional(v.string()),
+      revokedAt: v.optional(v.number()),
+      revokedReason: v.optional(v.string()),
+      revokedBy: v.optional(v.id("users")),
     })
       .index("by_user", ["userId"])
       .index("by_course", ["courseId"])
-      .index("by_status", ["status"]),
+      .index("by_status", ["status"])
+      .index("by_verification_code", ["verificationCode"]),
 
     // ── Page Configs (real-page editable content) ────────────────────────
     // Stores per-section editable values for real React site pages.

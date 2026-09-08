@@ -1,5 +1,50 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { getCurrentUser } from "./users";
+
+// ── Certificate tracking-code generation ─────────────────────────────────────
+// Format: GEN-XXXX-XXXX-XXXX — 12 chars from a 32-symbol alphabet (≈60 bits of
+// entropy). Generated in the backend with crypto.getRandomValues, never derived
+// from userId/courseId, and checked for uniqueness against the
+// "by_verification_code" index before insert.
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1 to avoid misreading
+
+function randomBlock(len: number): string {
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < len; i++) {
+    out += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  }
+  return out;
+}
+
+export function formatTrackingCode(a: string, b: string, c: string): string {
+  return `GEN-${a}-${b}-${c}`;
+}
+
+async function generateUniqueTrackingCode(
+  ctx: any,
+): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = formatTrackingCode(randomBlock(4), randomBlock(4), randomBlock(4));
+    const existing = await ctx.db
+      .query("certificates")
+      .withIndex("by_verification_code", (q: any) => q.eq("verificationCode", code))
+      .first();
+    if (!existing) return code;
+  }
+  throw new Error("تولید کد رهگیری ناموفق بود؛ دوباره تلاش کنید.");
+}
+
+// Normalize user input so "gen-abcd-efgh-jklm" or "GENABCDEF GHJKLM" still match.
+export function normalizeTrackingCode(raw: string): string | null {
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const m = cleaned.match(/^GEN([A-Z0-9]{12})$/);
+  if (!m) return null;
+  const body = m[1];
+  return formatTrackingCode(body.slice(0, 4), body.slice(4, 8), body.slice(8, 12));
+}
 
 // ── Flash Sales ──────────────────────────────────────────────────────────────
 
@@ -222,44 +267,128 @@ export const listAllCertRequests = query({
 export const resolveCertificate = mutation({
   args: {
     id: v.id("certificates"),
-    status: v.union(v.literal("approved"), v.literal("rejected")),
+    status: v.union(
+      v.literal("approved"),
+      v.literal("rejected"),
+      v.literal("revoked"),
+    ),
     certificateUrl: v.optional(v.string()),
     certificateStorageId: v.optional(v.string()),
     note: v.optional(v.string()),
+    revokedReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("ورود لازم است.");
+    const staff = await getCurrentUser(ctx);
+    if (!staff || (staff.role !== "admin" && staff.role !== "site_admin")) {
+      throw new Error("فقط مدیر سایت یا ادمین مجاز است.");
+    }
+
+    const cert = await ctx.db.get(args.id);
+    if (!cert) throw new Error("گواهی یافت نشد.");
+
+    if (args.status === "revoked") {
+      // Revocation: certificate becomes invalid for public verification.
+      await ctx.db.patch(args.id, {
+        status: "revoked",
+        revokedAt: Date.now(),
+        revokedBy: staff._id,
+        revokedReason: args.revokedReason ?? args.note,
+        note: args.note ?? cert.note,
+      });
+      return;
+    }
+
+    // Approve / reject: (re)assign a tracking code when the certificate is
+    // (re)approved, so every issued certificate always has a unique code.
+    let verificationCode = cert.verificationCode;
+    if (args.status === "approved" && !verificationCode) {
+      verificationCode = await generateUniqueTrackingCode(ctx);
+    }
+
     await ctx.db.patch(args.id, {
       status: args.status,
-      certificateUrl: args.certificateUrl,
-      certificateStorageId: args.certificateStorageId,
-      note: args.note,
+      certificateUrl: args.certificateUrl ?? cert.certificateUrl,
+      certificateStorageId: args.certificateStorageId ?? cert.certificateStorageId,
+      note: args.note ?? cert.note,
+      verificationCode,
+      certificateNumber: cert.certificateNumber ?? (verificationCode ? verificationCode : undefined),
       resolvedAt: Date.now(),
-      resolvedBy: identity.subject as any,
+      resolvedBy: staff._id,
+      // Re-approval clears any previous revocation.
+      ...(args.status === "approved"
+        ? { revokedAt: undefined, revokedReason: undefined, revokedBy: undefined }
+        : {}),
+    });
+  },
+});
+
+// Revoke an issued certificate (admin/site_admin only). The tracking code is
+// kept so the public verification page can show a clear "revoked" state
+// instead of "not found".
+export const revokeCertificate = mutation({
+  args: {
+    id: v.id("certificates"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const staff = await getCurrentUser(ctx);
+    if (!staff || (staff.role !== "admin" && staff.role !== "site_admin")) {
+      throw new Error("فقط مدیر سایت یا ادمین مجاز است.");
+    }
+    const cert = await ctx.db.get(args.id);
+    if (!cert) throw new Error("گواهی یافت نشد.");
+    await ctx.db.patch(args.id, {
+      status: "revoked",
+      revokedAt: Date.now(),
+      revokedBy: staff._id,
+      revokedReason: args.reason,
     });
   },
 });
 
 // Resolve a certificate storage id into a downloadable URL
+// Public verification by tracking code. No auth required. Returns only public
+// fields (name, course title, issue date, code, status) — never private user
+// data (email, phone, payment info).
 export const verifyCertificate = query({
-  args: { certificateId: v.string() },
+  args: { code: v.string() },
   handler: async (ctx, args) => {
-    const allCerts = await ctx.db.query("certificates").collect();
-    const cert = allCerts.find((c: any) => 
-      c._id === args.certificateId || c.certificateUrl === args.certificateId
-    ) as any;
-    
-    if (!cert || cert.status !== "approved") return null;
-    
-    const user = await ctx.db.get(cert.userId) as any;
-    const course = await ctx.db.get(cert.courseId) as any;
+    const code = normalizeTrackingCode(args.code);
+    if (!code) return { found: false as const };
+
+    const cert = await ctx.db
+      .query("certificates")
+      .withIndex("by_verification_code", (q) => q.eq("verificationCode", code))
+      .first();
+    if (!cert) return { found: false as const };
+
+    const user = (await ctx.db.get(cert.userId)) as any;
+    const course = (await ctx.db.get(cert.courseId)) as any;
+
+    if (cert.status === "revoked") {
+      return {
+        found: true as const,
+        revoked: true as const,
+        trackingCode: code,
+      };
+    }
+    if (cert.status !== "approved") {
+      // Requested / rejected certificates are not publicly verifiable.
+      return { found: false as const };
+    }
+
     return {
-      _id: cert._id,
-      studentName: user?.name || user?.email || "—",
+      found: true as const,
+      revoked: false as const,
+      trackingCode: code,
+      certificateNumber: cert.certificateNumber ?? code,
+      studentName: user?.firstName && user?.lastName
+        ? `${user.firstName} ${user.lastName}`
+        : user?.name || "—",
       courseTitle: course?.title || "—",
       issuedAt: cert.resolvedAt || cert.requestedAt,
-      certificateUrl: cert.certificateUrl,
     };
   },
 });
@@ -344,19 +473,26 @@ export const adminIssueCertificate = mutation({
     note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
+    const staff = await getCurrentUser(ctx);
+    if (!staff || (staff.role !== "admin" && staff.role !== "site_admin")) {
+      throw new Error("فقط مدیر سایت یا ادمین مجاز است.");
+    }
+    // Every issued certificate gets a unique tracking code at issuance time.
+    const verificationCode = await generateUniqueTrackingCode(ctx);
+    const now = Date.now();
     const id = await ctx.db.insert("certificates", {
       userId: args.userId,
       courseId: args.courseId,
       status: "approved",
       certificateUrl: args.certificateUrl,
       certificateStorageId: args.certificateStorageId,
-      requestedAt: Date.now(),
-      resolvedAt: Date.now(),
-      resolvedBy: identity.subject as any,
+      requestedAt: now,
+      resolvedAt: now,
+      resolvedBy: staff._id,
       note: args.note,
+      verificationCode,
+      certificateNumber: verificationCode,
     });
-    return { ok: true, id };
+    return { ok: true, id, verificationCode };
   },
 });
