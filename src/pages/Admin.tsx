@@ -6452,7 +6452,7 @@ function AdminCertificates() {
   const [issueCourseId, setIssueCourseId] = useState("");
   const [issueNote, setIssueNote] = useState("");
   const [issueBusy, setIssueBusy] = useState(false);
-  const all = useQuery(api.promotions.listMyCertificates) as any[] | undefined;
+  const all = useQuery(api.promotions.listAllCertificates) as any[] | undefined;
   const resolve = useMutation(api.promotions.resolveCertificate);
   const getUploadUrl = useMutation(api.upload.getUploadUrl);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -6558,8 +6558,8 @@ function AdminCertificates() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      {c.certificateUrl ? (
-                        <a href={c.certificateUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline">دانلود</a>
+                      {(c.fileUrl || c.certificateUrl) ? (
+                        <a href={c.fileUrl ?? c.certificateUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline">دانلود</a>
                       ) : "—"}
                     </TableCell>
                   </TableRow>

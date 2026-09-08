@@ -242,6 +242,32 @@ export const listMyCertificates = query({
   },
 });
 
+export const listAllCertificates = query({
+  args: {},
+  handler: async (ctx) => {
+    const staff = await getCurrentUser(ctx);
+    if (!staff || (staff.role !== "admin" && staff.role !== "site_admin")) {
+      return [];
+    }
+    const certs = await ctx.db.query("certificates").order("desc").collect();
+    const result = [];
+    for (const c of certs) {
+      const user = await ctx.db.get(c.userId);
+      const course = await ctx.db.get(c.courseId);
+      const fileUrl = c.certificateStorageId
+        ? await ctx.storage.getUrl(c.certificateStorageId as any)
+        : null;
+      result.push({
+        ...c,
+        userName: user?.name ?? user?.email ?? "—",
+        courseTitle: course?.title ?? "—",
+        fileUrl,
+      });
+    }
+    return result;
+  },
+});
+
 export const listAllCertRequests = query({
   args: {},
   handler: async (ctx) => {
