@@ -369,6 +369,8 @@ export const getPathBySlug = query({
       description: p.description,
       level: p.level,
       color: p.color ?? "emerald",
+      coverImage: p.coverImage ?? null,
+      instructorId: p.instructorId ?? null,
       price: p.price ?? 0,
       discountPrice: p.discountPrice,
       discountExpiresAt: p.discountExpiresAt,
@@ -395,6 +397,7 @@ export const listPublishedPathsWithPricing = query({
       description: p.description,
       level: p.level,
       color: p.color ?? "emerald",
+      coverImage: p.coverImage ?? null,
       price: p.price ?? 0,
       discountPrice:
         p.discountPrice && p.discountExpiresAt && p.discountExpiresAt > now

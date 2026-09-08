@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Component, type ReactNode, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -28,6 +28,7 @@ import {
   Route as RouteIcon,
   Sparkles,
   User,
+  AlertTriangle,
 } from "lucide-react";
 
 const LEVELS: Record<string, string> = {
@@ -37,7 +38,47 @@ const LEVELS: Record<string, string> = {
   mixed: "ترکیبی",
 };
 
-export default function AcademyPathDetail() {
+// ── Error Boundary ───────────────────────────────────────────────────────────
+class PathErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(err: unknown) {
+    return {
+      hasError: true,
+      error: err instanceof Error ? err.message : "خطای ناشناخته",
+    };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <PublicLayout>
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-4 px-4 py-24 text-center">
+            <AlertTriangle className="size-10 text-amber-500" />
+            <h1 className="text-2xl font-extrabold">خطا در نمایش مسیر</h1>
+            <p className="text-sm text-muted-foreground">
+              مشکلی در بارگذاری این مسیر آکادمی پیش آمد. لطفاً دوباره تلاش کنید.
+            </p>
+            <p className="max-w-md rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+              {this.state.error}
+            </p>
+            <Button asChild className="rounded-full">
+              <Link to="/workshops">بازگشت به کارگاه‌ها</Link>
+            </Button>
+          </div>
+        </PublicLayout>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ── Main Page ────────────────────────────────────────────────────────────────
+function AcademyPathDetailInner() {
   const { slug } = useParams<{ slug: string }>();
   const { isAuthenticated } = useAuth();
   const path = useQuery(api.academyPaths.getPathBySlug, { slug: slug ?? "" });
@@ -47,6 +88,7 @@ export default function AcademyPathDetail() {
   const [coupon, setCoupon] = useState("");
   const [buying, setBuying] = useState(false);
 
+  // Loading
   if (path === undefined) {
     return (
       <PublicLayout>
@@ -57,6 +99,7 @@ export default function AcademyPathDetail() {
     );
   }
 
+  // Not found
   if (!path) {
     return (
       <PublicLayout>
@@ -79,10 +122,14 @@ export default function AcademyPathDetail() {
     path.discountPrice && path.discountExpiresAt && path.discountExpiresAt > now
       ? path.discountPrice
       : null;
-  const effectivePrice = activeDiscount ?? path.price;
+  const effectivePrice = activeDiscount ?? path.price ?? 0;
   const isFree = effectivePrice === 0;
-  const totalWorkshops = path.items.length;
-  const availableCount = path.items.filter((i) => !i.comingSoon).length;
+  // Filter out items with missing/invalid data
+  const validItems = Array.isArray(path.items)
+    ? path.items.filter((i) => i && i.itemId && i.workshopId)
+    : [];
+  const totalWorkshops = validItems.length;
+  const availableCount = validItems.filter((i) => !i.comingSoon).length;
 
   const handleBuyPath = async () => {
     if (!isAuthenticated) {
@@ -106,6 +153,22 @@ export default function AcademyPathDetail() {
       toast.error(e instanceof Error ? e.message : "خطا در خرید");
     } finally {
       setBuying(false);
+    }
+  };
+
+  // Safe item access helper
+  const safeItemTitle = (item: any): string => {
+    try {
+      return item?.title ?? "کارگاه";
+    } catch {
+      return "کارگاه";
+    }
+  };
+  const safeItemTopic = (item: any): string => {
+    try {
+      return item?.topic ?? "";
+    } catch {
+      return "";
     }
   };
 
@@ -150,10 +213,9 @@ export default function AcademyPathDetail() {
                       <div className="flex items-baseline gap-2">
                         <p className="text-2xl font-extrabold text-primary">
                           {formatPrice(effectivePrice)}
-                        </p>
-                        {activeDiscount && (
+                        </p>                          {activeDiscount && (
                           <p className="text-sm text-muted-foreground line-through">
-                            {formatPrice(path.price)}
+                            {formatPrice(path.price ?? 0)}
                           </p>
                         )}
                       </div>
@@ -216,7 +278,7 @@ export default function AcademyPathDetail() {
             «به‌زودی» هنوز نهایی نشده‌اند.
           </p>
 
-          {totalWorkshops === 0 ? (
+          {validItems.length === 0 ? (
             <Card className="mt-5 border-dashed">
               <CardContent className="flex flex-col items-center gap-2 py-12 text-center">
                 <RouteIcon className="size-8 text-muted-foreground/40" />
@@ -230,11 +292,12 @@ export default function AcademyPathDetail() {
               {/* Timeline spine */}
               <div className="absolute bottom-4 right-[9px] top-4 w-0.5 bg-gradient-to-b from-primary/50 via-primary/20 to-transparent" />
 
-              {path.items.map((item, idx) => {
+              {validItems.map((item: any, idx: number) => {
+                const workshopId = item.workshopId ?? "";
                 const owned =
-                  path.hasFullAccess || path.ownedWorkshopIds.includes(item.workshopId);
-                const past = item.isPast;
-                const soon = item.comingSoon && !past;
+                  path.hasFullAccess || (Array.isArray(path.ownedWorkshopIds) && path.ownedWorkshopIds.includes(workshopId));
+                const past = !!item.isPast;
+                const soon = !!item.comingSoon && !past;
                 return (
                   <div key={item.itemId} className="relative">
                     {/* Node dot */}
@@ -254,6 +317,7 @@ export default function AcademyPathDetail() {
                     </span>
 
                     <Card
+                      key={item.itemId ?? idx}
                       className={cn(
                         "transition-all",
                         owned
@@ -267,7 +331,7 @@ export default function AcademyPathDetail() {
                       <CardContent className="flex flex-wrap items-start justify-between gap-3 py-4">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-bold">{item.title}</p>
+                            <p className="text-sm font-bold">{safeItemTitle(item)}</p>
                             {soon && (
                               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600">
                                 به‌زودی
@@ -279,30 +343,36 @@ export default function AcademyPathDetail() {
                               </span>
                             )}
                           </div>
-                          {item.topic && (
+                          {safeItemTopic(item) && (
                             <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                              {item.topic}
+                              {safeItemTopic(item)}
                             </p>
                           )}
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
                             {item.instructorName && (
                               <span className="flex items-center gap-1">
                                 <User className="size-3" />
-                                {item.instructorName}
+                                {String(item.instructorName)}
                               </span>
                             )}
                             {item.date && !soon && (
                               <span className="flex items-center gap-1">
                                 <Calendar className="size-3" />
-                                {new Date(item.date).toLocaleDateString("fa-IR")}
-                                {item.time && ` · ${item.time}`}
+                                {(() => {
+                                  try {
+                                    return new Date(item.date).toLocaleDateString("fa-IR");
+                                  } catch {
+                                    return item.date;
+                                  }
+                                })()}
+                                {item.time ? ` · ${item.time}` : ""}
                               </span>
                             )}
                             <span className="flex items-center gap-1">
                               <Clock className="size-3" />
-                              {item.registeredCount >= item.capacity && item.capacity > 0
+                              {(item.registeredCount ?? 0) >= (item.capacity ?? 0) && (item.capacity ?? 0) > 0
                                 ? "ظرفیت تکمیل"
-                                : `ظرفیت ${faNum(item.capacity)}`}
+                                : `ظرفیت ${faNum(item.capacity ?? 0)}`}
                             </span>
                           </div>
                         </div>
@@ -314,7 +384,7 @@ export default function AcademyPathDetail() {
                               className="h-8 rounded-full bg-emerald-600 hover:bg-emerald-500"
                               asChild
                             >
-                              <Link to={`/workshops/${item.slug}`}>
+                              <Link to={`/workshops/${item.slug ?? ""}`}>
                                 ورود به کارگاه
                               </Link>
                             </Button>
@@ -330,12 +400,12 @@ export default function AcademyPathDetail() {
                           ) : (
                             <>
                               <span className="text-xs font-bold text-primary">
-                                {item.free || item.price === 0
+                                {item.free || (item.price ?? 0) === 0
                                   ? "رایگان"
-                                  : formatPrice(item.price)}
+                                  : formatPrice(item.price ?? 0)}
                               </span>
                               <Button size="sm" className="h-8 rounded-full" asChild>
-                                <Link to={`/workshops/${item.slug}`}>
+                                <Link to={`/workshops/${item.slug ?? ""}`}>
                                   مشاهده و ثبت‌نام
                                   <ArrowLeft className="mr-1 size-3" />
                                 </Link>
@@ -407,5 +477,13 @@ export default function AcademyPathDetail() {
         </Dialog>
       </div>
     </PublicLayout>
+  );
+}
+
+export default function AcademyPathDetail() {
+  return (
+    <PathErrorBoundary>
+      <AcademyPathDetailInner />
+    </PathErrorBoundary>
   );
 }
