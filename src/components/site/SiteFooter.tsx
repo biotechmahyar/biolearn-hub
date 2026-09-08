@@ -72,11 +72,8 @@ export function SiteFooter() {
         </div>
 
         {/* Enamad Trust Seal — DO NOT MODIFY */}
-        <div className="mt-6 flex flex-col items-center gap-3 border-t border-border/60 pt-6">
+        <div className="mt-6 flex justify-center border-t border-border/60 pt-6">
           <div dangerouslySetInnerHTML={{ __html: "<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7557824&Code=JFvMWXz5WYYHHscW3KRiZVyuH2N5iHqJ'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7557824&Code=JFvMWXz5WYYHHscW3KRiZVyuH2N5iHqJ' alt='' style='cursor:pointer' code='JFvMWXz5WYYHHscW3KRiZVyuH2N5iHqJ'></a>" }} />
-          <p className="text-center text-xs text-muted-foreground/80">
-            کاربر گرامی لوگو خود را کپی کرده بدون تغییر در سایت خود قراردهید و لطفا به این نکته توجه داشته باشد که ممکن است لوگو شما به محض بارگذاری در سایت نمایان نشود و نمایان شدن آن طی ۲۴ ساعت آینده انجام پذیرد. خواهشمند است ۲۴ ساعت صبر نمایید چنانچه پس از گذشت ۲۴ ساعت نمایان نشد تیکت ارسال نمایید.
-          </p>
         </div>
       </div>
     </footer>
