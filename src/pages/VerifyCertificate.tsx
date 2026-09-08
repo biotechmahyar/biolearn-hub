@@ -85,7 +85,7 @@ export default function VerifyCertificate() {
           {/* Result */}
           {searchKey && (
             <div className="mt-6">
-              {cert === undefined ? (
+              {result === undefined ? (
                 <Card className="border-border/70">
                   <CardContent className="flex items-center justify-center py-12">
                     <Loader2 className="size-6 animate-spin text-muted-foreground" />
