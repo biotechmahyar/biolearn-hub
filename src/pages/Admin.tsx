@@ -3191,23 +3191,96 @@ function AdminPayments() {
 function AdminClassRequests() {
   const requests = useQuery(api.admin.adminListClassRequests);
   const review = useMutation(api.admin.adminReviewClassRequest);
+  const instructors = useQuery(api.admin.adminListUsersWithInstructorRole);
+  const createClass = useMutation(api.admin.adminCreateClass);
+  const rooms = useQuery(api.admin.adminListClassRooms) ?? [];
   const [platformUrls, setPlatformUrls] = useState<Record<string, string>>({});
+  const [showAddClass, setShowAddClass] = useState(false);
+  const [newClass, setNewClass] = useState({ title: "", topic: "", instructorId: "", platformUrl: "", scheduledDate: "" });
 
   const pending = (requests ?? []).filter((r: any) => r.status === "pending");
   const reviewed = (requests ?? []).filter((r: any) => r.status !== "pending");
 
+  const roomForRequest = (r: any) => (r.createdRoomId ? rooms.find((room: any) => room._id === r.createdRoomId) : null);
+
   const handleReview = async (id: string, status: "approved" | "rejected") => {
     try {
       await review({ id: id as any, status, platformUrl: platformUrls[id] || undefined });
-      toast.success(status === "approved" ? "کلاس تأیید شد" : "درخواست رد شد");
+      toast.success(status === "approved" ? "کلاس تأیید شد و در پنل مدرس و داشبورد دانشجویان نمایش داده می‌شود" : "درخواست رد شد");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
     }
   };
 
+  const handleAddClass = async () => {
+    if (!newClass.title.trim()) { toast.error("عنوان کلاس الزامی است"); return; }
+    if (!newClass.instructorId) { toast.error("مدرس کلاس را انتخاب کنید"); return; }
+    try {
+      await createClass({
+        title: newClass.title,
+        topic: newClass.topic || undefined,
+        instructorId: newClass.instructorId as any,
+        platformUrl: newClass.platformUrl || undefined,
+        scheduledDate: newClass.scheduledDate || undefined,
+      });
+      toast.success("کلاس ساخته شد و در داشبورد مدرس و دانشجویان نمایش داده می‌شود");
+      setShowAddClass(false);
+      setNewClass({ title: "", topic: "", instructorId: "", platformUrl: "", scheduledDate: "" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ساخت کلاس");
+    }
+  };
+
   return (
     <div className="space-y-5">
-      <SectionHeader title="درخواست کلاس" subtitle="تأیید درخواست‌های کلاس مدرسان" count={pending.length} />
+      <div className="flex items-start justify-between gap-3">
+        <SectionHeader title="درخواست کلاس" subtitle="تأیید درخواست‌های کلاس مدرسان" count={pending.length} />
+        <Button size="sm" className="h-8 shrink-0 text-xs" onClick={() => setShowAddClass((s) => !s)}>
+          <Plus className="ml-1 size-3.5" /> افزودن کلاس
+        </Button>
+      </div>
+
+      {/* ── Add class manually (with instructor picker) ── */}
+      {showAddClass && (
+        <Card className="border-primary/30 shadow-sm">
+          <CardHeader><CardTitle className="text-sm">افزودن کلاس جدید</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">عنوان کلاس *</Label>
+                <Input value={newClass.title} onChange={(e) => setNewClass((p) => ({ ...p, title: e.target.value }))} placeholder="مثلاً آزمایش میکروب‌شناسی" className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">مدرس *</Label>
+                <Select value={newClass.instructorId} onValueChange={(v) => setNewClass((p) => ({ ...p, instructorId: v }))}>
+                  <SelectTrigger className="h-8 w-full text-xs"><SelectValue placeholder="انتخاب مدرس" /></SelectTrigger>
+                  <SelectContent>
+                    {(instructors ?? []).map((u: any) => (
+                      <SelectItem key={u._id} value={u._id}>{u.name ?? u.email ?? u._id}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">موضوع</Label>
+                <Input value={newClass.topic} onChange={(e) => setNewClass((p) => ({ ...p, topic: e.target.value }))} placeholder="موضوع کلاس" className="h-8 text-xs" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">لینک کلاس (اختیاری)</Label>
+                <Input value={newClass.platformUrl} onChange={(e) => setNewClass((p) => ({ ...p, platformUrl: e.target.value }))} placeholder="https://zoom.us/... یا Google Meet" className="h-8 text-xs" dir="ltr" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">تاریخ کلاس (اختیاری — خالی = زنده فوری)</Label>
+                <JalaliDatePicker value={newClass.scheduledDate} onChange={(v) => setNewClass((p) => ({ ...p, scheduledDate: v || "" }))} placeholder="تاریخ برگزاری" className="w-full" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setShowAddClass(false)}>انصراف</Button>
+              <Button size="sm" onClick={handleAddClass}><Plus className="ml-1 size-3.5" /> ساخت کلاس</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {pending.length === 0 ? (
         <Card className="border-border/70 shadow-sm">
@@ -3257,17 +3330,40 @@ function AdminClassRequests() {
         <>
           <h3 className="text-sm font-bold text-muted-foreground">بررسی‌شده</h3>
           <div className="space-y-2">
-            {reviewed.map((r: any) => (
-              <div key={r._id} className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
-                <div>
-                  <p className="text-xs font-medium">{r.title}</p>
-                  <p className="text-[11px] text-muted-foreground">{r.instructorName} · {r.proposedDate}</p>
+            {reviewed.map((r: any) => {
+              const linkedRoom = roomForRequest(r);
+              return (
+              <div key={r._id} className="rounded-lg border border-border/50 bg-muted/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium">{r.title}</p>
+                    <p className="text-[11px] text-muted-foreground">{r.instructorName} · {r.proposedDate}</p>
+                  </div>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${r.status === "approved" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
+                    {r.status === "approved" ? "تأیید شده" : "رد شده"}
+                  </span>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${r.status === "approved" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-500"}`}>
-                  {r.status === "approved" ? "تأیید شده" : "رد شده"}
-                </span>
+                {r.status === "approved" && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/40 pt-2">
+                    {linkedRoom ? (
+                      <>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${linkedRoom.status === "live" ? "bg-red-500/10 text-red-500" : "bg-blue-500/10 text-blue-500"}`}>
+                          {linkedRoom.status === "live" ? "کلاس فعال (LIVE)" : linkedRoom.status === "scheduled" ? "زمان‌بندی شده" : "پایان‌یافته"}
+                        </span>
+                        {linkedRoom.platformUrl && (
+                          <a href={linkedRoom.platformUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-primary underline-offset-2 hover:underline">
+                            بازکردن لینک کلاس ↗
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground">کلاس مرتبط یافت نشد</span>
+                    )}
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

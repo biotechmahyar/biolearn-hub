@@ -590,6 +590,7 @@ const schema = defineSchema(
       reviewedBy: v.optional(v.id("users")),
       reviewedAt: v.optional(v.number()),
       platformUrl: v.optional(v.string()), // admin sets the link
+      createdRoomId: v.optional(v.id("classRooms")), // room created upon approval
     })
       .index("by_instructor", ["instructorId"])
       .index("by_status", ["status"]),

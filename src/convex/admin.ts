@@ -904,8 +904,27 @@ export const adminReviewClassRequest = mutation({
   handler: async (ctx, args) => {
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
     const user = await getCurrentUser(ctx);
+    const req: any = await ctx.db.get(args.id);
+    if (!req) throw new Error("درخواست یافت نشد.");
     const updates: Record<string, any> = { status: args.status as any, reviewedBy: user?._id, reviewedAt: Date.now() };
     if (args.platformUrl) updates.platformUrl = args.platformUrl;
+    // On approval, materialize the class as a real classroom so it appears in
+    // the instructor studio and student dashboard (with the admin's link if set).
+    if (args.status === "approved" && !req.createdRoomId) {
+      const room = await ctx.db.insert("classRooms", {
+        instructorId: req.instructorId,
+        instructorName: req.instructorName,
+        title: req.title,
+        topic: req.topic || req.title,
+        description: req.description || "",
+        status: "live",
+        broadcasting: false,
+        createdAt: Date.now(),
+        platformUrl: args.platformUrl || undefined,
+        scheduledDate: req.proposedDate || undefined,
+      });
+      updates.createdRoomId = room;
+    }
     await ctx.db.patch(args.id, updates);
     return { ok: true };
   },
@@ -1098,6 +1117,39 @@ export const requestClass = mutation({
     return await ctx.db.insert("classRequests", {
       instructorId: user._id, instructorName: user.name ?? "—",
       ...args, status: "pending" as const, createdAt: Date.now(),
+    });
+  },
+});
+
+// ── Admin-created classes (from class requests section) ─────────────────────
+export const adminListUsersWithInstructorRole = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return [];
+    const users = await ctx.db.query("users").collect();
+    return users.filter((u: any) => u.role === "instructor" || u.role === "admin" || u.role === "site_admin");
+  },
+});
+
+export const adminCreateClass = mutation({
+  args: { title: v.string(), topic: v.optional(v.string()), description: v.optional(v.string()),
+    instructorId: v.id("users"), platformUrl: v.optional(v.string()), scheduledDate: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    const instructor = await ctx.db.get(args.instructorId);
+    if (!instructor) throw new Error("مدرس یافت نشد.");
+    if (!args.title.trim()) throw new Error("عنوان کلاس الزامی است.");
+    return await ctx.db.insert("classRooms", {
+      instructorId: args.instructorId,
+      instructorName: (instructor as any).name ?? "مدرس",
+      title: args.title.trim(),
+      topic: (args.topic ?? "").trim(),
+      description: (args.description ?? "").trim(),
+      status: args.scheduledDate ? "scheduled" : "live",
+      broadcasting: false,
+      createdAt: Date.now(),
+      platformUrl: args.platformUrl?.trim() || undefined,
+      scheduledDate: args.scheduledDate?.trim() || undefined,
     });
   },
 });
