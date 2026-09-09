@@ -31,6 +31,7 @@ import type * as inbox from "../inbox.js";
 import type * as instructorTools from "../instructorTools.js";
 import type * as marketplace from "../marketplace.js";
 import type * as mentor from "../mentor.js";
+import type * as miniAppAuth from "../miniAppAuth.js";
 import type * as notifications from "../notifications.js";
 import type * as offlinePayments from "../offlinePayments.js";
 import type * as profiles from "../profiles.js";
@@ -83,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   instructorTools: typeof instructorTools;
   marketplace: typeof marketplace;
   mentor: typeof mentor;
+  miniAppAuth: typeof miniAppAuth;
   notifications: typeof notifications;
   offlinePayments: typeof offlinePayments;
   profiles: typeof profiles;

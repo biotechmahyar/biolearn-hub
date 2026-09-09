@@ -323,7 +323,7 @@ export const getMenuButton = action({
 
 // ── Telegram Mini App Auto-Link ─────────────────────────────────────────────
 
-import { createHmac } from "node:crypto";
+import { validateMiniAppInitData } from "./miniAppAuth";
 
 /**
  * Validate Telegram WebApp initData and link the Telegram account
@@ -342,43 +342,10 @@ export const linkByTelegramInitData = action({
     if (!tokenData?.token) throw new Error("توکن بات ذخیره نشده است.");
     const botToken: string = tokenData.token;
 
-    // 2. Parse initData query parameters
-    const params = new URLSearchParams(args.initData);
-    const hash = params.get("hash");
-    if (!hash) throw new Error(" initData معتبر نیست (hash missing).");
-    params.delete("hash");
-
-    // 3. Build the data-check-string: sorted key=value pairs joined by newlines
-    const dataCheckString = Array.from(params.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
-      .join("\n");
-
-    // 4. Compute HMAC-SHA256 using bot_token as secret key
-    const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
-    const computedHash = createHmac("sha256", secretKey)
-      .update(dataCheckString)
-      .digest("hex");
-
-    if (computedHash !== hash) {
-      throw new Error("اعتبارسنجی Telegram ناموفق بود.");
-    }
-
-    // 5. Extract Telegram user info from initData
-    const userStr = params.get("user");
-    if (!userStr) throw new Error("اطلاعات کاربر Telegram یافت نشد.");
-
-    let tgUser: { id: number; first_name?: string; username?: string };
-    try {
-      tgUser = JSON.parse(userStr);
-    } catch {
-      throw new Error("اطلاعات کاربر Telegram نامعتبر است.");
-    }
-
+    // 2. Validate initData using shared HMAC validator
+    const validated = validateMiniAppInitData(args.initData, botToken);
+    const { user: tgUser } = validated;
     const telegramId = tgUser.id;
-    if (!telegramId || typeof telegramId !== "number") {
-      throw new Error("Telegram User ID نامعتبر است.");
-    }
 
     // 6. Check if this Telegram account is already linked to THIS user
     const currentUser = await ctx.runQuery(api.telegramBot._findUserById, { userId });
