@@ -16,7 +16,7 @@ import { useMode } from "@/hooks/useMode";
 import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { useStudentReceiver, useStudentAudioSender } from "@/hooks/use-live";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
-import { accent, faNum, formatDate, formatDateTime, formatPrice } from "@/lib/format";
+import { accent, faNum, formatDate, formatDateTime, formatJalaliDateString, formatPrice } from "@/lib/format";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
 import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
@@ -1402,6 +1402,7 @@ function LiveTab() {
   }, [touchPresence]);
 
   const live = rooms.filter((r) => r.status === "live");
+  const scheduled = rooms.filter((r) => r.status === "scheduled" && r.platformUrl);
 
   if (activeRoom) {
     return (
@@ -1443,13 +1444,14 @@ function LiveTab() {
           ))}
       </div>
 
-      {live.length === 0 ? (
+      {live.length === 0 && scheduled.length === 0 ? (
         <EmptyState
           icon={Video}
           title="کلاسی در حال برگزاری نیست"
           desc="به محض اینکه مدرس کلاس را شروع کند، اینجا ظاهر می‌شود و می‌توانید سؤال بپرسید."
         />
       ) : (
+        <>
         <div className="grid gap-4 sm:grid-cols-2">
           {live.map((room) => (
             <button
@@ -1480,9 +1482,48 @@ function LiveTab() {
               <p className="mt-3 text-[11px] text-muted-foreground">
                 مدرس: <span className="font-bold text-foreground">{room.instructorName}</span>
               </p>
+              {room.platformUrl && (
+                <p className="mt-2 text-[11px] font-medium text-primary">
+                  برگزاری در پلتفرم خارجی — کلیک برای بازکردن ↗
+                </p>
+              )}
             </button>
           ))}
         </div>
+        {scheduled.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-bold text-muted-foreground">
+              کلاس‌های زمان‌بندی‌شده ({faNum(scheduled.length)})
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {scheduled.map((room) => (
+                <button
+                  key={room._id}
+                  onClick={() => window.open(room.platformUrl ?? "#", "_blank", "noopener,noreferrer")}
+                  className="group rounded-xl border border-border bg-card p-5 text-right transition-all hover:border-primary/50 hover:shadow-lg"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                      زمان‌بندی شده
+                    </span>
+                    {room.scheduledDate && (
+                      <span className="text-[10px] text-muted-foreground">{formatJalaliDateString(room.scheduledDate)}</span>
+                    )}
+                  </div>
+                  <h3 className="mt-3 font-bold group-hover:text-primary">{room.title}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">{room.topic}</p>
+                  <p className="mt-3 text-[11px] text-muted-foreground">
+                    مدرس: <span className="font-bold text-foreground">{room.instructorName}</span>
+                  </p>
+                  <p className="mt-2 text-[11px] font-medium text-primary">
+                    برگزاری در پلتفرم خارجی — کلیک برای بازکردن ↗
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        </>
       )}
     </div>
   );
