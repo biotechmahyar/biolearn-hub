@@ -2,17 +2,21 @@
  * Mini App Platform Adapter
  *
  * Provides a thin abstraction over the browser-level platform APIs
- * (currently Telegram WebApp). This allows the Mini App UI to remain
+ * for Mini App environments. This allows the Mini App UI to remain
  * platform-agnostic without redesigning anything.
  *
- * Currently supports:
+ * Supported platforms:
  *   - "telegram" — window.Telegram.WebApp
+ *   - "bale"     — window.Bale.WebApp
  *   - "browser"  — plain browser fallback (no platform injection)
+ *
+ * Platform detection is deferred until first access of `platform`
+ * to ensure SDKs loaded via <script> tags in index.html are available.
  */
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type PlatformName = "telegram" | "browser";
+export type PlatformName = "telegram" | "bale" | "browser";
 
 export interface MiniAppPlatform {
   /** Which platform was detected at page load. */
@@ -40,8 +44,12 @@ export interface MiniAppPlatform {
   showConfirm(message: string): Promise<boolean>;
 }
 
-// ── Telegram Adapter ───────────────────────────────────────────────────────
+// ── SDK Access Helpers ─────────────────────────────────────────────────────
 
+/**
+ * Safely access the Telegram WebApp object.
+ * Returns null if not available (normal browser or SSR).
+ */
 function getTelegramWebApp(): Record<string, unknown> | null {
   try {
     const tg = (window as unknown as Record<string, unknown>)?.Telegram;
@@ -56,6 +64,27 @@ function getTelegramWebApp(): Record<string, unknown> | null {
   }
   return null;
 }
+
+/**
+ * Safely access the Bale WebApp object.
+ * Returns null if the Bale SDK is not loaded (normal browser or SSR).
+ */
+function getBaleWebApp(): Record<string, unknown> | null {
+  try {
+    const bale = (window as unknown as Record<string, unknown>)?.Bale;
+    if (bale && typeof bale === "object") {
+      const webApp = (bale as Record<string, unknown>)?.WebApp;
+      if (webApp && typeof webApp === "object") {
+        return webApp as Record<string, unknown>;
+      }
+    }
+  } catch {
+    // SSR or restricted context
+  }
+  return null;
+}
+
+// ── Telegram Adapter ───────────────────────────────────────────────────────
 
 const telegramPlatform: MiniAppPlatform = {
   name: "telegram",
@@ -115,6 +144,60 @@ const telegramPlatform: MiniAppPlatform = {
   },
 };
 
+// ── Bale Adapter ───────────────────────────────────────────────────────────
+
+const balePlatform: MiniAppPlatform = {
+  name: "bale",
+
+  isAvailable() {
+    return getBaleWebApp() !== null;
+  },
+
+  getInitData() {
+    const webApp = getBaleWebApp();
+    const initData = webApp?.initData;
+    return typeof initData === "string" && initData.length > 0 ? initData : null;
+  },
+
+  getUser() {
+    const webApp = getBaleWebApp();
+    const initDataUnsafe = webApp?.initDataUnsafe;
+    if (initDataUnsafe && typeof initDataUnsafe === "object") {
+      const user = (initDataUnsafe as Record<string, unknown>)?.user;
+      return user && typeof user === "object"
+        ? (user as Record<string, unknown>)
+        : null;
+    }
+    return null;
+  },
+
+  close() {
+    const webApp = getBaleWebApp();
+    if (typeof webApp?.close === "function") {
+      webApp.close();
+    }
+  },
+
+  openLink(url: string) {
+    const webApp = getBaleWebApp();
+    if (typeof webApp?.openLink === "function") {
+      webApp.openLink(url);
+    } else {
+      window.open(url, "_blank");
+    }
+  },
+
+  async showAlert(message: string) {
+    // Bale SDK does not document showAlert — use browser fallback
+    window.alert(message);
+  },
+
+  async showConfirm(message: string) {
+    // Bale SDK does not document showConfirm — use browser fallback
+    return window.confirm(message);
+  },
+};
+
 // ── Browser Fallback ───────────────────────────────────────────────────────
 
 const browserPlatform: MiniAppPlatform = {
@@ -154,17 +237,44 @@ const browserPlatform: MiniAppPlatform = {
 /**
  * Detect which platform is active.
  *
- * Detection is simple: if window.Telegram.WebApp exists → Telegram,
- * otherwise → plain browser.
+ * Detection is deferred: called on first access of `platform`, not at
+ * module-import time. This ensures SDKs loaded via <script> tags in
+ * index.html have been evaluated before we check for them.
  *
- * Future: extend with Bale detection when Bale adapter is added.
+ * Priority: Telegram > Bale > Browser fallback.
+ *
+ * Telegram and Bale use mutually exclusive global objects
+ * (window.Telegram vs window.Bale), so they never conflict.
  */
 function detectPlatform(): MiniAppPlatform {
   if (telegramPlatform.isAvailable()) {
     return telegramPlatform;
   }
+  if (balePlatform.isAvailable()) {
+    return balePlatform;
+  }
   return browserPlatform;
 }
 
-/** Singleton platform instance, resolved once at import time. */
-export const platform: MiniAppPlatform = detectPlatform();
+/**
+ * Singleton platform instance.
+ *
+ * Lazily resolved on first access to ensure SDKs loaded via <script> tags
+ * in index.html are available when detection runs. Once resolved, the
+ * same instance is returned for the lifetime of the page.
+ */
+let _platform: MiniAppPlatform | null = null;
+
+export function getPlatform(): MiniAppPlatform {
+  if (!_platform) {
+    _platform = detectPlatform();
+  }
+  return _platform;
+}
+
+/**
+ * Backward-compatible property export.
+ * Code using `import { platform } from ...` continues to work unchanged
+ * because Vite/Bundlers resolve property access to the getter.
+ */
+export const platform: MiniAppPlatform = /* @__PURE__ */ (() => getPlatform())();
