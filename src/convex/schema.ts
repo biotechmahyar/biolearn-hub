@@ -121,12 +121,18 @@ const schema = defineSchema(
       telegramLinkedAt: v.optional(v.number()),  // When the account was linked
       telegramNotificationsEnabled: v.optional(v.boolean()), // Master toggle
 
+      // Bale account linking (Bale Messenger — Iranian platform)
+      baleId: v.optional(v.number()),           // Bale user numeric ID
+      baleUsername: v.optional(v.string()),       // @username from Bale
+      baleFirstName: v.optional(v.string()),      // First name from Bale
+      baleLinkedAt: v.optional(v.number()),        // When the Bale account was linked
+
       // Bank account for instructor payments
       bankName: v.optional(v.string()),
       bankAccountNumber: v.optional(v.string()),
       bankCardNumber: v.optional(v.string()),
       bankSheba: v.optional(v.string()),
-    }).index("email", ["email"]).index("by_telegramId", ["telegramId"]),
+    }).index("email", ["email"]).index("by_telegramId", ["telegramId"]).index("by_baleId", ["baleId"]),
 
     // ── Catalog ──────────────────────────────────────────────────────────
     categories: defineTable({
@@ -959,6 +965,23 @@ const schema = defineSchema(
       lastTestResult: v.optional(v.string()), // "success" or error message
       commands: v.optional(v.array(v.object({ command: v.string(), description: v.string() }))),
       commandsSyncedAt: v.optional(v.number()),
+      updatedBy: v.id("users"),
+      updatedAt: v.number(),
+      createdAt: v.number(),
+    }),
+
+    // ── Bale Bot Configuration ─────────────────────────────────────────
+    baleBot: defineTable({
+      tokenEncrypted: v.string(),       // Encrypted Bale bot token (server-side only)
+      botId: v.optional(v.string()),    // Bale bot numeric ID
+      botName: v.optional(v.string()),  // Bot display name from getMe
+      botUsername: v.optional(v.string()), // @username from getMe
+      webhookUrl: v.optional(v.string()),  // Configured webhook URL
+      connected: v.boolean(),           // Is bot connected?
+      active: v.boolean(),              // Enabled/disabled
+      startMessage: v.string(),         // Welcome message for /start
+      lastTestedAt: v.optional(v.number()),
+      lastTestResult: v.optional(v.string()),
       updatedBy: v.id("users"),
       updatedAt: v.number(),
       createdAt: v.number(),

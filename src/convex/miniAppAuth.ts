@@ -27,6 +27,11 @@ export interface ValidatedMiniAppInitData {
   params: Map<string, string>;
 }
 
+export interface MiniAppInitDataOptions {
+  /** Maximum allowed age of auth_date in seconds. If provided, stale initData is rejected. */
+  authDateFreshnessSeconds?: number;
+}
+
 // ── Shared HMAC Validator ──────────────────────────────────────────────────
 
 /**
@@ -48,16 +53,18 @@ export interface ValidatedMiniAppInitData {
  * Security notes:
  * - The bot token MUST be server-side only and NEVER returned/leaked.
  * - User identity is only trusted AFTER successful HMAC verification.
- * - auth_date freshness is NOT checked here (caller decides policy).
+ * - auth_date freshness is checked when options.authDateFreshnessSeconds is provided.
  *
  * @param initData - Raw URL-encoded initData string from the Mini App client.
  * @param botToken - Server-side bot token for this platform.
+ * @param options - Optional validation options (e.g. auth_date freshness).
  * @returns Validated and parsed initData.
- * @throws If initData is malformed, hash is missing, or HMAC verification fails.
+ * @throws If initData is malformed, hash is missing, HMAC verification fails, or auth_date is stale.
  */
 export function validateMiniAppInitData(
   initData: string,
   botToken: string,
+  options?: MiniAppInitDataOptions,
 ): ValidatedMiniAppInitData {
   if (!initData || typeof initData !== "string") {
     throw new Error("initData is required.");
@@ -115,10 +122,21 @@ export function validateMiniAppInitData(
   const authDateStr = params.get("auth_date");
   const authDate = authDateStr ? parseInt(authDateStr, 10) : 0;
 
-  // 9. Extract query_id (optional — present on some platforms)
+  // 9. Optional: auth_date freshness check
+  if (options?.authDateFreshnessSeconds && authDate > 0) {
+    const now = Math.floor(Date.now() / 1000);
+    const age = now - authDate;
+    if (age > options.authDateFreshnessSeconds) {
+      throw new Error(
+        `auth_date منقضی شده است (${Math.floor(age / 60)} دقیقه پیش). لطفاً دوباره وارد شوید.`,
+      );
+    }
+  }
+
+  // 10. Extract query_id (optional — present on some platforms)
   const queryId = params.get("query_id") ?? undefined;
 
-  // 10. Rebuild params map without hash (for caller use)
+  // 11. Rebuild params map without hash (for caller use)
   const cleanParams = new Map<string, string>();
   for (const [k, v] of params.entries()) {
     cleanParams.set(k, v);
