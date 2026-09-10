@@ -950,6 +950,7 @@ function CalendarView() {
   const setRoomStatus = useMutation(api.collab.setRoomStatus);
   const myRooms = rooms.filter((r) => r.instructorId === useAuth().user?._id);
   const live = myRooms.filter((r) => r.status === "live");
+  const scheduled = myRooms.filter((r) => r.status === "scheduled" && r.platformUrl);
   const past = myRooms.filter((r) => r.status === "ended");
 
   async function handleDeletePast(roomId: string) {
@@ -988,6 +989,15 @@ function CalendarView() {
                   <p className="text-sm font-medium text-white">{r.title}</p>
                   <p className="text-xs text-slate-400">{r.topic}</p>
                   <p className="mt-1 text-[11px] text-cyan-300/70">⏱ شروع: {formatTimestampToShamsi(r.createdAt)}</p>
+                  {r.platformUrl && (
+                    <button
+                      onClick={() => window.open(r.platformUrl!, "_blank", "noopener,noreferrer")}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
+                    >
+                      <LinkIcon className="size-3" />
+                      برگزاری در پلتفرم خارجی ↗
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold text-red-300">LIVE</span>
@@ -1009,6 +1019,11 @@ function CalendarView() {
                   <p className="text-sm font-medium text-slate-300">{r.title}</p>
                   <p className="text-xs text-slate-500">{r.topic}</p>
                   <p className="mt-1 text-[11px] text-slate-500">📅 {formatTimestampToShamsi(r.createdAt)}</p>
+                  {r.platformUrl && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      🔗 پلتفرم: <a href={r.platformUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">{r.platformUrl}</a>
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-slate-400">پایان‌یافته</span>
@@ -1020,7 +1035,38 @@ function CalendarView() {
         </Card>
       )}
 
-      {live.length === 0 && past.length === 0 && (
+      {scheduled.length > 0 && (
+        <Card className="border-blue-400/20 bg-[#0b1a2a]">
+          <CardHeader><CardTitle className="text-sm text-blue-200">کلاس‌های زمان‌بندی‌شده</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {scheduled.map((r) => (
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-blue-400/10 bg-white/[0.02] p-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{r.title}</p>
+                  <p className="text-xs text-slate-400">{r.topic}</p>
+                  {r.scheduledDate && (
+                    <p className="mt-1 text-[11px] text-blue-300/70">📅 {formatJalaliFull(r.scheduledDate)}</p>
+                  )}
+                  {r.platformUrl && (
+                    <button
+                      onClick={() => window.open(r.platformUrl!, "_blank", "noopener,noreferrer")}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-blue-500/15 px-2.5 py-1 text-[11px] font-medium text-blue-300 transition-colors hover:bg-blue-500/25"
+                    >
+                      <LinkIcon className="size-3" />
+                      برگزاری در پلتفرم خارجی ↗
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-blue-500/15 px-2.5 py-1 text-[10px] font-bold text-blue-300">زمان‌بندی شده</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {live.length === 0 && scheduled.length === 0 && past.length === 0 && (
         <Card className="border-white/5 bg-white/[0.02]">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Calendar className="size-8 text-slate-600" />
