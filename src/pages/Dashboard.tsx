@@ -2229,7 +2229,7 @@ function CertificateTab() {
                     <p className="font-bold">{enroll.courseTitle}</p>
                     <p className="text-xs text-muted-foreground">تکمیل شده</p>
                   </div>
-                  {cert?.status === "approved" && (cert.certificateUrl || cert.certificateStorageId) ? (
+                  {cert?.status === "approved" && (cert.fileUrl || cert.certificateUrl || cert.certificateStorageId) ? (
                     <a
                       href={cert.fileUrl ?? cert.certificateUrl ?? "#"}
                       target="_blank"

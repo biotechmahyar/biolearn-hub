@@ -235,7 +235,7 @@ export const listMyCertificates = query({
       const course = await ctx.db.get(c.courseId);
       const fileUrl = c.certificateStorageId
         ? await ctx.storage.getUrl(c.certificateStorageId as any)
-        : null;
+        : c.certificateUrl || null;
       result.push({ ...c, courseTitle: course?.title ?? "—", fileUrl });
     }
     return result;
@@ -256,7 +256,7 @@ export const listAllCertificates = query({
       const course = await ctx.db.get(c.courseId);
       const fileUrl = c.certificateStorageId
         ? await ctx.storage.getUrl(c.certificateStorageId as any)
-        : null;
+        : c.certificateUrl || null;
       result.push({
         ...c,
         userName: user?.name ?? user?.email ?? "—",

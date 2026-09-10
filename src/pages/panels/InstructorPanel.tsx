@@ -265,10 +265,12 @@ function SidebarSectionButton({
   section,
   activeTab,
   onSelect,
+  notifCounts,
 }: {
   section: SidebarSection;
   activeTab: Tab;
   onSelect: (id: Tab) => void;
+  notifCounts?: Record<string, number>;
 }) {
   const [open, setOpen] = useState(() => {
     // Auto-open if current tab is in this section
@@ -290,6 +292,11 @@ function SidebarSectionButton({
       >
         <Icon className="size-4 shrink-0" />
         <span className="whitespace-nowrap">{child.label}</span>
+        {notifCounts && notifCounts[child.id] > 0 && (
+          <span className="mr-auto flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white animate-pulse">
+            {notifCounts[child.id] > 9 ? "!" : notifCounts[child.id]}
+          </span>
+        )}
       </button>
     );
   }
@@ -322,6 +329,11 @@ function SidebarSectionButton({
             >
               {child.icon && <child.icon className="size-3.5 shrink-0" />}
               <span className="whitespace-nowrap">{child.label}</span>
+              {notifCounts && notifCounts[child.id] > 0 && (
+                <span className="mr-auto flex size-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white animate-pulse">
+                  {notifCounts[child.id] > 9 ? "!" : notifCounts[child.id]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -343,6 +355,7 @@ export default function InstructorPanel() {
 
   const allRooms = useQuery(api.collab.listRooms) ?? [];
   const online = useQuery(api.collab.listOnline) ?? [];
+  const notifCounts = (useQuery(api.admin.instructorNotifications) ?? {}) as Record<string, number>;
   // Instructor sees only their own rooms
   const rooms = user ? allRooms.filter((r: any) => r.instructorId === user._id || user.role === "admin" || user.role === "site_admin") : allRooms;
   const touchPresence = useMutation(api.collab.touchPresence);
@@ -404,7 +417,7 @@ export default function InstructorPanel() {
           <aside className="lg:hidden rounded-xl border border-cyan-400/10 bg-[#0a1520] p-3">
             <nav className="scrollbar-theme space-y-1">
               {SIDEBAR.map((section) => (
-                <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} />
+                <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} notifCounts={notifCounts} />
               ))}
             </nav>
           </aside>
@@ -414,7 +427,7 @@ export default function InstructorPanel() {
         <aside className="hidden lg:block lg:sticky lg:top-20 lg:self-start">
           <nav className="scrollbar-theme space-y-1">
             {SIDEBAR.map((section) => (
-              <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} />
+              <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} notifCounts={notifCounts} />
             ))}
           </nav>
         </aside>

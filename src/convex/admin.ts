@@ -744,6 +744,47 @@ export const adminDeleteWorkshop = mutation({
   },
 });
 
+
+export const instructorNotifications = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return {};
+    const instructor = await ctx.db.query("instructors").withIndex("by_user", (q) => q.eq("userId", user._id)).first();
+    if (!instructor) return {};
+    
+    // Class requests from this instructor
+    const myClassRequests = await ctx.db.query("classRequests")
+      .withIndex("by_instructor", (q) => q.eq("instructorId", user._id)).collect();
+    const pendingClassRequests = myClassRequests.filter((r: any) => r.status === "pending").length;
+    const approvedClassRequests = myClassRequests.filter((r: any) => r.status === "approved").length;
+    
+    // Support tickets related to this instructor
+    const supportTickets = await ctx.db.query("supportTickets")
+      .withIndex("by_teacher", (q) => q.eq("teacherId", user._id)).collect();
+    const openSupportTickets = supportTickets.filter((t: any) => t.status !== "resolved" && t.status !== "closed").length;
+    
+    // Unread messages
+    const unreadMessages = await ctx.db.query("directMessages")
+      .withIndex("by_receiver", (q) => q.eq("receiverId", user._id).eq("read", false)).collect();
+    
+    // Course submissions pending review
+    const myCourses = await ctx.db.query("courses")
+      .withIndex("by_author", (q) => q.eq("authorId", user._id)).collect();
+    const pendingCourses = myCourses.filter((c: any) => c.status === "pending").length;
+    const rejectedCourses = myCourses.filter((c: any) => c.status === "rejected").length;
+    
+    return {
+      classRequests: pendingClassRequests,
+      classApproved: approvedClassRequests,
+      support: openSupportTickets,
+      messages: unreadMessages.length,
+      courses: pendingCourses,
+      coursesRejected: rejectedCourses,
+    };
+  },
+});
+
 export const instructorUpdateWorkshopUrl = mutation({
   args: { id: v.id("workshops"), platformUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
