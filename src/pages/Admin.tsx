@@ -2315,12 +2315,14 @@ function AdminWorkshops() {
       if (dialog?.mode === "edit") {
         const { slug: _slug, ...rest } = payload;
         await update({ id: dialog.workshop._id, ...rest });
+        toast.success("کارگاه به‌روزرسانی شد.");
       } else {
         await create(payload);
+        toast.success("کارگاه ساخته شد.");
       }
       setDialog(null);
     } catch (e) {
-      console.error(e);
+      toast.error(e instanceof Error ? e.message : "خطا در ذخیره");
     } finally {
       setBusy(false);
     }

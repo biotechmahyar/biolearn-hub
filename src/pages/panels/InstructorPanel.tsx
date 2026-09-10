@@ -110,6 +110,7 @@ type Tab =
   | "rooms-live"
   | "rooms-calendar"
   | "rooms-attendance"
+  | "rooms-webinar"
   | "students-all"
   | "students-performance"
   | "students-attention"
@@ -152,6 +153,7 @@ const SIDEBAR: SidebarSection[] = [
       { id: "rooms-live", label: "کلاس‌های زنده", icon: Video },
       { id: "rooms-calendar", label: "تقویم", icon: Calendar },
       { id: "rooms-attendance", label: "حضور و غیاب", icon: CheckCircle2 },
+      { id: "rooms-webinar", label: "وبینار", icon: ExternalLink },
     ],
   },
   {
@@ -435,6 +437,7 @@ export default function InstructorPanel() {
           )}
           {tab === "rooms-calendar" && <CalendarView />}
           {tab === "rooms-attendance" && <AttendanceView rooms={rooms} />}
+          {tab === "rooms-webinar" && <WebinarView rooms={rooms} />}
 
           {/* دانشجویان */}
           {tab === "students-all" && <StudentsAllView />}
@@ -1087,6 +1090,106 @@ function CalendarView() {
       )}
 
 
+    </div>
+  );
+}
+
+
+// ── وبینار: کلاس‌های با لینک خارجی ──────────────────────────────────────────
+function WebinarView({ rooms }: { rooms: RoomRow[] }) {
+  const { user } = useAuth();
+  const myWebinars = rooms.filter(
+    (r) => r.instructorId === user?._id && r.platformUrl && (r.status === "live" || r.status === "scheduled")
+  );
+  const pastWebinars = rooms.filter(
+    (r) => r.instructorId === user?._id && r.platformUrl && r.status === "ended"
+  );
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-bold text-white">وبینار</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          کلاس‌هایی که در پلتفرم خارجی برگزار می‌شوند.
+        </p>
+      </div>
+
+      {myWebinars.length === 0 && pastWebinars.length === 0 ? (
+        <Card className="border-white/5 bg-white/[0.02]">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <ExternalLink className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-400">هنوز وبیناری ثبت نشده است.</p>
+            <p className="text-[11px] text-slate-500">کلاس‌هایی که لینک پلتفرم خارجی دارند اینجا نمایش داده می‌شوند.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {myWebinars.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-slate-300">وبینارهای فعال</h3>
+              {myWebinars.map((r) => (
+                <Card key={r._id} className="border-cyan-400/20 bg-[#0b1a2a]">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          {r.status === "live" && (
+                            <span className="flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+                              <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
+                              LIVE
+                            </span>
+                          )}
+                          {r.status === "scheduled" && (
+                            <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-bold text-blue-300">
+                              زمان‌بندی شده
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="mt-2 text-sm font-bold text-white">{r.title}</h4>
+                        <p className="mt-1 text-xs text-slate-400">{r.topic}</p>
+                        {r.scheduledDate && (
+                          <p className="mt-1 text-[11px] text-slate-500">
+                            📅 {r.scheduledDate}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        className="gap-1.5 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+                        onClick={() => window.open(r.platformUrl!, "_blank", "noopener,noreferrer")}
+                      >
+                        <ExternalLink className="size-3.5" />
+                        ورود به وبینار ↗
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {pastWebinars.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-slate-300">وبینارهای گذشته</h3>
+              {pastWebinars.map((r) => (
+                <Card key={r._id} className="border-white/5 bg-white/[0.02]">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium text-slate-300">{r.title}</h4>
+                        <p className="text-xs text-slate-500">{r.topic}</p>
+                      </div>
+                      <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                        پایان‌یافته
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

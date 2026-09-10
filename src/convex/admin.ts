@@ -722,6 +722,7 @@ export const quickCreateWorkshop = mutation({
 export const adminUpdateWorkshop = mutation({
   args: { id: v.id("workshops"), title: v.optional(v.string()), topic: v.optional(v.string()),
     date: v.optional(v.string()), time: v.optional(v.string()),
+    instructorId: v.optional(v.any()),
     capacity: v.optional(v.number()), price: v.optional(v.number()),
     description: v.optional(v.string()), agenda: v.optional(v.array(v.string())),
     free: v.optional(v.boolean()), published: v.optional(v.boolean()), coverImage: v.optional(v.string()),
