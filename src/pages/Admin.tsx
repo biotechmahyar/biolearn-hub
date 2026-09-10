@@ -2217,7 +2217,7 @@ function AdminWorkshops() {
   const generateWorkshopAction = useAction(api.aiActions.generateWorkshopStructure);
   const generateTeachingTipsAction = useAction(api.aiActions.generateTeachingTips);
 
-  const empty = { title: "", instructorId: "", topic: "", date: "", time: "۱۸:۰۰", capacity: "30", price: "0", description: "", free: false, expertTalk: false, published: false, coverImage: "" };
+  const empty = { title: "", instructorId: "", topic: "", date: "", time: "۱۸:۰۰", capacity: "30", price: "0", description: "", free: false, expertTalk: false, published: false, coverImage: "", platformUrl: "" };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; workshop: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
@@ -2287,6 +2287,7 @@ function AdminWorkshops() {
       expertTalk: w.expertTalk,
       published: w.published,
       coverImage: w.coverImage ?? "",
+      platformUrl: w.platformUrl ?? "",
     });
     setDialog({ mode: "edit", workshop: w });
   };
@@ -2309,6 +2310,7 @@ function AdminWorkshops() {
         expertTalk: form.expertTalk,
         published: form.published,
         coverImage: form.coverImage || undefined,
+        platformUrl: form.platformUrl || undefined,
       };
       if (dialog?.mode === "edit") {
         const { slug: _slug, ...rest } = payload;
@@ -2408,6 +2410,10 @@ function AdminWorkshops() {
             <div>
               <label className="mb-1 block text-[10px] font-bold text-muted-foreground">URL Cover Image</label>
               <Input placeholder="https://example.com/image.jpg" value={form.coverImage} onChange={(e) => setForm({ ...form, coverImage: e.target.value })} className="text-xs" dir="ltr" />
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">لینک پلتفرم برگزاری</label>
+              <Input placeholder="https://zoom.us/... یا Google Meet" value={form.platformUrl} onChange={(e) => setForm({ ...form, platformUrl: e.target.value })} className="text-xs" dir="ltr" />
             </div>
             <PublishPicker value={form.published} onChange={(v) => setForm({ ...form, published: v })} />
             <Button className="w-full" onClick={handleSave} disabled={busy}>
