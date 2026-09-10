@@ -11,10 +11,10 @@ import { faNum } from "@/lib/format";
 import { toast } from "sonner";
 
 export function AdminEduManagement() {
-  const enrollments = useQuery(api.admin.adminListEnrollments) ?? [];
-  const classRooms = useQuery(api.admin.adminListClassRooms) ?? [];
-  const workshops = useQuery(api.admin.adminListWorkshops) ?? [];
-  const users = useQuery(api.admin.adminListUsers) ?? [];
+  const enrollments = useQuery(api.admin.adminListEnrollments, {}) ?? [];
+  const classRooms = useQuery(api.admin.adminListClassRooms, {}) ?? [];
+  const workshops = useQuery(api.admin.adminListWorkshops, {}) ?? [];
+  const users = useQuery(api.admin.adminListUsers, {}) ?? [];
   const [activeTab, setActiveTab] = useState<"courses" | "classes" | "workshops">("courses");
 
   const userMap = useMemo(() => {
