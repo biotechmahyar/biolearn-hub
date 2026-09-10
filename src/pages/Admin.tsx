@@ -1,5 +1,5 @@
-import * as XLSX from "xlsx";
 import { CategoryField } from "@/components/site/CategoryField";
+import { AdminEduManagement } from "@/pages/panels/AdminEduManagement";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { Badge } from "@/components/ui/badge";
@@ -167,6 +167,7 @@ type Section =
   | "academyPaths"
   | "pathSuggestions"
   | "certificates"
+  | "eduManagement"
   | "enrollments"
   | "auditLogs"
   | "dailyQuiz"
