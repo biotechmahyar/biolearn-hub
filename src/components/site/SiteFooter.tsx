@@ -69,9 +69,17 @@ export function SiteFooter() {
           <div dangerouslySetInnerHTML={{ __html: "<a referrerpolicy='origin' target='_blank' href='https://trustseal.enamad.ir/?id=7557824&Code=JFvMWXz5WYYHHscW3KRiZVyuH2N5iHqJ'><img referrerpolicy='origin' src='https://trustseal.enamad.ir/logo.aspx?id=7557824&Code=JFvMWXz5WYYHHscW3KRiZVyuH2N5iHqJ' alt='' style='cursor:pointer' code='JFvMWXz5WYYHHscW3KRiZVyuH2N5iHqJ'></a>" }} />
         </div>
 
-        <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} Genova — ابزار داخلی تیم برای علوم زیستی</p>
-          <p className="flex items-center gap-1.5">
+        {/* Main markdown text above copyright */}
+        <div className="mt-6 flex flex-col items-center gap-1 text-xs text-muted-foreground">
+          <p className="text-center">
+            این پلتفرم یک پروژهٔ داخلی تیم Genova است — مسیر آموزشی مشابه دانشگاه از ترم اول تا پژوهش.
+          </p>
+        </div>
+
+        {/* Copyright at the very bottom */}
+        <div className="mt-6 flex flex-col gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-center sm:text-left">© {new Date().getFullYear()} Genova — ابزار داخلی تیم برای علوم زیستی</p>
+          <p className="flex items-center gap-1.5 justify-center sm:justify-start">
             طراحی توسط مهیار اسفندیاری — تمامی حقوق این سایت برای تیم Genova محفوظ است.
           </p>
         </div>
