@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx";
 import { CategoryField } from "@/components/site/CategoryField";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
@@ -63,6 +64,7 @@ import {
   CreditCard,
   DollarSign,
   Download,
+  GraduationCap,
   Eye,
   EyeOff,
   FileText,
@@ -216,6 +218,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "pathSuggestions", label: "مسیرهای پیشنهادی", icon: RouteIcon, notifKey: "pathSuggestions" } as any,
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
       { key: "enrollments", label: "مدیریت ثبت‌نامی‌ها", icon: ClipboardList },
+      { key: "eduManagement", label: "مدیریت آموزش", icon: GraduationCap },
     ],
   },
   {
@@ -693,6 +696,7 @@ export default function Admin() {
             {section === "pathSuggestions" && <AdminPathSuggestions />}
             {section === "certificates" && <AdminCertificates />}
             {section === "enrollments" && <AdminEnrollments />}
+            {section === "eduManagement" && <AdminEduManagement />}
             {section === "auditLogs" && <AdminAuditLogs />}
             {section === "dailyQuiz" && <AdminDailyQuiz />}
             {section === "telegram" && <AdminTelegram />}
