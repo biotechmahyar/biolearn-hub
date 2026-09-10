@@ -484,6 +484,17 @@ export const adminListWorkshops = query({
   },
 });
 
+export const instructorListWorkshops = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    const instructor = await ctx.db.query("instructors").withIndex("by_user", (q) => q.eq("userId", user._id)).first();
+    if (!instructor) return [];
+    return await ctx.db.query("workshops").collect();
+  },
+});
+
 // ── Instructors Admin ───────────────────────────────────────────────────────
 export const adminListInstructors = query({
   args: {},
@@ -672,7 +683,8 @@ export const adminCreateWorkshop = mutation({
     topic: v.string(), date: v.string(), time: v.string(),
     capacity: v.number(), price: v.number(), description: v.string(),
     agenda: v.optional(v.array(v.string())), free: v.boolean(), published: v.boolean(),
-    expertTalk: v.optional(v.boolean()), coverImage: v.optional(v.string()) },
+    expertTalk: v.optional(v.boolean()), coverImage: v.optional(v.string()),
+    platformUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const slug = args.slug || args.title.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
@@ -712,7 +724,8 @@ export const adminUpdateWorkshop = mutation({
     date: v.optional(v.string()), time: v.optional(v.string()),
     capacity: v.optional(v.number()), price: v.optional(v.number()),
     description: v.optional(v.string()), agenda: v.optional(v.array(v.string())),
-    free: v.optional(v.boolean()), published: v.optional(v.boolean()), coverImage: v.optional(v.string()) },
+    free: v.optional(v.boolean()), published: v.optional(v.boolean()), coverImage: v.optional(v.string()),
+    platformUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const { id, ...patch } = args;
@@ -726,6 +739,16 @@ export const adminDeleteWorkshop = mutation({
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     await ctx.db.delete(args.id);
+    return { ok: true };
+  },
+});
+
+export const instructorUpdateWorkshopUrl = mutation({
+  args: { id: v.id("workshops"), platformUrl: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("دسترسی غیرمجاز.");
+    await ctx.db.patch(args.id, { platformUrl: args.platformUrl || undefined });
     return { ok: true };
   },
 });

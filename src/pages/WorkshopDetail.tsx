@@ -11,7 +11,7 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { faNum, formatDate, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useQuery } from "convex/react";
-import { CalendarDays, CheckCircle2, ChevronLeft, Clock, Users } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, Clock, ExternalLink, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
@@ -151,6 +151,17 @@ export default function WorkshopDetail() {
                 >
                   {full ? "ظرفیت تکمیل شده" : workshop.free || workshop.price === 0 ? "ثبت‌نام رایگان" : "ثبت‌نام در کارگاه"}
                 </Button>
+                {workshop.platformUrl && (
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="mt-3 w-full gap-2 rounded-full"
+                    onClick={() => window.open(workshop.platformUrl!, "_blank", "noopener,noreferrer")}
+                  >
+                    <ExternalLink className="size-4" />
+                    برگزاری در پلتفرم خارجی ↗
+                  </Button>
+                )}
                 <ul className="mt-5 space-y-2 text-[13px] text-muted-foreground">
                   {["لینک حضور پس از ثبت‌نام ارسال می‌شود", "ضبط جلسه برای ثبت‌نامی‌ها", "گواهی شرکت"].map((item) => (
                     <li key={item} className="flex items-center gap-2">

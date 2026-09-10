@@ -1,4 +1,5 @@
 import { api } from "@/convex/_generated/api";
+import { WorkshopsView } from "@/components/site/WorkshopsView";
 import { CategoryField } from "@/components/site/CategoryField";
 import { ClassTimer } from "@/components/site/ClassTimer";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
@@ -38,6 +39,7 @@ import {
   CreditCard,
   Dna,
   DoorOpen,
+  ExternalLink,
   Eraser,
   FileText,
   GraduationCap,
@@ -117,6 +119,7 @@ type Tab =
   | "comm-qa"
   | "comm-messages"
   | "comm-announcements"
+  | "workshops-list"
   | "academy-path"
   | "analytics"
   | "reports"
@@ -176,6 +179,13 @@ const SIDEBAR: SidebarSection[] = [
       { id: "comm-qa", label: "پرسش و پاسخ", icon: HelpCircle },
       { id: "comm-messages", label: "پیام‌ها", icon: MessageSquare },
       { id: "comm-announcements", label: "اطلاعیه‌ها", icon: BellRing },
+    ],
+  },
+  {
+    label: "کارگاه‌ها",
+    icon: Users,
+    children: [
+      { id: "workshops-list", label: "کارگاه‌های من", icon: Users },
     ],
   },
   {
@@ -440,6 +450,7 @@ export default function InstructorPanel() {
           {tab === "comm-qa" && <QAView rooms={rooms} />}
           {tab === "comm-messages" && <MessagesView />}
           {tab === "comm-announcements" && <AnnouncementsView instructorName={user?.name ?? null} />}
+          {tab === "workshops-list" && <WorkshopsView />}
           {tab === "academy-path" && <AcademyPathView />}
 
           {/* تحلیل */}
@@ -4353,6 +4364,15 @@ function AcademyPathView() {
                           {item.date ? new Date(item.date).toLocaleDateString("fa-IR") : "بدون تاریخ"}
                           {item.time ? ` — ${item.time}` : ""}
                         </p>
+                        {item.platformUrl && (
+                          <button
+                            onClick={() => window.open(item.platformUrl!, "_blank", "noopener,noreferrer")}
+                            className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-cyan-300 hover:text-cyan-200"
+                          >
+                            <ExternalLink className="size-2.5" />
+                            برگزاری در پلتفرم خارجی ↗
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

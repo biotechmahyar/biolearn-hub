@@ -303,6 +303,7 @@ const schema = defineSchema(
       expertTalk: v.boolean(),
       published: v.boolean(),
       coverImage: v.optional(v.string()),
+      platformUrl: v.optional(v.string()), // external platform link
     }).index("by_slug", ["slug"]),
 
     articles: defineTable({
