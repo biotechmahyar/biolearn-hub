@@ -565,7 +565,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
           </p>
 
           <a
-            href={import.meta.env.VITE_EMERGENCY_URL || "/emergency"}
+            href="https://nibrc.ir/emergency"
             target="_blank"
             rel="noopener noreferrer"
             className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/10"
