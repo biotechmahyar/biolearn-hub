@@ -234,7 +234,6 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
 function SettingsTab() {
   const getSetting = useQuery(api.siteSettings.getSetting, { key: "emergency.url" });
   const setSettingM = useMutation(api.siteSettings.setSetting);
-  const logAction = useMutation(api.superAdmin.addAuditLog);
   const [url, setUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -252,13 +251,16 @@ function SettingsTab() {
       await setSettingM({ key: "emergency.url", value: JSON.stringify(url.trim()), description: "آدرس نسخه اضطراری سایت" });
       setSaved(true);
       toast.success("ذخیره شد");
-      logAction({ action: "بروزرسانی لینک اضطراری", details: url.trim() || "خالی" });
     } catch (e: any) {
       toast.error(e?.message ?? "خطا در ذخیره");
     } finally {
       setSaving(false);
     }
   };
+
+  if (getSetting === undefined) {
+    return <Card><CardContent className="flex justify-center py-8"><Loader2 className="size-5 animate-spin" /></CardContent></Card>;
+  }
 
   return (
     <Card>
