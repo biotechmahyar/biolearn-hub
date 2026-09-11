@@ -2185,6 +2185,7 @@ function CertificateTab() {
   const inProgressCourses = myCourses?.filter((e: any) => !e.completed) ?? [];
 
   const certFor = (courseId: string) => (myCerts ?? []).find((c: any) => c.courseId === courseId);
+  const certByCourseTitle = (title: string) => (myCerts ?? []).find((c: any) => c.courseTitle === title);
 
   const handleRequest = async (courseId: string) => {
     setBusyId(courseId);
@@ -2208,14 +2209,61 @@ function CertificateTab() {
     );
   }
 
+  // Certificates issued by admin (no matching enrollment)
+  const adminIssuedCerts = (myCerts ?? []).filter((c: any) => {
+    if (!c.courseId) return false;
+    return !myCourses?.some((e: any) => e.courseId === c.courseId);
+  });
+
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold tracking-tight">گواهی دوره‌ها</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          گواهی تکمیل دوره‌هایی که با موفقیت به پایان رسانده‌اید.
+          گواهی‌های صادر شده — شامل گواهی‌های دستی مدیر و درخواست‌های شما.
         </p>
       </div>
+
+      {adminIssuedCerts.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-bold text-indigo-500">گواهی‌های صادره توسط مدیر</h3>
+          {adminIssuedCerts.map((cert: any) => (
+            <Card key={cert._id} className="border-indigo-500/20 bg-indigo-500/5">
+              <CardContent className="flex flex-col gap-3 py-4">
+                <div>
+                  <p className="font-bold">{cert.courseTitle ?? "—"}</p>
+                  <p className="text-xs text-muted-foreground">صادره توسط مدیر</p>
+                </div>
+                {cert.status === "approved" && (cert.fileUrl || cert.certificateUrl || cert.certificateStorageId) ? (
+                  <a
+                    href={cert.fileUrl ?? cert.certificateUrl ?? "#"}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex h-8 items-center gap-1 rounded-full bg-emerald-500 px-4 text-xs font-bold text-white hover:bg-emerald-600"
+                  >
+                    <Download className="size-3.5" />
+                    دانلود گواهی
+                  </a>
+                ) : cert.status === "approved" ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20">
+                    <Award className="ml-1 size-3" />
+                    تایید شده — در انتظار فایل
+                  </Badge>
+                ) : cert.status === "requested" ? (
+                  <Badge variant="outline" className="text-xs text-amber-500">
+                    <Hourglass className="ml-1 size-3" />
+                    در انتظار بررسی مدیر
+                  </Badge>
+                ) : cert.status === "rejected" ? (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs text-red-500">رد شده{cert.note ? `: ${cert.note}` : ""}</Badge>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {completedCourses.length > 0 && (
         <div className="space-y-3">

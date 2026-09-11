@@ -130,7 +130,7 @@ export const approveOfflinePayment = mutation({
     if (payment.status !== "pending")
       throw new Error("این پرداخت قبلاً بررسی شده است.");
 
-    // Check if already enrolled
+    // Enroll the student
     const existing = await ctx.db
       .query("enrollments")
       .withIndex("by_user", (q) => q.eq("userId", payment.userId))
@@ -225,5 +225,38 @@ export const myOfflinePayments = query({
       });
     }
     return result.sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+// Student: list my orders with invoice numbers
+export const myOrders = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) return [];
+    const orders = await ctx.db
+      .query("orders")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .collect();
+    const result = [];
+    for (const o of orders) {
+      const items = [];
+      for (const item of o.items) {
+        const refId = item.refId as any;
+        let ref: any = null;
+        // Cast type to string to bypass literal union type checking
+        const type = (item.type as any) as string;
+        if (type === "course") ref = await ctx.db.get(refId) as any;
+        else if (type === "workshop") ref = await ctx.db.get(refId) as any;
+        else if (type === "exam") ref = await ctx.db.get(refId) as any;
+        else if (type === "path") ref = await ctx.db.get(refId) as any;
+        else if (type === "product") ref = await ctx.db.get(refId) as any;
+        else if (type === "ai_subscription") ref = await ctx.db.get(refId) as any;
+        items.push({ ...item, refTitle: ref?.title ?? item.title });
+      }
+      result.push({ ...o, items });
+    }
+    return result;
   },
 });
