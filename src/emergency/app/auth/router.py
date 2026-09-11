@@ -1,4 +1,4 @@
-"""Auth routes — login / register / logout."""
+"""Auth routes — login / register / logout. All paths relative to /emergency."""
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -17,7 +17,7 @@ templates = Jinja2Templates(directory="app/templates")
 def login_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if user:
-        return RedirectResponse("/dashboard", status_code=302)
+        return RedirectResponse("/emergency/dashboard", status_code=302)
     return templates.TemplateResponse("public/login.html", {"request": request, "error": None})
 
 
@@ -37,13 +37,13 @@ def login_submit(
             status_code=401,
         )
     token = create_session_token(user.id)
-    # Admin login: if next param is /admin and user is admin, go there
-    if next and next.startswith("/") and not next.startswith("//"):
+    # Admin login: if next param is /emergency/admin and user is admin, go there
+    if next and next.startswith("/emergency/") and not next.startswith("//"):
         redirect_url = next
     elif user.role in ("admin", "superadmin"):
-        redirect_url = "/admin"
+        redirect_url = "/emergency/admin"
     else:
-        redirect_url = "/dashboard"
+        redirect_url = "/emergency/dashboard"
     response = RedirectResponse(redirect_url, status_code=302)
     response.set_cookie(COOKIE_NAME, token, max_age=60 * 60 * 24 * 7, httponly=True, samesite="lax")
     return response
@@ -53,7 +53,7 @@ def login_submit(
 def register_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if user:
-        return RedirectResponse("/dashboard", status_code=302)
+        return RedirectResponse("/emergency/dashboard", status_code=302)
     return templates.TemplateResponse("public/register.html", {"request": request, "error": None})
 
 
@@ -82,13 +82,13 @@ def register_submit(
     db.commit()
     db.refresh(user)
     token = create_session_token(user.id)
-    response = RedirectResponse("/dashboard", status_code=302)
+    response = RedirectResponse("/emergency/dashboard", status_code=302)
     response.set_cookie(COOKIE_NAME, token, max_age=60 * 60 * 24 * 7, httponly=True, samesite="lax")
     return response
 
 
 @router.get("/logout")
 def logout():
-    response = RedirectResponse("/auth/login", status_code=302)
+    response = RedirectResponse("/emergency/auth/login", status_code=302)
     response.delete_cookie(COOKIE_NAME)
     return response

@@ -5,9 +5,9 @@
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
     <h1 style="font-size:1.4rem;font-weight:800">👋 سلام {{ user.name }}</h1>
     <div style="display:flex;gap:0.5rem">
-      <a href="/dashboard/profile" class="btn btn-secondary btn-sm">پروفایل</a>
-      <a href="/dashboard/orders" class="btn btn-secondary btn-sm">سفارشات</a>
-      <a href="/auth/logout" class="btn btn-secondary btn-sm">خروج</a>
+      <a href="/emergency/dashboard/profile" class="btn btn-secondary btn-sm">پروفایل</a>
+      <a href="/emergency/dashboard/orders" class="btn btn-secondary btn-sm">سفارشات</a>
+      <a href="/emergency/auth/logout" class="btn btn-secondary btn-sm">خروج</a>
     </div>
   </div>
 
@@ -15,7 +15,7 @@
   {% if enrollments %}
   <div class="card-grid">
     {% for e in enrollments %}
-    <a href="/dashboard/courses/{{ e.course.id }}" class="card" style="text-decoration:none;color:inherit">
+    <a href="/emergency/dashboard/courses/{{ e.course.id }}" class="card" style="text-decoration:none;color:inherit">
       <div class="card-title">{{ e.course.title }}</div>
       <div class="progress-bar" style="margin:0.75rem 0 0.5rem">
         <div class="progress-fill" style="width:{{ e.percent }}%"></div>
@@ -31,7 +31,7 @@
   {% else %}
   <div class="card" style="text-align:center;padding:3rem">
     <p style="color:var(--text-muted);margin-bottom:1rem">هنوز در دوره‌ای ثبت‌نام نکرده‌اید.</p>
-    <a href="/courses" class="btn btn-primary">مشاهده دوره‌ها</a>
+    <a href="/emergency/courses" class="btn btn-primary">مشاهده دوره‌ها</a>
   </div>
   {% endif %}
 </div>

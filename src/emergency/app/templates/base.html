@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}NIBRC Emergency{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/emergency/static/css/main.css">
 </head>
 <body>
   <nav class="navbar">
     <div class="container navbar-inner">
-      <a href="/" class="navbar-brand">
+      <a href="/emergency/" class="navbar-brand">
         <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
           <rect width="64" height="64" rx="16" fill="#0b1120"/>
           <g fill="none" stroke="#14b8a6" stroke-width="3.4" stroke-linecap="round">
@@ -24,18 +24,18 @@
         <span class="emergency-badge">⚡ اضطراری</span>
       </a>
       <ul class="navbar-links">
-        <li><a href="/">خانه</a></li>
-        <li><a href="/courses">دوره‌ها</a></li>
-        <li><a href="/articles">مقاله‌ها</a></li>
-        <li><a href="/dictionary">واژه‌نامه</a></li>
-        <li><a href="/workshops">کارگاه‌ها</a></li>
-        <li><a href="/products">محصولات</a></li>
+        <li><a href="/emergency/">خانه</a></li>
+        <li><a href="/emergency/courses">دوره‌ها</a></li>
+        <li><a href="/emergency/articles">مقاله‌ها</a></li>
+        <li><a href="/emergency/dictionary">واژه‌نامه</a></li>
+        <li><a href="/emergency/workshops">کارگاه‌ها</a></li>
+        <li><a href="/emergency/products">محصولات</a></li>
         {% if user %}
-          <li><a href="/dashboard">داشبورد</a></li>
-          <li><a href="/auth/logout">خروج</a></li>
+          <li><a href="/emergency/dashboard">داشبورد</a></li>
+          <li><a href="/emergency/auth/logout">خروج</a></li>
         {% else %}
-          <li><a href="/auth/login">ورود</a></li>
-          <li><a href="/auth/register">ثبت‌نام</a></li>
+          <li><a href="/emergency/auth/login">ورود</a></li>
+          <li><a href="/emergency/auth/register">ثبت‌نام</a></li>
         {% endif %}
       </ul>
       <button class="navbar-menu-btn" onclick="document.querySelector('.navbar-links').classList.toggle('show')">☰</button>

@@ -2,11 +2,11 @@
 {% block title %}پروفایل — داشبورد{% endblock %}
 {% block content %}
 <div class="container-sm" style="padding-top:2rem">
-  <a href="/dashboard" style="font-size:0.85rem">← بازگشت به داشبورد</a>
+  <a href="/emergency/dashboard" style="font-size:0.85rem">← بازگشت به داشبورد</a>
   <div class="card" style="margin-top:1rem">
     <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:1rem">👤 پروفایل من</h2>
     {% if saved %}<div class="alert alert-success">تغییرات ذخیره شد.</div>{% endif %}
-    <form method="post" action="/dashboard/profile">
+    <form method="post" action="/emergency/dashboard/profile">
       <div class="form-group">
         <label>نام</label>
         <input type="text" name="name" class="form-input" value="{{ user.name }}">

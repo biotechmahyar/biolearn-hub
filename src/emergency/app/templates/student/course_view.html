@@ -2,7 +2,7 @@
 {% block title %}{{ course.title }} — داشبورد{% endblock %}
 {% block content %}
 <div class="container" style="padding-top:2rem">
-  <a href="/dashboard" style="font-size:0.85rem">← بازگشت به داشبورد</a>
+  <a href="/emergency/dashboard" style="font-size:0.85rem">← بازگشت به داشبورد</a>
 
   <div class="card" style="margin-top:1rem;margin-bottom:1.5rem">
     <h1 style="font-size:1.3rem;font-weight:800">{{ course.title }}</h1>
@@ -33,7 +33,7 @@
         </div>
       </div>
       {% if lesson.id not in completed_ids %}
-      <form method="post" action="/dashboard/courses/{{ course.id }}/complete/{{ lesson.id }}">
+      <form method="post" action="/emergency/dashboard/courses/{{ course.id }}/complete/{{ lesson.id }}">
         <button type="submit" class="btn btn-primary btn-sm">✓ تکمیل</button>
       </form>
       {% endif %}

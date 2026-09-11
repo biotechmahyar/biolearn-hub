@@ -2,7 +2,7 @@
 {% block title %}{{ course.title }} — NIBRC Emergency{% endblock %}
 {% block content %}
 <div class="container" style="padding-top:2rem">
-  <a href="/courses" style="font-size:0.85rem">← بازگشت به دوره‌ها</a>
+  <a href="/emergency/courses" style="font-size:0.85rem">← بازگشت به دوره‌ها</a>
   <div class="card" style="margin-top:1rem">
     <h1 style="font-size:1.5rem;font-weight:800;margin-bottom:0.5rem">{{ course.title }}</h1>
     {% if course.summary %}
@@ -24,9 +24,9 @@
     </div>
     {% endif %}
     {% if user %}
-    <a href="/dashboard" class="btn btn-primary" style="margin-top:1.5rem">مشاهده در داشبورد</a>
+    <a href="/emergency/dashboard" class="btn btn-primary" style="margin-top:1.5rem">مشاهده در داشبورد</a>
     {% else %}
-    <a href="/auth/register" class="btn btn-primary" style="margin-top:1.5rem">ثبت‌نام در این دوره</a>
+    <a href="/emergency/auth/register" class="btn btn-primary" style="margin-top:1.5rem">ثبت‌نام در این دوره</a>
     {% endif %}
   </div>
 </div>

@@ -1,4 +1,4 @@
-"""Admin dashboard — requires admin/superadmin role."""
+"""Admin dashboard — requires admin/superadmin role. All paths relative to /emergency."""
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -34,7 +34,7 @@ def _require_admin(request: Request, db: Session):
 def admin_login_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if user and user.role in ("admin", "superadmin"):
-        return RedirectResponse("/admin", status_code=302)
+        return RedirectResponse("/emergency/admin", status_code=302)
     return templates.TemplateResponse("admin/login.html", {"request": request, "error": None})
 
 
@@ -42,7 +42,7 @@ def admin_login_page(request: Request, db: Session = Depends(get_db)):
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     stats = {
         "users": db.query(User).count(),
         "courses": db.query(Course).count(),
@@ -60,7 +60,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
 def admin_users(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     users = db.query(User).order_by(User.created_at.desc()).all()
     return templates.TemplateResponse("admin/users.html", _ctx(request, user, users=users))
 
@@ -69,7 +69,7 @@ def admin_users(request: Request, db: Session = Depends(get_db)):
 def admin_courses(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     courses = db.query(Course).order_by(Course.created_at.desc()).all()
     return templates.TemplateResponse("admin/courses.html", _ctx(request, user, courses=courses))
 
@@ -78,7 +78,7 @@ def admin_courses(request: Request, db: Session = Depends(get_db)):
 def admin_articles(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     articles = db.query(Article).order_by(Article.created_at.desc()).all()
     return templates.TemplateResponse("admin/articles.html", _ctx(request, user, articles=articles))
 
@@ -87,7 +87,7 @@ def admin_articles(request: Request, db: Session = Depends(get_db)):
 def admin_dictionary(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     terms = db.query(DictionaryTerm).order_by(DictionaryTerm.term).all()
     return templates.TemplateResponse("admin/dictionary.html", _ctx(request, user, terms=terms))
 
@@ -96,7 +96,7 @@ def admin_dictionary(request: Request, db: Session = Depends(get_db)):
 def admin_workshops(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     workshops = db.query(Workshop).order_by(Workshop.created_at.desc()).all()
     return templates.TemplateResponse("admin/workshops.html", _ctx(request, user, workshops=workshops))
 
@@ -105,7 +105,7 @@ def admin_workshops(request: Request, db: Session = Depends(get_db)):
 def admin_products(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     products = db.query(Product).order_by(Product.created_at.desc()).all()
     return templates.TemplateResponse("admin/products.html", _ctx(request, user, products=products))
 
@@ -114,6 +114,6 @@ def admin_products(request: Request, db: Session = Depends(get_db)):
 def admin_orders(request: Request, db: Session = Depends(get_db)):
     user = _require_admin(request, db)
     if not user:
-        return RedirectResponse("/admin/login", status_code=302)
+        return RedirectResponse("/emergency/admin/login", status_code=302)
     orders = db.query(Order).order_by(Order.createdAt.desc()).all()
     return templates.TemplateResponse("admin/orders.html", _ctx(request, user, orders=orders))

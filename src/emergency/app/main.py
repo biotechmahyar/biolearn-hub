@@ -1,5 +1,9 @@
-"""Emergency NIBRC — FastAPI application (zero external frontend deps)."""
-from fastapi import FastAPI
+"""Emergency NIBRC — FastAPI application (zero external frontend deps).
+
+Runs under /emergency prefix so it can be served at nibrc.ir/emergency
+behind the main Convex/React site.
+"""
+from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,14 +26,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files (CSS, JS, images) — all local, no CDN
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# ── /emergency prefix router ────────────────────────────────────────────────
+emergency = APIRouter(prefix="/emergency")
 
-# Routers
-app.include_router(auth_router)
-app.include_router(public_router)
-app.include_router(student_router)
-app.include_router(admin_router)
+# Static files under /emergency/static
+emergency.mount("/static", StaticFiles(directory="app/static"), name="static")
+
+# Include all sub-routers under /emergency
+emergency.include_router(auth_router)      # /emergency/auth/...
+emergency.include_router(public_router)    # /emergency/...
+emergency.include_router(student_router)   # /emergency/dashboard/...
+emergency.include_router(admin_router)     # /emergency/admin/...
+
+app.include_router(emergency)
 
 
 @app.on_event("startup")

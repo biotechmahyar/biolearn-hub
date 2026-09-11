@@ -4,10 +4,8 @@
 <div class="auth-page">
   <div class="auth-card">
     <h2>🔐 ورود به حساب</h2>
-    {% if error %}
-    <div class="alert alert-error">{{ error }}</div>
-    {% endif %}
-    <form method="post" action="/auth/login">
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    <form method="post" action="/emergency/auth/login">
       <div class="form-group">
         <label>ایمیل</label>
         <input type="email" name="email" class="form-input" placeholder="example@email.com" required>
@@ -19,9 +17,8 @@
       <button type="submit" class="btn btn-primary btn-block btn-lg">ورود</button>
     </form>
     <div class="links">
-      حساب ندارید؟ <a href="/auth/register">ثبت‌نام کنید</a>
+      حساب ندارید؟ <a href="/emergency/auth/register">ثبت‌نام کنید</a>
     </div>
-    <a href="/" class="emergency-link">⚡ نسخه اضطراری — بدون نیاز به اینترنت بین‌الملل</a>
   </div>
 </div>
 {% endblock %}

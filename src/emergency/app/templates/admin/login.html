@@ -5,8 +5,8 @@
   <div class="auth-card">
     <h2>🔑 ورود مدیریت</h2>
     {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
-    <form method="post" action="/auth/login">
-      <input type="hidden" name="next" value="/admin">
+    <form method="post" action="/emergency/auth/login">
+      <input type="hidden" name="next" value="/emergency/admin">
       <div class="form-group">
         <label>ایمیل مدیر</label>
         <input type="email" name="email" class="form-input" required>

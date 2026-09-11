@@ -2,9 +2,7 @@
 {% block title %}دوره‌ها — NIBRC Emergency{% endblock %}
 {% block content %}
 <div class="container" style="padding-top:2rem">
-  <div class="section-header">
-    <h2>📚 دوره‌های آموزشی</h2>
-  </div>
+  <div class="section-header"><h2>📚 دوره‌های آموزشی</h2></div>
   {% if categories %}
   <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.5rem">
     {% for cat in categories %}
@@ -15,7 +13,7 @@
   {% if courses %}
   <div class="card-grid">
     {% for c in courses %}
-    <a href="/courses/{{ c.slug }}" class="card" style="text-decoration:none;color:inherit">
+    <a href="/emergency/courses/{{ c.slug }}" class="card" style="text-decoration:none;color:inherit">
       <div class="card-title">{{ c.title }}</div>
       <div class="card-desc">{{ c.summary[:150] }}{% if c.summary|length > 150 %}...{% endif %}</div>
       <div class="card-meta">

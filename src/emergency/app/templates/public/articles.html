@@ -6,7 +6,7 @@
   {% if articles %}
   <div class="card-grid">
     {% for a in articles %}
-    <a href="/articles/{{ a.slug }}" class="card" style="text-decoration:none;color:inherit">
+    <a href="/emergency/articles/{{ a.slug }}" class="card" style="text-decoration:none;color:inherit">
       <div class="card-title">{{ a.title }}</div>
       <div class="card-desc">{{ a.excerpt[:150] }}{% if a.excerpt|length > 150 %}...{% endif %}</div>
       <div class="card-meta">

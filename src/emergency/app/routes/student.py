@@ -1,4 +1,4 @@
-"""Student dashboard — requires login."""
+"""Student dashboard — requires login. All paths relative to /emergency."""
 import json
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -11,7 +11,6 @@ from app.models.user import User
 from app.models.enrollment import Enrollment, LessonProgress
 from app.models.course import Course, CourseSection, CourseLesson
 from app.models.order import Order
-from app.auth.security import hash_password
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 templates = Jinja2Templates(directory="app/templates")
@@ -25,9 +24,8 @@ def _ctx(request: Request, user: User, **extra):
 def dashboard_home(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
-        return RedirectResponse("/auth/login", status_code=302)
+        return RedirectResponse("/emergency/auth/login", status_code=302)
     enrollments = db.query(Enrollment).filter(Enrollment.userId == user.id).all()
-    # Enrich with course data
     enriched = []
     for e in enrollments:
         course = db.query(Course).filter(Course.id == e.courseId).first()
@@ -43,10 +41,10 @@ def dashboard_home(request: Request, db: Session = Depends(get_db)):
 def student_course_detail(course_id: str, request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
-        return RedirectResponse("/auth/login", status_code=302)
+        return RedirectResponse("/emergency/auth/login", status_code=302)
     enrollment = db.query(Enrollment).filter(Enrollment.userId == user.id, Enrollment.courseId == course_id).first()
     if not enrollment:
-        return RedirectResponse("/dashboard", status_code=302)
+        return RedirectResponse("/emergency/dashboard", status_code=302)
     course = db.query(Course).filter(Course.id == course_id).first()
     sections = db.query(CourseSection).filter(CourseSection.courseId == course_id).order_by(CourseSection.order).all()
     completed_ids = set(json.loads(enrollment.completedLessons or "[]"))
@@ -67,10 +65,10 @@ def student_course_detail(course_id: str, request: Request, db: Session = Depend
 def mark_lesson_complete(course_id: str, lesson_id: str, request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
-        return RedirectResponse("/auth/login", status_code=302)
+        return RedirectResponse("/emergency/auth/login", status_code=302)
     enrollment = db.query(Enrollment).filter(Enrollment.userId == user.id, Enrollment.courseId == course_id).first()
     if not enrollment:
-        return RedirectResponse("/dashboard", status_code=302)
+        return RedirectResponse("/emergency/dashboard", status_code=302)
     completed = json.loads(enrollment.completedLessons or "[]")
     if lesson_id not in completed:
         completed.append(lesson_id)
@@ -79,7 +77,6 @@ def mark_lesson_complete(course_id: str, lesson_id: str, request: Request, db: S
         enrollment.lastActiveAt = datetime.now(timezone.utc)
         enrollment.lastLessonId = lesson_id
         db.commit()
-    # Also update lesson_progress
     lp = db.query(LessonProgress).filter(
         LessonProgress.userId == user.id,
         LessonProgress.courseId == course_id,
@@ -92,14 +89,14 @@ def mark_lesson_complete(course_id: str, lesson_id: str, request: Request, db: S
     else:
         lp.completed = True
     db.commit()
-    return RedirectResponse(f"/dashboard/courses/{course_id}", status_code=302)
+    return RedirectResponse(f"/emergency/dashboard/courses/{course_id}", status_code=302)
 
 
 @router.get("/orders", response_class=HTMLResponse)
 def student_orders(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
-        return RedirectResponse("/auth/login", status_code=302)
+        return RedirectResponse("/emergency/auth/login", status_code=302)
     orders = db.query(Order).filter(Order.userId == user.id).order_by(Order.createdAt.desc()).all()
     return templates.TemplateResponse("student/orders.html", _ctx(request, user, orders=orders))
 
@@ -108,7 +105,7 @@ def student_orders(request: Request, db: Session = Depends(get_db)):
 def student_profile(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
     if not user:
-        return RedirectResponse("/auth/login", status_code=302)
+        return RedirectResponse("/emergency/auth/login", status_code=302)
     return templates.TemplateResponse("student/profile.html", _ctx(request, user, saved=False))
 
 
@@ -122,7 +119,7 @@ def update_profile(
 ):
     user = get_current_user(request, db)
     if not user:
-        return RedirectResponse("/auth/login", status_code=302)
+        return RedirectResponse("/emergency/auth/login", status_code=302)
     user.name = name or user.name
     user.phone = phone or user.phone
     user.bio = bio
