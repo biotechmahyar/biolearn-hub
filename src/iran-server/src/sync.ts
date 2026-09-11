@@ -6,6 +6,7 @@ import {
 import { eq } from "drizzle-orm";
 
 const MAIN_SITE_URL = process.env.MAIN_SITE_URL || "https://nibrc.ir";
+const SYNC_API_KEY = process.env.SYNC_API_KEY || "";
 
 interface SyncResult {
   status: string;
@@ -13,16 +14,35 @@ interface SyncResult {
   synced?: Record<string, number>;
 }
 
-// Helper: fetch JSON from main site
-async function fetchJson<T>(path: string): Promise<T | null> {
+// Helper: fetch JSON from Convex /sync/data endpoint
+async function fetchSyncData(): Promise<Record<string, any> | null> {
+  if (!SYNC_API_KEY) {
+    console.error("[SYNC] SYNC_API_KEY is not set. Cannot sync.");
+    return null;
+  }
+
   try {
-    const res = await fetch(`${MAIN_SITE_URL}${path}`, {
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(15000),
+    const res = await fetch(`${MAIN_SITE_URL}/sync/data`, {
+      headers: {
+        "Accept": "application/json",
+        "X-Sync-Key": SYNC_API_KEY,
+      },
+      signal: AbortSignal.timeout(30000),
     });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
+
+    if (res.status === 401) {
+      console.error("[SYNC] Unauthorized — SYNC_API_KEY mismatch with Convex deployment.");
+      return null;
+    }
+
+    if (!res.ok) {
+      console.error(`[SYNC] Convex returned HTTP ${res.status}: ${res.statusText}`);
+      return null;
+    }
+
+    return (await res.json()) as Record<string, any>;
+  } catch (error) {
+    console.error(`[SYNC] Failed to reach Convex: ${(error as Error).message}`);
     return null;
   }
 }
@@ -44,17 +64,27 @@ async function upsert(table: any, id: string, data: Record<string, any>) {
   }
 }
 
-// Main sync function
+// Main sync function — Pull from Convex /sync/data → PostgreSQL
 export async function syncFromMain(): Promise<SyncResult> {
   const synced: Record<string, number> = {};
 
+  const data = await fetchSyncData();
+  if (!data) {
+    return {
+      status: "error",
+      message: "Failed to fetch data from Convex. Check MAIN_SITE_URL and SYNC_API_KEY.",
+      synced,
+    };
+  }
+
   try {
     // 1. Sync categories
-    const catsData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/categories");
-    if (catsData?.ok && catsData.data) {
+    if (Array.isArray(data.categories)) {
       let count = 0;
-      for (const cat of catsData.data) {
-        await upsert(categories, cat._id || cat.id, {
+      for (const cat of data.categories) {
+        const id = cat._id || cat.id;
+        if (!id) continue;
+        await upsert(categories, id, {
           name: cat.name,
           slug: cat.slug,
           description: cat.description,
@@ -68,14 +98,16 @@ export async function syncFromMain(): Promise<SyncResult> {
         count++;
       }
       synced.categories = count;
+      console.log(`[SYNC] categories: ${count} records`);
     }
 
     // 2. Sync instructors
-    const instData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/instructors");
-    if (instData?.ok && instData.data) {
+    if (Array.isArray(data.instructors)) {
       let count = 0;
-      for (const inst of instData.data) {
-        await upsert(instructors, inst._id || inst.id, {
+      for (const inst of data.instructors) {
+        const id = inst._id || inst.id;
+        if (!id) continue;
+        await upsert(instructors, id, {
           userId: inst.userId,
           name: inst.name,
           slug: inst.slug,
@@ -89,14 +121,16 @@ export async function syncFromMain(): Promise<SyncResult> {
         count++;
       }
       synced.instructors = count;
+      console.log(`[SYNC] instructors: ${count} records`);
     }
 
     // 3. Sync courses
-    const coursesData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/courses");
-    if (coursesData?.ok && coursesData.data) {
+    if (Array.isArray(data.courses)) {
       let count = 0;
-      for (const course of coursesData.data) {
-        await upsert(courses, course._id || course.id, {
+      for (const course of data.courses) {
+        const id = course._id || course.id;
+        if (!id) continue;
+        await upsert(courses, id, {
           title: course.title,
           slug: course.slug,
           description: course.description,
@@ -127,14 +161,16 @@ export async function syncFromMain(): Promise<SyncResult> {
         count++;
       }
       synced.courses = count;
+      console.log(`[SYNC] courses: ${count} records`);
     }
 
     // 4. Sync articles
-    const articlesData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/articles");
-    if (articlesData?.ok && articlesData.data) {
+    if (Array.isArray(data.articles)) {
       let count = 0;
-      for (const art of articlesData.data) {
-        await upsert(articles, art._id || art.id, {
+      for (const art of data.articles) {
+        const id = art._id || art.id;
+        if (!id) continue;
+        await upsert(articles, id, {
           title: art.title,
           slug: art.slug,
           excerpt: art.excerpt,
@@ -155,14 +191,16 @@ export async function syncFromMain(): Promise<SyncResult> {
         count++;
       }
       synced.articles = count;
+      console.log(`[SYNC] articles: ${count} records`);
     }
 
-    // 5. Sync dictionary
-    const dictData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/dictionary");
-    if (dictData?.ok && dictData.data) {
+    // 5. Sync dictionary terms
+    if (Array.isArray(data.dictionary_terms)) {
       let count = 0;
-      for (const term of dictData.data) {
-        await upsert(dictionaryTerms, term._id || term.id, {
+      for (const term of data.dictionary_terms) {
+        const id = term._id || term.id;
+        if (!id) continue;
+        await upsert(dictionaryTerms, id, {
           term: term.term,
           fullName: term.fullName,
           gramStatus: term.gramStatus,
@@ -180,39 +218,16 @@ export async function syncFromMain(): Promise<SyncResult> {
         count++;
       }
       synced.dictionary = count;
+      console.log(`[SYNC] dictionary_terms: ${count} records`);
     }
 
-    // 6. Sync exams
-    const examsData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/exams");
-    if (examsData?.ok && examsData.data) {
+    // 6. Sync workshops
+    if (Array.isArray(data.workshops)) {
       let count = 0;
-      for (const exam of examsData.data) {
-        await upsert(exams, exam._id || exam.id, {
-          title: exam.title,
-          slug: exam.slug,
-          description: exam.description,
-          durationMinutes: exam.durationMinutes,
-          questionCount: exam.questionCount,
-          free: exam.free ?? false,
-          published: exam.published ?? false,
-          featured: exam.featured ?? false,
-          diagnostic: exam.diagnostic ?? false,
-          questionIds: exam.questionIds,
-          accent: exam.accent,
-          category: exam.category,
-          createdAt: exam._creationTime || exam.createdAt || now(),
-        });
-        count++;
-      }
-      synced.exams = count;
-    }
-
-    // 7. Sync workshops
-    const workshopsData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/workshops");
-    if (workshopsData?.ok && workshopsData.data) {
-      let count = 0;
-      for (const w of workshopsData.data) {
-        await upsert(workshops, w._id || w.id, {
+      for (const w of data.workshops) {
+        const id = w._id || w.id;
+        if (!id) continue;
+        await upsert(workshops, id, {
           title: w.title,
           slug: w.slug,
           description: w.description,
@@ -233,14 +248,16 @@ export async function syncFromMain(): Promise<SyncResult> {
         count++;
       }
       synced.workshops = count;
+      console.log(`[SYNC] workshops: ${count} records`);
     }
 
-    // 8. Sync products
-    const productsData = await fetchJson<{ ok: boolean; data: any[] }>("/api/content/products");
-    if (productsData?.ok && productsData.data) {
+    // 7. Sync products
+    if (Array.isArray(data.products)) {
       let count = 0;
-      for (const p of productsData.data) {
-        await upsert(products, p._id || p.id, {
+      for (const p of data.products) {
+        const id = p._id || p.id;
+        if (!id) continue;
+        await upsert(products, id, {
           title: p.title,
           slug: p.slug,
           description: p.description,
@@ -254,36 +271,31 @@ export async function syncFromMain(): Promise<SyncResult> {
         count++;
       }
       synced.products = count;
+      console.log(`[SYNC] products: ${count} records`);
     }
 
-    // 9. Sync announcements
-    const annData = await fetchJson<{ ok: boolean; data: any[] }>("/api/announcements");
-    if (annData?.ok && annData.data) {
-      let count = 0;
-      for (const ann of annData.data) {
-        await upsert(announcements, ann._id || ann.id, {
-          title: ann.title,
-          body: ann.body,
-          link: ann.link,
-          audience: ann.audience,
-          published: ann.published ?? false,
-          createdAt: ann._creationTime || ann.createdAt || now(),
-        });
-        count++;
-      }
-      synced.announcements = count;
+    // 8. Sync testimonials (from /sync/data but stored as storeProducts if applicable)
+    if (Array.isArray(data.testimonials)) {
+      // Testimonials don't map to a dedicated PG table yet — log only
+      console.log(`[SYNC] testimonials: ${data.testimonials.length} records (no PG table)`);
     }
+
+    // Note: exams and announcements are not included in /sync/data
+    // They are managed locally on the Iran Server
+    console.log("[SYNC] exams and announcements: managed locally, not synced from Convex");
 
     const totalSynced = Object.values(synced).reduce((a, b) => a + b, 0);
+    console.log(`[SYNC] Done. Total: ${totalSynced} records synced.`);
     return {
       status: "ok",
-      message: `Synced ${totalSynced} records from main site`,
+      message: `Synced ${totalSynced} records from Convex`,
       synced,
     };
   } catch (error) {
+    console.error(`[SYNC] Error during upsert:`, error);
     return {
       status: "error",
-      message: `Sync failed: ${(error as Error).message}`,
+      message: `Sync failed during upsert: ${(error as Error).message}`,
       synced,
     };
   }

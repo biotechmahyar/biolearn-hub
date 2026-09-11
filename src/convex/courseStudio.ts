@@ -446,6 +446,25 @@ export const markLessonComplete = mutation({
         completedAt: Date.now(),
       });
     }
+
+    // Also sync to enrollments.completedLessons so dashboard/admin progress updates
+    const enrollment = await ctx.db
+      .query("enrollments")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .filter((q) => q.eq(q.field("courseId"), args.courseId))
+      .first();
+    if (enrollment) {
+      let completed = [...(enrollment.completedLessons || [])];
+      if (!completed.includes(args.lessonId)) {
+        completed.push(args.lessonId);
+      }
+      await ctx.db.patch(enrollment._id, {
+        completedLessons: completed,
+        lastActiveAt: Date.now(),
+        lastLessonId: args.lessonId,
+      });
+    }
+
     return { ok: true };
   },
 });
