@@ -34,7 +34,7 @@ export async function requestClass(c: Context) {
   try {
     const { title, topic, description, proposedDate, courseId, immediate } = await c.req.json();
     const id = generateId();
-    await db.insert(classRooms)// @ts-ignore.values({
+    await db.insert(classRooms).values({
       id,
       title: title || "کلاس جدید",
       topic,

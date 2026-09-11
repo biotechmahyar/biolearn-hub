@@ -36,7 +36,7 @@ export async function createTicket(c: Context) {
   if (!user) return c.json({ ok: false, error: "Unauthorized" }, 401);
   const body = await c.req.json();
   const id = `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(supportTickets)// @ts-ignore.values({
+  await db.insert(supportTickets).values({
     id,
     userId: user.id,
     subject: body.subject,
@@ -73,7 +73,7 @@ export async function replyToTicket(c: Context) {
   const ticketId = c.req.param("id");
   const body = await c.req.json();
   const id = `reply_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(supportReplies)// @ts-ignore.values({
+  await db.insert(supportReplies).values({
     id,
     ticketId,
     userId: user.id,

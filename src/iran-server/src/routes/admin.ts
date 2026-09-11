@@ -142,7 +142,7 @@ export async function createCategory(c: Context) {
   const deny = requireAdmin(c); if (deny) return deny;
   const body = await c.req.json();
   const id = `cat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(categories)// @ts-ignore.values({ id, ...body, createdAt: Date.now() });
+  await db.insert(categories).values({ id, ...body, createdAt: Date.now() });
   return c.json({ ok: true, data: { id } });
 }
 
@@ -193,7 +193,7 @@ export async function createCoupon(c: Context) {
   const deny = requireAdmin(c); if (deny) return deny;
   const body = await c.req.json();
   const id = `coup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(coupons)// @ts-ignore.values({ id, ...body, createdAt: Date.now() });
+  await db.insert(coupons).values({ id, ...body, createdAt: Date.now() });
   return c.json({ ok: true, data: { id } });
 }
 

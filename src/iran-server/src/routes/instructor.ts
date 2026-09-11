@@ -38,7 +38,7 @@ export async function createClass(c: Context) {
   const user = c.get("user");
   const body = await c.req.json();
   const id = `class_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(classRooms)// @ts-ignore.values({
+  await db.insert(classRooms).values({
     id,
     title: body.title,
     topic: body.topic,
@@ -107,7 +107,7 @@ export async function addClassResource(c: Context) {
   const user = c.get("user");
   const body = await c.req.json();
   const id = `res_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(classResources)// @ts-ignore.values({
+  await db.insert(classResources).values({
     id,
     userId: user.id,
     title: body.title,
@@ -188,7 +188,7 @@ export async function createAnnouncement(c: Context) {
   const deny = requireInstructor(c); if (deny) return deny;
   const body = await c.req.json();
   const id = `ann_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(announcements)// @ts-ignore.values({
+  await db.insert(announcements).values({
     id,
     title: body.title,
     body: body.body,
@@ -230,7 +230,7 @@ export async function toggleSuggestedCourse(c: Context) {
       .where(and(eq(instructorSuggestedCourses.instructorId, user.id), eq(instructorSuggestedCourses.courseId, body.courseId)));
   } else {
     const id = `isg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await db.insert(instructorSuggestedCourses)// @ts-ignore.values({ id, instructorId: user.id, courseId: body.courseId, createdAt: Date.now() });
+    await db.insert(instructorSuggestedCourses).values({ id, instructorId: user.id, courseId: body.courseId, createdAt: Date.now() });
   }
   return c.json({ ok: true });
 }

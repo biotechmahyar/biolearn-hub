@@ -32,7 +32,7 @@ export async function setAIConfig(c: Context) {
     if (existing.length > 0) {
       await db.update(aiConfig).set({ value: String(value) }).where(eq(aiConfig.key, key));
     } else {
-      await db.insert(aiConfig)// @ts-ignore.values({ key, value: String(value) });
+      await db.insert(aiConfig).values({ key, value: String(value) });
     }
   }
   return c.json({ ok: true });
@@ -49,7 +49,7 @@ export async function createAIModel(c: Context) {
   const deny = requireAdmin(c); if (deny) return deny;
   const body = await c.req.json();
   const id = `model_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(aiModels)// @ts-ignore.values({ id, ...body, active: body.active ?? true });
+  await db.insert(aiModels).values({ id, ...body, active: body.active ?? true });
   return c.json({ ok: true, data: { id } });
 }
 
@@ -86,7 +86,7 @@ export async function setQuota(c: Context) {
     }).where(eq(aiTokenQuotas.userId, body.userId));
   } else {
     const id = `qt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await db.insert(aiTokenQuotas)// @ts-ignore.values({
+    await db.insert(aiTokenQuotas).values({
       id,
       userId: body.userId,
       dailyLimit: body.dailyLimit ?? 50,

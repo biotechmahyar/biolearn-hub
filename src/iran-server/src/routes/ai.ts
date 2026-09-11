@@ -39,7 +39,7 @@ export async function aiChat(c: Context) {
     let convId = conversationId;
     if (!convId) {
       convId = generateId();
-      await db.insert(aiConversations)// @ts-ignore.values({
+      await db.insert(aiConversations).values({
         id: convId,
         userId,
         title: message.slice(0, 50),
@@ -50,7 +50,7 @@ export async function aiChat(c: Context) {
 
     // Save user message
     const userMsgId = generateId();
-    await db.insert(aiMessages)// @ts-ignore.values({
+    await db.insert(aiMessages).values({
       id: userMsgId,
       conversationId: convId,
       role: "user",
@@ -65,7 +65,7 @@ export async function aiChat(c: Context) {
     if (configuredModels.length === 0) {
       // No AI configured — return graceful fallback
       const assistantMsgId = generateId();
-      await db.insert(aiMessages)// @ts-ignore.values({
+      await db.insert(aiMessages).values({
         id: assistantMsgId,
         conversationId: convId,
         role: "assistant",
@@ -88,7 +88,7 @@ export async function aiChat(c: Context) {
     // For now, return a placeholder
     const assistantMsgId = generateId();
     const reply = "[AI] پاسخ هوش مصنوعی — این بخش به API داخلی هوش مصنوعی متصل خواهد شد.";
-    await db.insert(aiMessages)// @ts-ignore.values({
+    await db.insert(aiMessages).values({
       id: assistantMsgId,
       conversationId: convId,
       role: "assistant",

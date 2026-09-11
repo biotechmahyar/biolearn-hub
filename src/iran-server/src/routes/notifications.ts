@@ -61,7 +61,7 @@ export async function createNotification(c: Context) {
   }
   const body = await c.req.json();
   const id = `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(notifications)// @ts-ignore.values({
+  await db.insert(notifications).values({
     id,
     userId: body.userId,
     title: body.title,

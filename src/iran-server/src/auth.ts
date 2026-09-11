@@ -119,7 +119,7 @@ export function authRoutes() {
 
         // Create user
         const userId = generateId();
-        await db.insert(users)// @ts-ignore.values({
+        await db.insert(users).values({
           id: userId,
           email,
           name,

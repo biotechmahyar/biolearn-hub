@@ -42,7 +42,7 @@ export async function submitExam(c: Context) {
   }
 
   const id = `er_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(examResults)// @ts-ignore.values({
+  await db.insert(examResults).values({
     id,
     userId: user.id,
     examId,
@@ -110,7 +110,7 @@ export async function submitDailyQuiz(c: Context) {
   }
 
   const id = `dqr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await db.insert(dailyQuizResults)// @ts-ignore.values({
+  await db.insert(dailyQuizResults).values({
     id,
     userId: user.id,
     quizId: quiz.id,
