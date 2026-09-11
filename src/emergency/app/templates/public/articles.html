@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}مقاله‌ها — NIBRC Emergency{% endblock %}
+{% block content %}
+<div class="container" style="padding-top:2rem">
+  <div class="section-header"><h2>📄 مقاله‌ها</h2></div>
+  {% if articles %}
+  <div class="card-grid">
+    {% for a in articles %}
+    <a href="/articles/{{ a.slug }}" class="card" style="text-decoration:none;color:inherit">
+      <div class="card-title">{{ a.title }}</div>
+      <div class="card-desc">{{ a.excerpt[:150] }}{% if a.excerpt|length > 150 %}...{% endif %}</div>
+      <div class="card-meta">
+        {% if a.category %}<span class="badge badge-primary">{{ a.category }}</span>{% endif %}
+        {% if a.readTime %} · ⏱ {{ a.readTime }}{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:3rem"><p style="color:var(--text-muted)">هنوز مقاله‌ای منتشر نشده است.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

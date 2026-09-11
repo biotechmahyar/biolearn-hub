@@ -1,0 +1,26 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}سفارشات — پنل مدیریت{% endblock %}
+{% block admin_content %}
+<h1 style="font-size:1.4rem;font-weight:800;margin-bottom:1.5rem">📋 مدیریت سفارشات</h1>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>شماره فاکتور</th><th>کاربر</th><th>مبلغ</th><th>وضعیت</th><th>تاریخ</th></tr>
+  </thead>
+  <tbody>
+    {% for o in orders %}
+    <tr>
+      <td style="font-family:monospace">{{ o.invoiceNumber }}</td>
+      <td>{{ o.userId[:8] }}...</td>
+      <td>{{ o.total }} تومان</td>
+      <td><span class="badge {% if o.status == 'paid' %}badge-success{% elif o.status == 'pending' %}badge-warning{% else %}badge-danger{% endif %}">
+        {% if o.status == 'paid' %}پرداخت شده{% elif o.status == 'pending' %}در انتظار{% else %}لغو شده{% endif %}
+      </span></td>
+      <td>{{ o.createdAt.strftime('%Y/%m/%d') if o.createdAt else '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.75rem">总计 {{ orders|length }} سفارش</p>
+{% endblock %}

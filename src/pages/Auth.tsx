@@ -560,9 +560,21 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
           </Card>
 
           <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
-            با ورود، <Link to="/rules" className="underline hover:text-foreground">قوانین</Link> و{" "}
+            با ورود، <Link to="/rules" className="underline hover:text-foreground">قوانین</Link> and{" "}
             <Link to="/rules" className="underline hover:text-foreground">حریم خصوصی</Link> Genova را می‌پذیری.
           </p>
+
+          {import.meta.env.VITE_EMERGENCY_URL && (
+            <a
+              href={import.meta.env.VITE_EMERGENCY_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/10"
+              title="ورود به نسخه اضطراری"
+            >
+              ⚡ نسخه اضطراری — بدون نیاز به اینترنت بین‌الملل
+            </a>
+          )}
         </div>
       </div>
     </div>

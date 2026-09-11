@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="admin-layout">
+  <aside class="admin-sidebar">
+    <div style="margin-bottom:1.5rem;font-weight:700;color:var(--primary)">⚡ پنل مدیریت</div>
+    <nav style="display:flex;flex-direction:column;gap:0.25rem">
+      <a href="/admin">📊 داشبورد</a>
+      <a href="/admin/users">👥 کاربران</a>
+      <a href="/admin/courses">📚 دوره‌ها</a>
+      <a href="/admin/articles">📄 مقاله‌ها</a>
+      <a href="/admin/dictionary">📖 واژه‌نامه</a>
+      <a href="/admin/workshops">🎓 کارگاه‌ها</a>
+      <a href="/admin/products">🛍️ محصولات</a>
+      <a href="/admin/orders">📋 سفارشات</a>
+      <a href="/" style="margin-top:1rem;border-top:1px solid var(--border);padding-top:0.75rem">🏠 سایت اصلی</a>
+      <a href="/auth/logout">🚪 خروج</a>
+    </nav>
+  </aside>
+  <div class="admin-content">
+    {% block admin_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

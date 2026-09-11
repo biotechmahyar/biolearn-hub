@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}سفارشات — داشبورد{% endblock %}
+{% block content %}
+<div class="container" style="padding-top:2rem">
+  <a href="/dashboard" style="font-size:0.85rem">← بازگشت به داشبورد</a>
+  <div class="section-header"><h2>📋 سفارشات و فاکتورها</h2></div>
+  {% if orders %}
+  <div class="card-grid">
+    {% for o in orders %}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">شماره فاکتور</div>
+          <div style="font-family:monospace;font-weight:700;color:var(--primary)">{{ o.invoiceNumber }}</div>
+        </div>
+        <span class="badge {% if o.status == 'paid' %}badge-success{% elif o.status == 'pending' %}badge-warning{% else %}badge-danger{% endif %}">
+          {% if o.status == 'paid' %}پرداخت شده{% elif o.status == 'pending' %}در انتظار{% else %}لغو شده{% endif %}
+        </span>
+      </div>
+      <div style="margin-top:0.75rem;font-size:0.85rem">
+        <strong>{{ o.total }}</strong> تومان · {{ o.createdAt.strftime('%Y/%m/%d') if o.createdAt else '' }}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:3rem"><p style="color:var(--text-muted)">هنوز سفارشی ثبت نشده است.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

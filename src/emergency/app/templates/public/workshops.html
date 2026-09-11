@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}کارگاه‌ها — NIBRC Emergency{% endblock %}
+{% block content %}
+<div class="container" style="padding-top:2rem">
+  <div class="section-header"><h2>🎓 کارگاه‌ها</h2></div>
+  {% if workshops %}
+  <div class="card-grid">
+    {% for w in workshops %}
+    <div class="card">
+      <div class="card-title">{{ w.title }}</div>
+      <div class="card-desc">{{ w.description[:150] }}{% if w.description|length > 150 %}...{% endif %}</div>
+      <div class="card-meta">
+        {% if w.time %}🕐 {{ w.time }}{% endif %}
+        {% if w.location %} · 📍 {{ w.location }}{% endif %}
+        {% if w.capacity %} · 👥 {{ w.registeredCount }}/{{ w.capacity }}{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:3rem"><p style="color:var(--text-muted)">هنوز کارگاهی منتشر نشده است.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

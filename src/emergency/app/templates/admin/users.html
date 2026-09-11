@@ -1,0 +1,23 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}کاربران — پنل مدیریت{% endblock %}
+{% block admin_content %}
+<h1 style="font-size:1.4rem;font-weight:800;margin-bottom:1.5rem">👥 مدیریت کاربران</h1>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>نام</th><th>ایمیل</th><th>نقش</th><th>تاریخ عضویت</th></tr>
+  </thead>
+  <tbody>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.name }}</td>
+      <td>{{ u.email }}</td>
+      <td><span class="badge {% if u.role in ('admin','superadmin') %}badge-danger{% elif u.role == 'instructor' %}badge-warning{% else %}badge-primary{% endif %}">{{ u.role }}</span></td>
+      <td>{{ u.created_at.strftime('%Y/%m/%d') if u.created_at else '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.75rem">总计 {{ users|length }} کاربر</p>
+{% endblock %}

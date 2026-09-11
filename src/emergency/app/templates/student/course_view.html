@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ course.title }} — داشبورد{% endblock %}
+{% block content %}
+<div class="container" style="padding-top:2rem">
+  <a href="/dashboard" style="font-size:0.85rem">← بازگشت به داشبورد</a>
+
+  <div class="card" style="margin-top:1rem;margin-bottom:1.5rem">
+    <h1 style="font-size:1.3rem;font-weight:800">{{ course.title }}</h1>
+    <div class="progress-bar" style="margin:0.75rem 0 0.5rem">
+      <div class="progress-fill" style="width:{{ percent }}%"></div>
+    </div>
+    <div class="card-meta">
+      <span class="badge {% if percent >= 100 %}badge-success{% elif percent > 0 %}badge-warning{% else %}badge-primary{% endif %}">
+        {{ percent }}٪ تکمیل شده
+      </span>
+    </div>
+  </div>
+
+  {% for sd in sections %}
+  <div class="card" style="margin-bottom:1rem">
+    <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.75rem">
+      📂 {{ sd.section.title }}
+    </h3>
+    {% for lesson in sd.lessons %}
+    <div class="lesson-item">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <div class="lesson-check {% if lesson.id in completed_ids %}done{% endif %}">
+          {% if lesson.id in completed_ids %}✓{% endif %}
+        </div>
+        <div>
+          <div style="font-size:0.9rem;font-weight:500">{{ lesson.title }}</div>
+          {% if lesson.durationMin %}<div style="font-size:0.75rem;color:var(--text-muted)">{{ lesson.durationMin }} دقیقه</div>{% endif %}
+        </div>
+      </div>
+      {% if lesson.id not in completed_ids %}
+      <form method="post" action="/dashboard/courses/{{ course.id }}/complete/{{ lesson.id }}">
+        <button type="submit" class="btn btn-primary btn-sm">✓ تکمیل</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

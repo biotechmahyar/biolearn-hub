@@ -1,0 +1,23 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}محصولات — پنل مدیریت{% endblock %}
+{% block admin_content %}
+<h1 style="font-size:1.4rem;font-weight:800;margin-bottom:1.5rem">🛍️ مدیریت محصولات</h1>
+<div class="table-wrap">
+<table>
+  <thead>
+    <tr><th>عنوان</th><th>دسته‌بندی</th><th>وضعیت</th><th>قیمت</th></tr>
+  </thead>
+  <tbody>
+    {% for p in products %}
+    <tr>
+      <td><strong>{{ p.title }}</strong></td>
+      <td>{{ p.category or '—' }}</td>
+      <td><span class="badge {% if p.published %}badge-success{% else %}badge-warning{% endif %}">{% if p.published %}منتشر{% else %}پیش‌نویس{% endif %}</span></td>
+      <td>{% if p.price %}{{ p.price }} تومان{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p style="color:var(--text-muted);font-size:0.8rem;margin-top:0.75rem">总计 {{ products|length }} محصول</p>
+{% endblock %}

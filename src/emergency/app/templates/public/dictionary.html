@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}واژه‌نامه — NIBRC Emergency{% endblock %}
+{% block content %}
+<div class="container" style="padding-top:2rem">
+  <div class="section-header"><h2>📖 واژه‌نامه علوم زیستی</h2></div>
+  <form class="search-bar" method="get" action="/dictionary">
+    <input type="text" name="q" class="form-input" placeholder="جستجوی واژه..." value="{{ q }}">
+    <button type="submit" class="btn btn-primary">🔍</button>
+  </form>
+  {% if terms %}
+  <div class="card-grid">
+    {% for t in terms %}
+    <div class="card">
+      <div class="card-title">{{ t.term }}</div>
+      {% if t.fullName %}<div style="color:var(--primary);font-size:0.85rem;margin-bottom:0.25rem">{{ t.fullName }}</div>{% endif %}
+      {% if t.gramStatus %}<div class="card-meta">Gram: {{ t.gramStatus }}</div>{% endif %}
+      {% if t.habitat %}<div class="card-desc" style="margin-top:0.5rem">{{ t.habitat[:150] }}{% if t.habitat|length > 150 %}...{% endif %}</div>{% endif %}
+      {% if t.diseases %}<div class="card-desc" style="margin-top:0.25rem"><strong>بیماری‌ها:</strong> {{ t.diseases[:100] }}{% if t.diseases|length > 100 %}...{% endif %}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:3rem"><p style="color:var(--text-muted)">
+    {% if q %}نتیجه‌ای برای «{{ q }}» یافت نشد.{% else %}هنوز واژه‌ای اضافه نشده است.{% endif %}
+  </p></div>
+  {% endif %}
+</div>
+{% endblock %}
