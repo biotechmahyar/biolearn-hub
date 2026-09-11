@@ -74,6 +74,11 @@ function ErrorDialog({
         </DialogHeader>
         A runtime error occurred. Open the vly editor to automatically debug the
         error.
+        {error.error && (
+          <p className="mt-2 break-all text-sm font-semibold" dir="ltr">
+            {error.error}
+          </p>
+        )}
         <div className="mt-4">
           <Collapsible>
             <CollapsibleTrigger>
@@ -88,7 +93,10 @@ function ErrorDialog({
             </CollapsibleContent>
           </Collapsible>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="secondary" onClick={() => setError(null)}>
+            بستن و ادامه
+          </Button>
           <a
             href={`https://freebuff.com/project/${import.meta.env.VITE_VLY_APP_ID}`}
             target="_blank"
@@ -119,9 +127,13 @@ class ErrorBoundary extends React.Component<
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError() {
+  static getDerivedStateFromError(error: unknown) {
     // Update state so the next render will show the fallback UI.
-    return { hasError: true };
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      hasError: true,
+      error: { error: message, stack: error instanceof Error ? error.stack ?? message : message },
+    };
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
@@ -151,14 +163,12 @@ class ErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
-      // You can render any custom fallback UI
+      // Recoverable fallback UI: dismissing it re-renders the app instead of
+      // leaving the whole site stuck behind the error dialog.
       return (
         <ErrorDialog
-          error={{
-            error: "An error occurred",
-            stack: "",
-          }}
-          setError={() => {}}
+          error={this.state.error ?? { error: "An error occurred", stack: "" }}
+          setError={() => this.setState({ hasError: false, error: null })}
         />
       );
     }

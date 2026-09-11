@@ -419,8 +419,11 @@ export default function Admin() {
     { label: "مدیریت Telegram", icon: Bot, to: "/panel/telegram-admin" },
     // Site Studio — permission-gated inside the page itself
     { label: "طراحی سایت (Site Studio)", icon: Blocks, to: "/panel/site-studio" },
-    // Only system admin (role === "admin") can see the super admin panel
-    ...(user?.role === "admin" ? [{ label: "پنل مدیر سامانه", icon: Shield, to: "/panel/super-admin" }] : []),
+    // System admins (role admin) and site managers (site_admin) can open the
+    // super admin console — it is protected by its own password gate.
+    ...(user?.role === "admin" || user?.role === "site_admin"
+      ? [{ label: "پنل مدیر سامانه", icon: Shield, to: "/panel/super-admin" }]
+      : []),
   ];
 
   if (isAdmin === undefined) {

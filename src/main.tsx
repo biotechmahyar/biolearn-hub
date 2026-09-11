@@ -216,11 +216,11 @@ createRoot(document.getElementById("root")!).render(
                 }
               />
 
-              {/* Super Admin Panel — admin only with password gate */}
+              {/* Super Admin Panel — system admin / site admin, password gated */}
               <Route
                 path="/panel/super-admin"
                 element={
-                  <RoleGate allowed={["admin"]} title="super admin">
+                  <RoleGate allowed={["admin", "site_admin"]} title="super admin">
                     <SuperAdminPanel />
                   </RoleGate>
                 }

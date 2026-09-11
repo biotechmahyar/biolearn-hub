@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import { useMode } from "@/hooks/useMode";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,12 +16,65 @@ import { Shield, Lock, Users, BookOpen, FileText, Database, Trash2, Save, Loader
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+// Staff roles allowed into this console (mirrors the backend check).
+const SYSTEM_ADMIN_ROLES = ["admin", "site_admin"];
+
 const ROLES = ["user", "member", "instructor", "mentor", "content_manager", "support", "site_admin", "admin"];
 const ROLE_LABELS: Record<string, string> = { user: "دانشجو", member: "عضو", instructor: "مدرس", mentor: "منتور", content_manager: "مدیر محتوا", support: "پشتیبانی", site_admin: "مدیر سایت", admin: "مدیر سامانه" };
 const TABLE_LIST = ["users", "categories", "courses", "exams", "questions", "orders", "enrollments", "articles", "workshops", "products", "aiConversations", "aiMessages", "aiConfig", "tickets", "announcements", "coupons", "sitePages", "siteTexts"];
 
+// Scoped error boundary: if anything inside the console throws (typically a
+// failing query), the panel shows a retry card instead of taking down the whole
+// app behind the global "Runtime Error" dialog.
+class SuperAdminBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-3 flex size-14 items-center justify-center rounded-2xl bg-destructive/10">
+                <AlertTriangle className="size-7 text-destructive" />
+              </div>
+              <CardTitle className="text-lg">خطا در بارگذاری پنل مدیر سامانه</CardTitle>
+              <CardDescription className="break-all" dir="ltr">
+                {this.state.error}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button className="w-full" onClick={() => this.setState({ error: null })}>
+                <RefreshCw className="ml-1.5 size-4" /> تلاش مجدد
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
+                بارگذاری دوباره صفحه
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function SuperAdminPanel() {
-  const { isIran } = useMode();
+  return (
+    <SuperAdminBoundary>
+      <SuperAdminConsole />
+    </SuperAdminBoundary>
+  );
+}
+
+function SuperAdminConsole() {
   const { user, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [authenticated, setAuthenticated] = useState(false);
@@ -47,7 +99,10 @@ export default function SuperAdminPanel() {
   };
 
   if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="size-6 animate-spin text-primary" /></div>;
-  if (!user || user.role !== "admin") return <div className="flex min-h-screen items-center justify-center px-4"><p className="text-muted-foreground">دسترسی غیرمجاز</p></div>;
+  const isSystemAdmin =
+    SYSTEM_ADMIN_ROLES.includes(user?.role ?? "") ||
+    SYSTEM_ADMIN_ROLES.includes(user?.secondaryRole ?? "");
+  if (!user || !isSystemAdmin) return <div className="flex min-h-screen items-center justify-center px-4"><p className="text-muted-foreground">دسترسی غیرمجاز</p></div>;
 
   if (!authenticated) {
     return (
@@ -134,7 +189,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               <div className="rounded-lg border p-3"><p className="text-[10px] text-muted-foreground">AI</p><p className={cn("text-lg font-bold", health.aiConfigured ? "text-emerald-500" : "text-destructive")}>{health.aiConfigured ? `فعال (${health.aiProvider})` : "غیرفعال"}</p></div>
               <div className="rounded-lg border p-3"><p className="text-[10px] text-muted-foreground">زمان سرور</p><p className="text-[10px] font-mono">{health.serverTime}</p></div>
             </div></CardContent></Card>}
-          {stats?.roleCounts && <Card className="mt-4"><CardHeader className="pb-2"><CardTitle className="text-sm">نقش‌ها</CardTitle></CardHeader><CardContent><div className="flex flex-wrap gap-2">{Object.entries(stats.roleCounts).map(([r, c]) => <Badge key={r} variant="secondary" className="text-xs">{ROLE_LABELS[r] ?? r}: {c}</Badge>)}</div></CardContent></Card>}
+          {stats?.roleCounts && <Card className="mt-4"><CardHeader className="pb-2"><CardTitle className="text-sm">نقش‌ها</CardTitle></CardHeader><CardContent><div className="flex flex-wrap gap-2">{Object.entries(stats.roleCounts ?? {}).map(([r, c]) => <Badge key={r} variant="secondary" className="text-xs">{ROLE_LABELS[r] ?? r}: {c}</Badge>)}</div></CardContent></Card>}
         </TabsContent>
 
         {/* Users */}
@@ -202,7 +257,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <div className="flex gap-2"><Select value={edTable} onValueChange={loadTable}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent>{TABLE_LIST.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
             <Button size="sm" variant="outline" onClick={() => loadTable(edTable)}><RefreshCw className="ml-1 size-3" /></Button></div>
           {edLoading ? <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin" /></div> : (
-            <div className="overflow-x-auto max-h-96 overflow-y-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>#</TableHead><TableHead>ID</TableHead><TableHead>JSON</TableHead><TableHead className="text-left">opy</TableHead></TableRow></TableHeader>
+            <div className="overflow-x-auto max-h-96 overflow-y-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>#</TableHead><TableHead>ID</TableHead><TableHead>JSON</TableHead><TableHead className="text-left">کپی</TableHead></TableRow></TableHeader>
               <TableBody>{edData.map((doc: any, i: number) => <TableRow key={doc._id}><TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell><TableCell className="font-mono text-[10px]">{String(doc._id).slice(0, 14)}</TableCell><TableCell className="max-w-xs"><pre className="text-[10px] text-muted-foreground whitespace-pre-wrap break-all max-h-16 overflow-hidden">{JSON.stringify(doc).slice(0, 200)}</pre></TableCell><TableCell className="text-left"><Button size="sm" variant="ghost" className="h-7" onClick={() => { navigator.clipboard.writeText(JSON.stringify(doc, null, 2)); toast.success("کپی"); }}><Copy className="size-3" /></Button></TableCell></TableRow>)}</TableBody></Table></div>)}
         </CardContent></Card></TabsContent>
 
@@ -288,5 +343,6 @@ function SettingsTab() {
 }
 
 function SC({ l, v, i }: { l: string; v: number; i: React.ReactNode }) {
-  return <Card><CardContent className="flex items-center gap-3 py-4"><div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">{i}</div><div><p className="text-2xl font-bold">{v.toLocaleString("fa-IR")}</p><p className="text-xs text-muted-foreground">{l}</p></div></CardContent></Card>;
+  const value = typeof v === "number" && Number.isFinite(v) ? v : 0;
+  return <Card><CardContent className="flex items-center gap-3 py-4"><div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">{i}</div><div><p className="text-2xl font-bold">{value.toLocaleString("fa-IR")}</p><p className="text-xs text-muted-foreground">{l}</p></div></CardContent></Card>;
 }

@@ -8,30 +8,48 @@ const SESSION_DURATION = 60 * 60 * 1000; // 1 hour
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+// Both the system owner ("admin") and the site manager ("site_admin") are
+// trusted staff and may open the super-admin console.
+const SYSTEM_ADMIN_ROLES = ["admin", "site_admin"];
+
+function isSystemAdmin(user: any): boolean {
+  if (!user) return false;
+  return (
+    SYSTEM_ADMIN_ROLES.includes(user.role) ||
+    SYSTEM_ADMIN_ROLES.includes(user.secondaryRole)
+  );
+}
+
 async function requireSystemAdmin(ctx: any) {
   const userId = await getAuthUserId(ctx);
   if (!userId) throw new Error("ورود لازم است.");
   const user = await ctx.db.get(userId);
-  if (!user || (user as any).role !== "admin") {
+  if (!isSystemAdmin(user)) {
     throw new Error("فقط مدیر سامانه دسترسی دارد.");
   }
   return user;
 }
 
-async function requireActiveSession(ctx: any) {
-  const userId = await getAuthUserId(ctx);
-  if (!userId) return false;
-  const session = await ctx.db
-    .query("superAdminSessions")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .order("desc")
-    .first();
-  if (!session) return false;
-  if (Date.now() > session.expiresAt) {
-    await ctx.db.delete(session._id);
+// Never throws: a missing/expired session (or an unavailable table) simply
+// resolves to `false` so the panel can always render its password gate.
+async function requireActiveSession(ctx: any): Promise<boolean> {
+  try {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return false;
+    const session = await ctx.db
+      .query("superAdminSessions")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
+      .order("desc")
+      .first();
+    if (!session) return false;
+    if (Date.now() > session.expiresAt) {
+      await ctx.db.delete(session._id);
+      return false;
+    }
+    return true;
+  } catch {
     return false;
   }
-  return true;
 }
 
 // ── Authentication ──────────────────────────────────────────────────────────
@@ -42,7 +60,7 @@ export const verifyPassword = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("ورود لازم است.");
     const user = await ctx.db.get(userId);
-    if (!user || (user as any).role !== "admin") {
+    if (!isSystemAdmin(user)) {
       throw new Error("فقط مدیر سامانه.");
     }
 
@@ -274,23 +292,22 @@ export const deleteSitePage = mutation({
 
 // ── System Stats ────────────────────────────────────────────────────────────
 
+// Reads are intentionally defensive: a table that does not exist yet must not
+// throw, otherwise the whole console fails to render.
+async function safeRows(ctx: any, table: string): Promise<any[]> {
+  try {
+    return await ctx.db.query(table).collect();
+  } catch {
+    return [];
+  }
+}
+
 export const getSystemStats = query({
   args: {},
   handler: async (ctx) => {
     if (!(await requireActiveSession(ctx))) return null;
 
-    const users = await ctx.db.query("users").collect();
-    const courses = await ctx.db.query("courses").collect();
-    const exams = await ctx.db.query("exams").collect();
-    const questions = await ctx.db.query("questions").collect();
-    const orders = await ctx.db.query("orders").collect();
-    const enrollments = await ctx.db.query("enrollments").collect();
-    const aiConversations = await ctx.db.query("aiConversations").collect();
-    const aiMessages = await ctx.db.query("aiMessages").collect();
-    const articles = await ctx.db.query("articles").collect();
-    const workshops = await ctx.db.query("workshops").collect();
-    const products = await ctx.db.query("products").collect();
-    const tickets = await ctx.db.query("tickets").collect();
+    const users = await safeRows(ctx, "users");
 
     const roleCounts: Record<string, number> = {};
     for (const u of users) {
@@ -301,17 +318,17 @@ export const getSystemStats = query({
     return {
       users: users.length,
       roleCounts,
-      courses: courses.length,
-      exams: exams.length,
-      questions: questions.length,
-      orders: orders.length,
-      enrollments: enrollments.length,
-      aiConversations: aiConversations.length,
-      aiMessages: aiMessages.length,
-      articles: articles.length,
-      workshops: workshops.length,
-      products: products.length,
-      tickets: tickets.length,
+      courses: (await safeRows(ctx, "courses")).length,
+      exams: (await safeRows(ctx, "exams")).length,
+      questions: (await safeRows(ctx, "questions")).length,
+      orders: (await safeRows(ctx, "orders")).length,
+      enrollments: (await safeRows(ctx, "enrollments")).length,
+      aiConversations: (await safeRows(ctx, "aiConversations")).length,
+      aiMessages: (await safeRows(ctx, "aiMessages")).length,
+      articles: (await safeRows(ctx, "articles")).length,
+      workshops: (await safeRows(ctx, "workshops")).length,
+      products: (await safeRows(ctx, "products")).length,
+      tickets: (await safeRows(ctx, "tickets")).length,
     };
   },
 });
@@ -322,22 +339,31 @@ export const getAIConversations = query({
   args: {},
   handler: async (ctx) => {
     if (!(await requireActiveSession(ctx))) return [];
-    const convos = await ctx.db.query("aiConversations").collect();
-    const results = [];
-    for (const c of convos) {
-      const u = await ctx.db.get(c.userId);
-      const msgs = await ctx.db
-        .query("aiMessages")
-        .withIndex("by_conversation", (q) => q.eq("conversationId", c._id))
-        .collect();
-      results.push({
-        ...c,
-        userName: (u as any)?.name ?? (u as any)?.email ?? "ناشناس",
-        messageCount: msgs.length,
-        messages: msgs,
-      });
+    try {
+      const convos = await safeRows(ctx, "aiConversations");
+      const results = [];
+      for (const c of convos) {
+        const u = await ctx.db.get(c.userId);
+        let msgs: any[] = [];
+        try {
+          msgs = await ctx.db
+            .query("aiMessages")
+            .withIndex("by_conversation", (q) => q.eq("conversationId", c._id))
+            .collect();
+        } catch {
+          msgs = [];
+        }
+        results.push({
+          ...c,
+          userName: (u as any)?.name ?? (u as any)?.email ?? "ناشناس",
+          messageCount: msgs.length,
+          messages: msgs,
+        });
+      }
+      return results;
+    } catch {
+      return [];
     }
-    return results;
   },
 });
 
@@ -551,19 +577,24 @@ export const getSystemHealth = query({
     if (!(await requireActiveSession(ctx))) return null;
     const now = Date.now();
     // Count active sessions (last 24h)
-    const allUsers = await ctx.db.query("users").collect();
+    const allUsers = await safeRows(ctx, "users");
     const recentUsers = allUsers.filter((u: any) => {
       const created = u._creationTime;
       return now - created < 24 * 60 * 60 * 1000;
     });
     // Count orders today
-    const allOrders = await ctx.db.query("orders").collect();
+    const allOrders = await safeRows(ctx, "orders");
     const todayOrders = allOrders.filter((o: any) => {
       const created = o._creationTime;
       return now - created < 24 * 60 * 60 * 1000;
     });
     // AI config status
-    const aiConfig = await ctx.db.query("aiConfig").first();
+    let aiConfig: any = null;
+    try {
+      aiConfig = await ctx.db.query("aiConfig").first();
+    } catch {
+      aiConfig = null;
+    }
     return {
       totalUsers: allUsers.length,
       newUsersToday: recentUsers.length,
