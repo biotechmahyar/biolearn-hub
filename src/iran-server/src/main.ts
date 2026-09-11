@@ -49,12 +49,41 @@ let emergencyProcess: ChildProcess | null = null;
 
 function startEmergencyServer() {
   const emergencyDir = path.resolve(__dirname, "../../emergency");
+  const fs = require("fs");
+
+  // Check if Python and emergency dir exist
+  if (!fs.existsSync(emergencyDir)) {
+    console.log("[EMERGENCY] Skipped — emergency directory not found");
+    return;
+  }
+
+  const pipCheck = spawn("python3", ["-c", "import fastapi"], { stdio: "ignore" });
+  pipCheck.on("exit", (code) => {
+    if (code !== 0) {
+      console.log("[EMERGENCY] Installing Python dependencies...");
+      const pip = spawn("python3", ["-m", "pip", "install", "-r", "requirements.txt"], {
+        cwd: emergencyDir,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      pip.stdout?.on("data", (d: Buffer) => console.log(`[EMERGENCY] ${d.toString().trim()}`));
+      pip.stderr?.on("data", (d: Buffer) => console.log(`[EMERGENCY] ${d.toString().trim()}`));
+      pip.on("exit", (pipCode) => {
+        if (pipCode === 0) spawnFastAPI(emergencyDir);
+        else console.log("[EMERGENCY] pip install failed — emergency server disabled");
+      });
+    } else {
+      spawnFastAPI(emergencyDir);
+    }
+  });
+}
+
+function spawnFastAPI(cwd: string) {
   try {
     emergencyProcess = spawn(
       "python3",
       ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(EMERGENCY_PORT)],
       {
-        cwd: emergencyDir,
+        cwd,
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, EMERGENCY_PORT: String(EMERGENCY_PORT) },
       }

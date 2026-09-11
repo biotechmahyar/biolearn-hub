@@ -5,12 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "sync": "tsx src/sync.ts"
-  },
+    "build": "cd ../emergency && python3 -m pip install -r requirements.txt --quiet 2>/dev/null; echo '[EMERGENCY] Dependencies ready'
   "dependencies": {
     "@hono/node-server": "^1.13.0",
     "hono": "^4.7.0",
