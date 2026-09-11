@@ -51,6 +51,7 @@ import {
   Plus,
   Presentation,
   Radio,
+  ReceiptText,
   Route,
   Save,
   Send,
@@ -83,7 +84,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-type TabKey = "overview" | "courses" | "workshops" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate" | "academyPath";
+type TabKey = "overview" | "courses" | "workshops" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate" | "academyPath" | "orders";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
@@ -100,6 +101,7 @@ const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "bookmarks", label: "نشان‌شده‌ها", icon: Bookmark },
   { key: "support", label: "پشتیبانی", icon: LifeBuoy },
   { key: "certificate", label: "گواهی دوره", icon: Award },
+  { key: "orders", label: "سفارشات و فاکتور", icon: ReceiptText },
   { key: "profile", label: "پروفایل", icon: User },
 ];
 
@@ -195,6 +197,7 @@ export default function Dashboard() {
           {tab === "announcements" && <AnnouncementsTab />}
           {tab === "inbox" && <InboxTab />}
           {tab === "certificate" && <CertificateTab />}
+          {tab === "orders" && <OrdersTab />}
           {tab === "profile" && <StudentProfileTab />}
         </main>
       </div>
@@ -2181,8 +2184,8 @@ function CertificateTab() {
   const requestCert = useMutation(api.promotions.requestCertificate);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const completedCourses = myCourses?.filter((e: any) => e.completed) ?? [];
-  const inProgressCourses = myCourses?.filter((e: any) => !e.completed) ?? [];
+  const completedCourses = myCourses?.filter((e: any) => e.percent >= 100) ?? [];
+  const inProgressCourses = myCourses?.filter((e: any) => (e.percent ?? 0) < 100) ?? [];
 
   const certFor = (courseId: string) => (myCerts ?? []).find((c: any) => c.courseId === courseId);
   const certByCourseTitle = (title: string) => (myCerts ?? []).find((c: any) => c.courseTitle === title);
@@ -2209,11 +2212,8 @@ function CertificateTab() {
     );
   }
 
-  // Certificates issued by admin (no matching enrollment)
-  const adminIssuedCerts = (myCerts ?? []).filter((c: any) => {
-    if (!c.courseId) return false;
-    return !myCourses?.some((e: any) => e.courseId === c.courseId);
-  });
+  // ALL certificates — show regardless of enrollment status
+  const adminIssuedCerts = (myCerts ?? []).filter((c: any) => !!c.courseId);
 
   return (
     <div className="space-y-5">
@@ -2334,11 +2334,11 @@ function CertificateTab() {
         </div>
       )}
 
-      {completedCourses.length === 0 && inProgressCourses.length === 0 && (
+      {completedCourses.length === 0 && inProgressCourses.length === 0 && adminIssuedCerts.length === 0 && (
         <Card className="border-border/70">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
             <Award className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">هنوز دوره‌ای ثبت‌نام نکرده‌اید.</p>
+            <p className="text-sm text-muted-foreground">هنوز گواهی‌ای صادر نشده است.</p>
             <Button asChild variant="outline" size="sm">
               <a href="/courses">مشاهده دوره‌ها</a>
             </Button>
@@ -2348,6 +2348,122 @@ function CertificateTab() {
     </div>
   );
 }
+
+function OrdersTab() {
+  const orders = useQuery(api.offlinePayments.myOrders);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!orders) return [];
+    if (!search.trim()) return orders;
+    const q = search.trim().toLowerCase();
+    return orders.filter((o: any) =>
+      o.invoiceNumber?.toLowerCase().includes(q) ||
+      o.items?.some((it: any) => (it.title ?? it.refTitle ?? "").toLowerCase().includes(q))
+    );
+  }, [orders, search]);
+
+  const statusBadge = (status: string) => {
+    if (status === "paid") return <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/20">پرداخت شده</Badge>;
+    if (status === "pending") return <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/20">در انتظار</Badge>;
+    if (status === "cancelled") return <Badge className="bg-red-500/15 text-red-400 border-red-500/20">لغو شده</Badge>;
+    return <Badge variant="outline">{status}</Badge>;
+  };
+
+  if (orders === undefined) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-bold tracking-tight">سفارشات و فاکتورها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          شماره فاکتور خود را برای پیگیری از پشتیبانی کپی کنید.
+        </p>
+      </div>
+
+      {orders.length > 0 && (
+        <div className="relative">
+          <FileText className="absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="جستجو با شماره فاکتور یا نام محصول..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-9 pr-9 text-sm"
+          />
+        </div>
+      )}
+
+      {filtered.length === 0 && (
+        <Card className="border-border/70">
+          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+            <ReceiptText className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز سفارشی ثبت نشده است.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-3">
+        {filtered.map((order: any) => (
+          <Card key={order._id} className="border-border/70">
+            <CardContent className="space-y-3 py-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+                    <FileText className="size-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">شماره فاکتور</p>
+                    <p className="font-mono text-xs text-primary">{order.invoiceNumber}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {statusBadge(order.status)}
+                  <Badge variant="outline" className="text-xs">
+                    {order.total?.toLocaleString("fa-IR")} تومان
+                  </Badge>
+                </div>
+              </div>
+
+              {order.items?.length > 0 && (
+                <div className="space-y-1 rounded-lg bg-muted/50 px-3 py-2">
+                  <p className="text-xs font-bold text-muted-foreground">اقلام سفارش:</p>
+                  {order.items.map((item: any, idx: number) => (
+                    <p key={idx} className="text-sm">
+                      {item.refTitle ?? item.title ?? "—"}
+                      {item.price ? <span className="text-xs text-muted-foreground"> ({item.price.toLocaleString("fa-IR")} تومان)</span> : null}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{new Date(order.createdAt).toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric" })}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    navigator.clipboard.writeText(order.invoiceNumber);
+                    toast.success("شماره فاکتور کپی شد");
+                  }}
+                >
+                  کپی شماره فاکتور
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 
 function StudentProfileTab() {
   return (
