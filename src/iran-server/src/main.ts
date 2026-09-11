@@ -2,8 +2,6 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { serve } from "@hono/node-server";
-import { spawn, type ChildProcess } from "child_process";
-import path from "path";
 import { initDb } from "./db.js";
 import { authRoutes, authMiddleware, optionalAuth } from "./auth.js";
 
@@ -39,91 +37,6 @@ app.use("*", cors({
 // ── HEALTH CHECK ──────────────────────────────────────────────────────────
 
 app.get("/health", (c) => c.json({ ok: true, service: "nibrc-iran", timestamp: Date.now() }));
-
-// ── EMERGENCY SERVER PROXY ──────────────────────────────────────────────
-// Spawn the Python FastAPI emergency server on port 8001 and proxy
-// all /emergency/* requests to it. Both servers share port 3000 externally.
-
-const EMERGENCY_PORT = parseInt(process.env.EMERGENCY_PORT || "8001", 10);
-let emergencyProcess: ChildProcess | null = null;
-
-function startEmergencyServer() {
-  const emergencyDir = path.resolve(__dirname, "../../emergency");
-  const fs = require("fs");
-
-  // Check if Python and emergency dir exist
-  if (!fs.existsSync(emergencyDir)) {
-    console.log("[EMERGENCY] Skipped — emergency directory not found");
-    return;
-  }
-
-  const pipCheck = spawn("python3", ["-c", "import fastapi"], { stdio: "ignore" });
-  pipCheck.on("exit", (code) => {
-    if (code !== 0) {
-      console.log("[EMERGENCY] Installing Python dependencies...");
-      const pip = spawn("python3", ["-m", "pip", "install", "-r", "requirements.txt"], {
-        cwd: emergencyDir,
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-      pip.stdout?.on("data", (d: Buffer) => console.log(`[EMERGENCY] ${d.toString().trim()}`));
-      pip.stderr?.on("data", (d: Buffer) => console.log(`[EMERGENCY] ${d.toString().trim()}`));
-      pip.on("exit", (pipCode) => {
-        if (pipCode === 0) spawnFastAPI(emergencyDir);
-        else console.log("[EMERGENCY] pip install failed — emergency server disabled");
-      });
-    } else {
-      spawnFastAPI(emergencyDir);
-    }
-  });
-}
-
-function spawnFastAPI(cwd: string) {
-  try {
-    emergencyProcess = spawn(
-      "python3",
-      ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(EMERGENCY_PORT)],
-      {
-        cwd,
-        stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, EMERGENCY_PORT: String(EMERGENCY_PORT) },
-      }
-    );
-    emergencyProcess.stdout?.on("data", (d: Buffer) => {
-      console.log(`[EMERGENCY] ${d.toString().trim()}`);
-    });
-    emergencyProcess.stderr?.on("data", (d: Buffer) => {
-      console.log(`[EMERGENCY] ${d.toString().trim()}`);
-    });
-    emergencyProcess.on("exit", (code) => {
-      console.log(`[EMERGENCY] Process exited with code ${code}`);
-      emergencyProcess = null;
-    });
-    console.log(`[EMERGENCY] FastAPI server starting on port ${EMERGENCY_PORT}...`);
-  } catch (err) {
-    console.error("[EMERGENCY] Failed to start Python server:", (err as Error).message);
-  }
-}
-
-app.all("/emergency/*", async (c) => {
-  const targetUrl = `http://127.0.0.1:${EMERGENCY_PORT}${new URL(c.req.url).pathname}`;
-  const fetchInit: RequestInit = {
-    method: c.req.method,
-    headers: {"content-type": c.req.header("content-type") || ""},
-  };
-  if (c.req.method !== "GET" && c.req.method !== "HEAD") {
-    fetchInit.body = await c.req.text();
-  }
-  try {
-    const resp = await fetch(targetUrl, fetchInit);
-    const body = await resp.text();
-    return new Response(body, {
-      status: resp.status,
-      headers: Object.fromEntries(resp.headers.entries()),
-    });
-  } catch {
-    return c.json({ ok: false, error: "Emergency server unavailable" }, 502);
-  }
-});
 
 // ── AUTH ROUTES (public) ──────────────────────────────────────────────────
 
@@ -357,26 +270,12 @@ async function main() {
     }
   }, 30 * 60 * 1000);
 
-  // Start the emergency Python server in background
-  startEmergencyServer();
-
   serve({ fetch: app.fetch, port: PORT }, (info) => {
     console.log(`\n🚀 NIBRC Iran Server running on http://0.0.0.0:${PORT}`);
-    console.log(`   Health:     http://0.0.0.0:${PORT}/health`);
-    console.log(`   API:        http://0.0.0.0:${PORT}/api`);
-    console.log(`   Emergency:  http://0.0.0.0:${PORT}/emergency`);
+    console.log(`   Health: http://0.0.0.0:${PORT}/health`);
+    console.log(`   API:    http://0.0.0.0:${PORT}/api`);
     console.log(`   Press Ctrl+C to stop\n`);
   });
 }
 
 main().catch(console.error);
-
-// Cleanup emergency process on exit
-process.on("SIGINT", () => {
-  if (emergencyProcess) emergencyProcess.kill();
-  process.exit(0);
-});
-process.on("SIGTERM", () => {
-  if (emergencyProcess) emergencyProcess.kill();
-  process.exit(0);
-});

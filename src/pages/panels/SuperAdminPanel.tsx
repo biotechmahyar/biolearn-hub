@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Lock, Users, BookOpen, FileText, Database, Trash2, Save, Loader2, Eye, EyeOff, ArrowLeft, Globe, Code, MessageSquare, AlertTriangle, KeyRound, Activity, Mail, Heart, UserX, RefreshCw, Copy } from "lucide-react";
+import { Shield, Lock, Users, BookOpen, FileText, Database, Trash2, Save, Loader2, Eye, EyeOff, ArrowLeft, Globe, Code, MessageSquare, AlertTriangle, KeyRound, Activity, Mail, Heart, UserX, RefreshCw, Copy, Settings, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +114,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <TabsTrigger value="editor" className="gap-1 text-xs"><Code className="size-3.5" /> ویرایشگر</TabsTrigger>
           <TabsTrigger value="broadcast" className="gap-1 text-xs"><Mail className="size-3.5" /> اطلاع‌رسانی</TabsTrigger>
           <TabsTrigger value="audit" className="gap-1 text-xs"><Eye className="size-3.5" /> گزارش</TabsTrigger>
+          <TabsTrigger value="settings" className="gap-1 text-xs"><Settings className="size-3.5" /> تنظیمات</TabsTrigger>
         </TabsList></div>
 
         {/* Stats */}
@@ -219,9 +220,68 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             {auditLog.map((l: any) => <div key={l._id} className="flex items-center gap-3 rounded-lg border p-2 text-sm"><Badge variant="secondary" className="text-[10px] shrink-0">{l.action}</Badge><span className="flex-1 text-xs text-muted-foreground truncate">{l.details}</span><span className="text-[10px] text-muted-foreground shrink-0">{new Date(l.timestamp).toLocaleString("fa-IR")}</span></div>)}
             {auditLog.length === 0 && <p className="py-6 text-center text-xs text-muted-foreground">خالی</p>}
           </div>)}
-        </CardContent></Card></TabsContent>
+        </CardContent></Card>        </TabsContent>
+
+        {/* Settings — Emergency URL */}
+        <TabsContent value="settings">
+          <SettingsTab />
+        </TabsContent>
       </Tabs>
     </div></div>
+  );
+}
+
+function SettingsTab() {
+  const getSetting = useQuery(api.siteSettings.getSetting, { key: "emergency.url" });
+  const setSettingM = useMutation(api.siteSettings.setSetting);
+  const logAction = useMutation(api.superAdmin.addAuditLog);
+  const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (getSetting !== undefined) {
+      setUrl(typeof getSetting === "string" ? getSetting : "");
+    }
+  }, [getSetting]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await setSettingM({ key: "emergency.url", value: JSON.stringify(url.trim()), description: "آدرس نسخه اضطراری سایت" });
+      setSaved(true);
+      toast.success("ذخیره شد");
+      logAction({ action: "بروزرسانی لینک اضطراری", details: url.trim() || "خالی" });
+    } catch (e: any) {
+      toast.error(e?.message ?? "خطا در ذخیره");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2"><Zap className="size-4 text-amber-500" /> نسخه اضطراری</CardTitle>
+        <CardDescription className="text-xs">آدرس سرور اضطراری که در صفحه ورود نمایش داده می‌شود.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Input
+          dir="ltr"
+          placeholder="https://nibrc.ir/emergency"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <p className="text-[10px] text-muted-foreground">
+          این آدرس در صفحه ورود/ثبت‌نام به عنوان لینک ⚡ اضطراری نمایش داده می‌شود. اگر خالی باشد، لینک /emergency به عنوان پیش‌فرض استفاده می‌شود.
+        </p>
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="ml-1 size-3 animate-spin" /> : <Save className="ml-1 size-3" />} ذخیره
+        </Button>
+        {saved && <p className="text-xs text-emerald-600 dark:text-emerald-400">✓ ذخیره شد</p>}
+      </CardContent>
+    </Card>
   );
 }
 

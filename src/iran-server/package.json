@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
-    "build": "cd ../emergency && python3 -m pip install -r requirements.txt --quiet 2>/dev/null; echo '[EMERGENCY] Dependencies ready'
+    "build": "tsc --noEmit"
+  },
   "dependencies": {
     "@hono/node-server": "^1.13.0",
     "hono": "^4.7.0",

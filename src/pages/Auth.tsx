@@ -22,6 +22,7 @@ import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { useQuery } from "convex/react";
 import { panelForRole } from "@/components/RoleGate";
 import { useMode } from "@/hooks/useMode";
 import { ModeSwitcher } from "@/components/site/ModeSwitcher";
@@ -564,18 +565,27 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
             <Link to="/rules" className="underline hover:text-foreground">حریم خصوصی</Link> Genova را می‌پذیری.
           </p>
 
-          <a
-            href="https://nibrc.ir/emergency"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/10"
-            title="ورود به نسخه اضطراری"
-          >
-            ⚡ نسخه اضطراری — بدون نیاز به اینترنت بین‌الملل
-          </a>
+          <EmergencyLink />
         </div>
       </div>
     </div>
+  );
+}
+
+function EmergencyLink() {
+  const setting = useQuery(api.siteSettings.getSetting, { key: "emergency.url" });
+  const href = typeof setting === "string" && setting.trim() ? setting.trim() : "https://nibrc.ir/emergency";
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/10"
+      title="ورود به نسخه اضطراری"
+    >
+      ⚡ نسخه اضطراری — بدون نیاز به اینترنت بین‌الملل
+    </a>
   );
 }
 
