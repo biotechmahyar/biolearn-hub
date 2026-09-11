@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ── Certificate tracking-code generation ─────────────────────────────────────
 // Format: GEN-XXXX-XXXX-XXXX — 12 chars from a 32-symbol alphabet (≈60 bits of
@@ -191,9 +192,8 @@ export const deletePromoBanner = mutation({
 export const requestCertificate = mutation({
   args: { courseId: v.id("courses") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
-    const userId = identity.subject as any;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
 
     // Check enrollment
     const enrollment = await ctx.db
@@ -223,9 +223,8 @@ export const requestCertificate = mutation({
 export const listMyCertificates = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const userId = identity.subject as any;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
     const certs = await ctx.db
       .query("certificates")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -461,9 +460,8 @@ export const getCertificateFileUrl = query({
 export const enrollWorkshop = mutation({
   args: { workshopId: v.id("workshops") },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("ورود لازم است.");
-    const userId = identity.subject as any;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
 
     const existing = await ctx.db
       .query("workshopEnrollments")
@@ -493,9 +491,8 @@ export const enrollWorkshop = mutation({
 export const listMyWorkshopEnrollments = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return [];
-    const userId = identity.subject as any;
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
     const enrollments = await ctx.db
       .query("workshopEnrollments")
       .withIndex("by_user", (q) => q.eq("userId", userId))
