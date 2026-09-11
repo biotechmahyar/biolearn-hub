@@ -9,6 +9,10 @@ from app.routes.public import router as public_router
 from app.routes.student import router as student_router
 from app.routes.admin import router as admin_router
 
+# Force all models to register with Base.metadata before create_all()
+import app.models  # noqa: F401
+
+
 app = FastAPI(title="NIBRC Emergency", docs_url=None, redoc_url=None)
 
 app.add_middleware(

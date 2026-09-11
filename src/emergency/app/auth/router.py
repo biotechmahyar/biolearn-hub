@@ -26,6 +26,7 @@ def login_submit(
     request: Request,
     email: str = Form(...),
     password: str = Form(...),
+    next: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.email == email).first()
@@ -36,7 +37,14 @@ def login_submit(
             status_code=401,
         )
     token = create_session_token(user.id)
-    response = RedirectResponse("/dashboard", status_code=302)
+    # Admin login: if next param is /admin and user is admin, go there
+    if next and next.startswith("/") and not next.startswith("//"):
+        redirect_url = next
+    elif user.role in ("admin", "superadmin"):
+        redirect_url = "/admin"
+    else:
+        redirect_url = "/dashboard"
+    response = RedirectResponse(redirect_url, status_code=302)
     response.set_cookie(COOKIE_NAME, token, max_age=60 * 60 * 24 * 7, httponly=True, samesite="lax")
     return response
 

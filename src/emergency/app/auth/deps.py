@@ -2,15 +2,17 @@
 from fastapi import Request, HTTPException
 from sqlalchemy.orm import Session
 
-from app.database import get_db
 from app.models.user import User
 from app.auth.security import verify_session_token
 
 COOKIE_NAME = "nibrc_session"
 
 
-def get_current_user(request: Request, db: Session = next(get_db())) -> User | None:
-    """Extract user from session cookie. Returns None if not logged in."""
+def get_current_user(request: Request, db: Session) -> User | None:
+    """Extract user from session cookie. Returns None if not logged in.
+    
+    Must receive db session via FastAPI Depends(get_db) in the route.
+    """
     token = request.cookies.get(COOKIE_NAME)
     if not token:
         return None
@@ -21,7 +23,7 @@ def get_current_user(request: Request, db: Session = next(get_db())) -> User | N
     return user
 
 
-def require_auth(request: Request, db: Session = next(get_db())) -> User:
+def require_auth(request: Request, db: Session) -> User:
     """Require authenticated user or raise 401."""
     user = get_current_user(request, db)
     if not user:
@@ -29,7 +31,7 @@ def require_auth(request: Request, db: Session = next(get_db())) -> User:
     return user
 
 
-def require_admin(request: Request, db: Session = next(get_db())) -> User:
+def require_admin(request: Request, db: Session) -> User:
     """Require admin or superadmin role."""
     user = require_auth(request, db)
     if user.role not in ("admin", "superadmin"):
