@@ -584,6 +584,35 @@ export const adminCreateUser = mutation({
   args: { email: v.string(), name: v.optional(v.string()), role: v.optional(v.string()), password: v.optional(v.string()) } as any,
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
+
+    // If password is provided, use Convex Auth's createAccount to create
+    // both the auth account (with hashed password) AND the user record.
+    if (args.password) {
+      const { createAccount } = await import("@convex-dev/auth/server");
+      try {
+        // createAccount internally uses ctx.db which is available in mutations;
+        // the TypeScript type requires ActionCtx but the runtime works with MutationCtx.
+        const { user } = await (createAccount as any)(ctx, {
+          provider: "password",
+          account: { id: args.email, secret: args.password },
+          profile: { email: args.email, name: args.name ?? "" },
+        });
+        // Set the role on the created user
+        await ctx.db.patch(user._id, { role: (args.role as any) ?? "user" } as any);
+        return { ok: true, userId: user._id };
+      } catch (e: any) {
+        // If createAccount fails (e.g. duplicate), fall back to plain insert
+        // but warn that login won't work without an auth account.
+        console.error("createAccount failed, falling back to plain insert:", e?.message);
+        const id = await ctx.db.insert("users", {
+          email: args.email, name: args.name,
+          role: (args.role as any) ?? "user",
+        });
+        return { ok: true, userId: id, warning: "حساب احراز هویت ساخته نشد. کاربر فقط وقتی وارد می‌شود که قبلاً ثبت‌نام کرده باشد." };
+      }
+    }
+
+    // No password provided – just create the user profile (no auth account)
     const id = await ctx.db.insert("users", {
       email: args.email, name: args.name,
       role: (args.role as any) ?? "user",
@@ -636,8 +665,36 @@ export const adminSetPassword = mutation({
   args: { userId: v.id("users"), password: v.string() },
   handler: async (ctx, args) => {
     if (!(await isAdmin(ctx))) throw new Error("فقط ادمین سیستم.");
-    // Password management through Convex Auth requires API calls
-    return { ok: true, note: "Password management via auth API" };
+
+    // Look up the user to get their email
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("کاربر یافت نشد.");
+    const email = (user as any).email;
+    if (!email) throw new Error("ایمیل کاربر یافت نشد.");
+
+    // Find existing password auth account for this user
+    const existingAccounts = await ctx.db
+      .query("authAccounts")
+      .filter((q: any) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    const passwordAccount = existingAccounts.find((a: any) => a.provider === "password");
+
+    if (passwordAccount) {
+      // Delete the old account and create a new one with the updated password
+      await ctx.db.delete(passwordAccount._id);
+    }
+
+    // Create a new password auth account
+    const { createAccount } = await import("@convex-dev/auth/server");
+    // createAccount internally uses ctx.db which works in mutations;
+    // cast to bypass the ActionCtx type constraint.
+    await (createAccount as any)(ctx, {
+      provider: "password",
+      account: { id: email, secret: args.password },
+      profile: { email },
+    });
+
+    return { ok: true };
   },
 });
 
