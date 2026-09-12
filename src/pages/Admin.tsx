@@ -2769,7 +2769,7 @@ function AdminInstructors() {
   const create = useMutation(api.admin.adminCreateInstructor);
   const update = useMutation(api.admin.adminUpdateInstructor);
   const remove = useMutation(api.admin.adminDeleteInstructor);
-  const createUser = useMutation(api.admin.adminCreateUser);
+  const createUser = useAction(api.adminAuthActions.adminCreateUserAction);
   const [userSearch, setUserSearch] = useState("");
   const [createUserMode, setCreateUserMode] = useState<"existing" | "new">("existing");
   const [newUserName, setNewUserName] = useState("");
@@ -3451,8 +3451,8 @@ function AdminUsers() {
   const users = useQuery(api.admin.adminGetUsers);
   const setRole = useMutation(api.admin.adminSetRole);
   const setSecondaryRole = useMutation(api.admin.adminSetSecondaryRole);
-  const createUser = useMutation(api.admin.adminCreateUser);
-  const setPassword = useMutation(api.admin.adminSetPassword);
+  const createUser = useAction(api.adminAuthActions.adminCreateUserAction);
+  const setPassword = useAction(api.adminAuthActions.adminSetPasswordAction);
   const updateUser = useMutation(api.admin.adminUpdateUser);
   const deleteUser = useMutation(api.admin.adminDeleteUser);
   const [emails, setEmails] = useState("");
@@ -3466,7 +3466,7 @@ function AdminUsers() {
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
 
-  const [resetUser, setResetUser] = useState<{ _id: string; name: string | null } | null>(null);
+  const [resetUser, setResetUser] = useState<{ _id: string; name: string | null; email: string | null } | null>(null);
   const [resetPass, setResetPass] = useState("");
   const [resetErr, setResetErr] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -3506,7 +3506,7 @@ function AdminUsers() {
     setResetErr(null);
     setResetting(true);
     try {
-      await setPassword({ userId: resetUser._id as any, password: resetPass });
+      await setPassword({ userId: resetUser._id as any, email: resetUser.email ?? "", password: resetPass });
       setResetPass("");
       setResetUser(null);
     } catch (e) {
@@ -3651,7 +3651,7 @@ function AdminUsers() {
                         className="rounded-lg text-xs disabled:opacity-30"
                         disabled={!isSystemAdmin && (u.role === "admin" || u.role === "site_admin")}
                         title={!isSystemAdmin && (u.role === "admin" || u.role === "site_admin") ? "فقط ادمین سامانه می‌تواند رمز ادمین را تغییر دهد" : ""}
-                        onClick={() => { setResetUser({ _id: u._id, name: u.name ?? null }); setResetPass(""); setResetErr(null); }}
+                        onClick={() => { setResetUser({ _id: u._id, name: u.name ?? null, email: u.email ?? null }); setResetPass(""); setResetErr(null); }}
                       >
                         تغییر رمز
                       </Button>

@@ -10,6 +10,7 @@
 
 import type * as academyPaths from "../academyPaths.js";
 import type * as admin from "../admin.js";
+import type * as adminAuthActions from "../adminAuthActions.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiChat from "../aiChat.js";
 import type * as aiManagement from "../aiManagement.js";
@@ -65,6 +66,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   academyPaths: typeof academyPaths;
   admin: typeof admin;
+  adminAuthActions: typeof adminAuthActions;
   aiActions: typeof aiActions;
   aiChat: typeof aiChat;
   aiManagement: typeof aiManagement;
