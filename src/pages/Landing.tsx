@@ -100,6 +100,54 @@ export default function Landing() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-lab-grid [mask-image:radial-gradient(ellipse_70%_60%_at_50%_0%,black,transparent)]" />
         <div className="absolute -top-32 left-1/2 h-96 w-[42rem] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+
+        {/* ── ATCG code rain behind hero text ── */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+          {['A','T','C','G','A','T','C','G','A','T','C'].map((base, col) => (
+            <div
+              key={col}
+              className="absolute top-0 select-none font-mono text-sm font-bold"
+              style={{
+                left: `${5 + col * 8.5}%`,
+                color: 'var(--primary)',
+                opacity: 0.06 + (col % 3) * 0.015,
+                animation: `hero-code-fall ${5 + (col % 4) * 1.5}s linear infinite`,
+                animationDelay: `${col * 0.6}s`,
+              }}
+            >
+              {[...Array(28)].map((_, row) => (
+                <div
+                  key={row}
+                  style={{ opacity: 0.3 + ((row + col) % 5) * 0.14 }}
+                >
+                  {['A','T','C','G'][((row * 3 + col * 7) % 4)]}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* ── Rotating DNA double helix (left side) ── */}
+        <div className="pointer-events-none absolute -left-6 top-1/2 -translate-y-1/2 opacity-[0.12] lg:left-8" aria-hidden>
+          <svg viewBox="0 0 80 500" className="h-[420px] w-16 animate-[spin_18s_linear_infinite]">
+            {[...Array(20)].map((_, i) => {
+              const y = 10 + i * 24;
+              const offset = Math.sin(i * 0.65) * 22;
+              return (
+                <g key={i}>
+                  <circle cx={40 + offset} cy={y} r={4} fill="var(--primary)" opacity={0.5 + Math.sin(i) * 0.25}>
+                    <animate attributeName="r" values="3;5.5;3" dur={`${2 + (i % 4) * 0.4}s`} repeatCount="indefinite" />
+                  </circle>
+                  <line x1={40 + offset} y1={y} x2={40 - offset} y2={y} stroke="var(--primary)" strokeWidth={1.5} opacity={0.35} />
+                  <circle cx={40 - offset} cy={y} r={3.5} fill="oklch(0.62 0.13 165)" opacity={0.4}>
+                    <animate attributeName="r" values="4.5;2.5;4.5" dur={`${2 + (i % 4) * 0.4}s`} repeatCount="indefinite" />
+                  </circle>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
+
         <div className="relative mx-auto grid max-w-7xl gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:pt-24">
           <div>
             <motion.div
