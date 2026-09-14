@@ -1248,8 +1248,10 @@ function DemoNotFound({ demo }: { demo: { slug: string } }) {
 
 // ── Main Router ────────────────────────────────────────────────────────────
 
-export default function DemoPreview() {
-  const { demoSlug, "*": subPath } = useParams();
+export default function DemoPreview({ overrideSlug, overrideSubPath }: { overrideSlug?: string; overrideSubPath?: string } = {}) {
+  const params = useParams();
+  const demoSlug = overrideSlug ?? params.demoSlug;
+  const subPath = overrideSubPath ?? params["*"] ?? "";
   const demo = useQuery(api.siteDemos.getBySlug, demoSlug ? { slug: demoSlug } : "skip");
 
   if (demo === null) {
