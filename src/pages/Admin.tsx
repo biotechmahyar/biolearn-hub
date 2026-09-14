@@ -1,5 +1,6 @@
 import { CategoryField } from "@/components/site/CategoryField";
 import { AdminEduManagement } from "@/pages/panels/AdminEduManagement";
+import { SiteDemosAdmin } from "@/pages/panels/SiteDemosAdmin";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { Badge } from "@/components/ui/badge";
@@ -173,7 +174,8 @@ type Section =
   | "auditLogs"
   | "dailyQuiz"
   | "telegram"
-  | "aiSubscriptions";
+  | "aiSubscriptions"
+  | "siteDemos";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -216,6 +218,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "dailyQuiz", label: "کوئیز روزانه", icon: Zap },
       { key: "telegram", label: "تلگرام", icon: Bot },
       { key: "aiSubscriptions", label: "اشتراک هوش مصنوعی", icon: Sparkles },
+      { key: "siteDemos", label: "دمو سایت", icon: Blocks },
       { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon } as any,
       { key: "pathSuggestions", label: "مسیرهای پیشنهادی", icon: RouteIcon, notifKey: "pathSuggestions" } as any,
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
@@ -706,6 +709,7 @@ export default function Admin() {
             {section === "dailyQuiz" && <AdminDailyQuiz />}
             {section === "telegram" && <AdminTelegram />}
             {section === "aiSubscriptions" && <AdminAISubscriptions />}
+            {section === "siteDemos" && <SiteDemosAdmin />}
           </div>
         </main>
       </div>

@@ -66,6 +66,7 @@ const SiteStudio = lazy(() => import("./pages/SiteStudio.tsx"));
 const StudioPreviewPage = lazy(() =>
   import("./pages/SiteStudio.tsx").then((m) => ({ default: m.StudioPreviewPage })),
 );
+const DemoPreview = lazy(() => import("./pages/DemoPreview.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -329,6 +330,10 @@ createRoot(document.getElementById("root")!).render(
                   </RoleGate>
                 }
               />
+
+              {/* Site Demos — public preview routes (noindex) */}
+              <Route path="/demo/:demoSlug" element={<DemoPreview />} />
+              <Route path="/demo/:demoSlug/*" element={<DemoPreview />} />
 
               <Route path="*" element={<NotFound />} />
             </Routes>

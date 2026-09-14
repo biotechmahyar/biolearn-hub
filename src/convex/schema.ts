@@ -1650,6 +1650,23 @@ const schema = defineSchema(
     })
       .index("by_status", ["status"])
       .index("by_instructor", ["instructorId"]),
+
+    // ── Site Demos (visual design prototypes) ─────────────────────────────
+    siteDemos: defineTable({
+      name: v.string(),                    // e.g. "Demo 01 — Clean Academy"
+      slug: v.string(),                    // unique identifier, e.g. "demo_1"
+      description: v.optional(v.string()),
+      status: v.union(v.literal("active"), v.literal("archived")),
+      // Theme / design system tokens
+      theme: v.optional(v.any()),           // JSON object with color tokens, etc.
+      previewImage: v.optional(v.string()),
+      // Metadata
+      createdBy: v.id("users"),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_slug", ["slug"])
+      .index("by_status", ["status"]),
   },
   {
     schemaValidation: false,

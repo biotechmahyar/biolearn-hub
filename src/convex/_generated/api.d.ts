@@ -42,6 +42,7 @@ import type * as promotions from "../promotions.js";
 import type * as seed from "../seed.js";
 import type * as seedBioDiagnostic from "../seedBioDiagnostic.js";
 import type * as sendOtpEmail from "../sendOtpEmail.js";
+import type * as siteDemos from "../siteDemos.js";
 import type * as siteSettings from "../siteSettings.js";
 import type * as siteStudio from "../siteStudio.js";
 import type * as superAdmin from "../superAdmin.js";
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   seedBioDiagnostic: typeof seedBioDiagnostic;
   sendOtpEmail: typeof sendOtpEmail;
+  siteDemos: typeof siteDemos;
   siteSettings: typeof siteSettings;
   siteStudio: typeof siteStudio;
   superAdmin: typeof superAdmin;
