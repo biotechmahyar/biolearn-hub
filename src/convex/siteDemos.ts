@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ── Queries ───────────────────────────────────────────────────────────────
 
@@ -45,12 +46,9 @@ export const create = mutation({
     previewImage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const me = await ctx.auth.getUserIdentity();
-    if (!me) throw new Error("Authentication required");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", me.email ?? ""))
-      .unique();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Authentication required");
+    const user = await ctx.db.get(userId);
     if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
       throw new Error("Only admins can create demos");
     }
@@ -89,8 +87,8 @@ export const update = mutation({
     previewImage: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const me = await ctx.auth.getUserIdentity();
-    if (!me) throw new Error("Authentication required");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Authentication required");
     const demo = await ctx.db.get(args.id);
     if (!demo) throw new Error("Demo not found");
 
@@ -124,12 +122,9 @@ export const clone = mutation({
     newSlug: v.string(),
   },
   handler: async (ctx, args) => {
-    const me = await ctx.auth.getUserIdentity();
-    if (!me) throw new Error("Authentication required");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", me.email ?? ""))
-      .unique();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Authentication required");
+    const user = await ctx.db.get(userId);
     if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
       throw new Error("Only admins can clone demos");
     }
@@ -162,8 +157,8 @@ export const clone = mutation({
 export const remove = mutation({
   args: { id: v.id("siteDemos") },
   handler: async (ctx, args) => {
-    const me = await ctx.auth.getUserIdentity();
-    if (!me) throw new Error("Authentication required");
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Authentication required");
     const demo = await ctx.db.get(args.id);
     if (!demo) throw new Error("Demo not found");
     await ctx.db.delete(args.id);
@@ -437,12 +432,9 @@ const DEMO_SEEDS: {
 export const seedDemos = mutation({
   args: {},
   handler: async (ctx) => {
-    const me = await ctx.auth.getUserIdentity();
-    if (!me) throw new Error("Authentication required");
-    const user = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", me.email ?? ""))
-      .unique();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Authentication required");
+    const user = await ctx.db.get(userId);
     if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
       throw new Error("Only admins can seed demos");
     }
