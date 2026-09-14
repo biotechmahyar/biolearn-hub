@@ -32,6 +32,7 @@ import {
   Search,
   Calendar,
   User,
+  Zap,
 } from "lucide-react";
 
 type Demo = {
@@ -69,6 +70,7 @@ export function SiteDemosAdmin() {
   const updateDemo = useMutation(api.siteDemos.update);
   const deleteDemo = useMutation(api.siteDemos.remove);
   const cloneDemo = useMutation(api.siteDemos.clone);
+  const seedDemos = useMutation(api.siteDemos.seedDemos);
 
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState<Demo | null>(null);
@@ -223,10 +225,33 @@ export function SiteDemosAdmin() {
             طراحی، ذخیره و مقایسه پوسته‌های مختلف سایت بدون تغییر در سایت اصلی
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)} className="gap-2">
-          <Plus className="size-4" />
-          دمو جدید
-        </Button>
+        <div className="flex gap-2">
+          {!demos || demos.length === 0 ? (
+            <Button
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const result = await seedDemos();
+                  toast.success(`${result.created} دمو ساخته شد (${result.skipped} تکراری رد شد)`);
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "خطا در seed");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              variant="outline"
+              className="gap-2"
+              disabled={loading}
+            >
+              <Zap className="size-4" />
+              ساخت ۱۴ دموی زیست‌شناختی
+            </Button>
+          ) : null}
+          <Button onClick={() => setShowCreate(true)} className="gap-2">
+            <Plus className="size-4" />
+            دمو جدید
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
