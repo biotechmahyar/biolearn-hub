@@ -148,7 +148,7 @@ export default function Landing() {
           </svg>
         </div>
 
-        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 pb-20 pt-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:pt-24">
+        <div className="relative mx-auto grid max-w-7xl gap-12 px-4 pb-20 pt-10 sm:px-6 lg:grid-cols-2 lg:items-center lg:pt-16">
           <div>
             <motion.div
               initial={{ opacity: 0, y: 16 }}
