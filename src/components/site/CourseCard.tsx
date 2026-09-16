@@ -28,8 +28,8 @@ export function CourseCard({ course }: { course: Course }) {
   const a = accent(course.accent);
   const Icon = iconFor(course.category?.slug === "general-guide" ? "graduation" : undefined);
   const totalMin = course.syllabus.reduce((acc, l) => acc + l.durationMin, 0);
-  const effective = course.discountPrice ?? course.price;
-  const hasDiscount = !!course.discountPrice && course.discountPrice < course.price;
+  const hasDiscount = !!course.discountPrice && course.discountPrice > 0 && course.discountPrice < course.price;
+  const effective = hasDiscount ? course.discountPrice : course.price;
 
   return (
     <Link to={`/courses/${course.slug}`} className="group block h-full">
@@ -94,7 +94,7 @@ export function CourseCard({ course }: { course: Course }) {
                 <span className="text-base font-extrabold text-emerald-500">رایگان</span>
               ) : (
                 <>
-                  <span className="text-base font-extrabold">{formatPrice(effective)}</span>
+                  <span className="text-base font-extrabold">{formatPrice(effective ?? course.price)}</span>
                   {hasDiscount && (
                     <span className="text-xs text-muted-foreground line-through">
                       {faNum(course.price)}

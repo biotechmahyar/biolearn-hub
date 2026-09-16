@@ -56,7 +56,7 @@ export function AdminEduManagement() {
     try {
       const rows = workshops.map((w: any) => {
         const slug = shortSlug(w.title);
-        const url = `${SITE_URL}/workshop/${slug}`;
+        const url = slug;
         return {
           A: url,
           B: (w.title || "").slice(0, 128),
@@ -176,8 +176,8 @@ export function AdminEduManagement() {
                       <TableRow key={w._id}>
                         <TableCell className="text-xs font-bold">{faNum(i + 1)}</TableCell>
                         <TableCell className="text-xs font-medium max-w-[300px] truncate">{w.title}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground" dir="ltr">
-                          {SITE_URL}/workshop/{shortSlug(w.title)}
+                        <TableCell className="text-xs font-mono text-muted-foreground" dir="ltr">
+                          {shortSlug(w.title)}
                         </TableCell>
                         <TableCell className="text-xs">
                           <span className={w.published ? "text-emerald-600" : "text-amber-600"}>
@@ -192,7 +192,7 @@ export function AdminEduManagement() {
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-[11px] text-muted-foreground">
               <p className="font-bold mb-1">فرمت خروجی SkyrRoom:</p>
-              <p>ستون A: آدرس کوتاه کارگاه — ستون B: عنوان (حداکثر ۱۲۸ کاراکتر) — ستون C: no — ستون D: yes — ستون E: yes</p>
+              <p>ستون A: slug کارگاه (فقط نام لاتین) — ستون B: عنوان (حداکثر ۱۲۸ کاراکتر) — ستون C: no — ستون D: yes — ستون E: yes</p>
             </div>
           </CardContent>
         </Card>

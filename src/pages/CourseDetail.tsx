@@ -127,8 +127,9 @@ function CourseDetail() {
 
   const a = accent(course.accent);
   const Icon = iconFor(course.category?.icon ?? "");
-  const effective = course.discountPrice ?? course.price;
-  const hasDiscount = !!course.discountPrice && course.discountPrice < course.price;
+  const hasDiscount = !!course.discountPrice && course.discountPrice > 0 && course.discountPrice < course.price;
+  const effective = hasDiscount ? course.discountPrice : course.price;
+  const discountPercent = hasDiscount ? Math.round((1 - (course.discountPrice ?? course.price) / course.price) * 100) : 0;
   const isEnrolled = !!course.enrollment;
   const allSections = sectionsWithLessons ?? [];
   const allLessonsFromSections = allSections.flatMap((s: any) => s.lessons ?? []);
@@ -231,7 +232,7 @@ function CourseDetail() {
                       <span className="text-2xl font-black text-emerald-600">رایگان</span>
                     ) : (
                       <>
-                        <span className="text-2xl font-black">{formatPrice(effective)}</span>
+                        <span className="text-2xl font-black">{formatPrice(effective ?? course.price)}</span>
                         {hasDiscount && (
                           <span className="mr-2 text-sm text-muted-foreground line-through">
                             {faNum(course.price)}
@@ -277,7 +278,8 @@ function CourseDetail() {
                     {BUNDLE_ORDER.map((tier) => {
                       const isSelected = buying === tier;
                       const pkgPrice = course.packagePrices?.find((p: any) => p.tier === tier);
-                      const tierPrice = pkgPrice?.price ?? (tier === course.bundle ? effective : 0);
+                      const rawTierPrice = pkgPrice?.price ?? (tier === course.bundle ? course.price : 0);
+                      const tierPrice = hasDiscount && rawTierPrice > 0 ? Math.round(rawTierPrice * (1 - discountPercent / 100)) : rawTierPrice;
                       const hasPrice = tierPrice > 0 || course.price === 0;
                       return (
                         <button
@@ -321,7 +323,7 @@ function CourseDetail() {
                       onClick={() => openCheckout(buying || course.bundle)}
                       disabled={!buying && course.price > 0}
                     >
-                      {course.price === 0 ? "ثبت‌نام رایگان" : buying ? `خرید دوره — ${formatPrice(course.packagePrices?.find((p: any) => p.tier === buying)?.price ?? effective)}` : "یک پکیج را انتخاب کنید"}
+                      {course.price === 0 ? "ثبت‌نام رایگان" : buying ? `خرید دوره — ${formatPrice(course.packagePrices?.find((p: any) => p.tier === buying)?.price ?? effective ?? course.price)}` : "یک پکیج را انتخاب کنید"}
                     </Button>
                     <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                       <ShieldCheck className="size-3.5 text-emerald-500" />
@@ -687,7 +689,8 @@ function CourseDetail() {
             price: (() => {
               const selectedTier = buying || course.bundle;
               const pkg = course.packagePrices?.find((p: any) => p.tier === selectedTier);
-              return pkg?.price ?? effective;
+              const base = pkg?.price ?? course.price;
+                    return hasDiscount ? Math.round(base * (1 - discountPercent / 100)) : base;
             })(),
           },
         ]}

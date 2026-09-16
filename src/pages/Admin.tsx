@@ -857,7 +857,7 @@ function AdminCourses() {
     setForm({
       title: c.title,
       summary: c.summary,
-      price: String(c.discountPrice ?? c.price),
+      price: String(c.price),
       categoryId: c.categoryId,
       instructorId: c.instructorId,
       mode: c.mode,
@@ -953,7 +953,7 @@ function AdminCourses() {
                 <TableRow key={c._id}>
                   <TableCell className="max-w-56 truncate font-medium">{c.title}</TableCell>
                   <TableCell className="text-muted-foreground">{c.category}</TableCell>
-                  <TableCell>{formatPrice(c.discountPrice ?? c.price)}</TableCell>
+                  <TableCell>{(c.discountPrice && c.discountPrice > 0) ? formatPrice(c.discountPrice) : formatPrice(c.price)}</TableCell>
                   <TableCell>{faNum(c.studentsCount)}</TableCell>
                   <TableCell><CourseStatusChip c={c} /></TableCell>
                   <TableCell>
@@ -1581,6 +1581,8 @@ function AdminQuestions() {
 
   // Expanded group
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
+  const [showAllQuestions, setShowAllQuestions] = useState(false);
+  const allQuestions = useQuery(api.admin.adminGetQuestions);
 
   // Add question form
   const empty = { text: "", options: ["", "", "", ""], correctIndex: "0", explanation: "", difficulty: "1" };
@@ -1664,6 +1666,9 @@ function AdminQuestions() {
             <Sparkles className="ml-1.5 size-4" />
             تولید با هوش مصنوعی
           </Button>
+          <Button variant={showAllQuestions ? "default" : "outline"} className="rounded-lg" onClick={() => setShowAllQuestions(!showAllQuestions)}>
+            {showAllQuestions ? "نمایش بر اساس گروه" : "نمایش همه سوالات"}
+          </Button>
           <Button className="rounded-lg" onClick={() => setAddOpen(true)}>
             <Plus className="ml-1.5 size-4" />
             سؤال جدید
@@ -1746,6 +1751,42 @@ function AdminQuestions() {
           );
         })}
       </div>
+
+      {/* Flat all-questions view */}
+      {showAllQuestions && (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="p-4">
+            <p className="mb-3 text-sm font-bold">همه سوالات ({allQuestions?.length ?? 0})</p>
+            {allQuestions === undefined ? (
+              <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+            ) : allQuestions.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">سوالی یافت نشد.</p>
+            ) : (
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {allQuestions.map((q: any) => (
+                  <div key={q._id} className="flex items-start gap-3 rounded-lg border border-border/50 bg-card p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium leading-6">{q.text}</p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {q.options.map((opt: string, oi: number) => (
+                          <span key={oi} className={cn("inline-block rounded-md px-2 py-0.5 text-[11px]", oi === q.correctIndex ? "bg-emerald-500/10 font-bold text-emerald-600" : "bg-muted text-muted-foreground")}>
+                            {oi === q.correctIndex ? "✓ " : ""}{opt}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted-foreground">گروه: {q.topic ?? "بدون گروه"} · سختی: {q.difficulty === 1 ? "آسان" : q.difficulty === 2 ? "متوسط" : "سخت"}</p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditQ(q); setEditForm({ text: q.text, options: [...q.options], correctIndex: String(q.correctIndex), explanation: q.explanation, difficulty: String(q.difficulty) }); }}><Pencil className="size-3" /></Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={async () => { if (confirm("حذف شود؟")) { try { await removeQuestion({ id: q._id }); } catch (e) { setErr(e instanceof Error ? e.message : "خطا"); } } }}><Trash2 className="size-3.5" /></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {err && <p className="text-sm text-destructive">{err}</p>}
 
