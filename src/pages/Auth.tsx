@@ -274,7 +274,7 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         <div className="absolute inset-0 bg-lab-grid opacity-20" />
         <div className="absolute -bottom-24 -left-24 size-96 rounded-full bg-white/10 blur-3xl" />
         <Link to="/" className="relative flex items-center gap-3">
-          <BrandMark className="bg-white/15 text-white" />
+          <BrandMark className="" />
           <span className="text-lg font-extrabold">Genova</span>
           <span className="rounded-full bg-white/10 px-2.5 py-1 font-mono text-[10px] text-white/70 backdrop-blur">internal</span>
         </Link>
