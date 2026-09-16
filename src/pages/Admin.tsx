@@ -5865,6 +5865,8 @@ function AdminAcademyPathsInner() {
   const [editItemPrice, setEditItemPrice] = useState("");
   const [editItemCapacity, setEditItemCapacity] = useState("");
   const [editItemInstructorId, setEditItemInstructorId] = useState("");
+  const [editItemDate, setEditItemDate] = useState("");
+  const [editItemTime, setEditItemTime] = useState("");
 
   const handleCreate = async () => {
     if (!title.trim()) return;
@@ -6068,7 +6070,7 @@ function AdminAcademyPathsInner() {
                               <Button size="icon" variant="ghost" className="size-6" disabled={idx === p.items.length - 1} onClick={() => moveItem({ id: item._id, direction: "down" })}>
                                 <ArrowDown className="size-3" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="size-6 text-cyan-500 hover:text-cyan-400" title="ویرایش کارگاه" onClick={() => { setEditingItem(item); setEditItemTitle(item.title || ""); setEditItemPrice(item.price ? String(item.price) : ""); setEditItemCapacity(item.capacity ? String(item.capacity) : ""); setEditItemInstructorId(item.instructorId || ""); setEditingItemOpen(true); }}>
+                              <Button size="icon" variant="ghost" className="size-6 text-cyan-500 hover:text-cyan-400" title="ویرایش کارگاه" onClick={() => { setEditingItem(item); setEditItemTitle(item.title || ""); setEditItemPrice(item.price ? String(item.price) : ""); setEditItemCapacity(item.capacity ? String(item.capacity) : ""); setEditItemInstructorId(item.instructorId || ""); setEditItemDate(item.workshopDate || ""); setEditItemTime(item.workshopTime || ""); setEditingItemOpen(true); }}>
                                 <Pencil className="size-3" />
                               </Button>
                               <Button size="icon" variant="ghost" className="size-6 text-destructive" onClick={() => removeItem({ id: item._id })}>
@@ -6405,6 +6407,14 @@ function AdminAcademyPathsInner() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-muted-foreground">تاریخ برگزاری</label>
+                <JalaliDatePicker value={editItemDate} onChange={setEditItemDate} placeholder="انتخاب تاریخ" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-bold text-muted-foreground">ساعت برگزاری</label>
+                <Input type="time" value={editItemTime} onChange={(e) => setEditItemTime(e.target.value)} dir="ltr" />
+              </div>
               <Button
                 className="w-full"
                 onClick={async () => {
@@ -6415,6 +6425,8 @@ function AdminAcademyPathsInner() {
                       if (editItemTitle) wsPatch.title = editItemTitle;
                       if (editItemPrice) wsPatch.price = Number(editItemPrice);
                       if (editItemCapacity) wsPatch.capacity = Number(editItemCapacity);
+                      if (editItemDate) wsPatch.date = editItemDate;
+                      if (editItemTime) wsPatch.time = editItemTime;
                       await updateWorkshop(wsPatch);
                     }
                     // Update instructor assignment on the path item

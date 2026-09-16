@@ -1247,3 +1247,36 @@ export const adminCreateClass = mutation({
     });
   },
 });
+
+// ── Workshop Registrations (for SkyrRoom XLSX export) ────────────────────────
+export const adminGetWorkshopRegistrations = query({
+  args: { workshopId: v.optional(v.id("workshops")) },
+  handler: async (ctx, args) => {
+    if (!(await isContentStaff(ctx))) return [];
+    // Find all paid orders containing workshop items
+    const orders = await ctx.db.query("orders").collect();
+    const results: any[] = [];
+    for (const order of orders) {
+      for (const item of order.items) {
+        if (item.type === "workshop" && (!args.workshopId || item.refId === args.workshopId)) {
+          const user = await ctx.db.get(order.userId);
+          if (user) {
+            results.push({
+              workshopId: item.refId,
+              workshopTitle: item.title,
+              userId: user._id,
+              name: (user as any).name ?? "",
+              firstName: (user as any).firstName ?? "",
+              lastName: (user as any).lastName ?? "",
+              firstNameLatin: (user as any).firstNameLatin ?? "",
+              lastNameLatin: (user as any).lastNameLatin ?? "",
+              phone: (user as any).phone ?? "",
+              email: (user as any).email ?? "",
+            });
+          }
+        }
+      }
+    }
+    return results;
+  },
+});

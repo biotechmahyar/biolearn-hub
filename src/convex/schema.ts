@@ -98,6 +98,8 @@ const schema = defineSchema(
       // pendingProfile until a site admin approves them.
       firstName: v.optional(v.string()),
       lastName: v.optional(v.string()),
+      firstNameLatin: v.optional(v.string()),
+      lastNameLatin: v.optional(v.string()),
       avatarStorageId: v.optional(v.string()),
       about: v.optional(v.string()),
       phone: v.optional(v.string()),

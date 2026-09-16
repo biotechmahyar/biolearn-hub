@@ -20,6 +20,8 @@ export const getMyProfile = query({
       role: user.role ?? null,
       firstName: user.firstName ?? null,
       lastName: user.lastName ?? null,
+      firstNameLatin: user.firstNameLatin ?? null,
+      lastNameLatin: user.lastNameLatin ?? null,
       about: user.about ?? null,
       phone: user.phone ?? null,
       address: user.address ?? null,
@@ -47,6 +49,8 @@ export const updateMyProfile = mutation({
   args: {
     firstName: v.optional(v.string()),
     lastName: v.optional(v.string()),
+    firstNameLatin: v.optional(v.string()),
+    lastNameLatin: v.optional(v.string()),
     avatarStorageId: v.optional(v.string()),
     about: v.optional(v.string()),
     phone: v.optional(v.string()),
@@ -59,6 +63,8 @@ export const updateMyProfile = mutation({
     const next = {
       firstName: args.firstName?.trim() || undefined,
       lastName: args.lastName?.trim() || undefined,
+      firstNameLatin: args.firstNameLatin?.trim() || undefined,
+      lastNameLatin: args.lastNameLatin?.trim() || undefined,
       avatarStorageId: args.avatarStorageId || undefined,
       about: args.about?.trim() || undefined,
       phone: args.phone?.trim() || undefined,
@@ -70,6 +76,8 @@ export const updateMyProfile = mutation({
       const patch: Record<string, unknown> = {
         firstName: next.firstName,
         lastName: next.lastName,
+        firstNameLatin: next.firstNameLatin,
+        lastNameLatin: next.lastNameLatin,
         avatarStorageId: next.avatarStorageId,
         about: next.about,
         phone: next.phone,

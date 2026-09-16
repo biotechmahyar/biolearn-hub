@@ -21,6 +21,8 @@ export function MemberProfileEditor() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [firstNameLatin, setFirstNameLatin] = useState("");
+  const [lastNameLatin, setLastNameLatin] = useState("");
   const [about, setAbout] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -38,6 +40,8 @@ export function MemberProfileEditor() {
     if (me) {
       setFirstName(me.firstName ?? "");
       setLastName(me.lastName ?? "");
+      setFirstNameLatin(me.firstNameLatin ?? "");
+      setLastNameLatin(me.lastNameLatin ?? "");
       setAbout(me.about ?? "");
       setPhone(me.phone ?? "");
       setAddress(me.address ?? "");
@@ -68,6 +72,8 @@ export function MemberProfileEditor() {
       const res = await update({
         firstName,
         lastName,
+        firstNameLatin,
+        lastNameLatin,
         avatarStorageId: avatarStorageId ?? undefined,
         about,
         phone,
@@ -157,6 +163,16 @@ export function MemberProfileEditor() {
             <div>
               <label className="mb-1 block text-xs font-bold text-muted-foreground">نام خانوادگی</label>
               <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="نام خانوادگی" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">نام لاتین (First Name)</label>
+              <Input value={firstNameLatin} onChange={(e) => setFirstNameLatin(e.target.value)} placeholder="e.g. Ali" dir="ltr" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-muted-foreground">نام خانوادگی لاتین (Last Name)</label>
+              <Input value={lastNameLatin} onChange={(e) => setLastNameLatin(e.target.value)} placeholder="e.g. Rezaei" dir="ltr" />
             </div>
           </div>
           <div>
