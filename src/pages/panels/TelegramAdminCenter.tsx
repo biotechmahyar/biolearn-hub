@@ -182,7 +182,7 @@ function DashboardTab({ botConfig }: { botConfig: any }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open("https://nibrc.ir", "_blank")}
+            onClick={() => window.open(`https://t.me/${botConfig?.botUsername ?? ""}?startapp`, "_blank")}
           >
             <ExternalLink className="mr-1 size-3" /> باز کردن Mini App
           </Button>

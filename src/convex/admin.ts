@@ -653,12 +653,12 @@ export const adminSetPassword = mutation({
 // ── Instructor CRUD ────────────────────────────────────────────────────────
 export const adminCreateInstructor = mutation({
   args: { name: v.string(), slug: v.optional(v.string()), title: v.string(), bio: v.string(),
-    education: v.array(v.string()), specialties: v.array(v.string()), accent: v.optional(v.string()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()) },
+    education: v.array(v.string()), specialties: v.array(v.string()), accent: v.optional(v.string()), verified: v.optional(v.boolean()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const slug = args.slug || args.name.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
     return await ctx.db.insert("instructors", {
-      ...args, slug, accent: args.accent ?? "teal", verified: false,
+      ...args, slug, accent: args.accent ?? "teal", verified: args.verified ?? false,
     });
   },
 });
