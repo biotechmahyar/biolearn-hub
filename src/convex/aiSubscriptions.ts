@@ -120,7 +120,7 @@ export const revokeSubscription = mutation({
     if (!user || (user.role !== "admin" && user.role !== "site_admin"))
       throw new Error("دسترسی غیرمجاز.");
 
-    await ctx.db.patch(args.id, { active: false });
+    await ctx.db.delete(args.id);
     return { ok: true };
   },
 });

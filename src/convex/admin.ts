@@ -231,7 +231,12 @@ export const adminTogglePublish = mutation({
   args: { collection: v.string(), id: v.string(), published: v.boolean() },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
-    await ctx.db.patch(args.id as any, { published: args.published });
+    const patch: Record<string, any> = { published: args.published };
+    // Sync the `status` field for collections that have it (courses, articles, etc.)
+    if (args.collection === "courses" || args.collection === "articles") {
+      patch.status = args.published ? "published" : "draft";
+    }
+    await ctx.db.patch(args.id as any, patch);
     return { ok: true };
   },
 });
@@ -251,7 +256,7 @@ export const adminGetQuestions = query({
   handler: async (ctx) => {
     if (!(await isContentStaff(ctx))) return [];
     const questions = await ctx.db.query("questions").collect();
-    return Promise.all(questions.map(async (q) => ({ ...q, topic: (await ctx.db.get(q.topicId))?.name ?? null })));
+    return Promise.all(questions.map(async (q) => ({ ...q, topic: q.topicId ? ((await ctx.db.get(q.topicId))?.name ?? null) : null })));
   },
 });
 
@@ -1072,7 +1077,17 @@ export const adminSetCourseDiscount = mutation({
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
     const cid = (args as any).courseId ?? args.id;
     if (!cid) throw new Error("courseId لازم است");
-    await ctx.db.patch(cid, { discountPrice: (args as any).discountPercent ?? 0, discountExpiresAt: (args as any).discountExpiresAt });
+    const pct = (args as any).discountPercent;
+    let discountPrice: number;
+    if (pct && pct > 0) {
+      const course = await ctx.db.get(cid);
+      const originalPrice = (course as any)?.price ?? 0;
+      discountPrice = Math.round(originalPrice * (1 - pct / 100));
+    } else {
+      discountPrice = 0;
+    }
+    const expiresAt = discountPrice > 0 ? (args as any).discountExpiresAt : undefined;
+    await ctx.db.patch(cid, { discountPrice, discountExpiresAt: expiresAt });
     return { ok: true };
   },
 });
@@ -1083,7 +1098,17 @@ export const adminSetProductDiscount = mutation({
     if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
     const pid = (args as any).productId ?? args.id;
     if (!pid) throw new Error("productId لازم است");
-    await ctx.db.patch(pid, { discountPrice: (args as any).discountPercent ?? 0, discountExpiresAt: (args as any).discountExpiresAt });
+    const pct = (args as any).discountPercent;
+    let discountPrice: number;
+    if (pct && pct > 0) {
+      const product = await ctx.db.get(pid);
+      const originalPrice = (product as any)?.price ?? 0;
+      discountPrice = Math.round(originalPrice * (1 - pct / 100));
+    } else {
+      discountPrice = 0;
+    }
+    const expiresAt = discountPrice > 0 ? (args as any).discountExpiresAt : undefined;
+    await ctx.db.patch(pid, { discountPrice, discountExpiresAt: expiresAt });
     return { ok: true };
   },
 });

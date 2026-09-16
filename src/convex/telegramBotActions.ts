@@ -269,6 +269,7 @@ export const setMenuButton = action({
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     const siteUrl = process.env.SITE_URL || "https://nibrc.ir";
+    const miniAppUrl = `${siteUrl.replace(/\/$/, '')}/mini`;
 
     try {
       const data: any = await fetchJson(
@@ -280,7 +281,7 @@ export const setMenuButton = action({
             menu_button: {
               type: "web_app",
               text: "🚀 Genova",
-              web_app: { url: siteUrl },
+              web_app: { url: miniAppUrl },
             },
           }),
           signal: AbortSignal.timeout(10000),
