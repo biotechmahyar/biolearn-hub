@@ -653,8 +653,7 @@ export const adminSetPassword = mutation({
 // ── Instructor CRUD ────────────────────────────────────────────────────────
 export const adminCreateInstructor = mutation({
   args: { name: v.string(), slug: v.optional(v.string()), title: v.string(), bio: v.string(),
-    education: v.array(v.string()), specialties: v.array(v.string()),
-    accent: v.optional(v.string()), userId: v.optional(v.id("users")) },
+    education: v.array(v.string()), specialties: v.array(v.string()), accent: v.optional(v.string()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const slug = args.slug || args.name.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
@@ -666,9 +665,7 @@ export const adminCreateInstructor = mutation({
 
 export const adminUpdateInstructor = mutation({
   args: { id: v.id("instructors"), name: v.optional(v.string()), title: v.optional(v.string()),
-    bio: v.optional(v.string()), education: v.optional(v.array(v.string())),
-    specialties: v.optional(v.array(v.string())), accent: v.optional(v.string()),
-    verified: v.optional(v.boolean()), userId: v.optional(v.id("users")) },
+    bio: v.optional(v.string()), education: v.optional(v.array(v.string())), specialties: v.optional(v.array(v.string())), accent: v.optional(v.string()), verified: v.optional(v.boolean()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const { id, ...patch } = args;

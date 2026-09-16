@@ -156,6 +156,7 @@ const schema = defineSchema(
       accent: v.string(),
       verified: v.boolean(),
       userId: v.optional(v.id("users")), // linked registered user
+      photoUrl: v.optional(v.string()), // instructor photo URL
     }).index("by_slug", ["slug"])
       .index("by_user", ["userId"]),
 

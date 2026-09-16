@@ -5,10 +5,12 @@ export function InstructorAvatar({
   name,
   accent: key,
   className,
+  photoUrl,
 }: {
   name: string;
   accent?: string | null;
   className?: string;
+  photoUrl?: string | null;
 }) {
   const a = accent(key);
   const initials = name
@@ -18,6 +20,25 @@ export function InstructorAvatar({
     .slice(0, 2)
     .map((w) => w[0])
     .join(" ");
+
+  if (photoUrl) {
+    return (
+      <span
+        className={cn(
+          "inline-flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-sm",
+          className,
+        )}
+      >
+        <img
+          src={photoUrl}
+          alt={name}
+          className="size-full object-cover"
+          draggable={false}
+        />
+      </span>
+    );
+  }
+
   return (
     <span
       className={cn(

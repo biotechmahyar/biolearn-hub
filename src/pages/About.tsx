@@ -134,6 +134,7 @@ export default function About() {
               <InstructorAvatar
                 name={member.name}
                 accent={member.accent}
+                photoUrl={member.photoUrl}
                 className="mx-auto size-16 text-base"
               />
               <p className="mt-4 text-center text-base font-bold transition-colors group-hover:text-primary">

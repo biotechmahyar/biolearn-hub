@@ -214,7 +214,7 @@ function CourseDetail() {
                   to={`/instructors/${course.instructor.slug}`}
                   className="mt-6 inline-flex items-center gap-3 rounded-2xl bg-white/10 p-3 pr-4 backdrop-blur transition-colors hover:bg-white/15"
                 >
-                  <InstructorAvatar name={course.instructor.name} accent={course.accent} className="size-10 text-xs" />
+                  <InstructorAvatar name={course.instructor.name} accent={course.accent} photoUrl={course.instructor.photoUrl} className="size-10 text-xs" />
                   <span>
                     <span className="block text-sm font-bold">{course.instructor.name}</span>
                     <span className="block text-xs text-white/70">{course.instructor.title}</span>
@@ -535,7 +535,7 @@ function CourseDetail() {
                   to={`/instructors/${course.instructor.slug}`}
                   className="mt-4 flex items-start gap-4 rounded-2xl border border-border/70 bg-card/60 p-5 transition-colors hover:border-primary/30"
                 >
-                  <InstructorAvatar name={course.instructor.name} accent={course.accent} className="size-14 text-sm" />
+                  <InstructorAvatar name={course.instructor.name} accent={course.accent} photoUrl={course.instructor.photoUrl} className="size-14 text-sm" />
                   <div>
                     <p className="text-[15px] font-bold">{course.instructor.name}</p>
                     <p className="text-xs text-muted-foreground">{course.instructor.title}</p>

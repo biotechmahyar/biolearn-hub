@@ -83,7 +83,7 @@ export default function WorkshopDetail() {
 
             {workshop.instructor && (
               <div className="mt-6 flex items-center gap-4 rounded-2xl border border-border/70 bg-card/60 p-5">
-                <InstructorAvatar name={workshop.instructor.name} accent={a} className="size-14 text-sm" />
+                <InstructorAvatar name={workshop.instructor.name} accent={a} photoUrl={workshop.instructor.photoUrl} className="size-14 text-sm" />
                 <div>
                   <p className="text-[15px] font-bold">{workshop.instructor.name}</p>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground">

@@ -42,7 +42,7 @@ export default function Instructors() {
                 className="group rounded-2xl border border-border/70 bg-card/70 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5"
               >
                 <div className="flex items-start justify-between">
-                  <InstructorAvatar name={ins.name} accent={ins.accent} className="size-14 text-sm" />
+                  <InstructorAvatar name={ins.name} accent={ins.accent} photoUrl={ins.photoUrl} className="size-14 text-sm" />
                   {ins.verified && (
                     <Badge variant="secondary" className={cn("gap-1 rounded-full ring-1", a.chip)}>
                       <BadgeCheck className="size-3.5" />

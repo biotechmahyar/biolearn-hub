@@ -524,7 +524,7 @@ export default function Landing() {
               to={`/instructors/${ins.slug}`}
               className="group rounded-2xl border border-border/70 bg-card/70 p-5 text-center transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/5"
             >
-              <InstructorAvatar name={ins.name} accent={ins.accent} className="mx-auto size-14 text-sm" />
+              <InstructorAvatar name={ins.name} accent={ins.accent} photoUrl={ins.photoUrl} className="mx-auto size-14 text-sm" />
               <p className="mt-3 text-sm font-bold leading-5 transition-colors group-hover:text-primary">
                 {ins.name}
               </p>

@@ -42,7 +42,7 @@ export function WorkshopCard({ workshop }: { workshop: Workshop }) {
 
         {workshop.instructor && (
           <div className="mt-3 flex items-center gap-2.5">
-            <InstructorAvatar name={workshop.instructor.name} accent={workshop.instructor.accent} className="size-8 text-xs" />
+            <InstructorAvatar name={workshop.instructor.name} accent={workshop.instructor.accent}  className="size-8 text-xs" />
             <span className="text-sm font-medium">{workshop.instructor.name}</span>
           </div>
         )}

@@ -2821,7 +2821,7 @@ function AdminInstructors() {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPass, setNewUserPass] = useState("");
 
-  const empty = { name: "", title: "", bio: "", education: "", specialties: "", accent: "teal", verified: false, userId: "" };
+  const empty = { name: "", title: "", bio: "", education: "", specialties: "", accent: "teal", verified: false, userId: "", photoUrl: "" };
   const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "edit"; instructor: any } | null>(null);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
@@ -2837,6 +2837,7 @@ function AdminInstructors() {
       accent: i.accent || "teal",
       verified: i.verified,
       userId: i.userId ?? "",
+      photoUrl: i.photoUrl ?? "",
     });
     setCreateUserMode("existing");
     setDialog({ mode: "edit", instructor: i });
@@ -2879,6 +2880,7 @@ function AdminInstructors() {
         accent: form.accent,
         verified: form.verified,
         userId: linkedUserId as any,
+        photoUrl: form.photoUrl || undefined,
       };
       if (dialog?.mode === "edit") {
         await update({ id: dialog.instructor._id, ...payload });
@@ -2975,6 +2977,7 @@ function AdminInstructors() {
             <Textarea placeholder="معرفی کوتاه (هر خط در سایت نمایش داده می‌شود)" rows={3} value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} className="font-mono text-sm" />
             <Textarea placeholder="تحصیلات (هر مورد در یک خط)" rows={2} value={form.education} onChange={(e) => setForm({ ...form, education: e.target.value })} />
             <Input placeholder="تخصص‌ها (با ، جدا کنید)" value={form.specialties} onChange={(e) => setForm({ ...form, specialties: e.target.value })} />
+            <Input placeholder="لینک عکس مدرس (URL)" value={form.photoUrl} onChange={(e) => setForm({ ...form, photoUrl: e.target.value })} dir="ltr" />
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Select value={form.accent} onValueChange={(v) => setForm({ ...form, accent: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
