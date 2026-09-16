@@ -1489,6 +1489,66 @@ const schema = defineSchema(
       .index("by_status", ["status"])
       .index("by_verification_code", ["verificationCode"]),
 
+    // ── Certificate Templates ─────────────────────────────────────────────
+    certificateTemplates: defineTable({
+      name: v.string(),
+      description: v.optional(v.string()),
+      // Background image URL
+      backgroundImageUrl: v.optional(v.string()),
+      backgroundStorageId: v.optional(v.string()),
+      // Template canvas dimensions (for PDF/export)
+      width: v.number(),
+      height: v.number(),
+      // Field positions (x, y, fontSize, fontWeight, fontFamily, textAlign, maxWidth, color)
+      fields: v.any(), // Record<string, { x: number; y: number; fontSize: number; fontWeight: string; fontFamily: string; textAlign: string; maxWidth: number; color: string; direction?: string }>
+      // Static text content on the certificate
+      staticTexts: v.optional(v.any()),
+      isActive: v.boolean(),
+      createdBy: v.id("users"),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }).index("by_active", ["isActive"]),
+
+    // ── Issued Certificates (new template-based system) ─────────────────────
+    issuedCertificates: defineTable({
+      templateId: v.id("certificateTemplates"),
+      userId: v.id("users"),
+      courseId: v.id("courses"),
+      instructorId: v.optional(v.id("instructors")),
+      // Holder info
+      firstName: v.string(),
+      lastName: v.string(),
+      fatherName: v.optional(v.string()),
+      nationalCode: v.optional(v.string()),
+      courseTitle: v.string(),
+      courseDuration: v.optional(v.string()),
+      instructorName: v.optional(v.string()),
+      honorific: v.optional(v.string()), // سرکار خانم / جناب آقای
+      // Tracking
+      trackingCode: v.string(), // GEN-XXXX-XXXX-XXXX
+      courseCode: v.optional(v.string()),
+      issueDate: v.string(), // Jalali date string
+      // QR Code verification URL
+      qrUrl: v.optional(v.string()),
+      // PDF/image export URL
+      pdfStorageId: v.optional(v.string()),
+      pdfUrl: v.optional(v.string()),
+      // Status
+      status: v.union(
+        v.literal("issued"),
+        v.literal("revoked"),
+      ),
+      issuedAt: v.number(),
+      issuedBy: v.id("users"),
+      revokedAt: v.optional(v.number()),
+      revokedReason: v.optional(v.string()),
+    })
+      .index("by_tracking_code", ["trackingCode"])
+      .index("by_user", ["userId"])
+      .index("by_course", ["courseId"])
+      .index("by_template", ["templateId"])
+      .index("by_status", ["status"]),
+
     // ── Page Configs (real-page editable content) ────────────────────────
     // Stores per-section editable values for real React site pages.
     // Sections are keyed by their sectionId (e.g. "hero", "categories").

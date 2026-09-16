@@ -18,6 +18,7 @@ import type * as aiSubscriptions from "../aiSubscriptions.js";
 import type * as auth from "../auth.js";
 import type * as baleBot from "../baleBot.js";
 import type * as baleBotActions from "../baleBotActions.js";
+import type * as certificates from "../certificates.js";
 import type * as classEnroll from "../classEnroll.js";
 import type * as collab from "../collab.js";
 import type * as comments from "../comments.js";
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   baleBot: typeof baleBot;
   baleBotActions: typeof baleBotActions;
+  certificates: typeof certificates;
   classEnroll: typeof classEnroll;
   collab: typeof collab;
   comments: typeof comments;

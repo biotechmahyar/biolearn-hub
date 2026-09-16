@@ -1,6 +1,7 @@
 import { CategoryField } from "@/components/site/CategoryField";
 import { AdminEduManagement } from "@/pages/panels/AdminEduManagement";
 import { SiteDemosAdmin } from "@/pages/panels/SiteDemosAdmin";
+import AdminCertificateTemplates from "@/pages/panels/AdminCertificateTemplates";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { Badge } from "@/components/ui/badge";
@@ -175,7 +176,8 @@ type Section =
   | "dailyQuiz"
   | "telegram"
   | "aiSubscriptions"
-  | "siteDemos";
+  | "siteDemos"
+  | "certificateTemplates";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -222,6 +224,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon } as any,
       { key: "pathSuggestions", label: "مسیرهای پیشنهادی", icon: RouteIcon, notifKey: "pathSuggestions" } as any,
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
+      { key: "certificateTemplates", label: "قالب و صدور گواهی", icon: Award },
       { key: "enrollments", label: "مدیریت ثبت‌نامی‌ها", icon: ClipboardList },
       { key: "eduManagement", label: "مدیریت آموزش", icon: GraduationCap },
     ],
@@ -703,6 +706,7 @@ export default function Admin() {
             {section === "academyPaths" && <AdminAcademyPaths />}
             {section === "pathSuggestions" && <AdminPathSuggestions />}
             {section === "certificates" && <AdminCertificates />}
+            {section === "certificateTemplates" && <AdminCertificateTemplates />}
             {section === "enrollments" && <AdminEnrollments />}
             {section === "eduManagement" && <AdminEduManagement />}
             {section === "auditLogs" && <AdminAuditLogs />}

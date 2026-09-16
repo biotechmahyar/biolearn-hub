@@ -34,10 +34,18 @@ export default function VerifyCertificate() {
   const [codeInput, setCodeInput] = useState("");
   const [searchKey, setSearchKey] = useState("");
 
-  const result = useQuery(
+  const oldResult = useQuery(
     api.promotions.verifyCertificate,
     searchKey ? { code: searchKey } : "skip",
   );
+
+  const newResult = useQuery(
+    api.certificates.verifyIssuedCertificate,
+    searchKey ? { code: searchKey } : "skip",
+  );
+
+  // Merge results: prefer the new system if found
+  const result: any = newResult?.found ? newResult : oldResult;
 
   const handleVerify = () => {
     if (!codeInput.trim()) return;
