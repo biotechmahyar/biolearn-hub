@@ -125,7 +125,7 @@ function CertificatePreview({
           src={bgUrl}
           alt="Certificate background"
           className="absolute inset-0 size-full object-cover"
-          crossOrigin="anonymous"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
       )}
 

@@ -62,7 +62,7 @@ export default function InstructorDetail() {
         <div className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-card to-muted/50 p-8 sm:p-10">
           <div className="absolute inset-0 bg-lab-grid opacity-20" />
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-start">
-            <InstructorAvatar name={instructor.name} accent={instructor.accent} className="size-20 text-lg" />
+            <InstructorAvatar name={instructor.name} accent={instructor.accent} photoUrl={instructor.photoUrl} className="size-20 text-lg" />
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-extrabold sm:text-3xl">{instructor.name}</h1>

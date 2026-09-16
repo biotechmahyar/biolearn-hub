@@ -16,9 +16,10 @@ const SITE_URL = "https://nibrc.ir";
 function shortSlug(title: string): string {
   const slug = title
     .toLowerCase()
-    .replace(/[^\w\s\u0600-\u06FF-]/g, "")
+    .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
     .slice(0, 80);
   return slug || `ws-${Date.now().toString(36)}`;
 }
@@ -56,16 +57,9 @@ export function AdminEduManagement() {
     try {
       const rows = workshops.map((w: any) => {
         const slug = shortSlug(w.title);
-        const url = slug;
-        return {
-          A: url,
-          B: (w.title || "").slice(0, 128),
-          C: "no",
-          D: "yes",
-          E: "yes",
-        };
+        return [slug, (w.title || "").slice(0, 128), "no", "yes", "yes"];
       });
-      const ws = XLSX.utils.json_to_sheet(rows, { header: ["A", "B", "C", "D", "E"] });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
       ws["!cols"] = [{ wch: 50 }, { wch: 60 }, { wch: 5 }, { wch: 5 }, { wch: 5 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "SkyrRoom");
@@ -97,9 +91,9 @@ export function AdminEduManagement() {
         const username = makeUsername(u.firstNameLatin, u.lastNameLatin, u.phone);
         const password = makePassword(u.firstNameLatin, u.lastNameLatin, u.phone);
         const displayName = `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.name || username;
-        return { A: username, B: password, C: displayName };
+        return [username, password, displayName];
       });
-      const ws = XLSX.utils.json_to_sheet(rows, { header: ["A", "B", "C"] });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
       ws["!cols"] = [{ wch: 30 }, { wch: 20 }, { wch: 30 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Users");
