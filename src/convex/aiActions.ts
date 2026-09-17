@@ -7,6 +7,17 @@ import { internal } from "./_generated/api";
 // ── AI Provider call ────────────────────────────────────────────────────────
 
 /**
+ * Normalize an OpenAI-compatible base URL so that appending the standard
+ * path (`/chat/completions`) never produces a double prefix like
+ * "/v1/v1/chat/completions". Admins may enter either
+ * "https://api.x.com/v1" or "https://api.x.com".
+ */
+function openaiBase(url: string): string {
+  const trimmed = (url || "").trim().replace(/\/+$/, "");
+  return trimmed.endsWith("/v1") ? trimmed.slice(0, -3) : trimmed;
+}
+
+/**
  * Call the configured AI provider and save the response to the conversation.
  * This action runs server-side (Node.js) so the API key never reaches the browser.
  */
@@ -97,7 +108,7 @@ export const callAI = action({
           data.candidates?.[0]?.content?.parts?.[0]?.text ?? "پاسخی دریافت نشد.";
       } else {
         // OpenAI-compatible API (openai, gapgpt, custom)
-        const resp = await fetch(`${baseUrl}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -222,22 +233,32 @@ export const testConnection = action({
         }
         return { connected: true, message: "اتصال موفق", provider, model, testedAt };
       } else {
-        // OpenAI-compatible
-        const resp = await fetch(`${baseUrl}/models`, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${apiKey}` },
+        // OpenAI-compatible — make a REAL minimal chat call with the selected
+        // model. A GET /models listing alone would succeed even when the model
+        // ID is wrong (e.g. "gpt-oss-120b"), giving a false "اتصال موفق".
+        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: "Hi" }],
+            max_tokens: 5,
+          }),
         });
         if (!resp.ok) {
           const err = await resp.text();
           return {
             connected: false,
-            message: `خطای HTTP ${resp.status}: ${err.slice(0, 100)}`,
+            message: `خطای HTTP ${resp.status}: ${err.slice(0, 200)}`,
             provider,
             model,
             testedAt,
           };
         }
-        return { connected: true, message: "اتصال موفق", provider, model, testedAt };
+        return { connected: true, message: "اتصال موفق — مدل پاسخ داد", provider, model, testedAt };
       }
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "خطای ناشناخته";
@@ -345,7 +366,7 @@ export const generateQuestions = action({
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
         // OpenAI-compatible
-        const resp = await fetch(`${baseUrl}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -497,7 +518,7 @@ export const generateArticles = action({
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
         // OpenAI-compatible
-        const resp = await fetch(`${baseUrl}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -623,7 +644,7 @@ export const rewriteText = action({
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
         // OpenAI-compatible
-        const resp = await fetch(`${baseUrl}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({ model, messages: chatMessages, temperature: temperature ?? 0.7, max_tokens: 2048 }),
@@ -747,7 +768,7 @@ export const generateCourseDesign = action({
         if (data.error) throw new Error(data.error.message ?? "AI error");
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
-        const resp = await fetch(`${baseUrl}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

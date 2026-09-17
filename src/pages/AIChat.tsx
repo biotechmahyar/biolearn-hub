@@ -76,6 +76,12 @@ export default function AIChat() {
     }
   }, [activeModels, selectedModelId]);
 
+  // Clicking the active model again switches back to the default model
+  // (conversation with no explicit modelId = the admin-configured default).
+  const handleModelSelect = (modelId: string) => {
+    setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
+  };
+
   // Convex mutations (global mode)
   const createConvoConvex = useMutation(api.aiChat.createConversation);
   const sendMessageConvex = useMutation(api.aiChat.sendMessage);
@@ -402,7 +408,8 @@ export default function AIChat() {
                     {(activeModels ?? []).map((m: any) => (
                       <button
                         key={m._id}
-                        onClick={() => setSelectedModelId(m._id)}
+                        onClick={() => handleModelSelect(m._id)}
+                        title={selectedModelId === m._id ? "برای بازگشت به مدل پیشفرض دوباره کلیک کنید" : undefined}
                         className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                           selectedModelId === m._id
                             ? "bg-primary text-primary-foreground"
@@ -413,6 +420,9 @@ export default function AIChat() {
                         {m.isFree && <span className="mr-1 text-[10px] opacity-70">رایگان</span>}
                       </button>
                     ))}
+                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      {selectedModelId ? "فعال" : "مدل پیشفرض فعال"}
+                    </span>
                   </div>
                 )}
                 <Button onClick={handleNewChat} size="lg" className="gap-2">
@@ -535,7 +545,8 @@ export default function AIChat() {
                   {(activeModels ?? []).map((m: any) => (
                     <button
                       key={m._id}
-                      onClick={() => setSelectedModelId(m._id)}
+                      onClick={() => handleModelSelect(m._id)}
+                      title={selectedModelId === m._id ? "برای بازگشت به مدل پیشفرض دوباره کلیک کنید" : undefined}
                       className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
                         selectedModelId === m._id
                           ? "bg-primary text-primary-foreground"

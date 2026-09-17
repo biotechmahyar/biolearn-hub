@@ -2019,6 +2019,11 @@ function AIAssistantView() {
     if (!selectedModelId && activeModels.length === 1) setSelectedModelId(activeModels[0]._id);
   }, [activeModels, selectedModelId]);
 
+  // Clicking the active model again switches back to the default model
+  const handleModelSelect = (modelId: string) => {
+    setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -2113,6 +2118,33 @@ function AIAssistantView() {
                 )}
                 <div ref={messagesEndRef} />
               </div>
+
+              {/* Model picker — same models as the main AI chat */}
+              {activeModels.length > 0 && (
+                <div className="border-t border-white/5 px-4 pt-2">
+                  <div className="flex items-center gap-1.5 flex-wrap pb-1">
+                    <span className="text-[10px] text-slate-400">مدل:</span>
+                    {activeModels.map((m: any) => (
+                      <button
+                        key={m._id}
+                        onClick={() => handleModelSelect(m._id)}
+                        title={selectedModelId === m._id ? "برای بازگشت به مدل پیشفرض دوباره کلیک کنید" : undefined}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                          selectedModelId === m._id
+                            ? "bg-cyan-400/25 text-cyan-100 ring-1 ring-cyan-400/40"
+                            : "bg-white/5 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {m.name}
+                        {m.isFree && <span className="mr-1 text-[9px] opacity-70">رایگان</span>}
+                      </button>
+                    ))}
+                    <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                      {selectedModelId ? "فعال" : "مدل پیشفرض فعال"}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Input */}
               <div className="border-t border-white/5 p-3">
