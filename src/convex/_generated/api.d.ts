@@ -51,6 +51,7 @@ import type * as support from "../support.js";
 import type * as syncData from "../syncData.js";
 import type * as telegramBot from "../telegramBot.js";
 import type * as telegramBotActions from "../telegramBotActions.js";
+import type * as telegramBotExtras from "../telegramBotExtras.js";
 import type * as telegramMiniAppAuth from "../telegramMiniAppAuth.js";
 import type * as telegramNotifications from "../telegramNotifications.js";
 import type * as telegramSetupWebhook from "../telegramSetupWebhook.js";
@@ -110,6 +111,7 @@ declare const fullApi: ApiFromModules<{
   syncData: typeof syncData;
   telegramBot: typeof telegramBot;
   telegramBotActions: typeof telegramBotActions;
+  telegramBotExtras: typeof telegramBotExtras;
   telegramMiniAppAuth: typeof telegramMiniAppAuth;
   telegramNotifications: typeof telegramNotifications;
   telegramSetupWebhook: typeof telegramSetupWebhook;

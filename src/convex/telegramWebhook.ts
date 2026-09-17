@@ -1,5 +1,5 @@
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 // ── Telegram Webhook Handler ─────────────────────────────────────────────────
 // This is a PUBLIC httpAction — Telegram sends POST requests here.
@@ -33,6 +33,251 @@ function miniAppDeepLink(text: string, botUsername: string | null | undefined) {
 
 function urlBtn(text: string, url: string) {
   return { text, url };
+}
+
+// ── Bot-only interactive flows (AI / ask / session request) ───────────────
+
+async function notifyAdminsOfQuestion(ctx: any, admins: { telegramId: number; name: string }[], fromName: string, topic: string, text: string) {
+  for (const a of admins) {
+    try {
+      await sendMsg(
+        ctx.token,
+        a.telegramId,
+        `❓ <b>سؤال جدید از تلگرام</b>\n\n👤 ${fromName}\n📚 موضوع: ${topic}\n\n${text}\n\nبرای پاسخ: /answer`,
+      );
+    } catch { /* ignore per-admin failures */ }
+  }
+}
+
+async function handleAsk(ctx: any, token: string, chatId: number, telegramId: number) {
+  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  if (!user) {
+    await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.");
+    return;
+  }
+  await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+    telegramId,
+    kind: "ask",
+  });
+  await sendMsg(token, chatId, "💬 سؤال خود را بنویسید و ارسال کنید:\n\n(برای لغو /cancel را بفرستید)");
+}
+
+async function handleAiStart(ctx: any, token: string, chatId: number, telegramId: number) {
+  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  if (!user) {
+    await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.");
+    return;
+  }
+  const usage = await ctx.runQuery(internal.telegramBotExtras.getBotUserAiUsage, { userId: user._id });
+  if (!usage) {
+    await sendMsg(token, chatId, "❌ کاربر یافت نشد.");
+    return;
+  }
+  if (usage.remaining <= 0) {
+    await sendMsg(token, chatId, `⚠️ سهمیه روزانه هوش مصنوعی شما تمام شده است\n\n(${usage.dailyLimit}/${usage.dailyLimit}) — فردا دوباره شارژ می‌شود.`);
+    return;
+  }
+  await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+    telegramId,
+    kind: "ai",
+  });
+  await sendMsg(token, chatId, `🤖 سؤال خود را از هوش مصنوعی بپرسید:\n\nسهمیه امروز: ${usage.sent}/${usage.dailyLimit} (باقی‌مانده: ${usage.remaining})\n\n(برای لغو /cancel را بفرستید)`);
+}
+
+async function handleSessionRequest(ctx: any, token: string, chatId: number, telegramId: number) {
+  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  if (!user) {
+    await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.");
+    return;
+  }
+  await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+    telegramId,
+    kind: "session_title",
+    payload: {},
+  });
+  await sendMsg(token, chatId, "📅 درخواست جلسه\n\n۱️⃣ موضوع جلسه را بنویسید:\n\n(برای لغو /cancel را بفرستید)");
+}
+
+/** Handle a plain text message that may belong to a pending bot flow. */
+async function handlePendingText(ctx: any, token: string, chatId: number, telegramId: number, firstName: string, text: string): Promise<boolean> {
+  const pending = await ctx.runQuery(internal.telegramBotExtras.getPendingInput, { telegramId });
+  if (!pending) return false;
+
+  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  if (!user) {
+    await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+    return false;
+  }
+
+  if (pending.kind === "ask") {
+    await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+    const result = await ctx.runMutation(internal.telegramBotExtras.createBotQuestion, {
+      userId: user._id,
+      text,
+      topic: "عمومی",
+    });
+    await sendMsg(token, chatId, "✅ سؤال شما ثبت شد و به مدیران اطلاع داده شد.\n\nپاسخ را از همین‌جا یا سایت دریافت می‌کنید.", {
+      inline_keyboard: [[miniAppBtn("💬 مشاهده سؤالات", "/mini")]],
+    });
+    await notifyAdminsOfQuestion(
+      { token }, admins(result), user.name ?? firstName, "عمومی", text,
+    );
+    return true;
+  }
+
+  if (pending.kind === "ai") {
+    await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+    await sendMsg(token, chatId, "🤖 در حال فکر کردن…");
+    const result = await ctx.runAction(api.telegramBotExtras.botAiAsk, {
+      telegramId,
+      prompt: text,
+    });
+    if (result.ok) {
+      const truncated = result.answer.length > 3800 ? result.answer.slice(0, 3800) + "\n\n…" : result.answer;
+      await sendMsg(token, chatId, `🤖 <b>پاسخ:</b>\n\n${truncated}\n\n📊 باقی‌مانده امروز: ${result.remaining}/${result.limit}`);
+    } else {
+      await sendMsg(token, chatId, `⚠️ ${result.error}`);
+    }
+    return true;
+  }
+
+  // Admin answer flow: pick a question number, then type the answer
+  if (pending.kind === "answer_pick") {
+    await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+    await handleAnswerPick(ctx, token, chatId, telegramId, text.trim());
+    return true;
+  }
+
+  if (pending.kind === "answer_text") {
+    await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+    const qid = (pending.payload ?? {}).questionId as string | undefined;
+    const role = await ctx.runQuery(internal.telegramBotExtras.getBotUserRole, { telegramId });
+    if (!qid || (role !== "admin" && role !== "site_admin" && role !== "mentor")) {
+      await sendMsg(token, chatId, "⚠️ خطا در پاسخ‌دهی. دوباره /answer را بفرستید.");
+      return true;
+    }
+    const me = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+    const result = await ctx.runMutation(internal.telegramBotExtras.answerBotQuestion, {
+      questionId: qid as any,
+      answer: text,
+      answeredByName: me?.name ?? "مدیر",
+    });
+    if (result.ok) {
+      await sendMsg(token, chatId, "✅ پاسخ شما ثبت شد.");
+      // Notify the student in Telegram if they are linked
+      if (result.studentTelegramId) {
+        try {
+          await sendMsg(token, result.studentTelegramId,
+            `💬 <b>پاسخ به سؤال شما</b>\n\n${text.slice(0, 1500)}`, {
+              inline_keyboard: [[{ text: "💬 سؤالات من", callback_data: "cmd_questions" }]],
+            });
+        } catch { /* ignore */ }
+      }
+    } else {
+      await sendMsg(token, chatId, "⚠️ سؤال یافت نشد یا حذف شده است.");
+    }
+    return true;
+  }
+
+  // Session request multi-step: title → date → time → done
+  if (pending.kind.startsWith("session_")) {
+    const state = (pending.payload ?? {}) as Record<string, string>;
+    if (pending.kind === "session_title") {
+      await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+        telegramId,
+        kind: "session_date",
+        payload: { title: text },
+      });
+      await sendMsg(token, chatId, "۲️⃣ تاریخ پیشنهادی (مثلاً ۱۴۰۴/۰۷/۲۵):");
+      return true;
+    }
+    if (pending.kind === "session_date") {
+      await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+        telegramId,
+        kind: "session_time",
+        payload: { ...state, date: text },
+      });
+      await sendMsg(token, chatId, "۳️⃣ ساعت پیشنهادی (مثلاً ۱۶:۰۰):");
+      return true;
+    }
+    if (pending.kind === "session_time") {
+      await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+      const result = await ctx.runMutation(internal.telegramBotExtras.createBotSessionRequest, {
+        userId: user._id,
+        title: state.title ?? "جلسه منتورینگ",
+        date: state.date ?? "—",
+        time: text,
+        notes: "ثبت‌شده از طریق ربات تلگرام",
+      });
+      if (result.ok) {
+        await sendMsg(token, chatId, `✅ درخواست جلسه ثبت شد!\n\n📌 ${state.title}\n🕐 ${state.date} — ${text}\n👤 منتور: ${result.mentorName}\n\nبه منتور اطلاع داده شد؛ پس از تأیید، جلسه در لیست شما قرار می‌گیرد.`);
+      } else {
+        await sendMsg(token, chatId, "⚠️ فعلاً منتوری برای اختصاص یافت نشد. بعداً تلاش کنید.");
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// tiny helper so notifyAdminsOfQuestion can be called with the mutation result
+function admins(result: { admins: { telegramId: number; name: string }[] }) {
+  return result.admins;
+}
+
+// ── Admin: /answer <questionIndex> — answer an open question from Telegram ──
+async function handleAnswerStart(ctx: any, token: string, chatId: number, telegramId: number) {
+  const role = await ctx.runQuery(internal.telegramBotExtras.getBotUserRole, { telegramId });
+  if (role !== "admin" && role !== "site_admin" && role !== "mentor") {
+    await sendMsg(token, chatId, "❌ این دستور فقط برای مدیران و منتورها است.");
+    return;
+  }
+  const open = await ctx.runQuery(internal.telegramBotExtras.listOpenBotQuestions, {});
+  if (open.length === 0) {
+    await sendMsg(token, chatId, "✅ سؤال بازی وجود ندارد. همه سؤالات پاسخ داده شده‌اند.");
+    return;
+  }
+  let text = "💬 <b>سؤالات بازی</b>\n\n";
+  open.forEach((q: any, i: number) => {
+    text += `${i + 1}. ${q.topic}\n   ${q.text.slice(0, 80)}${q.text.length > 80 ? "…" : ""}\n   👤 ${q.studentName}\n\n`;
+  });
+  text += `برای پاسخ: <code>/answer 1</code> (شماره سؤال) را بفرستید.`;
+  await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+    telegramId,
+    kind: "answer_pick",
+  });
+  await sendMsg(token, chatId, text, {
+    inline_keyboard: [[{ text: "❌ انصراف", callback_data: "cmd_cancel" }]],
+  });
+}
+
+/** /answer N — select question N from the open list and ask for the answer text. */
+async function handleAnswerPick(ctx: any, token: string, chatId: number, telegramId: number, rawNum: string) {
+  const num = parseInt(rawNum.replace(/[^0-9]/g, ""), 10);
+  const open = await ctx.runQuery(internal.telegramBotExtras.listOpenBotQuestions, {});
+  if (!num || num < 1 || num > open.length) {
+    await sendMsg(token, chatId, `⚠️ شماره نامعتبر است. عدد ۱ تا ${open.length} را بفرستید یا /answer را دوباره بزنید.`);
+    return;
+  }
+  const q = open[num - 1];
+  await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+    telegramId,
+    kind: "answer_text",
+    payload: { questionId: q._id },
+  });
+  await sendMsg(token, chatId,
+    `💬 <b>پاسخ به سؤال ${num}</b>\n\n👤 ${q.studentName}\n📚 ${q.topic}\n\n${q.text}\n\n✍️ پاسخ خود را بنویسید و ارسال کنید:\n\n(برای لغو /cancel را بفرستید)`,
+    { inline_keyboard: [[{ text: "❌ انصراف", callback_data: "cmd_cancel" }]] },
+  );
+}
+
+// ── Admin: /cancel — abort any pending multi-step flow ──────────────────────
+async function handleCancel(ctx: any, token: string, chatId: number, telegramId: number) {
+  await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+  await sendMsg(token, chatId, "✅ عملیات لغو شد.", {
+    inline_keyboard: [[{ text: "🚀 باز کردن Genova", callback_data: "cmd_genova" }]],
+  });
 }
 
 // ── Command handlers ──────────────────────────────────────────────────────
@@ -82,21 +327,32 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
   }
 
   // Normal /start — welcome with inline keyboard
-  const welcomeMsg = `سلام ${firstName}! 👋\nبه Genova خوش آمدید.\n\nبرای شروع یکی از دستورات زیر را ارسال کنید:\n\n💡 اگر دکمه «باز کردن Genova» کار نکرد، دکمه منوی 🤖 کنار کادر پیام را بزنید.`;
+  // Role badge in the welcome message for admins/mentors
+  const role = await ctx.runQuery(internal.telegramBotExtras.getBotUserRole, { telegramId });
+  const roleLabel =
+    role === "admin" || role === "site_admin" ? "\n\n🛡️ شما مدیر سامانه هستید — با /answer به سؤالات پاسخ دهید."
+    : role === "mentor" ? "\n\n🎓 شما منتور هستید — با /answer به سؤالات پاسخ دهید."
+    : "";
+
+  const welcomeMsg = `سلام ${firstName}! 👋\nبه Genova خوش آمدید.\n\nمی‌توانید از دکمه‌های زیر استفاده کنید یا دستور بفرستید:\n🤖 /ai — هوش مصنوعی\n💬 /ask — ثبت سؤال\n📅 /session — درخواست جلسه${roleLabel}\n\n💡 اگر دکمه «باز کردن Genova» کار نکرد، دکمه منوی 🤖 کنار کادر پیام را بزنید.`;
 
   const inlineKeyboard = [
     [miniAppBtn("🚀 باز کردن Genova", "/mini")],
     [
+      { text: "🤖 هوش مصنوعی", callback_data: "cmd_ai" },
+      { text: "💬 ثبت سؤال", callback_data: "cmd_ask" },
+    ],
+    [
+      { text: "📅 درخواست جلسه", callback_data: "cmd_session" },
+      { text: "💬 سؤالات من", callback_data: "cmd_questions" },
+    ],
+    [
       { text: "👤 پروفایل", callback_data: "cmd_profile" },
-      { text: "💬 سؤالات", callback_data: "cmd_questions" },
-    ],
-    [
-      { text: "📅 جلسات", callback_data: "cmd_sessions" },
-      { text: "📚 Tasks", callback_data: "cmd_tasks" },
-    ],
-    [
       { text: "🔔 اعلان‌ها", callback_data: "cmd_notifications" },
+    ],
+    [
       { text: "❓ راهنما", callback_data: "cmd_help" },
+      { text: "⚙️ تنظیمات", callback_data: "cmd_settings" },
     ],
   ];
 
@@ -107,19 +363,27 @@ async function handleHelp(ctx: any, token: string, chatId: number) {
   const text = `📖 <b>راهنمای Genova</b>
 
 /start — شروع کار با Genova
-/help — نمایش این راهنما
-/profile — مشاهده پروفایل
-/questions — سؤالات من
-/sessions — جلسات من
-/tasks — Tasks من
+🤖 /ai — سؤال از هوش مصنوعی (طبق سهمیه حساب شما)
+💬 /ask — ثبت سؤال از مدیران
+📅 /sessions — جلسات من + درخواست جلسه
+💬 /questions — سؤالات من
+👤 /profile — مشاهده پروفایل
 🔔 /notifications — اعلان‌ها
-/groups — گروه‌های منتورینگ
-/settings — تنظیمات
-/genova — باز کردن Genova`;
+❌ /cancel — لغو عملیات جاری
+🤖 /answer — پاسخ به سؤالات (فقط مدیر/منتور)
+/help — نمایش این راهنما
+🚀 /genova — باز کردن Genova`;
 
   const inlineKeyboard = [
     [miniAppBtn("🚀 باز کردن Genova", "/mini")],
-    [urlBtn("📖 مستندات", `${SITE_URL}`)],
+    [
+      { text: "🤖 هوش مصنوعی", callback_data: "cmd_ai" },
+      { text: "💬 ثبت سؤال", callback_data: "cmd_ask" },
+    ],
+    [
+      { text: "📅 درخواست جلسه", callback_data: "cmd_session" },
+      { text: "💬 سؤالات من", callback_data: "cmd_questions" },
+    ],
   ];
 
   await sendMsg(token, chatId, text, { inline_keyboard: inlineKeyboard });
@@ -154,24 +418,29 @@ async function handleQuestions(ctx: any, token: string, chatId: number, telegram
     return;
   }
 
-  const questions = await ctx.runQuery(api.mentor.listMentorQuestions);
-  const myQs = questions.filter((q: any) => q.studentId === user._id).slice(0, 5);
+  // Bot has no auth session — use the internal bot query instead of api.mentor
+  const questions = await ctx.runQuery(internal.telegramBotExtras.listMyBotQuestions, { studentId: user._id });
 
-  if (myQs.length === 0) {
+  if (questions.length === 0) {
     await sendMsg(token, chatId, "💬 سؤالی ثبت نکرده‌اید.", {
-      inline_keyboard: [[miniAppBtn("💬 ثبت سؤال جدید", "/mini")]],
+      inline_keyboard: [[{ text: "💬 ثبت سؤال جدید", callback_data: "cmd_ask" }]],
     });
     return;
   }
 
   let text = "💬 <b>سؤالات من</b>\n\n";
-  myQs.forEach((q: any, i: number) => {
+  questions.forEach((q: any, i: number) => {
     const status = q.status === "answered" ? "✅ پاسخ داده شده" : "⏳ در انتظار پاسخ";
-    text += `${i + 1}. ${q.topic}\n   ${status}\n\n`;
+    text += `${i + 1}. ${q.topic}\n   ${status}\n`;
+    if (q.answer) text += `   ↳ ${String(q.answer).slice(0, 100)}${String(q.answer).length > 100 ? "…" : ""}\n`;
+    text += `\n`;
   });
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("💬 مشاهده همه سؤالات", "/mini")]],
+    inline_keyboard: [[
+      { text: "💬 ثبت سؤال جدید", callback_data: "cmd_ask" },
+      { text: "🔄 بروزرسانی", callback_data: "cmd_questions" },
+    ]],
   });
 }
 
@@ -182,14 +451,15 @@ async function handleSessions(ctx: any, token: string, chatId: number, telegramI
     return;
   }
 
-  const sessions = await ctx.runQuery(api.mentor.listSessions);
-  const mySessions = sessions
-    .filter((s: any) => s.studentId === user._id && s.status === "scheduled")
-    .slice(0, 5);
+  // Bot has no auth session — use the internal bot query instead of api.mentor
+  const mySessions = await ctx.runQuery(internal.telegramBotExtras.listMyBotSessions, { studentId: user._id });
 
   if (mySessions.length === 0) {
     await sendMsg(token, chatId, "📅 جلسه‌ای برای شما ثبت نشده است.", {
-      inline_keyboard: [[miniAppBtn("📅 مشاهده جلسات", "/mini")]],
+      inline_keyboard: [[
+        { text: "📅 درخواست جلسه", callback_data: "cmd_session" },
+        { text: "🔄 بروزرسانی", callback_data: "cmd_sessions" },
+      ]],
     });
     return;
   }
@@ -202,7 +472,10 @@ async function handleSessions(ctx: any, token: string, chatId: number, telegramI
   });
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("📅 مشاهده همه جلسات", "/mini")]],
+    inline_keyboard: [[
+      { text: "📅 درخواست جلسه جدید", callback_data: "cmd_session" },
+      { text: "🔄 بروزرسانی", callback_data: "cmd_sessions" },
+    ]],
   });
 }
 
@@ -355,6 +628,24 @@ async function handleCallbackQuery(ctx: any, token: string, chatId: number, tele
     case "cmd_settings":
       await handleSettings(ctx, token, chatId, telegramId);
       break;
+    case "cmd_genova":
+      await handleGenova(ctx, token, chatId);
+      break;
+    case "cmd_ai":
+      await handleAiStart(ctx, token, chatId, telegramId);
+      break;
+    case "cmd_ask":
+      await handleAsk(ctx, token, chatId, telegramId);
+      break;
+    case "cmd_session":
+      await handleSessionRequest(ctx, token, chatId, telegramId);
+      break;
+    case "cmd_answer":
+      await handleAnswerStart(ctx, token, chatId, telegramId);
+      break;
+    case "cmd_cancel":
+      await handleCancel(ctx, token, chatId, telegramId);
+      break;
     default:
       await sendMsg(token, chatId, "❓ عملیات شناخته نشد.");
   }
@@ -443,6 +734,27 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
       case "genova":
         await handleGenova(ctx, token, chatId);
         break;
+      case "ai":
+        await handleAiStart(ctx, token, chatId, telegramId);
+        break;
+      case "ask":
+        await handleAsk(ctx, token, chatId, telegramId);
+        break;
+      case "session":
+        await handleSessionRequest(ctx, token, chatId, telegramId);
+        break;
+      case "answer":
+        // /answer          → list open questions + set pending
+        // /answer 2        → immediately select question 2
+        if (cmdMatch?.[2]?.trim()) {
+          await handleAnswerPick(ctx, token, chatId, telegramId, cmdMatch[2].trim());
+        } else {
+          await handleAnswerStart(ctx, token, chatId, telegramId);
+        }
+        break;
+      case "cancel":
+        await handleCancel(ctx, token, chatId, telegramId);
+        break;
       default:
         if (cmd) {
           await sendMsg(token, chatId,
@@ -450,11 +762,14 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
             { inline_keyboard: [[{ text: "📖 راهنما", callback_data: "cmd_help" }]] }
           );
         } else if (text) {
-          // Regular text message — send help hint
-          await sendMsg(token, chatId,
-            `برای شروع /start را ارسال کنید.\nبرای راهنما /help را ارسال کنید.`,
-            { inline_keyboard: [[{ text: "🚀 شروع", callback_data: "cmd_help" }]] }
-          );
+          // Any plain text: first try the pending bot flows (AI / ask / session / answer)
+          const handled = await handlePendingText(ctx, token, chatId, telegramId, firstName, text);
+          if (!handled) {
+            await sendMsg(token, chatId,
+              `برای شروع /start را ارسال کنید.\nبرای راهنما /help را ارسال کنید.`,
+              { inline_keyboard: [[{ text: "📖 راهنما", callback_data: "cmd_help" }]] }
+            );
+          }
         }
     }
 

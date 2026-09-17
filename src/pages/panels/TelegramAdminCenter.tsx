@@ -195,11 +195,24 @@ function DashboardTab({ botConfig }: { botConfig: any }) {
 // ── Students Tab ────────────────────────────────────────────────────────────
 
 function StudentsTab() {
-  const allUsers = useQuery(api.users.listAllUsers);
+  const tgUsers = useQuery(api.telegramBotExtras.listTelegramUsersForRoles);
+  const assignRole = useMutation(api.telegramBotExtras.assignRoleByTelegramId);
   const [search, setSearch] = useState("");
+  const [saving, setSaving] = useState<number | null>(null);
 
-  const linkedStudents = (allUsers ?? []).filter(
-    (u: any) => u.telegramId && (search === "" || u.name?.includes(search) || u.email?.includes(search)),
+  const ROLE_LABELS: Record<string, string> = {
+    user: "دانشجو",
+    instructor: "مدرس",
+    mentor: "منتور",
+    content_manager: "مدیر محتوا",
+    support: "پشتیبان",
+    admin: "مدیر سامانه",
+    site_admin: "مدیر سایت",
+  };
+  const ROLES = ["user", "instructor", "mentor", "content_manager", "support", "admin", "site_admin"];
+
+  const linkedStudents = (tgUsers ?? []).filter(
+    (u: any) => search === "" || u.name?.includes(search) || u.email?.includes(search) || String(u.telegramId).includes(search),
   );
 
   return (
@@ -208,14 +221,18 @@ function StudentsTab() {
         <div className="relative flex-1">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
           <Input
-            placeholder="جستجوی نام یا ایمیل..."
+            placeholder="جستجوی نام، ایمیل یا آیدی تلگرام..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pr-9"
           />
         </div>
-        <Badge variant="secondary">{linkedStudents.length} متصل</Badge>
+        <Badge variant="secondary">{(tgUsers ?? []).length} متصل</Badge>
       </div>
+
+      <p className="text-xs text-slate-400">
+        نقش هر کاربر را می‌توانید مستقیماً تغییر دهید — همان نقش، در سایت، مینی‌اپ و ربات اعمال می‌شود.
+      </p>
 
       {linkedStudents.length === 0 ? (
         <Card>
@@ -228,21 +245,52 @@ function StudentsTab() {
         <div className="space-y-2">
           {linkedStudents.map((s: any) => (
             <Card key={s._id}>
-              <CardContent className="p-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center text-sm font-bold text-blue-300 shrink-0">
-                    {(s.name ?? "U")[0]}
+              <CardContent className="p-3 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-blue-500/20 flex items-center justify-center text-sm font-bold text-blue-300 shrink-0">
+                      {(s.name ?? "U")[0]}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{s.name ?? "بدون نام"}</p>
+                      <p className="text-xs text-slate-400 truncate">
+                        {s.telegramUsername ? `@${s.telegramUsername}` : s.email ?? ""}
+                      </p>
+                      <p className="text-[10px] font-mono text-slate-500" dir="ltr">
+                        ID: {s.telegramId}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{s.name ?? "بدون نام"}</p>
-                    <p className="text-xs text-slate-400 truncate">
-                      {s.telegramUsername ? `@${s.telegramUsername}` : s.email ?? ""}
-                    </p>
-                  </div>
+                  <Badge variant="outline" className="text-[10px] shrink-0">
+                    {ROLE_LABELS[s.role] ?? s.role}
+                  </Badge>
                 </div>
-                <Badge variant="outline" className="text-[10px] shrink-0">
-                  {s.role ?? "دانشجو"}
-                </Badge>
+                <div className="flex flex-wrap gap-1.5 pt-1 border-t border-white/5">
+                  {ROLES.map((r) => (
+                    <button
+                      key={r}
+                      disabled={saving === s.telegramId || s.role === r}
+                      onClick={async () => {
+                        setSaving(s.telegramId);
+                        try {
+                          await assignRole({ telegramId: s.telegramId, role: r });
+                          toast.success(`نقش «${ROLE_LABELS[r]}» برای ${s.name ?? "کاربر"} ثبت شد`);
+                        } catch (err: any) {
+                          toast.error(err?.message ?? "خطا در تغییر نقش");
+                        }
+                        setSaving(null);
+                      }}
+                      className={cn(
+                        "px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-40",
+                        s.role === r
+                          ? "bg-blue-500/25 text-blue-200 ring-1 ring-blue-400/40"
+                          : "bg-white/5 text-slate-300 hover:bg-white/10",
+                      )}
+                    >
+                      {saving === s.telegramId && s.role !== r ? "…" : ROLE_LABELS[r]}
+                    </button>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -346,16 +394,22 @@ function AITab() {
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="p-6 text-center">
-          <Sparkles className="size-10 mx-auto mb-3 text-purple-400" />
-          <h3 className="font-semibold mb-1 text-white">هوش مصنوعی Telegram Bot</h3>
-          <p className="text-sm text-slate-400 mb-4">
-            فعال‌سازی AI برای پاسخگویی خودکار در Telegram Bot
+        <CardContent className="p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <Sparkles className="size-6 text-purple-400" />
+            <h3 className="font-semibold text-white">هوش مصنوعی در ربات تلگرام</h3>
+          </div>
+          <p className="text-sm text-slate-300 leading-7">
+            کاربران می‌توانند در ربات دستور <code className="px-1.5 py-0.5 rounded bg-white/10 text-purple-300" dir="ltr">/ai</code> را بفرستند یا دکمه «🤖 هوش مصنوعی» را بزنند و مستقیماً از تلگرام سؤال بپرسند.
           </p>
-          <Badge variant="secondary">به‌زودی</Badge>
-          <p className="text-xs text-slate-400 mt-3">
-            این بخش پس از پیکربندی API هوش مصنوعی فعال خواهد شد.
-          </p>
+          <ul className="mt-3 space-y-2 text-sm text-slate-300 list-disc pr-5">
+            <li>سهمیه هر کاربر <strong>دقیقاً همان سهمیه اکانت سایت اوست</strong> (نقش، اشتراک AI و کوارتای ادمین).</li>
+            <li>هر پیام در ربات، همان‌جا در سایت هم کسر می‌شود — بودجه مشترک است.</li>
+            <li>مدل و کلید از همان پیکربندی هوش مصنوعی پنل ادمین خوانده می‌شود.</li>
+          </ul>
+          <div className="mt-4 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200">
+            نیازی به فعال‌سازی جداگانه نیست — کافی است مدل AI در پنل ادمین پیکربندی شده باشد.
+          </div>
         </CardContent>
       </Card>
     </div>

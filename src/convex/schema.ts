@@ -1012,6 +1012,14 @@ const schema = defineSchema(
 
     }).index("by_code", ["code"]).index("by_user", ["userId"]),
 
+    // Bot multi-step input state (e.g. user is expected to type a question,
+    // an AI prompt or a session request) — one row per telegram user.
+    botPendingInputs: defineTable({
+      telegramId: v.number(),
+      kind: v.string(),          // "ask" | "ai" | "session_title" | "session_date" | "session_time"
+      payload: v.optional(v.any()),
+      createdAt: v.number(),
+    }).index("by_telegramId", ["telegramId"]),
 
     // Telegram notification preferences (per-user, per-category) ─────────
 
