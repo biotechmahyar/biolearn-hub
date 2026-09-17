@@ -35,6 +35,42 @@ function urlBtn(text: string, url: string) {
   return { text, url };
 }
 
+/**
+ * Genova's persistent Reply Keyboard — buttons glued to the message input
+ * (same UX as the reference screenshot). Pressing a button simply SENDS its
+ * text as a normal message; the webhook maps these texts to commands via
+ * replyTextToCommand(). resize_keyboard → compact button height.
+ */
+const GENOVA_REPLY_KEYBOARD = {
+  keyboard: [
+    [
+      { text: "🤖 هوش مصنوعی" },
+      { text: "💬 ثبت سؤال" },
+    ],
+    [
+      { text: "👤 پروفایل" },
+      { text: "💰 اشتراک و سکه" },
+    ],
+    [{ text: "🔗 معرفی به دوستان (سکه رایگان)" }],
+    [{ text: "🚀 باز کردن Genova" }],
+  ],
+  resize_keyboard: true,
+  is_persistent: true,
+};
+
+/** Map a reply-keyboard button text to a callback command (or null). */
+function replyTextToCommand(text: string): string | null {
+  switch (text) {
+    case "🤖 هوش مصنوعی": return "cmd_ai";
+    case "💬 ثبت سؤال": return "cmd_ask";
+    case "👤 پروفایل": return "cmd_profile";
+    case "💰 اشتراک و سکه": return "cmd_genova"; // subscription/coins → open mini app
+    case "🔗 معرفی به دوستان (سکه رایگان)": return "cmd_referral";
+    case "🚀 باز کردن Genova": return "cmd_genova";
+    default: return null;
+  }
+}
+
 // ── Bot-only interactive flows (AI / ask / session request) ───────────────
 
 async function notifyAdminsOfQuestion(ctx: any, admins: { telegramId: number; name: string }[], fromName: string, topic: string, text: string) {
@@ -334,29 +370,11 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
     : role === "mentor" ? "\n\n🎓 شما منتور هستید — با /answer به سؤالات پاسخ دهید."
     : "";
 
-  const welcomeMsg = `سلام ${firstName}! 👋\nبه Genova خوش آمدید.\n\nمی‌توانید از دکمه‌های زیر استفاده کنید یا دستور بفرستید:\n🤖 /ai — هوش مصنوعی\n💬 /ask — ثبت سؤال\n📅 /session — درخواست جلسه${roleLabel}\n\n💡 اگر دکمه «باز کردن Genova» کار نکرد، دکمه منوی 🤖 کنار کادر پیام را بزنید.`;
+  const welcomeMsg = `سلام ${firstName}! 👋\nبه Genova خوش آمدید.\n\nاز دکمه‌های پایین صفحه استفاده کنید یا دستور بفرستید:\n🤖 /ai — هوش مصنوعی\n💬 /ask — ثبت سؤال\n📅 /session — درخواست جلسه${roleLabel}`;
 
-  const inlineKeyboard = [
-    [miniAppBtn("🚀 باز کردن Genova", "/mini")],
-    [
-      { text: "🤖 هوش مصنوعی", callback_data: "cmd_ai" },
-      { text: "💬 ثبت سؤال", callback_data: "cmd_ask" },
-    ],
-    [
-      { text: "📅 درخواست جلسه", callback_data: "cmd_session" },
-      { text: "💬 سؤالات من", callback_data: "cmd_questions" },
-    ],
-    [
-      { text: "👤 پروفایل", callback_data: "cmd_profile" },
-      { text: "🔔 اعلان‌ها", callback_data: "cmd_notifications" },
-    ],
-    [
-      { text: "❓ راهنما", callback_data: "cmd_help" },
-      { text: "⚙️ تنظیمات", callback_data: "cmd_settings" },
-    ],
-  ];
-
-  await sendMsg(token, chatId, welcomeMsg, { inline_keyboard: inlineKeyboard });
+  // Reference-style layout: two rows of two, one wide referral row, one
+  // wide mini-app row — glued to the message keyboard (persistent).
+  await sendMsg(token, chatId, welcomeMsg, GENOVA_REPLY_KEYBOARD);
 }
 
 async function handleHelp(ctx: any, token: string, chatId: number) {
@@ -371,22 +389,14 @@ async function handleHelp(ctx: any, token: string, chatId: number) {
 🔔 /notifications — اعلان‌ها
 ❌ /cancel — لغو عملیات جاری
 🤖 /answer — پاسخ به سؤالات (فقط مدیر/منتور)
+🎁 /referral — معرفی به دوستان (سکه رایگان)
 /help — نمایش این راهنما
-🚀 /genova — باز کردن Genova`;
+🚀 /genova — باز کردن Genova
 
-  const inlineKeyboard = [
-    [miniAppBtn("🚀 باز کردن Genova", "/mini")],
-    [
-      { text: "🤖 هوش مصنوعی", callback_data: "cmd_ai" },
-      { text: "💬 ثبت سؤال", callback_data: "cmd_ask" },
-    ],
-    [
-      { text: "📅 درخواست جلسه", callback_data: "cmd_session" },
-      { text: "💬 سؤالات من", callback_data: "cmd_questions" },
-    ],
-  ];
+💡 از دکمه‌های چسبیده به کیبورد هم می‌توانید استفاده کنید.`;
 
-  await sendMsg(token, chatId, text, { inline_keyboard: inlineKeyboard });
+  // Re-show the persistent reply keyboard so buttons stay glued to the input
+  await sendMsg(token, chatId, text, GENOVA_REPLY_KEYBOARD);
 }
 
 async function handleProfile(ctx: any, token: string, chatId: number, telegramId: number) {
@@ -599,6 +609,34 @@ async function handleGenova(ctx: any, token: string, chatId: number) {
   });
 }
 
+/**
+ * Referral — user shares their personal invite link; friends who join and
+ * link their account earn them free coins (coins themselves are managed in
+ * the mini app / website wallet).
+ */
+async function handleReferral(ctx: any, token: string, chatId: number, telegramId: number) {
+  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  if (!user) {
+    await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.", {
+      inline_keyboard: [[urlBtn("🔗 اتصال حساب", `${SITE_URL}/auth`)]],
+    });
+    return;
+  }
+
+  // Personal deep link: REF + userId → /start REF<id> credits the inviter
+  const botConfig = await ctx.runQuery(api.telegramBot.getBotConfigPublic);
+  const botUsername = (botConfig?.[0] as any)?.botUsername ?? null;
+  const link = botUsername
+    ? `https://t.me/${botUsername}?start=REF${user._id}`
+    : `${SITE_URL}/auth?ref=${user._id}`;
+
+  const text = `🎁 <b>معرفی به دوستان</b>\n\nبا اشتراک‌گذاری لینک زیر، به ازای هر دوستی که حسابش را متصل کند\n🪙 <b>سکه رایگان</b> دریافت می‌کنید.\n\n🔗 لینک اختصاصی شما:\n<code>${link}</code>\n\nبرای مشاهده سکه‌ها و اشتراک، مینی اپ را باز کنید:`;
+
+  await sendMsg(token, chatId, text, {
+    inline_keyboard: [[miniAppBtn("🚀 باز کردن Genova", "/mini")]],
+  });
+}
+
 async function handleCallbackQuery(ctx: any, token: string, chatId: number, telegramId: number, firstName: string, username: string | undefined, callbackData: string) {
   const callbackQueryId = callbackData;
 
@@ -630,6 +668,9 @@ async function handleCallbackQuery(ctx: any, token: string, chatId: number, tele
       break;
     case "cmd_genova":
       await handleGenova(ctx, token, chatId);
+      break;
+    case "cmd_referral":
+      await handleReferral(ctx, token, chatId, telegramId);
       break;
     case "cmd_ai":
       await handleAiStart(ctx, token, chatId, telegramId);
@@ -762,7 +803,13 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
             { inline_keyboard: [[{ text: "📖 راهنما", callback_data: "cmd_help" }]] }
           );
         } else if (text) {
-          // Any plain text: first try the pending bot flows (AI / ask / session / answer)
+          // Reply-keyboard buttons arrive as plain text — map them to commands first
+          const kbCmd = replyTextToCommand(text);
+          if (kbCmd) {
+            await handleCallbackQuery(ctx, token, chatId, telegramId, firstName, username, kbCmd);
+            break;
+          }
+          // Any other plain text: try the pending bot flows (AI / ask / session / answer)
           const handled = await handlePendingText(ctx, token, chatId, telegramId, firstName, text);
           if (!handled) {
             await sendMsg(token, chatId,

@@ -43,6 +43,7 @@ export const getBotConfigPublic = query({
       token: deobfuscateToken(b.tokenEncrypted),
       startMessage: b.startMessage,
       active: b.active,
+      botUsername: b.botUsername ?? null, // needed for referral deep links
     }));
   },
 });
