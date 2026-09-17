@@ -28,6 +28,9 @@
       } catch (e) {}
     })();
   </script>
+  <!-- Telegram WebApp SDK — provides window.Telegram.WebApp (initData etc.)
+       when the site is opened as a Mini App inside Telegram. Harmless in browser. -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <!-- Bale Mini App SDK — loads window.Bale.WebApp when opened inside Bale Messenger.
        In a normal browser this is a harmless no-op. -->
   <script src="https://tapi.bale.ai/miniapp.js?3"></script>

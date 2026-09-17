@@ -18,7 +18,17 @@ async function sendMsg(token: string, chatId: number, text: string, replyMarkup?
 }
 
 function miniAppBtn(text: string, path: string) {
+  // Inline web_app buttons work in-chat once the bot's menu button is set to
+  // this URL (Bot API attaches the domain automatically via setChatMenuButton).
+  // Keep the URL version first — if Telegram rejects it, clients fall back to
+  // the /start hint below which points at the menu button.
   return { text, web_app: { url: `${SITE_URL}${path}` } };
+}
+
+/** Deep link that opens the bot's Mini App inside Telegram (t.me/bot?startapp). */
+function miniAppDeepLink(text: string, botUsername: string | null | undefined) {
+  if (!botUsername) return null;
+  return { text, url: `https://t.me/${botUsername}?startapp=mini` };
 }
 
 function urlBtn(text: string, url: string) {
@@ -72,7 +82,7 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
   }
 
   // Normal /start — welcome with inline keyboard
-  const welcomeMsg = `سلام ${firstName}! 👋\nبه Genova خوش آمدید.\n\nبرای شروع یکی از دستورات زیر را ارسال کنید:`;
+  const welcomeMsg = `سلام ${firstName}! 👋\nبه Genova خوش آمدید.\n\nبرای شروع یکی از دستورات زیر را ارسال کنید:\n\n💡 اگر دکمه «باز کردن Genova» کار نکرد، دکمه منوی 🤖 کنار کادر پیام را بزنید.`;
 
   const inlineKeyboard = [
     [miniAppBtn("🚀 باز کردن Genova", "/mini")],
