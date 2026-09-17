@@ -379,6 +379,36 @@ export const deleteConversation = mutation({
   },
 });
 
+/**
+ * Switch the model used by a conversation (or revert to the admin default).
+ * Called when the user clicks a model chip — clicking the active chip again
+ * passes modelId: null which clears the override.
+ */
+export const setConversationModel = mutation({
+  args: {
+    conversationId: v.id("aiConversations"),
+    modelId: v.optional(v.id("aiModels")), // null/undefined = default model
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("ورود لازم است.");
+    const convo = await ctx.db.get(args.conversationId);
+    if (!convo || convo.userId !== userId) {
+      throw new Error("دسترسی غیرمجاز.");
+    }
+    // Validate the target model is active (if provided)
+    if (args.modelId) {
+      const model = await ctx.db.get(args.modelId);
+      if (!model || !model.active) throw new Error("این مدل فعال نیست.");
+    }
+    await ctx.db.patch(args.conversationId, {
+      modelId: args.modelId ?? undefined,
+      updatedAt: Date.now(),
+    });
+    return { success: true };
+  },
+});
+
 export const renameConversation = mutation({
   args: { conversationId: v.id("aiConversations"), title: v.string() },
   handler: async (ctx, args) => {

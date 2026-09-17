@@ -2019,14 +2019,27 @@ function AIAssistantView() {
     if (!selectedModelId && activeModels.length === 1) setSelectedModelId(activeModels[0]._id);
   }, [activeModels, selectedModelId]);
 
-  // Clicking the active model again switches back to the default model
+  // Clicking the active model again switches back to the default model.
+  // Persisted on the open conversation so the NEXT message uses it.
+  const setConvoModel = useMutation(api.aiChat.setConversationModel);
   const handleModelSelect = (modelId: string) => {
     setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
+    if (selectedConvo) {
+      setConvoModel({ conversationId: selectedConvo as any, modelId: modelId as any })
+        .catch((e) => toast.error(e instanceof Error ? e.message : "خطا در تغییر مدل"));
+    }
   };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Reflect the conversation's saved model in the picker when switching chats
+  useEffect(() => {
+    const doc = (conversations as any[]).find((c: any) => c._id === selectedConvo);
+    if (doc) setSelectedModelId(doc.modelId ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConvo]);
 
   const handleNewChat = async () => {
     try {

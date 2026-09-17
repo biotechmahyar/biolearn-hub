@@ -7,10 +7,15 @@ import { internal } from "./_generated/api";
 // ── AI Provider call ────────────────────────────────────────────────────────
 
 /**
- * Normalize an OpenAI-compatible base URL so that appending the standard
- * path (`/chat/completions`) never produces a double prefix like
- * "/v1/v1/chat/completions". Admins may enter either
- * "https://api.x.com/v1" or "https://api.x.com".
+ * Normalize an OpenAI-compatible base URL for use with the standard SDK-style
+ * path (`/v1/chat/completions`). Handles every admin input form safely:
+ *   https://api.groq.com/openai/v1 → https://api.groq.com/openai  (then + "/v1/chat/completions")
+ *   https://api.groq.com/openai    → unchanged                    (then + "/v1/chat/completions")
+ *   https://api.openai.com/v1      → https://api.openai.com       (then + "/v1/chat/completions")
+ *   https://api.openai.com         → unchanged                    (then + "/v1/chat/completions")
+ * The previous version stripped "/v1" but then appended "/chat/completions"
+ * WITHOUT re-adding "/v1", which broke providers that REQUIRE the /v1 prefix
+ * (e.g. Groq: "POST /openai/chat/completions" 404).
  */
 function openaiBase(url: string): string {
   const trimmed = (url || "").trim().replace(/\/+$/, "");
@@ -108,7 +113,7 @@ export const callAI = action({
           data.candidates?.[0]?.content?.parts?.[0]?.text ?? "پاسخی دریافت نشد.";
       } else {
         // OpenAI-compatible API (openai, gapgpt, custom)
-        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -236,7 +241,7 @@ export const testConnection = action({
         // OpenAI-compatible — make a REAL minimal chat call with the selected
         // model. A GET /models listing alone would succeed even when the model
         // ID is wrong (e.g. "gpt-oss-120b"), giving a false "اتصال موفق".
-        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -366,7 +371,7 @@ export const generateQuestions = action({
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
         // OpenAI-compatible
-        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -518,7 +523,7 @@ export const generateArticles = action({
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
         // OpenAI-compatible
-        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -644,7 +649,7 @@ export const rewriteText = action({
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
         // OpenAI-compatible
-        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({ model, messages: chatMessages, temperature: temperature ?? 0.7, max_tokens: 2048 }),
@@ -768,7 +773,7 @@ export const generateCourseDesign = action({
         if (data.error) throw new Error(data.error.message ?? "AI error");
         responseText = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
-        const resp = await fetch(`${openaiBase(baseUrl)}/chat/completions`, {
+        const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -861,7 +866,7 @@ async function callAIProvider(
     if (data.error) throw new Error(data.error.message ?? "AI error");
     return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   } else {
-    const resp = await fetch(`${baseUrl}/chat/completions`, {
+    const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

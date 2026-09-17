@@ -6,6 +6,7 @@ import { useMode } from "@/hooks/useMode";
 import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
 import { api as iranApi } from "@/lib/apiClient";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -76,10 +77,26 @@ export default function AIChat() {
     }
   }, [activeModels, selectedModelId]);
 
+  // Reflect the conversation's saved model in the picker when switching chats
+  const selectedConvoDoc = conversations?.find((c: any) => c._id === selectedConvo);
+  useEffect(() => {
+    if (selectedConvoDoc) {
+      setSelectedModelId((selectedConvoDoc as any).modelId ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConvo]);
+
   // Clicking the active model again switches back to the default model
   // (conversation with no explicit modelId = the admin-configured default).
+  // If a conversation is open, the switch is persisted on it immediately —
+  // so the NEXT message really uses the selected model.
+  const setConvoModelMut = useMutation(api.aiChat.setConversationModel);
   const handleModelSelect = (modelId: string) => {
     setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
+    if (selectedConvo) {
+      setConvoModelMut({ conversationId: selectedConvo as any, modelId: modelId as any })
+        .catch((e) => toast.error(e instanceof Error ? e.message : "خطا در تغییر مدل"));
+    }
   };
 
   // Convex mutations (global mode)
