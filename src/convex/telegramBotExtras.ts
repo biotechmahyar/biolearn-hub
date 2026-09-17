@@ -206,11 +206,15 @@ export const botAiAsk = action({
     }
 
     // 3) Call provider (openai-compatible / anthropic / google)
+    // Some configured baseUrls already include "/v1" (e.g. https://api.example.com/v1).
+    // Normalize so we never produce "/v1/v1/chat/completions".
+    const rawBase = (config.baseUrl || "").trim().replace(/\/+$/, "");
+    const base = rawBase.replace(/\/v1$/, "");
     const system = config.systemPrompt || "شما یک دستیار تخصصی علوم زیستی هستید.";
     let answer = "";
     try {
       if (config.provider === "anthropic") {
-        const resp = await fetch(`${config.baseUrl}/v1/messages`, {
+        const resp = await fetch(`${base}/v1/messages`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -230,7 +234,7 @@ export const botAiAsk = action({
         answer = data.content?.[0]?.text ?? "";
       } else if (config.provider === "google") {
         const resp = await fetch(
-          `${config.baseUrl}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`,
+          `${base}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -245,7 +249,7 @@ export const botAiAsk = action({
         answer = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
       } else {
         // openai-compatible
-        const resp = await fetch(`${config.baseUrl}/v1/chat/completions`, {
+        const resp = await fetch(`${base}/v1/chat/completions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -361,14 +365,14 @@ export const createBotSessionRequest = internalMutation({
 
 // ── 5) Role assignment panel helpers (called from TelegramAdminCenter) ───────
 
-/** Users with telegram linkage + role, for the management panel. */
+/** Users with telegram linkage + role, for the management panel (مدیر سامانه only). */
 export const listTelegramUsersForRoles = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return [];
     const me = await ctx.db.get(userId);
-    if (!me || (me.role !== "admin" && me.role !== "site_admin")) return [];
+    if (!me || me.role !== "admin") return [];
     const users = await ctx.db.query("users").collect();
     return users
       .filter((u: any) => u.telegramId)
@@ -384,23 +388,28 @@ export const listTelegramUsersForRoles = query({
   },
 });
 
-/** Assign a role to a user identified by their Telegram ID. */
+/** Assign a role to a user identified by their Telegram ID (مدیر سامانه only). */
 export const assignRoleByTelegramId = mutation({
   args: { telegramId: v.number(), role: v.string() },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("وارد شوید.");
     const me = await ctx.db.get(userId);
-    if (!me || (me.role !== "admin" && me.role !== "site_admin")) {
-      throw new Error("فقط مدیر سامانه و مدیر سایت می‌توانند نقش تعیین کنند.");
+    if (!me || me.role !== "admin") {
+      throw new Error("فقط مدیر سامانه می‌تواند نقش تعیین کند.");
     }
-    const VALID = ["user", "instructor", "mentor", "content_manager", "support", "admin", "site_admin"];
+    // site_admin (مدیر سایت) can only be granted from the super admin panel —
+    // it is never offered in the Telegram role switcher.
+    const VALID = ["user", "instructor", "mentor", "content_manager", "support", "admin"];
     if (!VALID.includes(args.role)) throw new Error("نقش نامعتبر است.");
     const target = await ctx.db
       .query("users")
       .withIndex("by_telegramId", (q) => q.eq("telegramId", args.telegramId))
       .first();
     if (!target) throw new Error("کاربری با این آیدی تلگرام یافت نشد.");
+    if (target._id === userId) {
+      throw new Error("نمی‌توانید نقش خودتان را تغییر دهید.");
+    }
     await ctx.db.patch(target._id, { role: args.role as any });
     return { ok: true, userId: target._id, role: args.role };
   },

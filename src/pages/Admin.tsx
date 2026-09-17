@@ -422,7 +422,10 @@ export default function Admin() {
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
     { label: "مدیریت هوش مصنوعی", icon: Bot, to: "/panel/ai-management" },
     { label: "تلگرام بات", icon: Send, to: "/panel/telegram-bot" },
-    { label: "مدیریت Telegram", icon: Bot, to: "/panel/telegram-admin" },
+    // Telegram Admin Center (role switcher / bot flows) is مدیر سامانه-only
+    ...(user?.role === "admin"
+      ? [{ label: "مدیریت Telegram", icon: Bot, to: "/panel/telegram-admin" }]
+      : []),
     // Site Studio — permission-gated inside the page itself
     { label: "طراحی سایت (Site Studio)", icon: Blocks, to: "/panel/site-studio" },
     // System admins (role admin) and site managers (site_admin) can open the
@@ -6763,10 +6766,12 @@ function AdminTelegram() {
           <Send className="ml-1.5 size-4" />
           پنل مدیریت بات
         </Button>
-        <Button variant="outline" className="rounded-lg" onClick={() => window.location.href = "/panel/telegram-admin"}>
-          <Bot className="ml-1.5 size-4" />
-          مرکز مدیریت تلگرام
-        </Button>
+        {user?.role === "admin" && (
+          <Button variant="outline" className="rounded-lg" onClick={() => window.location.href = "/panel/telegram-admin"}>
+            <Bot className="ml-1.5 size-4" />
+            مرکز مدیریت تلگرام
+          </Button>
+        )}
       </div>
     </div>
   );

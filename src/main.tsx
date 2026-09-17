@@ -237,11 +237,11 @@ createRoot(document.getElementById("root")!).render(
                 }
               />
 
-              {/* Telegram Admin Center — admin/site_admin only */}
+              {/* Telegram Admin Center — مدیر سامانه (admin) only */}
               <Route
                 path="/panel/telegram-admin"
                 element={
-                  <RoleGate allowed={["admin", "site_admin"]} title="telegram admin">
+                  <RoleGate allowed={["admin"]} title="telegram admin">
                     <TelegramAdminCenter />
                   </RoleGate>
                 }
