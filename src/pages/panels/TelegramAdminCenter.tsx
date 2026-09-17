@@ -1,6 +1,6 @@
 /**
  * TelegramAdminCenter — comprehensive admin panel for Telegram Bot management.
- * Accessible only to admin/site_admin roles.
+ * Accessible only to the مدیر سامانه (admin) role.
  */
 import { useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
@@ -209,7 +209,8 @@ function StudentsTab() {
     admin: "مدیر سامانه",
     site_admin: "مدیر سایت",
   };
-  const ROLES = ["user", "instructor", "mentor", "content_manager", "support", "admin", "site_admin"];
+  // site_admin (مدیر سایت) is intentionally NOT offered here — it can only be granted from the super admin panel.
+  const ROLES = ["user", "instructor", "mentor", "content_manager", "support", "admin"];
 
   const linkedStudents = (tgUsers ?? []).filter(
     (u: any) => search === "" || u.name?.includes(search) || u.email?.includes(search) || String(u.telegramId).includes(search),

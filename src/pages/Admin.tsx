@@ -6673,6 +6673,7 @@ function AdminAISubscriptions() {
 function AdminTelegram() {
   const botConfig = useQuery(api.telegramBot.getBotConfig);
   const toggleActive = useMutation(api.telegramBot.toggleBotActive);
+  const { user } = useAuth();
   const [busy, setBusy] = useState(false);
 
   const handleToggle = async () => {
