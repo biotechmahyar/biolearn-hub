@@ -403,7 +403,7 @@ export default function GenovaGame() {
                 <Hash className="size-4 text-sky-500" />
                 دفتر کل من (آخرین ۴۰ تراکنش)
               </h2>
-              {wallet === undefined ? (
+              {wallet == null ? (
                 <p className="text-xs text-muted-foreground">در حال بارگذاری…</p>
               ) : wallet.ledger.length === 0 ? (
                 <p className="rounded-2xl border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">

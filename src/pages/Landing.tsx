@@ -136,7 +136,7 @@ export default function Landing() {
                     >
                       {chip}
                     </span>
-                  )}
+                  ))}
                 </div>
               </div>
             </Link>
