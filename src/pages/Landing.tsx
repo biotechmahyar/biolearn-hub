@@ -17,6 +17,10 @@ import {
   ArrowLeft,
   ArrowUpLeft,
   Award,
+  Coins,
+  FlaskConical,
+  Link2,
+  Pickaxe,
   BarChart3,
   BookOpenCheck,
   Bot,
@@ -95,6 +99,94 @@ export default function Landing() {
   return (
     <PublicLayout>
       <SeedBootstrap />
+
+      {/* ── Promo banners: Virtual Lab (purple) + Compute Game (blue) ────── */}
+      <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-6">
+        <div className="grid gap-4 lg:grid-cols-2">
+          {/* Virtual Lab */}
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45 }}
+          >
+            <Link
+              to="/lab"
+              className="group relative block overflow-hidden rounded-3xl border border-violet-400/30 bg-gradient-to-br from-violet-600 via-violet-700 to-fuchsia-700 p-6 shadow-lg shadow-violet-900/20 transition-transform hover:-translate-y-1"
+            >
+              <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.35),transparent_45%)]" />
+              <span className="pointer-events-none absolute -left-6 -top-8 size-32 rounded-full bg-white/10 blur-2xl" />
+              <div className="relative">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+                    <FlaskConical className="size-3.5" />
+                    جدید · Virtual Lab
+                  </span>
+                  <ArrowUpLeft className="size-5 text-white/80 transition-transform group-hover:-translate-x-1" />
+                </div>
+                <h3 className="mt-3 text-lg font-black text-white sm:text-xl">آزمایشگاه مجازی ژنوا</h3>
+                <p className="mt-2 max-w-md text-[12px] leading-6 text-violet-50/90">
+                  همه کارهای آزمایشگاهی را آنلاین انجام بده: پروتکل‌های گام‌به‌گام با تصحیح خودکار،
+                  ماشین‌حساب رقت و مولاریته، شبیه‌ساز ژل الکتروفورز و میکروسکوپ، و دفتر آزمایشگاه.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {["پروتکل تصحیح‌شده", "شبیه‌ساز ژل و میکروسکوپ", "دفتر آزمایشگاه"].map((chip) => (
+                    <span
+                      key={chip}
+                      className="rounded-full border border-white/25 px-2.5 py-1 text-[10px] text-white/90"
+                    >
+                      {chip}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </Link>
+          </motion.div>
+
+          {/* Compute game */}
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.08 }}
+          >
+            <Link
+              to="/game"
+              className="group relative block overflow-hidden rounded-3xl border border-sky-400/30 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 p-6 shadow-lg shadow-sky-900/20 transition-transform hover:-translate-y-1"
+            >
+              <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.35),transparent_45%)]" />
+              <span className="pointer-events-none absolute -left-6 -top-8 size-32 rounded-full bg-white/10 blur-2xl" />
+              <div className="relative">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur">
+                    <Link2 className="size-3.5" />
+                    جدید · Compute Game
+                  </span>
+                  <ArrowUpLeft className="size-5 text-white/80 transition-transform group-hover:-translate-x-1" />
+                </div>
+                <h3 className="mt-3 text-lg font-black text-white sm:text-xl">بازی بلاکچین ژنوا</h3>
+                <p className="mt-2 max-w-md text-[12px] leading-6 text-sky-50/90">
+                  محاسبات علمی را حل کن و توکن GVA بگیر: محتوای GC، Tm پرایمر، رقت، CFU و مستر‌میکس
+                  PCR. هر پاداش در دفتر کل زنجیره‌ای ثبت و توکن بین دانشجویان قابل معامله است.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {["محاسبه = توکن", "دفتر کل زنجیره‌ای", "میز معاملات"].map((chip) => (
+                    <span
+                      key={chip}
+                      className="rounded-full border border-white/25 px-2.5 py-1 text-[10px] text-white/90"
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center gap-2 text-[10px] text-white/80">
+                  <Coins className="size-3.5" />
+                  <Pickaxe className="size-3.5" />
+                  <span>محاسبه کن، ماین کن، معامله کن</span>
+                </div>
+              </div>
+            </Link>
+          </motion.div>
+        </div>
+      </section>
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">

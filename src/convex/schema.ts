@@ -1,9 +1,13 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { Infer, v } from "convex/values";
+// Compact validator aliases (this file is very large).
+const OPT = v.optional, STR = v.string, NUM = v.number, L = v.literal, UN = v.union;
+const ID = v.id, ARR = v.array, OBJ = v.object, BOOL = v.boolean;
 
 // Role-based access: Student, Instructor, Mentor, Content Manager, Support, Admin
 export const ROLES = {
+  // role keys used across the platform
   ADMIN: "admin",
   SITE_ADMIN: "site_admin",
   USER: "user",
@@ -14,65 +18,65 @@ export const ROLES = {
   SUPPORT: "support",
 } as const;
 
-export const roleValidator = v.union(
-  v.literal(ROLES.ADMIN),
-  v.literal(ROLES.SITE_ADMIN),
-  v.literal(ROLES.USER),
-  v.literal(ROLES.MEMBER),
-  v.literal(ROLES.INSTRUCTOR),
-  v.literal(ROLES.MENTOR),
-  v.literal(ROLES.CONTENT_MANAGER),
-  v.literal(ROLES.SUPPORT),
+export const roleValidator = UN(
+  L(ROLES.ADMIN),
+  L(ROLES.SITE_ADMIN),
+  L(ROLES.USER),
+  L(ROLES.MEMBER),
+  L(ROLES.INSTRUCTOR),
+  L(ROLES.MENTOR),
+  L(ROLES.CONTENT_MANAGER),
+  L(ROLES.SUPPORT),
 );
 export type Role = Infer<typeof roleValidator>;
 
 // Course delivery model: Live / Recorded / Hybrid (In-person is future)
-export const courseModeValidator = v.union(
-  v.literal("live"),
-  v.literal("recorded"),
-  v.literal("hybrid"),
+export const courseModeValidator = UN(
+  L("live"),
+  L("recorded"),
+  L("hybrid"),
 );
 export type CourseMode = Infer<typeof courseModeValidator>;
 
 // Bundle tiers: Basic / Plus / Premium
-export const bundleValidator = v.union(
-  v.literal("economy"),
-  v.literal("basic"),
-  v.literal("plus"),
-  v.literal("premium"),
+export const bundleValidator = UN(
+  L("economy"),
+  L("basic"),
+  L("plus"),
+  L("premium"),
 );
 export type Bundle = Infer<typeof bundleValidator>;
 
 // Course package tiers with configurable prices and features
-export const coursePackageValidator = v.object({
-  id: v.string(),
-  name: v.string(),
+export const coursePackageValidator = OBJ({
+  id: STR(),
+  name: STR(),
   tier: bundleValidator,
-  price: v.number(),
-  features: v.array(v.string()),
-  active: v.boolean(),
+  price: NUM(),
+  features: ARR(STR()),
+  active: BOOL(),
 });
 export type CoursePackage = Infer<typeof coursePackageValidator>;
 
 // Physical product types
-export const productTypeValidator = v.union(
-  v.literal("flashcards"),
-  v.literal("guide"),
-  v.literal("poster"),
-  v.literal("notes"),
-  v.literal("book"),
-  v.literal("package"),
-  v.literal("other"),
+export const productTypeValidator = UN(
+  L("flashcards"),
+  L("guide"),
+  L("poster"),
+  L("notes"),
+  L("book"),
+  L("package"),
+  L("other"),
 );
 export type ProductType = Infer<typeof productTypeValidator>;
 
 // What an order item can point at
-export const itemTypeValidator = v.union(
-  v.literal("course"),
-  v.literal("product"),
-  v.literal("workshop"),
-  v.literal("path"),
-  v.literal("ai_subscription"),
+export const itemTypeValidator = UN(
+  L("course"),
+  L("product"),
+  L("workshop"),
+  L("path"),
+  L("ai_subscription"),
 );
 export type ItemType = Infer<typeof itemTypeValidator>;
 
@@ -80,1614 +84,1479 @@ const schema = defineSchema(
   {
     // default auth tables using convex auth.
     ...authTables, // do not remove or modify
-
     // the users table is the default users table that is brought in by the authTables
     users: defineTable({
-      name: v.optional(v.string()),
-      image: v.optional(v.string()),
-      email: v.optional(v.string()),
-      emailVerificationTime: v.optional(v.number()),
-      isAnonymous: v.optional(v.boolean()),
-
-      role: v.optional(roleValidator),
-      secondaryRole: v.optional(roleValidator),
-      university: v.optional(v.string()),
-      major: v.optional(v.string()),
-
+      name: OPT(STR()),
+      image: OPT(STR()),
+      email: OPT(STR()),
+      emailVerificationTime: OPT(NUM()),
+      isAnonymous: OPT(BOOL()),
+      role: OPT(roleValidator),
+      secondaryRole: OPT(roleValidator),
+      university: OPT(STR()),
+      major: OPT(STR()),
       // Member profiles (name parts, photo, academic bio). Edits are staged in
       // pendingProfile until a site admin approves them.
-      firstName: v.optional(v.string()),
-      lastName: v.optional(v.string()),
-      firstNameLatin: v.optional(v.string()),
-      lastNameLatin: v.optional(v.string()),
-      avatarStorageId: v.optional(v.string()),
-      about: v.optional(v.string()),
-      phone: v.optional(v.string()),
-      address: v.optional(v.string()),
-      postalCode: v.optional(v.string()),
-      suggestedCourseIds: v.optional(v.array(v.id("courses"))),
-      pendingProfile: v.optional(
-        v.object({
-          firstName: v.optional(v.string()),
-          lastName: v.optional(v.string()),
-          avatarStorageId: v.optional(v.string()),
-          about: v.optional(v.string()),
-          submittedAt: v.number(),
+      firstName: OPT(STR()),
+      lastName: OPT(STR()),
+      firstNameLatin: OPT(STR()),
+      lastNameLatin: OPT(STR()),
+      avatarStorageId: OPT(STR()),
+      about: OPT(STR()),
+      phone: OPT(STR()),
+      address: OPT(STR()),
+      postalCode: OPT(STR()),
+      suggestedCourseIds: OPT(ARR(ID("courses"))),
+      pendingProfile: OPT(
+        OBJ({
+          firstName: OPT(STR()),
+          lastName: OPT(STR()),
+          avatarStorageId: OPT(STR()),
+          about: OPT(STR()),
+          submittedAt: NUM(),
         }),
       ),
-
       // Telegram account linking
-      telegramId: v.optional(v.number()),       // Telegram user numeric ID
-      telegramUsername: v.optional(v.string()),  // @username from Telegram
-      telegramFirstName: v.optional(v.string()), // First name from Telegram
-      telegramLinkedAt: v.optional(v.number()),  // When the account was linked
-      telegramNotificationsEnabled: v.optional(v.boolean()), // Master toggle
-
+      telegramId: OPT(NUM()),       // Telegram user numeric ID
+      telegramUsername: OPT(STR()),  // @username from Telegram
+      telegramFirstName: OPT(STR()), // First name from Telegram
+      telegramLinkedAt: OPT(NUM()),  // When the account was linked
+      telegramNotificationsEnabled: OPT(BOOL()), // Master toggle
       // Bale account linking (Bale Messenger — Iranian platform)
-      baleId: v.optional(v.number()),           // Bale user numeric ID
-      baleUsername: v.optional(v.string()),       // @username from Bale
-      baleFirstName: v.optional(v.string()),      // First name from Bale
-      baleLinkedAt: v.optional(v.number()),        // When the Bale account was linked
-
+      baleId: OPT(NUM()),           // Bale user numeric ID
+      baleUsername: OPT(STR()),       // @username from Bale
+      baleFirstName: OPT(STR()),      // First name from Bale
+      baleLinkedAt: OPT(NUM()),        // When the Bale account was linked
       // Bank account for instructor payments
-      bankName: v.optional(v.string()),
-      bankAccountNumber: v.optional(v.string()),
-      bankCardNumber: v.optional(v.string()),
-      bankSheba: v.optional(v.string()),
+      bankName: OPT(STR()),
+      bankAccountNumber: OPT(STR()),
+      bankCardNumber: OPT(STR()),
+      bankSheba: OPT(STR()),
     }).index("email", ["email"]).index("by_telegramId", ["telegramId"]).index("by_baleId", ["baleId"]),
-
     // ── Catalog ──────────────────────────────────────────────────────────
     categories: defineTable({
-      name: v.string(), // Persian display name
-      slug: v.string(),
-      description: v.string(),
-      icon: v.string(), // lucide icon name
-      accent: v.string(), // teal | emerald | sky | amber | violet | rose | indigo
-      order: v.number(),
+      name: STR(), // Persian display name
+      slug: STR(),
+      description: STR(),
+      icon: STR(), // lucide icon name
+      accent: STR(), // teal | emerald | sky | amber | violet | rose | indigo
+      order: NUM(),
     }).index("by_slug", ["slug"]),
-
     instructors: defineTable({
-      name: v.string(),
-      slug: v.string(),
-      title: v.string(), // e.g. "دانشجوی کارشناسی میکروبیولوژی"
-      bio: v.string(),
-      education: v.array(v.string()),
-      specialties: v.array(v.string()),
-      accent: v.string(),
-      verified: v.boolean(),
-      userId: v.optional(v.id("users")), // linked registered user
-      photoUrl: v.optional(v.string()), // instructor photo URL
+      name: STR(),
+      slug: STR(),
+      title: STR(), // e.g. "دانشجوی کارشناسی میکروبیولوژی"
+      bio: STR(),
+      education: ARR(STR()),
+      specialties: ARR(STR()),
+      accent: STR(),
+      verified: BOOL(),
+      userId: OPT(ID("users")), // linked registered user
+      photoUrl: OPT(STR()), // instructor photo URL
     }).index("by_slug", ["slug"])
       .index("by_user", ["userId"]),
-
     courses: defineTable({
-      title: v.string(),
-      slug: v.string(),
-      categoryId: v.id("categories"),
-      instructorId: v.id("instructors"),
-      summary: v.string(),
-      description: v.string(),
-      audience: v.array(v.string()),
-      prerequisites: v.array(v.string()),
-      syllabus: v.array(
-        v.object({
-          id: v.string(),
-          title: v.string(),
-          durationMin: v.number(),
-          free: v.boolean(),
+      title: STR(),
+      slug: STR(),
+      categoryId: ID("categories"),
+      instructorId: ID("instructors"),
+      summary: STR(),
+      description: STR(),
+      audience: ARR(STR()),
+      prerequisites: ARR(STR()),
+      syllabus: ARR(
+        OBJ({
+          id: STR(),
+          title: STR(),
+          durationMin: NUM(),
+          free: BOOL(),
         }),
       ),
-      durationText: v.string(),
+      durationText: STR(),
       mode: courseModeValidator,
-      price: v.number(), // in Toman
-      discountPrice: v.optional(v.number()),
-      discountExpiresAt: v.optional(v.number()),
-      rating: v.number(),
-      ratingCount: v.number(),
-      studentsCount: v.number(),
-      accent: v.string(),
+      price: NUM(), // in Toman
+      discountPrice: OPT(NUM()),
+      discountExpiresAt: OPT(NUM()),
+      rating: NUM(),
+      ratingCount: NUM(),
+      studentsCount: NUM(),
+      accent: STR(),
       bundle: bundleValidator,
-      includes: v.array(v.string()),
-      hasSampleVideo: v.boolean(),
-      files: v.array(
-        v.object({
-          name: v.string(),
-          size: v.string(),
-          type: v.string(),
+      includes: ARR(STR()),
+      hasSampleVideo: BOOL(),
+      files: ARR(
+        OBJ({
+          name: STR(),
+          size: STR(),
+          type: STR(),
         }),
       ),
-      published: v.boolean(),
-      featured: v.boolean(),
-      popular: v.boolean(),
-      createdAt: v.number(),
-
+      published: BOOL(),
+      featured: BOOL(),
+      popular: BOOL(),
+      createdAt: NUM(),
       // Per-package pricing: each tier has its own price and features.
-      packagePrices: v.optional(
-        v.array(
-          v.object({
+      packagePrices: OPT(
+        ARR(
+          OBJ({
             tier: bundleValidator,
-            price: v.number(),
-            features: v.array(v.string()),
+            price: NUM(),
+            features: ARR(STR()),
           }),
         ),
       ),
-
       // Instructor-designed course flow: authorId = the user who designed it,
       // status = draft → pending (sent to admin) → published / rejected.
-      authorId: v.optional(v.id("users")),
-      status: v.optional(
-        v.union(v.literal("draft"), v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+      authorId: OPT(ID("users")),
+      status: OPT(
+        UN(L("draft"), L("pending"), L("approved"), L("rejected")),
       ),
-      reviewNote: v.optional(v.string()),
+      reviewNote: OPT(STR()),
     })
       .index("by_slug", ["slug"])
       .index("by_category", ["categoryId"])
       .index("by_published", ["published"])
       .index("by_featured", ["featured"])
       .index("by_author", ["authorId"]),
-
     // ── Course Sections & Lessons (hierarchical curriculum) ────────────────
     courseSections: defineTable({
-      courseId: v.id("courses"),
-      title: v.string(),
-      description: v.optional(v.string()),
-      order: v.number(),
-      createdAt: v.number(),
+      courseId: ID("courses"),
+      title: STR(),
+      description: OPT(STR()),
+      order: NUM(),
+      createdAt: NUM(),
     })
       .index("by_course", ["courseId"])
       .index("by_course_order", ["courseId", "order"]),
-
     courseLessons: defineTable({
-      courseId: v.id("courses"),
-      sectionId: v.id("courseSections"),
-      title: v.string(),
-      description: v.optional(v.string()),
-      order: v.number(),
-      contentType: v.optional(v.union(
-        v.literal("video"),
-        v.literal("videoUrl"),
-        v.literal("text"),
-        v.literal("file"),
-        v.literal("embedCode"),
+      courseId: ID("courses"),
+      sectionId: ID("courseSections"),
+      title: STR(),
+      description: OPT(STR()),
+      order: NUM(),
+      contentType: OPT(UN(
+        L("video"),
+        L("videoUrl"),
+        L("text"),
+        L("file"),
+        L("embedCode"),
       )),
-      videoUrl: v.optional(v.string()),
-      videoStorageId: v.optional(v.string()),
-      textContent: v.optional(v.string()),
-      embedCode: v.optional(v.string()),
-      showVideo: v.optional(v.boolean()),
-      showText: v.optional(v.boolean()),
-      showFiles: v.optional(v.boolean()),
-      attachments: v.optional(v.array(v.object({
-        name: v.string(),
-        storageId: v.string(),
-        fileType: v.string(),
-        fileSize: v.number(),
+      videoUrl: OPT(STR()),
+      videoStorageId: OPT(STR()),
+      textContent: OPT(STR()),
+      embedCode: OPT(STR()),
+      showVideo: OPT(BOOL()),
+      showText: OPT(BOOL()),
+      showFiles: OPT(BOOL()),
+      attachments: OPT(ARR(OBJ({
+        name: STR(),
+        storageId: STR(),
+        fileType: STR(),
+        fileSize: NUM(),
       }))),
-      durationMin: v.number(),
-      isPreview: v.boolean(),
-      isPublished: v.boolean(),
-      createdAt: v.number(),
-      updatedAt: v.number(),
+      durationMin: NUM(),
+      isPreview: BOOL(),
+      isPublished: BOOL(),
+      createdAt: NUM(),
+      updatedAt: NUM(),
     })
       .index("by_section", ["sectionId"])
       .index("by_course", ["courseId"])
       .index("by_course_section", ["courseId", "sectionId"])
       .index("by_section_order", ["sectionId", "order"]),
-
     products: defineTable({
-      title: v.string(),
-      slug: v.string(),
+      title: STR(),
+      slug: STR(),
       type: productTypeValidator,
-      description: v.string(),
-      price: v.number(),
-      discountPrice: v.optional(v.number()),
-      discountExpiresAt: v.optional(v.number()),
-      accent: v.string(),
-      published: v.boolean(),
-      featured: v.boolean(),
-      coverImage: v.optional(v.string()),
-      stock: v.optional(v.number()),
-      createdAt: v.number(),
+      description: STR(),
+      price: NUM(),
+      discountPrice: OPT(NUM()),
+      discountExpiresAt: OPT(NUM()),
+      accent: STR(),
+      published: BOOL(),
+      featured: BOOL(),
+      coverImage: OPT(STR()),
+      stock: OPT(NUM()),
+      createdAt: NUM(),
     }).index("by_slug", ["slug"]),
-
     workshops: defineTable({
-      title: v.string(),
-      slug: v.string(),
-      instructorId: v.id("instructors"),
-      topic: v.string(),
-      date: v.string(), // ISO date
-      time: v.string(), // e.g. "۱۸:۰۰"
-      capacity: v.number(),
-      registeredCount: v.number(),
-      price: v.number(),
-      description: v.string(),
-      agenda: v.array(v.string()),
-      free: v.boolean(),
-      expertTalk: v.boolean(),
-      published: v.boolean(),
-      coverImage: v.optional(v.string()),
-      platformUrl: v.optional(v.string()), // external platform link
+      title: STR(),
+      slug: STR(),
+      instructorId: ID("instructors"),
+      topic: STR(),
+      date: STR(), // ISO date
+      time: STR(), // e.g. "۱۸:۰۰"
+      capacity: NUM(),
+      registeredCount: NUM(),
+      price: NUM(),
+      description: STR(),
+      agenda: ARR(STR()),
+      free: BOOL(),
+      expertTalk: BOOL(),
+      published: BOOL(),
+      coverImage: OPT(STR()),
+      platformUrl: OPT(STR()), // external platform link
     }).index("by_slug", ["slug"]),
-
     articles: defineTable({
-      title: v.string(),
-      slug: v.string(),
-      subtitle: v.optional(v.string()),
-      category: v.string(),
-      tags: v.optional(v.array(v.string())),
-      excerpt: v.string(),
-      body: v.string(), // HTML from TipTap
-      authorName: v.string(),
-      authorId: v.optional(v.id("users")),
-      featuredImage: v.optional(v.string()),
-      accent: v.string(),
-      readTime: v.number(),
-      level: v.optional(v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced"))),
-      status: v.optional(v.union(v.literal("draft"), v.literal("in_review"), v.literal("scheduled"), v.literal("published"), v.literal("archived"))),
-      scheduledAt: v.optional(v.number()),
-      published: v.boolean(),
-      featured: v.boolean(),
+      title: STR(),
+      slug: STR(),
+      subtitle: OPT(STR()),
+      category: STR(),
+      tags: OPT(ARR(STR())),
+      excerpt: STR(),
+      body: STR(), // HTML from TipTap
+      authorName: STR(),
+      authorId: OPT(ID("users")),
+      featuredImage: OPT(STR()),
+      accent: STR(),
+      readTime: NUM(),
+      level: OPT(UN(L("beginner"), L("intermediate"), L("advanced"))),
+      status: OPT(UN(L("draft"), L("in_review"), L("scheduled"), L("published"), L("archived"))),
+      scheduledAt: OPT(NUM()),
+      published: BOOL(),
+      featured: BOOL(),
       // SEO fields
-      seoTitle: v.optional(v.string()),
-      seoDescription: v.optional(v.string()),
-      seoKeywords: v.optional(v.array(v.string())),
-      seoCanonical: v.optional(v.string()),
-      ogTitle: v.optional(v.string()),
-      ogDescription: v.optional(v.string()),
-      ogImage: v.optional(v.string()),
+      seoTitle: OPT(STR()),
+      seoDescription: OPT(STR()),
+      seoKeywords: OPT(ARR(STR())),
+      seoCanonical: OPT(STR()),
+      ogTitle: OPT(STR()),
+      ogDescription: OPT(STR()),
+      ogImage: OPT(STR()),
       // References / citations
-      references: v.optional(v.array(v.object({
-        title: v.string(),
-        authors: v.string(),
-        journal: v.string(),
-        year: v.number(),
-        doi: v.optional(v.string()),
-        url: v.optional(v.string()),
+      references: OPT(ARR(OBJ({
+        title: STR(),
+        authors: STR(),
+        journal: STR(),
+        year: NUM(),
+        doi: OPT(STR()),
+        url: OPT(STR()),
       }))),
-      createdAt: v.number(),
-      updatedAt: v.number(),
+      createdAt: NUM(),
+      updatedAt: NUM(),
     })
       .index("by_slug", ["slug"])
       .index("by_status", ["status"])
       .index("by_author", ["authorId"]),
-
     dictionaryTerms: defineTable({
-      term: v.string(),
-      slug: v.string(),
-      fullName: v.string(),
-      gramStatus: v.string(),
-      shape: v.string(),
-      oxygen: v.string(),
-      habitat: v.string(),
-      diseases: v.array(v.string()),
-      virulence: v.array(v.string()),
-      diagnosis: v.string(),
-      characteristics: v.array(v.string()),
-      examNotes: v.array(v.string()),
-      sources: v.array(v.string()),
+      term: STR(),
+      slug: STR(),
+      fullName: STR(),
+      gramStatus: STR(),
+      shape: STR(),
+      oxygen: STR(),
+      habitat: STR(),
+      diseases: ARR(STR()),
+      virulence: ARR(STR()),
+      diagnosis: STR(),
+      characteristics: ARR(STR()),
+      examNotes: ARR(STR()),
+      sources: ARR(STR()),
     })
       .index("by_slug", ["slug"])
       .index("by_term", ["term"]),
-
     // ── Assessment ───────────────────────────────────────────────────────
     questions: defineTable({
-      text: v.string(),
-      options: v.array(v.string()),
-      correctIndex: v.number(),
-      explanation: v.string(),
-      topicId: v.id("categories"),
-      difficulty: v.number(), // 1 | 2 | 3
+      text: STR(),
+      options: ARR(STR()),
+      correctIndex: NUM(),
+      explanation: STR(),
+      topicId: ID("categories"),
+      difficulty: NUM(), // 1 | 2 | 3
     }).index("by_topic", ["topicId"]),
-
     exams: defineTable({
-      title: v.string(),
-      slug: v.string(),
-      description: v.string(),
-      durationMinutes: v.number(),
-      questionIds: v.array(v.id("questions")),
-      free: v.boolean(),
-      published: v.boolean(),
-      featured: v.boolean(),
-      diagnostic: v.boolean(),
-      accent: v.string(),
-      order: v.number(),
+      title: STR(),
+      slug: STR(),
+      description: STR(),
+      durationMinutes: NUM(),
+      questionIds: ARR(ID("questions")),
+      free: BOOL(),
+      published: BOOL(),
+      featured: BOOL(),
+      diagnostic: BOOL(),
+      accent: STR(),
+      order: NUM(),
     }).index("by_slug", ["slug"]),
-
     examReports: defineTable({
-      userId: v.id("users"),
-      examId: v.id("exams"),
-      questionId: v.id("questions"),
-      comment: v.string(),
-      status: v.union(v.literal("open"), v.literal("resolved")),
-      createdAt: v.number(),
+      userId: ID("users"),
+      examId: ID("exams"),
+      questionId: ID("questions"),
+      comment: STR(),
+      status: UN(L("open"), L("resolved")),
+      createdAt: NUM(),
     })
       .index("by_status", ["status"])
       .index("by_user", ["userId"])
       .index("by_exam", ["examId"]),
-
     examAttempts: defineTable({
-      userId: v.id("users"),
-      examId: v.id("exams"),
-      answers: v.array(
-        v.object({
-          questionId: v.id("questions"),
-          chosenIndex: v.number(),
+      userId: ID("users"),
+      examId: ID("exams"),
+      answers: ARR(
+        OBJ({
+          questionId: ID("questions"),
+          chosenIndex: NUM(),
         }),
       ),
-      score: v.number(),
-      total: v.number(),
-      percent: v.number(),
-      topicBreakdown: v.array(
-        v.object({
-          topicId: v.id("categories"),
-          topicName: v.string(),
-          correct: v.number(),
-          total: v.number(),
-          percent: v.number(),
+      score: NUM(),
+      total: NUM(),
+      percent: NUM(),
+      topicBreakdown: ARR(
+        OBJ({
+          topicId: ID("categories"),
+          topicName: STR(),
+          correct: NUM(),
+          total: NUM(),
+          percent: NUM(),
         }),
       ),
-      startedAt: v.number(),
-      finishedAt: v.number(),
+      startedAt: NUM(),
+      finishedAt: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_exam", ["examId"]),
-
     dailyQuiz: defineTable({
-      date: v.string(), // YYYY-MM-DD
-      questionId: v.id("questions"),
-      points: v.number(),
+      date: STR(), // YYYY-MM-DD
+      questionId: ID("questions"),
+      points: NUM(),
     }).index("by_date", ["date"]),
-
     dailyQuizAnswers: defineTable({
-      userId: v.id("users"),
-      date: v.string(),
-      questionId: v.id("questions"),
-      chosenIndex: v.number(),
-      correct: v.boolean(),
-      points: v.number(),
-      answeredAt: v.number(),
+      userId: ID("users"),
+      date: STR(),
+      questionId: ID("questions"),
+      chosenIndex: NUM(),
+      correct: BOOL(),
+      points: NUM(),
+      answeredAt: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_date", ["date"]),
-
     // ── Commerce ──────────────────────────────────────────────────────────
     orders: defineTable({
-      userId: v.id("users"),
-      items: v.array(
-        v.object({
+      userId: ID("users"),
+      items: ARR(
+        OBJ({
           type: itemTypeValidator,
-          refId: v.string(),
-          title: v.string(),
-          price: v.number(),
+          refId: STR(),
+          title: STR(),
+          price: NUM(),
         }),
       ),
-      subtotal: v.number(),
-      discountAmount: v.number(),
-      total: v.number(),
-      couponCode: v.optional(v.string()),
-      status: v.union(v.literal("paid"), v.literal("pending"), v.literal("cancelled")),
-      payMethod: v.optional(v.union(v.literal("wallet"), v.literal("online"), v.literal("offline"))),
-      invoiceNumber: v.string(),
-      createdAt: v.number(),
+      subtotal: NUM(),
+      discountAmount: NUM(),
+      total: NUM(),
+      couponCode: OPT(STR()),
+      status: UN(L("paid"), L("pending"), L("cancelled")),
+      payMethod: OPT(UN(L("wallet"), L("online"), L("offline"))),
+      invoiceNumber: STR(),
+      createdAt: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_status", ["status"])
       .index("by_created", ["createdAt"]),
-
     coupons: defineTable({
-      code: v.string(),
-      percent: v.number(),
-      active: v.boolean(),
-      maxUses: v.number(),
-      usedCount: v.number(),
-      expiresAt: v.optional(v.number()),
+      code: STR(),
+      percent: NUM(),
+      active: BOOL(),
+      maxUses: NUM(),
+      usedCount: NUM(),
+      expiresAt: OPT(NUM()),
     }).index("by_code", ["code"]),
-
     enrollments: defineTable({
-      userId: v.id("users"),
-      courseId: v.id("courses"),
-      completedLessons: v.array(v.string()),
-      enrolledAt: v.number(),
-      lastActiveAt: v.optional(v.number()),
+      userId: ID("users"),
+      courseId: ID("courses"),
+      completedLessons: ARR(STR()),
+      enrolledAt: NUM(),
+      lastActiveAt: OPT(NUM()),
       // Enriched fields (backward-compatible optional)
-      packageTier: v.optional(v.string()),
-      orderId: v.optional(v.id("orders")),
-      lastLessonId: v.optional(v.string()),
+      packageTier: OPT(STR()),
+      orderId: OPT(ID("orders")),
+      lastLessonId: OPT(STR()),
     })
       .index("by_user", ["userId"])
       .index("by_course", ["courseId"]),
-
     // Reminders shown to a user (exam deadlines, course nudges). Each row can
     // be shown up to 2 times before it is considered done.
     reminders: defineTable({
-      userId: v.id("users"),
-      kind: v.union(
-        v.literal("exam_new"),
-        v.literal("exam_next"),
-        v.literal("course_nudge"),
+      userId: ID("users"),
+      kind: UN(
+        L("exam_new"),
+        L("exam_next"),
+        L("course_nudge"),
       ),
-      refId: v.string(), // exam/course id
-      title: v.string(),
-      body: v.string(),
-      link: v.string(), // route to open
-      shownCount: v.number(),
-      createdAt: v.number(),
+      refId: STR(), // exam/course id
+      title: STR(),
+      body: STR(),
+      link: STR(), // route to open
+      shownCount: NUM(),
+      createdAt: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_user_kind", ["userId", "kind"]),
-
     // Announcements from site admins (everyone) or instructors (their own
     // students / courses).
     announcements: defineTable({
-      authorId: v.id("users"),
-      authorName: v.string(),
-      authorRole: v.string(),
-      targetType: v.union(
-        v.literal("all"),
-        v.literal("course"),
-        v.literal("exam"),
+      authorId: ID("users"),
+      authorName: STR(),
+      authorRole: STR(),
+      targetType: UN(
+        L("all"),
+        L("course"),
+        L("exam"),
       ),
-      targetId: v.optional(v.string()),
-      targetTitle: v.optional(v.string()),
-      title: v.string(),
-      body: v.string(),
-      createdAt: v.number(),
+      targetId: OPT(STR()),
+      targetTitle: OPT(STR()),
+      title: STR(),
+      body: STR(),
+      createdAt: NUM(),
     })
       .index("by_created", ["createdAt"])
       .index("by_author", ["authorId"]),
-
     bookmarks: defineTable({
-      userId: v.id("users"),
-      contentType: v.string(), // course | article | product | workshop
-      contentId: v.string(),
-      createdAt: v.number(),
+      userId: ID("users"),
+      contentType: STR(), // course | article | product | workshop
+      contentId: STR(),
+      createdAt: NUM(),
     }).index("by_user", ["userId"]),
-
     flashcards: defineTable({
-      userId: v.id("users"),
-      front: v.string(),
-      back: v.string(),
-      category: v.string(),
-      createdAt: v.number(),
+      userId: ID("users"),
+      front: STR(),
+      back: STR(),
+      category: STR(),
+      createdAt: NUM(),
     }).index("by_user", ["userId"]),
-
     // ── Live collaboration (rooms, presence, mentoring) ───────────────────
     presence: defineTable({
-      userId: v.id("users"),
-      name: v.optional(v.string()),
-      role: v.optional(v.string()),
-      location: v.optional(v.string()),
-      lastSeen: v.number(),
+      userId: ID("users"),
+      name: OPT(STR()),
+      role: OPT(STR()),
+      location: OPT(STR()),
+      lastSeen: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_lastSeen", ["lastSeen"]),
-
     classRooms: defineTable({
-      instructorId: v.id("users"),
-      instructorName: v.string(),
-      title: v.string(),
-      topic: v.string(),
-      description: v.string(),
-      status: v.union(v.literal("live"), v.literal("scheduled"), v.literal("ended")),
-      broadcasting: v.boolean(),
-      broadcastKind: v.optional(v.union(v.literal("camera"), v.literal("screen"))),
-      boardBg: v.optional(v.string()),
-      speakers: v.optional(v.array(v.id("users"))), // approved speakers (students with active mic)
-      createdAt: v.number(),
-      platformUrl: v.optional(v.string()), // external platform link
-      scheduledDate: v.optional(v.string()), // proposed date by instructor
+      instructorId: ID("users"),
+      instructorName: STR(),
+      title: STR(),
+      topic: STR(),
+      description: STR(),
+      status: UN(L("live"), L("scheduled"), L("ended")),
+      broadcasting: BOOL(),
+      broadcastKind: OPT(UN(L("camera"), L("screen"))),
+      boardBg: OPT(STR()),
+      speakers: OPT(ARR(ID("users"))), // approved speakers (students with active mic)
+      createdAt: NUM(),
+      platformUrl: OPT(STR()), // external platform link
+      scheduledDate: OPT(STR()), // proposed date by instructor
     })
       .index("by_instructor", ["instructorId"])
       .index("by_status", ["status"]),
-
     // Class creation requests from instructors → admin approval
     classRequests: defineTable({
-      instructorId: v.id("users"),
-      instructorName: v.string(),
-      title: v.string(),
-      topic: v.string(),
-      description: v.string(),
-      proposedDate: v.string(), // instructor proposed date
-      immediate: v.optional(v.boolean()), // urgent: no scheduled date
-      status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
-      createdAt: v.number(),
-      reviewedBy: v.optional(v.id("users")),
-      reviewedAt: v.optional(v.number()),
-      platformUrl: v.optional(v.string()), // admin sets the link
-      createdRoomId: v.optional(v.id("classRooms")), // room created upon approval
+      instructorId: ID("users"),
+      instructorName: STR(),
+      title: STR(),
+      topic: STR(),
+      description: STR(),
+      proposedDate: STR(), // instructor proposed date
+      immediate: OPT(BOOL()), // urgent: no scheduled date
+      status: UN(L("pending"), L("approved"), L("rejected")),
+      createdAt: NUM(),
+      reviewedBy: OPT(ID("users")),
+      reviewedAt: OPT(NUM()),
+      platformUrl: OPT(STR()), // admin sets the link
+      createdRoomId: OPT(ID("classRooms")), // room created upon approval
     })
       .index("by_instructor", ["instructorId"])
       .index("by_status", ["status"]),
-
     // Instructor's whiteboard / screen-share annotations. Points are stored
     // normalized (0..1) so every client scales them to its own canvas size.
     whiteboardStrokes: defineTable({
-      roomId: v.id("classRooms"),
-      layer: v.union(v.literal("board"), v.literal("screen")),
-      tool: v.union(v.literal("pen"), v.literal("highlighter"), v.literal("eraser")),
-      color: v.string(),
-      size: v.number(), // fraction of the canvas min dimension
-      points: v.array(v.object({ x: v.number(), y: v.number() })),
-      createdAt: v.number(),
+      roomId: ID("classRooms"),
+      layer: UN(L("board"), L("screen")),
+      tool: UN(L("pen"), L("highlighter"), L("eraser")),
+      color: STR(),
+      size: NUM(), // fraction of the canvas min dimension
+      points: ARR(OBJ({ x: NUM(), y: NUM() })),
+      createdAt: NUM(),
     })
       .index("by_room_layer", ["roomId", "layer"])
       .index("by_room_layer_created", ["roomId", "layer", "createdAt"]),
-
     roomMessages: defineTable({
-      roomId: v.id("classRooms"),
-      userId: v.id("users"),
-      name: v.string(),
-      role: v.optional(v.string()),
-      type: v.union(v.literal("question"), v.literal("message"), v.literal("answer")),
-      text: v.string(),
-      answer: v.optional(v.string()),
-      attachmentType: v.optional(
-        v.union(v.literal("file"), v.literal("voice"), v.literal("image")),
+      roomId: ID("classRooms"),
+      userId: ID("users"),
+      name: STR(),
+      role: OPT(STR()),
+      type: UN(L("question"), L("message"), L("answer")),
+      text: STR(),
+      answer: OPT(STR()),
+      attachmentType: OPT(
+        UN(L("file"), L("voice"), L("image")),
       ),
-      attachmentName: v.optional(v.string()),
-      attachmentStorageId: v.optional(v.string()),
-      attachmentSize: v.optional(v.number()),
-      createdAt: v.number(),
+      attachmentName: OPT(STR()),
+      attachmentStorageId: OPT(STR()),
+      attachmentSize: OPT(NUM()),
+      createdAt: NUM(),
     })
       .index("by_room", ["roomId"])
       .index("by_room_created", ["roomId", "createdAt"]),
-
     // WebRTC signaling: offers/answers/ICE candidates for live broadcasts.
     signals: defineTable({
-      roomId: v.id("classRooms"),
-      from: v.id("users"),
-      to: v.optional(v.id("users")),
-      type: v.union(v.literal("offer"), v.literal("answer"), v.literal("candidate")),
-      data: v.string(), // JSON-encoded SDP or ICE candidate
-      createdAt: v.number(),
+      roomId: ID("classRooms"),
+      from: ID("users"),
+      to: OPT(ID("users")),
+      type: UN(L("offer"), L("answer"), L("candidate")),
+      data: STR(), // JSON-encoded SDP or ICE candidate
+      createdAt: NUM(),
     }).index("by_room", ["roomId"]),
-
     mentorGroups: defineTable({
-      mentorId: v.id("users"),
-      mentorName: v.string(),
-      title: v.string(),
-      description: v.string(),
-      meetingDay: v.string(),
-      meetingTime: v.string(),
-      capacity: v.number(),
-      memberCount: v.number(),
-      createdAt: v.number(),
+      mentorId: ID("users"),
+      mentorName: STR(),
+      title: STR(),
+      description: STR(),
+      meetingDay: STR(),
+      meetingTime: STR(),
+      capacity: NUM(),
+      memberCount: NUM(),
+      createdAt: NUM(),
     })
       .index("by_mentor", ["mentorId"])
       .index("by_created", ["createdAt"]),
-
     mentorQuestions: defineTable({
-      studentId: v.id("users"),
-      studentName: v.string(),
-      topic: v.string(),
-      text: v.string(),
-      status: v.union(v.literal("open"), v.literal("answered")),
-      answer: v.optional(v.string()),
-      answeredByName: v.optional(v.string()),
-      answeredAt: v.optional(v.number()),
-      createdAt: v.number(),
+      studentId: ID("users"),
+      studentName: STR(),
+      topic: STR(),
+      text: STR(),
+      status: UN(L("open"), L("answered")),
+      answer: OPT(STR()),
+      answeredByName: OPT(STR()),
+      answeredAt: OPT(NUM()),
+      createdAt: NUM(),
     })
       .index("by_student", ["studentId"])
       .index("by_status", ["status"])
       .index("by_created", ["createdAt"]),
-
     mentorSessions: defineTable({
-      mentorId: v.id("users"),
-      mentorName: v.string(),
-      studentId: v.id("users"),
-      title: v.string(),
-      date: v.string(),
-      time: v.string(),
-      notes: v.string(),
-      status: v.union(v.literal("scheduled"), v.literal("done"), v.literal("cancelled")),
-      createdAt: v.number(),
+      mentorId: ID("users"),
+      mentorName: STR(),
+      studentId: ID("users"),
+      title: STR(),
+      date: STR(),
+      time: STR(),
+      notes: STR(),
+      status: UN(L("scheduled"), L("done"), L("cancelled")),
+      createdAt: NUM(),
     })
       .index("by_mentor", ["mentorId"])
       .index("by_student", ["studentId"])
       .index("by_created", ["createdAt"]),
-
     // ── Mentor Group Members ───────────────────────────────────────────────
     groupMembers: defineTable({
-      groupId: v.id("mentorGroups"),
-      userId: v.id("users"),
-      userName: v.string(),
-      joinedAt: v.number(),
+      groupId: ID("mentorGroups"),
+      userId: ID("users"),
+      userName: STR(),
+      joinedAt: NUM(),
     })
       .index("by_group", ["groupId"])
       .index("by_user", ["userId"])
       .index("by_group_user", ["groupId", "userId"]),
-
     // ── Group Announcements ────────────────────────────────────────────────
     groupAnnouncements: defineTable({
-      groupId: v.id("mentorGroups"),
-      mentorId: v.id("users"),
-      mentorName: v.string(),
-      title: v.string(),
-      message: v.string(),
-      createdAt: v.number(),
+      groupId: ID("mentorGroups"),
+      mentorId: ID("users"),
+      mentorName: STR(),
+      title: STR(),
+      message: STR(),
+      createdAt: NUM(),
     })
       .index("by_group", ["groupId"]),
-
     // ── Support ───────────────────────────────────────────────────────────
     tickets: defineTable({
-      userId: v.id("users"),
-      subject: v.string(),
-      status: v.union(v.literal("open"), v.literal("answered"), v.literal("closed")),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-      messages: v.array(
-        v.object({
-          author: v.string(), // student | admin
-          text: v.string(),
-          at: v.number(),
+      userId: ID("users"),
+      subject: STR(),
+      status: UN(L("open"), L("answered"), L("closed")),
+      createdAt: NUM(),
+      updatedAt: NUM(),
+      messages: ARR(
+        OBJ({
+          author: STR(), // student | admin
+          text: STR(),
+          at: NUM(),
         }),
       ),
     })
       .index("by_user", ["userId"])
       .index("by_status", ["status"]),
-
     // ── Comments (articles, courses, ...) ─────────────────────────────────
     comments: defineTable({
-      contentType: v.string(), // article | course
-      contentId: v.string(),
-      userId: v.id("users"),
-      userName: v.optional(v.string()),
-      text: v.string(),
-      approved: v.boolean(),
-      rejected: v.optional(v.boolean()),
-      createdAt: v.number(),
+      contentType: STR(), // article | course
+      contentId: STR(),
+      userId: ID("users"),
+      userName: OPT(STR()),
+      text: STR(),
+      approved: BOOL(),
+      rejected: OPT(BOOL()),
+      createdAt: NUM(),
     })
       .index("by_content", ["contentType", "contentId"])
       .index("by_user", ["userId"])
       .index("by_approved", ["approved"]),
-
     // ── Course resources / file uploads ──────────────────────────────────
     courseResources: defineTable({
-      courseId: v.optional(v.id("courses")),
-      roomId: v.optional(v.id("classRooms")),
-      instructorId: v.id("users"),
-      title: v.string(),
-      description: v.optional(v.string()),
-      fileUrl: v.string(),
-      fileName: v.string(),
-      fileSize: v.number(),
-      fileType: v.string(),
-      isFree: v.boolean(),
-      price: v.optional(v.number()), // base price in toman (0 = free)
-      commission: v.optional(v.number()), // 4% platform commission
-      resourceType: v.optional(v.union(v.literal("file"), v.literal("link"))), // file upload or external link
-      linkUrl: v.optional(v.string()), // external link URL
-      createdAt: v.number(),
+      courseId: OPT(ID("courses")),
+      roomId: OPT(ID("classRooms")),
+      instructorId: ID("users"),
+      title: STR(),
+      description: OPT(STR()),
+      fileUrl: STR(),
+      fileName: STR(),
+      fileSize: NUM(),
+      fileType: STR(),
+      isFree: BOOL(),
+      price: OPT(NUM()), // base price in toman (0 = free)
+      commission: OPT(NUM()), // 4% platform commission
+      resourceType: OPT(UN(L("file"), L("link"))), // file upload or external link
+      linkUrl: OPT(STR()), // external link URL
+      createdAt: NUM(),
     }).index("by_course", ["courseId"])
       .index("by_room", ["roomId"]),
-
     // ── Class attendance ─────────────────────────────────────────────────
     attendance: defineTable({
-      roomId: v.id("classRooms"),
-      instructorId: v.id("users"),
-      studentId: v.id("users"),
-      studentName: v.string(),
-      present: v.boolean(),
-      note: v.optional(v.string()),
-      markedAt: v.number(),
+      roomId: ID("classRooms"),
+      instructorId: ID("users"),
+      studentId: ID("users"),
+      studentName: STR(),
+      present: BOOL(),
+      note: OPT(STR()),
+      markedAt: NUM(),
     })
       .index("by_room", ["roomId"])
       .index("by_student", ["studentId"]),
-
     // ── Instructor payments ──────────────────────────────────────────────
     instructorPayments: defineTable({
-      instructorId: v.id("users"),
-      amount: v.number(),
-      description: v.string(),
-      status: v.union(v.literal("pending"), v.literal("paid"), v.literal("rejected")),
-      receiptUrl: v.optional(v.string()),
-      paidAt: v.optional(v.number()),
-      createdAt: v.number(),
+      instructorId: ID("users"),
+      amount: NUM(),
+      description: STR(),
+      status: UN(L("pending"), L("paid"), L("rejected")),
+      receiptUrl: OPT(STR()),
+      paidAt: OPT(NUM()),
+      createdAt: NUM(),
     }).index("by_instructor", ["instructorId"]),
-
     // ── Direct messages (instructor ↔ student) ──────────────────────────
     directMessages: defineTable({
-      senderId: v.id("users"),
-      receiverId: v.id("users"),
-      text: v.string(),
-      read: v.boolean(),
-      createdAt: v.number(),
+      senderId: ID("users"),
+      receiverId: ID("users"),
+      text: STR(),
+      read: BOOL(),
+      createdAt: NUM(),
     })
       .index("by_receiver", ["receiverId", "read"])
       .index("by_sender", ["senderId"]),
-
     // ── Trust & community ─────────────────────────────────────────────────
     testimonials: defineTable({
-      name: v.string(),
-      role: v.string(),
-      text: v.string(),
-      rating: v.number(),
-      course: v.string(),
-      accent: v.string(),
+      name: STR(),
+      role: STR(),
+      text: STR(),
+      rating: NUM(),
+      course: STR(),
+      accent: STR(),
     }),
-
     // Emails allowed into the admin panel (seedable; promotes via email match)
     admins: defineTable({
-      email: v.string(),
+      email: STR(),
     }).index("by_email", ["email"]),
-
     // ── Offline payments ───────────────────────────────────────────────────
     offlinePayments: defineTable({
-      userId: v.id("users"),
-      courseId: v.id("courses"),
+      userId: ID("users"),
+      courseId: ID("courses"),
       tier: bundleValidator,
-      amount: v.number(),
-      trackingNumber: v.string(),
-      receiptStorageId: v.string(),
-      status: v.union(
-        v.literal("pending"),
-        v.literal("approved"),
-        v.literal("rejected"),
+      amount: NUM(),
+      trackingNumber: STR(),
+      receiptStorageId: STR(),
+      status: UN(
+        L("pending"),
+        L("approved"),
+        L("rejected"),
       ),
-      note: v.optional(v.string()),
-      createdAt: v.number(),
+      note: OPT(STR()),
+      createdAt: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_status", ["status"])
       .index("by_course", ["courseId"]),
-
     // ── Class enrollment requests ──────────────────────────────────────────
     classEnrollRequests: defineTable({
-      userId: v.id("users"),
-      roomId: v.id("classRooms"),
-      status: v.union(
-        v.literal("pending"),
-        v.literal("approved"),
-        v.literal("rejected"),
+      userId: ID("users"),
+      roomId: ID("classRooms"),
+      status: UN(
+        L("pending"),
+        L("approved"),
+        L("rejected"),
       ),
-      createdAt: v.number(),
+      createdAt: NUM(),
     })
       .index("by_room", ["roomId"])
       .index("by_user", ["userId"])
       .index("by_status", ["status"]),
-
     // Per-account inbox: messages the site admin sends to a specific user.
     inboxMessages: defineTable({
-      userId: v.id("users"),
-      title: v.string(),
-      body: v.string(),
-      readAt: v.optional(v.number()),
-      createdAt: v.number(),
+      userId: ID("users"),
+      title: STR(),
+      body: STR(),
+      readAt: OPT(NUM()),
+      createdAt: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_created", ["createdAt"]),
-
     // ── AI Chat system ─────────────────────────────────────────────────
     // Singleton row storing global AI config (API key, model, provider, base URL).
     aiConfig: defineTable({
-      provider: v.string(),            // e.g. "openai", "gapgpt", "anthropic"
-      model: v.string(),               // e.g. "gpt-4o", "gapgpt-qwen-3.5"
-      baseUrl: v.string(),             // API base URL
-      apiKeyEncrypted: v.string(),     // Encrypted API key (server-side only)
-      maxTokensPerRequest: v.number(),
-      temperature: v.number(),
-      systemPrompt: v.string(),        // Default system prompt
-      updatedAt: v.number(),
-      updatedBy: v.id("users"),
+      provider: STR(),            // e.g. "openai", "gapgpt", "anthropic"
+      model: STR(),               // e.g. "gpt-4o", "gapgpt-qwen-3.5"
+      baseUrl: STR(),             // API base URL
+      apiKeyEncrypted: STR(),     // Encrypted API key (server-side only)
+      maxTokensPerRequest: NUM(),
+      temperature: NUM(),
+      systemPrompt: STR(),        // Default system prompt
+      updatedAt: NUM(),
+      updatedBy: ID("users"),
     }),
-
     // ── Multi-model AI configuration ────────────────────────────────────
     aiModels: defineTable({
-      name: v.string(),                // Display name e.g. "GPT-4o Mini"
-      provider: v.string(),            // "openai" | "anthropic" | "google" | "custom"
-      model: v.string(),               // Model ID e.g. "gpt-4o-mini"
-      baseUrl: v.string(),             // API base URL
-      apiKey: v.string(),              // API key (server-side only)
-      isFree: v.boolean(),             // Free or paid?
-      dailyLimit: v.number(),          // Daily message limit per user
-      pricePerMessage: v.number(),     // Cost per message (0 = free)
-      description: v.string(),         // Description of what this model is good for
-      systemPrompt: v.optional(v.string()), // Custom system prompt
-      maxTokens: v.number(),           // Max tokens per request
-      temperature: v.number(),         // Temperature
-      active: v.boolean(),             // Enabled/disabled
-      sortOrder: v.number(),           // Display order
-      createdBy: v.id("users"),
-      createdAt: v.number(),
+      name: STR(),                // Display name e.g. "GPT-4o Mini"
+      provider: STR(),            // "openai" | "anthropic" | "google" | "custom"
+      model: STR(),               // Model ID e.g. "gpt-4o-mini"
+      baseUrl: STR(),             // API base URL
+      apiKey: STR(),              // API key (server-side only)
+      isFree: BOOL(),             // Free or paid?
+      dailyLimit: NUM(),          // Daily message limit per user
+      pricePerMessage: NUM(),     // Cost per message (0 = free)
+      description: STR(),         // Description of what this model is good for
+      systemPrompt: OPT(STR()), // Custom system prompt
+      maxTokens: NUM(),           // Max tokens per request
+      temperature: NUM(),         // Temperature
+      active: BOOL(),             // Enabled/disabled
+      sortOrder: NUM(),           // Display order
+      createdBy: ID("users"),
+      createdAt: NUM(),
     }),
-
     // Admin-managed prompt templates
     aiPrompts: defineTable({
-      name: v.string(),
-      content: v.string(),
-      category: v.string(),           // e.g. "general", "biology", "exam"
-      isDefault: v.boolean(),
-      createdBy: v.id("users"),
-      createdAt: v.number(),
+      name: STR(),
+      content: STR(),
+      category: STR(),           // e.g. "general", "biology", "exam"
+      isDefault: BOOL(),
+      createdBy: ID("users"),
+      createdAt: NUM(),
     })
       .index("by_category", ["category"]),
-
     // AI conversations per user
     aiConversations: defineTable({
-      userId: v.id("users"),
-      title: v.string(),
-      promptId: v.optional(v.id("aiPrompts")),
-      modelId: v.optional(v.id("aiModels")),
-      createdAt: v.number(),
-      updatedAt: v.number(),
+      userId: ID("users"),
+      title: STR(),
+      promptId: OPT(ID("aiPrompts")),
+      modelId: OPT(ID("aiModels")),
+      createdAt: NUM(),
+      updatedAt: NUM(),
     })
       .index("by_user", ["userId"]),
-
     // Individual messages in a conversation
     aiMessages: defineTable({
-      conversationId: v.id("aiConversations"),
-      role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
-      content: v.string(),
-      tokensUsed: v.number(),
-      createdAt: v.number(),
+      conversationId: ID("aiConversations"),
+      role: UN(L("user"), L("assistant"), L("system")),
+      content: STR(),
+      tokensUsed: NUM(),
+      createdAt: NUM(),
     })
       .index("by_conversation", ["conversationId"]),
-
     // Daily usage tracking per user (resets each day)
     aiUsage: defineTable({
-      userId: v.id("users"),
-      date: v.string(),               // "YYYY-MM-DD"
-      messagesSent: v.number(),
-      tokensUsed: v.number(),
+      userId: ID("users"),
+      date: STR(),               // "YYYY-MM-DD"
+      messagesSent: NUM(),
+      tokensUsed: NUM(),
     })
       .index("by_user_date", ["userId", "date"]),
-
     // Per-user token quota overrides (admin can charge more tokens)
     aiTokenQuotas: defineTable({
-      userId: v.id("users"),
-      dailyLimit: v.number(),          // Override daily message limit
-      extraTokens: v.number(),         // Bonus tokens beyond free quota
-      grantedAt: v.number(),
-      grantedBy: v.id("users"),
-      note: v.optional(v.string()),
+      userId: ID("users"),
+      dailyLimit: NUM(),          // Override daily message limit
+      extraTokens: NUM(),         // Bonus tokens beyond free quota
+      grantedAt: NUM(),
+      grantedBy: ID("users"),
+      note: OPT(STR()),
     })
       .index("by_user", ["userId"]),
-
     // ── AI Chat Subscriptions (paid tiers) ──────────────────────────────────
     aiSubscriptions: defineTable({
-      userId: v.id("users"),
-      tier: v.union(v.literal("bronze"), v.literal("silver"), v.literal("gold")),
-      dailyLimit: v.number(),           // Messages per day for this tier
-      startedAt: v.number(),
-      expiresAt: v.number(),             // Subscription expiry
-      orderId: v.optional(v.string()),   // Reference to payment order
-      active: v.boolean(),
+      userId: ID("users"),
+      tier: UN(L("bronze"), L("silver"), L("gold")),
+      dailyLimit: NUM(),           // Messages per day for this tier
+      startedAt: NUM(),
+      expiresAt: NUM(),             // Subscription expiry
+      orderId: OPT(STR()),   // Reference to payment order
+      active: BOOL(),
     })
       .index("by_user", ["userId"])
       .index("by_active", ["active"]),
-
     // ── Telegram Bot Configuration (admin-only) ─────────────────────────
     telegramBot: defineTable({
-      tokenEncrypted: v.string(),       // Encrypted bot token (server-side only)
-      botId: v.optional(v.string()),    // Telegram bot numeric ID
-      botName: v.optional(v.string()),  // Bot display name from getMe
-      botUsername: v.optional(v.string()), // @username from getMe
-      webhookUrl: v.optional(v.string()),  // Configured webhook URL
-      connected: v.boolean(),           // Is bot connected?
-      active: v.boolean(),              // Enabled/disabled
-      startMessage: v.string(),         // Welcome message for /start
-      lastTestedAt: v.optional(v.number()),
-      lastTestResult: v.optional(v.string()), // "success" or error message
-      commands: v.optional(v.array(v.object({ command: v.string(), description: v.string() }))),
-      commandsSyncedAt: v.optional(v.number()),
-      updatedBy: v.id("users"),
-      updatedAt: v.number(),
-      createdAt: v.number(),
+      tokenEncrypted: STR(),       // Encrypted bot token (server-side only)
+      botId: OPT(STR()),    // Telegram bot numeric ID
+      botName: OPT(STR()),  // Bot display name from getMe
+      botUsername: OPT(STR()), // @username from getMe
+      webhookUrl: OPT(STR()),  // Configured webhook URL
+      connected: BOOL(),           // Is bot connected?
+      active: BOOL(),              // Enabled/disabled
+      startMessage: STR(),         // Welcome message for /start
+      lastTestedAt: OPT(NUM()),
+      lastTestResult: OPT(STR()), // "success" or error message
+      commands: OPT(ARR(OBJ({ command: STR(), description: STR() }))),
+      commandsSyncedAt: OPT(NUM()),
+      updatedBy: ID("users"),
+      updatedAt: NUM(),
+      createdAt: NUM(),
     }),
-
     // ── Bale Bot Configuration ─────────────────────────────────────────
     baleBot: defineTable({
-      tokenEncrypted: v.string(),       // Encrypted Bale bot token (server-side only)
-      botId: v.optional(v.string()),    // Bale bot numeric ID
-      botName: v.optional(v.string()),  // Bot display name from getMe
-      botUsername: v.optional(v.string()), // @username from getMe
-      webhookUrl: v.optional(v.string()),  // Configured webhook URL
-      connected: v.boolean(),           // Is bot connected?
-      active: v.boolean(),              // Enabled/disabled
-      startMessage: v.string(),         // Welcome message for /start
-      lastTestedAt: v.optional(v.number()),
-      lastTestResult: v.optional(v.string()),
-      updatedBy: v.id("users"),
-      updatedAt: v.number(),
-      createdAt: v.number(),
+      tokenEncrypted: STR(),       // Encrypted Bale bot token (server-side only)
+      botId: OPT(STR()),    // Bale bot numeric ID
+      botName: OPT(STR()),  // Bot display name from getMe
+      botUsername: OPT(STR()), // @username from getMe
+      webhookUrl: OPT(STR()),  // Configured webhook URL
+      connected: BOOL(),           // Is bot connected?
+      active: BOOL(),              // Enabled/disabled
+      startMessage: STR(),         // Welcome message for /start
+      lastTestedAt: OPT(NUM()),
+      lastTestResult: OPT(STR()),
+      updatedBy: ID("users"),
+      updatedAt: NUM(),
+      createdAt: NUM(),
     }),
-
     // ── Super Admin access sessions ──────────────────────────────────────
-
     // Telegram account linking codes (one-time use, expiring) ────────────
-
     telegramLinkingCodes: defineTable({
-
-      userId: v.id("users"),
-
-      code: v.string(),             // Random linking code
-
-      createdAt: v.number(),
-
-      expiresAt: v.number(),        // 10 min expiry
-
-      usedAt: v.optional(v.number()), // null = unused
-
-      telegramId: v.optional(v.number()), // Set after linking
-
+      userId: ID("users"),
+      code: STR(),             // Random linking code
+      createdAt: NUM(),
+      expiresAt: NUM(),        // 10 min expiry
+      usedAt: OPT(NUM()), // null = unused
+      telegramId: OPT(NUM()), // Set after linking
     }).index("by_code", ["code"]).index("by_user", ["userId"]),
-
     // Bot multi-step input state (e.g. user is expected to type a question,
     // an AI prompt or a session request) — one row per telegram user.
     botPendingInputs: defineTable({
-      telegramId: v.number(),
-      kind: v.string(),          // "ask" | "ai" | "session_title" | "session_date" | "session_time"
-      payload: v.optional(v.any()),
-      createdAt: v.number(),
+      telegramId: NUM(),
+      kind: STR(),          // "ask" | "ai" | "session_title" | "session_date" | "session_time"
+      payload: OPT(v.any()),
+      createdAt: NUM(),
     }).index("by_telegramId", ["telegramId"]),
-
     // Telegram notification preferences (per-user, per-category) ─────────
-
     telegramNotifPrefs: defineTable({
-
-      userId: v.id("users"),
-
-      mentorReplies: v.boolean(),
-
-      tasks: v.boolean(),
-
-      deadlines: v.boolean(),
-
-      meetings: v.boolean(),
-
-      groupNotifs: v.boolean(),
-
-      articles: v.boolean(),
-
-      system: v.boolean(),
-
+      userId: ID("users"),
+      mentorReplies: BOOL(),
+      tasks: BOOL(),
+      deadlines: BOOL(),
+      meetings: BOOL(),
+      groupNotifs: BOOL(),
+      articles: BOOL(),
+      system: BOOL(),
     }).index("by_user", ["userId"]),
-
 
     // Telegram notification log (duplicate prevention) ─────────────────────
-
     telegramNotifLog: defineTable({
-
-      userId: v.id("users"),
-
-      type: v.string(),          // notification category
-
-      key: v.string(),           // unique event key for idempotency
-
-      sentAt: v.number(),
-
-      success: v.boolean(),
-
+      userId: ID("users"),
+      type: STR(),          // notification category
+      key: STR(),           // unique event key for idempotency
+      sentAt: NUM(),
+      success: BOOL(),
     }).index("by_key", ["key"]).index("by_user_type", ["userId", "type"]),
 
-
     superAdminSessions: defineTable({
-      userId: v.id("users"),
-      createdAt: v.number(),
-      expiresAt: v.number(),
+      userId: ID("users"),
+      createdAt: NUM(),
+      expiresAt: NUM(),
     }).index("by_user", ["userId"]),
-
     // ── Site content / custom pages ──────────────────────────────────────
     sitePages: defineTable({
-      slug: v.string(),
-      title: v.string(),
-      htmlContent: v.string(),
-      createdBy: v.id("users"),
-      updatedAt: v.number(),
+      slug: STR(),
+      title: STR(),
+      htmlContent: STR(),
+      createdBy: ID("users"),
+      updatedAt: NUM(),
     }).index("by_slug", ["slug"]),
-
     // ── Site text overrides ──────────────────────────────────────────────
     siteTexts: defineTable({
-      key: v.string(),
-      value: v.string(),
-      updatedBy: v.id("users"),
-      updatedAt: v.number(),
+      key: STR(),
+      value: STR(),
+      updatedBy: ID("users"),
+      updatedAt: NUM(),
     }).index("by_key", ["key"]),
-
     // ── CMS Media Library ────────────────────────────────────────────────
     mediaItems: defineTable({
-      url: v.string(),
-      name: v.string(),
-      alt: v.optional(v.string()),
-      caption: v.optional(v.string()),
-      category: v.optional(v.string()),
-      size: v.number(),
-      mimeType: v.string(),
-      uploadedBy: v.id("users"),
-      createdAt: v.number(),
+      url: STR(),
+      name: STR(),
+      alt: OPT(STR()),
+      caption: OPT(STR()),
+      category: OPT(STR()),
+      size: NUM(),
+      mimeType: STR(),
+      uploadedBy: ID("users"),
+      createdAt: NUM(),
     }).index("by_uploader", ["uploadedBy"]),
-
     // ── Article Version History ──────────────────────────────────────────
     articleVersions: defineTable({
-      articleId: v.id("articles"),
-      body: v.string(),
-      title: v.string(),
-      savedBy: v.id("users"),
-      createdAt: v.number(),
+      articleId: ID("articles"),
+      body: STR(),
+      title: STR(),
+      savedBy: ID("users"),
+      createdAt: NUM(),
     }).index("by_article", ["articleId"]),
-
     // ══════════════════════════════════════════════════════════════════════
     // ── MARKETPLACE / ONLINE STORE ──────────────────────────────────────
     // ══════════════════════════════════════════════════════════════════════
-
     // Digital wallet for all users
     wallet: defineTable({
-      userId: v.id("users"),
-      balance: v.number(),          // available balance in toman
-      frozenBalance: v.number(),    // escrowed for pending orders
-      totalEarned: v.number(),      // lifetime earnings from sales
-      totalSpent: v.number(),       // lifetime purchases
-      updatedAt: v.number(),
+      userId: ID("users"),
+      balance: NUM(),          // available balance in toman
+      frozenBalance: NUM(),    // escrowed for pending orders
+      totalEarned: NUM(),      // lifetime earnings from sales
+      totalSpent: NUM(),       // lifetime purchases
+      updatedAt: NUM(),
     }).index("by_user", ["userId"]),
-
     // Wallet transaction history
     walletTransactions: defineTable({
-      userId: v.id("users"),
-      type: v.union(
-        v.literal("deposit"),       // admin deposited / top-up
-        v.literal("withdrawal"),    // user withdrew
-        v.literal("purchase"),      // bought from store
-        v.literal("sale"),          // earned from selling
-        v.literal("refund"),        // refund from cancelled order
-        v.literal("commission"),    // platform commission deducted
-        v.literal("boost"),         // paid for listing boost
+      userId: ID("users"),
+      type: UN(
+        L("deposit"),       // admin deposited / top-up
+        L("withdrawal"),    // user withdrew
+        L("purchase"),      // bought from store
+        L("sale"),          // earned from selling
+        L("refund"),        // refund from cancelled order
+        L("commission"),    // platform commission deducted
+        L("boost"),         // paid for listing boost
       ),
-      amount: v.number(),           // positive = credit, negative = debit
-      description: v.string(),
-      relatedOrderId: v.optional(v.string()),
-      relatedProductId: v.optional(v.string()),
-      createdAt: v.number(),
+      amount: NUM(),           // positive = credit, negative = debit
+      description: STR(),
+      relatedOrderId: OPT(STR()),
+      relatedProductId: OPT(STR()),
+      createdAt: NUM(),
     }).index("by_user", ["userId"]).index("by_user_date", ["userId", "createdAt"]),
-
     // Marketplace products (notes, flashcards, books, packages)
     storeProducts: defineTable({
-      sellerId: v.id("users"),
-      title: v.string(),
-      slug: v.string(),
-      description: v.string(),
-      category: v.union(
-        v.literal("notes"),         // جزوه
-        v.literal("flashcards"),    // فلش کارت
-        v.literal("book"),          // کتاب
-        v.literal("package"),       // بسته آموزشی
-        v.literal("other"),         // سایر
+      sellerId: ID("users"),
+      title: STR(),
+      slug: STR(),
+      description: STR(),
+      category: UN(
+        L("notes"),         // جزوه
+        L("flashcards"),    // فلش کارت
+        L("book"),          // کتاب
+        L("package"),       // بسته آموزشی
+        L("other"),         // سایر
       ),
-      condition: v.union(
-        v.literal("new"),           // نو
-        v.literal("like_new"),      // تقریباً نو
-        v.literal("used"),          // کارکرده
+      condition: UN(
+        L("new"),           // نو
+        L("like_new"),      // تقریباً نو
+        L("used"),          // کارکرده
       ),
-      price: v.number(),           // price in toman
-      images: v.array(v.string()), // storage IDs of product images
-      coverImage: v.optional(v.string()),
-      stock: v.number(),           // available stock count
-      soldCount: v.number(),
-      rating: v.number(),          // average rating 0-5
-      ratingCount: v.number(),
-      status: v.union(
-        v.literal("draft"),         // seller editing
-        v.literal("pending"),       // awaiting admin approval
-        v.literal("approved"),      // live on store
-        v.literal("rejected"),      // rejected by admin
-        v.literal("sold_out"),      // out of stock
+      price: NUM(),           // price in toman
+      images: ARR(STR()), // storage IDs of product images
+      coverImage: OPT(STR()),
+      stock: NUM(),           // available stock count
+      soldCount: NUM(),
+      rating: NUM(),          // average rating 0-5
+      ratingCount: NUM(),
+      status: UN(
+        L("draft"),         // seller editing
+        L("pending"),       // awaiting admin approval
+        L("approved"),      // live on store
+        L("rejected"),      // rejected by admin
+        L("sold_out"),      // out of stock
       ),
-      rejectionReason: v.optional(v.string()),
+      rejectionReason: OPT(STR()),
       // Boost/promotion system
-      boostLevel: v.union(
-        v.literal("none"),          // no boost
-        v.literal("silver"),        // 1 week boosted (+4.5%)
-        v.literal("gold"),          // 1 month boosted (+9%)
+      boostLevel: UN(
+        L("none"),          // no boost
+        L("silver"),        // 1 week boosted (+4.5%)
+        L("gold"),          // 1 month boosted (+9%)
       ),
-      boostExpiresAt: v.optional(v.number()),
+      boostExpiresAt: OPT(NUM()),
       // Delivery
-      deliveryCities: v.array(v.string()),  // e.g. ["tabriz"]
+      deliveryCities: ARR(STR()),  // e.g. ["tabriz"]
       // Tags and search
-      tags: v.optional(v.array(v.string())),
-      createdAt: v.number(),
-      updatedAt: v.number(),
+      tags: OPT(ARR(STR())),
+      createdAt: NUM(),
+      updatedAt: NUM(),
     })
       .index("by_seller", ["sellerId"])
       .index("by_status", ["status"])
       .index("by_category", ["category"])
       .index("by_boost", ["boostLevel", "boostExpiresAt"])
       .index("by_slug", ["slug"]),
-
     // Store product reviews/ratings
     storeReviews: defineTable({
-      productId: v.id("storeProducts"),
-      userId: v.id("users"),
-      rating: v.number(),          // 1-5 stars
-      text: v.optional(v.string()),
-      createdAt: v.number(),
+      productId: ID("storeProducts"),
+      userId: ID("users"),
+      rating: NUM(),          // 1-5 stars
+      text: OPT(STR()),
+      createdAt: NUM(),
     }).index("by_product", ["productId"]).index("by_user_product", ["userId", "productId"]),
-
-    // Store orders
+    // Store orders (marketplace purchases)
     storeOrders: defineTable({
-      buyerId: v.id("users"),
-      sellerId: v.id("users"),
-      productId: v.id("storeProducts"),
-      quantity: v.number(),
-      unitPrice: v.number(),
-      commission: v.number(),      // platform commission in toman
-      total: v.number(),           // buyer pays this
-      sellerEarning: v.number(),   // seller receives this
-      status: v.union(
-        v.literal("pending_payment"),
-        v.literal("paid"),
-        v.literal("shipped"),
-        v.literal("delivered"),
-        v.literal("completed"),    // buyer confirmed receipt
-        v.literal("cancelled"),
-        v.literal("refunded"),
+      buyerId: ID("users"),
+      sellerId: ID("users"),
+      productId: ID("storeProducts"),
+      quantity: NUM(),
+      unitPrice: NUM(),
+      commission: NUM(),      // platform commission in toman
+      total: NUM(),           // buyer pays this
+      sellerEarning: NUM(),   // seller receives this
+      status: UN(
+        L("pending_payment"),
+        L("paid"),
+        L("shipped"),
+        L("delivered"),
+        L("completed"),    // buyer confirmed receipt
+        L("cancelled"),
+        L("refunded"),
       ),
       // Delivery info
-      deliveryCity: v.string(),
-      deliveryAddress: v.optional(v.string()),
-      deliveryNote: v.optional(v.string()),
+      deliveryCity: STR(),
+      deliveryAddress: OPT(STR()),
+      deliveryNote: OPT(STR()),
       // Payment
-      paidWithWallet: v.boolean(),
-      payMethod: v.optional(v.union(v.literal("wallet"), v.literal("online"), v.literal("offline"))),
-      invoiceNumber: v.string(),
-      createdAt: v.number(),
-      updatedAt: v.number(),
+      paidWithWallet: BOOL(),
+      payMethod: OPT(UN(L("wallet"), L("online"), L("offline"))),
+      invoiceNumber: STR(),
+      createdAt: NUM(),
+      updatedAt: NUM(),
     })
       .index("by_buyer", ["buyerId"])
       .index("by_seller", ["sellerId"])
       .index("by_product", ["productId"])
       .index("by_status", ["status"]),
-
     // Boost transactions (for tracking boost payments)
     boostTransactions: defineTable({
-      productId: v.id("storeProducts"),
-      sellerId: v.id("users"),
-      boostLevel: v.union(
-        v.literal("silver"),
-        v.literal("gold"),
+      productId: ID("storeProducts"),
+      sellerId: ID("users"),
+      boostLevel: UN(
+        L("silver"),
+        L("gold"),
       ),
-      amount: v.number(),          // boost cost in toman
-      durationDays: v.number(),    // 7 or 30
-      expiresAt: v.number(),
-      createdAt: v.number(),
-    }).index("by_product", ["productId"]).index("by_seller", ["sellerId"]),
-
+      amount: NUM(),          // boost cost in toman
+      durationDays: NUM(),    // 7 or 30
+      expiresAt: NUM(),
+      createdAt: NUM(),
+    }).index("by_product", ["productId"])      .index("by_seller", ["sellerId"]), // offers by seller
     // Admin store discount codes (separate from course coupons)
     storeCoupons: defineTable({
-      code: v.string(),
-      percent: v.number(),
-      maxDiscount: v.number(),     // max discount cap in toman
-      minPurchase: v.number(),     // minimum purchase to apply
-      active: v.boolean(),
-      maxUses: v.number(),
-      usedCount: v.number(),
-      expiresAt: v.optional(v.number()),
-      createdAt: v.number(),
+      code: STR(),
+      percent: NUM(),
+      maxDiscount: NUM(),     // max discount cap in toman
+      minPurchase: NUM(),     // minimum purchase to apply
+      active: BOOL(),
+      maxUses: NUM(),
+      usedCount: NUM(),
+      expiresAt: OPT(NUM()),
+      createdAt: NUM(),
     }).index("by_code", ["code"]),
-
     // Shopping cart items
     storeCart: defineTable({
-      userId: v.id("users"),
-      productId: v.id("storeProducts"),
-      quantity: v.number(),
-      createdAt: v.number(),
+      userId: ID("users"),
+      productId: ID("storeProducts"),
+      quantity: NUM(),
+      createdAt: NUM(),
     }).index("by_user", ["userId"]).index("by_user_product", ["userId", "productId"]),
-
     // Wishlists / favorites
     storeWishlists: defineTable({
-      userId: v.id("users"),
-      productId: v.id("storeProducts"),
-      createdAt: v.number(),
+      userId: ID("users"),
+      productId: ID("storeProducts"),
+      createdAt: NUM(),
     }).index("by_user", ["userId"]).index("by_user_product", ["userId", "productId"]),
-
     // Buyer-Seller messages
     storeMessages: defineTable({
-      senderId: v.id("users"),
-      receiverId: v.id("users"),
-      productId: v.optional(v.id("storeProducts")),
-      orderId: v.optional(v.id("storeOrders")),
-      text: v.string(),
-      read: v.boolean(),
-      createdAt: v.number(),
+      senderId: ID("users"),
+      receiverId: ID("users"),
+      productId: OPT(ID("storeProducts")),
+      orderId: OPT(ID("storeOrders")),
+      text: STR(),
+      read: BOOL(),
+      createdAt: NUM(),
     }).index("by_receiver", ["receiverId"]).index("by_sender", ["senderId"]).index("by_product", ["productId"]),
-
     // Seller verification (blue tick)
     sellerProfiles: defineTable({
-      userId: v.id("users"),
-      verified: v.boolean(),
-      bio: v.optional(v.string()),
-      totalSales: v.number(),
-      avgRating: v.number(),
-      joinedAt: v.number(),
+      userId: ID("users"),
+      verified: BOOL(),
+      bio: OPT(STR()),
+      totalSales: NUM(),
+      avgRating: NUM(),
+      joinedAt: NUM(),
     }).index("by_user", ["userId"]),
-
     // ── Lesson content (video / text / files per syllabus item) ──────────
     lessonContent: defineTable({
-      courseId: v.id("courses"),
-      lessonId: v.string(),         // matches syllabus[].id
-      videoUrl: v.optional(v.string()),
-      textContent: v.optional(v.string()),
-      attachments: v.optional(v.array(v.object({
-        name: v.string(),
-        url: v.string(),
-        size: v.number(),
-        type: v.string(),
+      courseId: ID("courses"),
+      lessonId: STR(),         // matches syllabus[].id
+      videoUrl: OPT(STR()),
+      textContent: OPT(STR()),
+      attachments: OPT(ARR(OBJ({
+        name: STR(),
+        url: STR(),
+        size: NUM(),
+        type: STR(),
       }))),
-      order: v.number(),
-      updatedAt: v.number(),
+      order: NUM(),
+      updatedAt: NUM(),
     }).index("by_course", ["courseId"]).index("by_course_lesson", ["courseId", "lessonId"]),
-
     // ── Student lesson progress ──────────────────────────────────────────
     lessonProgress: defineTable({
-      userId: v.id("users"),
-      courseId: v.id("courses"),
-      lessonId: v.string(),
-      completed: v.boolean(),
-      completedAt: v.optional(v.number()),
-      lastPositionSeconds: v.optional(v.number()),
-      lastViewedAt: v.optional(v.number()),
+      userId: ID("users"),
+      courseId: ID("courses"),
+      lessonId: STR(),
+      completed: BOOL(),
+      completedAt: OPT(NUM()),
+      lastPositionSeconds: OPT(NUM()),
+      lastViewedAt: OPT(NUM()),
     }).index("by_user_course", ["userId", "courseId"]).index("by_user_course_lesson", ["userId", "courseId", "lessonId"]),
-
 
     // ── Support System (Student ↔ Teacher) ──────────────────────────────
     supportTickets: defineTable({
-      studentId: v.id("users"),
-      studentName: v.string(),
-      teacherId: v.id("users"),
-      courseId: v.optional(v.id("courses")),
-      courseName: v.optional(v.string()),
-      subject: v.string(),
-      status: v.union(
-        v.literal("open"),
-        v.literal("waiting_for_teacher"),
-        v.literal("waiting_for_student"),
-        v.literal("resolved"),
-        v.literal("closed"),
+      studentId: ID("users"),
+      studentName: STR(),
+      teacherId: ID("users"),
+      courseId: OPT(ID("courses")),
+      courseName: OPT(STR()),
+      subject: STR(),
+      status: UN(
+        L("open"),
+        L("waiting_for_teacher"),
+        L("waiting_for_student"),
+        L("resolved"),
+        L("closed"),
       ),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-      lastMessageAt: v.number(),
-      unreadByStudent: v.number(),
-      unreadByTeacher: v.number(),
+      createdAt: NUM(),
+      updatedAt: NUM(),
+      lastMessageAt: NUM(),
+      unreadByStudent: NUM(),
+      unreadByTeacher: NUM(),
     })
       .index("by_student", ["studentId"])
       .index("by_teacher", ["teacherId"])
       .index("by_teacher_status", ["teacherId", "status"])
       .index("by_student_status", ["studentId", "status"]),
-
     supportMessages: defineTable({
-      ticketId: v.id("supportTickets"),
-      senderId: v.id("users"),
-      senderName: v.string(),
-      senderRole: v.string(),
-      message: v.string(),
-      attachmentStorageId: v.optional(v.string()),
-      attachmentName: v.optional(v.string()),
-      attachmentSize: v.optional(v.number()),
-      createdAt: v.number(),
-      readAt: v.optional(v.number()),
+      ticketId: ID("supportTickets"),
+      senderId: ID("users"),
+      senderName: STR(),
+      senderRole: STR(),
+      message: STR(),
+      attachmentStorageId: OPT(STR()),
+      attachmentName: OPT(STR()),
+      attachmentSize: OPT(NUM()),
+      createdAt: NUM(),
+      readAt: OPT(NUM()),
     }).index("by_ticket", ["ticketId"]).index("by_ticket_created", ["ticketId", "createdAt"]),
-
     // ── Notifications (generic) ─────────────────────────────────────────
     notifications: defineTable({
-      userId: v.id("users"),
-      type: v.string(),
-      title: v.string(),
-      body: v.string(),
-      entityType: v.optional(v.string()),
-      entityId: v.optional(v.string()),
-      isRead: v.boolean(),
-      createdAt: v.number(),
+      userId: ID("users"),
+      type: STR(),
+      title: STR(),
+      body: STR(),
+      entityType: OPT(STR()),
+      entityId: OPT(STR()),
+      isRead: BOOL(),
+      createdAt: NUM(),
     }).index("by_user", ["userId"]).index("by_user_read", ["userId", "isRead"]),
-
     // ── Workshop Enrollments ───────────────────────────────────────────────
     workshopEnrollments: defineTable({
-      userId: v.id("users"),
-      workshopId: v.id("workshops"),
-      enrolledAt: v.number(),
+      userId: ID("users"),
+      workshopId: ID("workshops"),
+      enrolledAt: NUM(),
     })
       .index("by_user", ["userId"])
       .index("by_workshop", ["workshopId"]),
-
     // ── Academy Path full access (purchase of entire path) ─────────────────
     // One row per user per path; grants access to all current + future items.
     pathAccess: defineTable({
-      userId: v.id("users"),
-      pathId: v.id("academyPaths"),
-      orderId: v.optional(v.id("orders")),
-      purchasedAt: v.number(),
+      userId: ID("users"),
+      pathId: ID("academyPaths"),
+      orderId: OPT(ID("orders")),
+      purchasedAt: NUM(),
     }).index("by_user", ["userId"]).index("by_path", ["pathId"]),
-
     // ── Academy Path (سلسله کارگاه‌ها) ───────────────────────────────────────
     academyPaths: defineTable({
-      title: v.string(),
-      slug: v.string(),
-      description: v.string(),
-      level: v.string(), // beginner | intermediate | advanced | mixed
-      color: v.optional(v.string()),
-      published: v.boolean(),
-      instructorId: v.optional(v.id("instructors")),
-      price: v.optional(v.number()),
-      free: v.optional(v.boolean()),
-      discountPrice: v.optional(v.number()),
-      discountExpiresAt: v.optional(v.number()),
-      coverImage: v.optional(v.string()),
-      createdAt: v.number(),
+      title: STR(),
+      slug: STR(),
+      description: STR(),
+      level: STR(), // beginner | intermediate | advanced | mixed
+      color: OPT(STR()),
+      published: BOOL(),
+      instructorId: OPT(ID("instructors")),
+      price: OPT(NUM()),
+      free: OPT(BOOL()),
+      discountPrice: OPT(NUM()),
+      discountExpiresAt: OPT(NUM()),
+      coverImage: OPT(STR()),
+      createdAt: NUM(),
     }).index("by_published", ["published"]),
-
     academyPathItems: defineTable({
-      pathId: v.id("academyPaths"),
-      workshopId: v.id("workshops"),
-      order: v.number(),
-      instructorId: v.optional(v.id("users")),
+      pathId: ID("academyPaths"),
+      workshopId: ID("workshops"),
+      order: NUM(),
+      instructorId: OPT(ID("users")),
     })
       .index("by_path", ["pathId"])
       .index("by_workshop", ["workshopId"]),
-
     // ── Flash Sales / Discount Campaigns ───────────────────────────────────
     flashSales: defineTable({
-      title: v.string(),
-      targetType: v.union(
-        v.literal("course"),
-        v.literal("workshop"),
-        v.literal("product"),
-        v.literal("all"),
+      title: STR(),
+      targetType: UN(
+        L("course"),
+        L("workshop"),
+        L("product"),
+        L("all"),
       ),
-      targetId: v.optional(v.string()), // specific item id, or null for all of type
-      percent: v.number(), // discount percentage
-      startsAt: v.number(),
-      expiresAt: v.number(),
-      active: v.boolean(),
-      createdBy: v.id("users"),
-      createdAt: v.number(),
+      targetId: OPT(STR()), // specific item id, or null for all of type
+      percent: NUM(), // discount percentage
+      startsAt: NUM(),
+      expiresAt: NUM(),
+      active: BOOL(),
+      createdBy: ID("users"),
+      createdAt: NUM(),
     })
       .index("by_active", ["active"])
       .index("by_target", ["targetType", "targetId"]),
-
     // ── Promotional Banners (scrolling ticker under header) ────────────────
     promoBanners: defineTable({
-      text: v.string(),
-      link: v.optional(v.string()),
-      sticker: v.optional(v.string()), // emoji or icon name
-      color: v.optional(v.string()),
-      priority: v.number(),
-      active: v.boolean(),
-      repeatCount: v.optional(v.number()), // how many times text repeats in ticker
-      startsAt: v.optional(v.number()),
-      expiresAt: v.optional(v.number()),
-      createdBy: v.id("users"),
-      createdAt: v.number(),
+      text: STR(),
+      link: OPT(STR()),
+      sticker: OPT(STR()), // emoji or icon name
+      color: OPT(STR()),
+      priority: NUM(),
+      active: BOOL(),
+      repeatCount: OPT(NUM()), // how many times text repeats in ticker
+      startsAt: OPT(NUM()),
+      expiresAt: OPT(NUM()),
+      createdBy: ID("users"),
+      createdAt: NUM(),
     }).index("by_active", ["active"]),
-
     // ── Certificates ───────────────────────────────────────────────────────
     certificates: defineTable({
-      userId: v.id("users"),
-      courseId: v.id("courses"),
-      status: v.union(
-        v.literal("requested"),
-        v.literal("draft"),
-        v.literal("approved"),
-        v.literal("rejected"),
-        v.literal("revoked"),
+      userId: ID("users"),
+      courseId: ID("courses"),
+      status: UN(
+        L("requested"),
+        L("draft"),
+        L("approved"),
+        L("rejected"),
+        L("revoked"),
       ),
       // Certificate holder details (entered by admin during issuance)
-      firstName: v.optional(v.string()),
-      lastName: v.optional(v.string()),
-      fatherName: v.optional(v.string()),
-      nationalCode: v.optional(v.string()),
-      courseName: v.optional(v.string()),
-      courseDuration: v.optional(v.string()),
-      instructorName: v.optional(v.string()),
-      grade: v.optional(v.string()), // default: "عالی"
-      certificateUrl: v.optional(v.string()), // uploaded by admin
-      certificateStorageId: v.optional(v.string()),
-      requestedAt: v.number(),
-      resolvedAt: v.optional(v.number()),
-      resolvedBy: v.optional(v.id("users")),
-      note: v.optional(v.string()),
-
+      firstName: OPT(STR()),
+      lastName: OPT(STR()),
+      fatherName: OPT(STR()),
+      nationalCode: OPT(STR()),
+      courseName: OPT(STR()),
+      courseDuration: OPT(STR()),
+      instructorName: OPT(STR()),
+      grade: OPT(STR()), // default: "عالی"
+      certificateUrl: OPT(STR()), // uploaded by admin
+      certificateStorageId: OPT(STR()),
+      requestedAt: NUM(),
+      resolvedAt: OPT(NUM()),
+      resolvedBy: OPT(ID("users")),
+      note: OPT(STR()),
       // Tracking / verification code (e.g. "GEN-XXXX-XXXX-XXXX"), generated
       // server-side at issuance time. Unique across the certificates table.
-      verificationCode: v.optional(v.string()),
-      certificateNumber: v.optional(v.string()),
-      revokedAt: v.optional(v.number()),
-      revokedReason: v.optional(v.string()),
-      revokedBy: v.optional(v.id("users")),
+      verificationCode: OPT(STR()),
+      certificateNumber: OPT(STR()),
+      revokedAt: OPT(NUM()),
+      revokedReason: OPT(STR()),
+      revokedBy: OPT(ID("users")),
     })
       .index("by_user", ["userId"])
       .index("by_course", ["courseId"])
       .index("by_status", ["status"])
       .index("by_verification_code", ["verificationCode"]),
-
     // ── Certificate Templates ─────────────────────────────────────────────
     certificateTemplates: defineTable({
-      name: v.string(),
-      description: v.optional(v.string()),
+      name: STR(),
+      description: OPT(STR()),
       // Background image URL
-      backgroundImageUrl: v.optional(v.string()),
-      backgroundStorageId: v.optional(v.string()),
+      backgroundImageUrl: OPT(STR()),
+      backgroundStorageId: OPT(STR()),
       // Template canvas dimensions (for PDF/export)
-      width: v.number(),
-      height: v.number(),
+      width: NUM(),
+      height: NUM(),
       // Field positions (x, y, fontSize, fontWeight, fontFamily, textAlign, maxWidth, color)
       fields: v.any(), // Record<string, { x: number; y: number; fontSize: number; fontWeight: string; fontFamily: string; textAlign: string; maxWidth: number; color: string; direction?: string }>
       // Static text content on the certificate
-      staticTexts: v.optional(v.any()),
-      isActive: v.boolean(),
-      createdBy: v.id("users"),
-      createdAt: v.number(),
-      updatedAt: v.number(),
+      staticTexts: OPT(v.any()),
+      isActive: BOOL(),
+      createdBy: ID("users"),
+      createdAt: NUM(),
+      updatedAt: NUM(),
     }).index("by_active", ["isActive"]),
-
     // ── Issued Certificates (new template-based system) ─────────────────────
     issuedCertificates: defineTable({
-      templateId: v.id("certificateTemplates"),
-      userId: v.id("users"),
-      courseId: v.id("courses"),
-      instructorId: v.optional(v.id("instructors")),
+      templateId: ID("certificateTemplates"),
+      userId: ID("users"),
+      courseId: ID("courses"),
+      instructorId: OPT(ID("instructors")),
       // Holder info
-      firstName: v.string(),
-      lastName: v.string(),
-      fatherName: v.optional(v.string()),
-      nationalCode: v.optional(v.string()),
-      courseTitle: v.string(),
-      courseDuration: v.optional(v.string()),
-      instructorName: v.optional(v.string()),
-      honorific: v.optional(v.string()), // سرکار خانم / جناب آقای
+      firstName: STR(),
+      lastName: STR(),
+      fatherName: OPT(STR()),
+      nationalCode: OPT(STR()),
+      courseTitle: STR(),
+      courseDuration: OPT(STR()),
+      instructorName: OPT(STR()),
+      honorific: OPT(STR()), // سرکار خانم / جناب آقای
       // Tracking
-      trackingCode: v.string(), // GEN-XXXX-XXXX-XXXX
-      courseCode: v.optional(v.string()),
-      issueDate: v.string(), // Jalali date string
+      trackingCode: STR(), // GEN-XXXX-XXXX-XXXX
+      courseCode: OPT(STR()),
+      issueDate: STR(), // Jalali date string
       // QR Code verification URL
-      qrUrl: v.optional(v.string()),
+      qrUrl: OPT(STR()),
       // PDF/image export URL
-      pdfStorageId: v.optional(v.string()),
-      pdfUrl: v.optional(v.string()),
+      pdfStorageId: OPT(STR()),
+      pdfUrl: OPT(STR()),
       // Status
-      status: v.union(
-        v.literal("issued"),
-        v.literal("revoked"),
+      status: UN(
+        L("issued"),
+        L("revoked"),
       ),
-      issuedAt: v.number(),
-      issuedBy: v.id("users"),
-      revokedAt: v.optional(v.number()),
-      revokedReason: v.optional(v.string()),
+      issuedAt: NUM(),
+      issuedBy: ID("users"),
+      revokedAt: OPT(NUM()),
+      revokedReason: OPT(STR()),
     })
       .index("by_tracking_code", ["trackingCode"])
       .index("by_user", ["userId"])
       .index("by_course", ["courseId"])
       .index("by_template", ["templateId"])
       .index("by_status", ["status"]),
-
     // ── Page Configs (real-page editable content) ────────────────────────
     // Stores per-section editable values for real React site pages.
     // Sections are keyed by their sectionId (e.g. "hero", "categories").
     // Only the "published" snapshot is read by the public site.
     // Draft edits live in "draft" and are promoted on publish.
     pageConfigs: defineTable({
-      pageKey: v.string(),          // matches real route key: "home", "courses", "about" …
+      pageKey: STR(),          // matches real route key: "home", "courses", "about" …
       draft: v.any(),               // { sections: { [sectionId]: { ...props } } }
       published: v.any(),           // same shape, read by public site
-      hasDraftChanges: v.boolean(),
-      updatedBy: v.optional(v.id("users")),
-      updatedAt: v.number(),
+      hasDraftChanges: BOOL(),
+      updatedBy: OPT(ID("users")),
+      updatedAt: NUM(),
     }).index("by_key", ["pageKey"]),
-
     //     // ── Site Studio (visual site builder) ──────────────────────────────────
     // Editable site pages. `key` is a stable identifier matching a real route
     // (e.g. "home", "about", "rules"). Content lives in studioElements.
     // Note: distinct from the legacy `sitePages` custom-HTML table above.
     studioPages: defineTable({
-      key: v.string(), // stable id: home | about | rules | ...
-      title: v.string(),
-      route: v.string(), // public route path (e.g. "/", "/about")
-      description: v.optional(v.string()),
-      published: v.boolean(), // false = hidden from site until published
-      updatedBy: v.optional(v.id("users")),
-      updatedAt: v.optional(v.number()),
+      key: STR(), // stable id: home | about | rules | ...
+      title: STR(),
+      route: STR(), // public route path (e.g. "/", "/about")
+      description: OPT(STR()),
+      published: BOOL(), // false = hidden from site until published
+      updatedBy: OPT(ID("users")),
+      updatedAt: OPT(NUM()),
     }).index("by_key", ["key"]),
-
     // One editable element/section on a page. Draft + published fields live
     // side by side so drafts never affect the public site until publish.
     studioElements: defineTable({
-      pageId: v.id("studioPages"),
-      type: v.string(), // block type: hero | heading | text | image | button | card | gallery | video | ...
-      label: v.optional(v.string()), // admin-facing label, e.g. "Hero"
-      order: v.number(),
-      visible: v.boolean(),
+      pageId: ID("studioPages"),
+      type: STR(), // block type: hero | heading | text | image | button | card | gallery | video | ...
+      label: OPT(STR()), // admin-facing label, e.g. "Hero"
+      order: NUM(),
+      visible: BOOL(),
       // draft working copy (what the studio edits)
-      props: v.optional(v.any()),
-      style: v.optional(v.any()),
+      props: OPT(v.any()),
+      style: OPT(v.any()),
       // published snapshot (what the public site reads)
-      publishedProps: v.optional(v.any()),
-      publishedStyle: v.optional(v.any()),
-      publishedVisible: v.optional(v.boolean()),
-      publishedOrder: v.optional(v.number()),
-      hasDraftChanges: v.optional(v.boolean()),
-      updatedBy: v.optional(v.id("users")),
-      updatedAt: v.optional(v.number()),
+      publishedProps: OPT(v.any()),
+      publishedStyle: OPT(v.any()),
+      publishedVisible: OPT(BOOL()),
+      publishedOrder: OPT(NUM()),
+      hasDraftChanges: OPT(BOOL()),
+      updatedBy: OPT(ID("users")),
+      updatedAt: OPT(NUM()),
     })
       .index("by_page", ["pageId"])
       .index("by_page_order", ["pageId", "order"]),
-
     // Per-page global appearance: text/background colors, font, spacing,
     // radius, shadows — draft + published snapshots.
     studioThemes: defineTable({
-      pageId: v.id("studioPages"),
-      draft: v.optional(v.any()),
-      published: v.optional(v.any()),
-      hasDraftChanges: v.optional(v.boolean()),
-      updatedBy: v.optional(v.id("users")),
-      updatedAt: v.optional(v.number()),
+      pageId: ID("studioPages"),
+      draft: OPT(v.any()),
+      published: OPT(v.any()),
+      hasDraftChanges: OPT(BOOL()),
+      updatedBy: OPT(ID("users")),
+      updatedAt: OPT(NUM()),
     }).index("by_page", ["pageId"]),
-
     // Immutable published snapshots for version history / restore.
     studioVersions: defineTable({
-      pageId: v.id("studioPages"),
-      version: v.number(),
-      label: v.optional(v.string()),
+      pageId: ID("studioPages"),
+      version: NUM(),
+      label: OPT(STR()),
       snapshot: v.any(), // { elements: [...], theme: {...} }
-      createdBy: v.optional(v.id("users")),
-      createdAt: v.number(),
+      createdBy: OPT(ID("users")),
+      createdAt: NUM(),
     }).index("by_page", ["pageId"]),
-
     // Permission-based staff access (not just role checks).
     studioStaffPerms: defineTable({
-      userId: v.id("users"),
-      perms: v.array(v.string()), // siteStudio permission keys
-      updatedBy: v.optional(v.id("users")),
-      updatedAt: v.optional(v.number()),
+      userId: ID("users"),
+      perms: ARR(STR()), // siteStudio permission keys
+      updatedBy: OPT(ID("users")),
+      updatedAt: OPT(NUM()),
     }).index("by_user", ["userId"]),
-
     // Media library for the studio (images & videos uploaded by staff).
     // URL is resolved server-side from storageId on every read.
     studioMedia: defineTable({
-      storageId: v.id("_storage"),
-      url: v.optional(v.string()),
-      name: v.string(),
-      kind: v.union(v.literal("image"), v.literal("video")),
-      width: v.optional(v.number()),
-      height: v.optional(v.number()),
-      size: v.optional(v.number()),
-      createdAt: v.number(),
+      storageId: ID("_storage"),
+      url: OPT(STR()),
+      name: STR(),
+      kind: UN(L("image"), L("video")),
+      width: OPT(NUM()),
+      height: OPT(NUM()),
+      size: OPT(NUM()),
+      createdAt: NUM(),
     }).index("by_kind", ["kind"]),
-
     // ── Site Settings (centralized key-value) ────────────────────────────────
     // Stores global settings like payment gateway toggle, site name, etc.
     // Key is a unique string identifier, value is JSON-encoded.
     siteSettings: defineTable({
-      key: v.string(),            // e.g. "payment.enabled", "site.name"
-      value: v.string(),          // JSON-encoded value
-      description: v.optional(v.string()), // human-readable description
-      updatedBy: v.optional(v.id("users")),
-      updatedAt: v.number(),
+      key: STR(),            // e.g. "payment.enabled", "site.name"
+      value: STR(),          // JSON-encoded value
+      description: OPT(STR()), // human-readable description
+      updatedBy: OPT(ID("users")),
+      updatedAt: NUM(),
     }).index("by_key", ["key"]),
-
     // ── Audit Log ────────────────────────────────────────────────────────────
     // Tracks sensitive admin/staff actions for accountability.
     auditLogs: defineTable({
-      userId: v.id("users"),      // who performed the action
-      userName: v.optional(v.string()),
-      action: v.string(),          // e.g. "payment.toggle", "course.publish", "certificate.approve"
-      entityType: v.string(),      // e.g. "course", "workshop", "payment", "certificate"
-      entityId: v.optional(v.string()),
-      details: v.optional(v.string()), // JSON-encoded extra details
-      createdAt: v.number(),
+      userId: ID("users"),      // who performed the action
+      userName: OPT(STR()),
+      action: STR(),          // e.g. "payment.toggle", "course.publish", "certificate.approve"
+      entityType: STR(),      // e.g. "course", "workshop", "payment", "certificate"
+      entityId: OPT(STR()),
+      details: OPT(STR()), // JSON-encoded extra details
+      createdAt: NUM(),
     }).index("by_user", ["userId"])
       .index("by_entity", ["entityType"])
       .index("by_created", ["createdAt"]),
-
     // ── Academy Path Pricing ──────────────────────────────────────────────────
     // Per-path pricing: full path price and individual workshop prices.
     // Extends existing academyPaths table with optional pricing fields.
     // These are added as optional fields on academyPaths via migration:
-    //   price: v.optional(v.number()),       // full path price (0 = free)
-    //   discountPrice: v.optional(v.number()),
-    //   packageTier: v.optional(v.string()),
-
+    //   price: OPT(NUM()),       // full path price (0 = free)
+    //   discountPrice: OPT(NUM()),
+    //   packageTier: OPT(STR()),
     // ── Workshop file uploads for whiteboard ──────────────────────────────────
     // Stores uploaded files (PDF/PPT) for display on whiteboard during live class
     whiteboardFiles: defineTable({
-      roomId: v.id("classRooms"),
-      uploaderId: v.id("users"),
+      roomId: ID("classRooms"),
+      uploaderId: ID("users"),
       fileName: v.string(),
       fileStorageId: v.string(),
       fileType: v.string(),        // "pdf" | "pptx" | "image" etc.
@@ -1695,49 +1564,138 @@ const schema = defineSchema(
       totalPages: v.optional(v.number()),
       currentPage: v.number(),
       // Rendered slide images (storage IDs) for pptx — one per slide.
-      slideImages: v.optional(v.array(v.string())),
+      slideImages: v.optional(ARR(v.string())),
       createdAt: v.number(),
     }).index("by_room", ["roomId"]),
-
     // ── Academy Path Suggestions (from instructors) ─────────────────────────
     academyPathSuggestions: defineTable({
-      instructorId: v.id("users"),
+      instructorId: ID("users"),
       instructorName: v.string(),
       title: v.string(),
       description: v.optional(v.string()),
       level: v.optional(v.string()),
-      steps: v.optional(v.array(v.object({
+      steps: v.optional(ARR(OBJ({
         title: v.string(),
         description: v.optional(v.string()),
         durationMin: v.optional(v.number()),
       }))),
-      status: v.union(
-        v.literal("pending"),
-        v.literal("approved"),
-        v.literal("rejected"),
+      status: UN(
+        L("pending"),
+        L("approved"),
+        L("rejected"),
       ),
       adminNote: v.optional(v.string()),
       createdAt: v.number(),
     })
       .index("by_status", ["status"])
       .index("by_instructor", ["instructorId"]),
-
     // ── Site Demos (visual design prototypes) ─────────────────────────────
     siteDemos: defineTable({
       name: v.string(),                    // e.g. "Demo 01 — Clean Academy"
       slug: v.string(),                    // unique identifier, e.g. "demo_1"
       description: v.optional(v.string()),
-      status: v.union(v.literal("active"), v.literal("archived")),
+      status: UN(L("active"), L("archived")),
       // Theme / design system tokens
       theme: v.optional(v.any()),           // JSON object with color tokens, etc.
       previewImage: v.optional(v.string()),
       // Metadata
-      createdBy: v.id("users"),
+      createdBy: ID("users"),
       createdAt: v.number(),
       updatedAt: v.number(),
     })
       .index("by_slug", ["slug"])
       .index("by_status", ["status"]),
+    // ── Virtual Lab (Genova Virtual Lab) ──────────────────────────────────
+    // The experiment catalog lives as a versioned constant in convex/lab.ts;
+    // only per-student progress and the lab notebook are stored here.
+    labProgress: defineTable({ // student lab progress
+      userId: ID("users"),
+      experimentSlug: v.string(),
+      status: UN(L("in_progress"), L("completed")),
+      stepsDone: ARR(v.number()),
+      score: v.optional(v.number()),
+      startedAt: v.number(),
+      completedAt: v.optional(v.number()),
+      updatedAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_experiment", ["userId", "experimentSlug"]),
+    labNotes: defineTable({
+      userId: ID("users"),
+      experimentSlug: v.optional(v.string()),
+      title: v.string(),
+      body: v.string(),
+      tags: ARR(v.string()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }).index("by_user", ["userId"]),
+    // ── Genova Compute Game (blockchain-style token economy) ──────────────
+    // Per-user wallet with a pseudo address plus an append-only hash-chained
+    // ledger. Token amounts are integers (1 GVA = 1 unit).
+    gameWallets: defineTable({ // token wallet
+      userId: ID("users"),
+      address: v.string(),
+      balance: v.number(),
+      totalEarned: v.number(),
+      totalSpent: v.number(),
+      jobsSolved: v.number(),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_address", ["address"]),
+    gameLedger: defineTable({
+      userId: ID("users"),
+      kind: UN(
+        L("mint"),
+        L("transfer_in"),
+        L("transfer_out"),
+        L("escrow_out"),
+        L("escrow_in"),
+        L("trade_in"),
+      ),
+      amount: v.number(),
+      balanceAfter: v.number(),
+      memo: v.optional(v.string()),
+      counterpartyId: v.optional(ID("users")),
+      jobId: v.optional(ID("gameJobs")),
+      prevHash: v.string(),
+      hash: v.string(),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_created", ["createdAt"]),
+    // Server-generated scientific computation jobs: the expected answer never
+    // leaves the backend, so rewards cannot be claimed from the client.
+    gameJobs: defineTable({
+      userId: ID("users"),
+      kind: v.string(),
+      prompt: v.string(),
+      params: v.any(),
+      answer: v.string(),
+      reward: v.number(),
+      status: v.union(v.literal("open"), v.literal("solved"), v.literal("failed")),
+      createdAt: v.number(),
+      solvedAt: v.optional(v.number()),
+    }).index("by_user", ["userId"]),
+
+    // Peer-to-peer exchange desk. Tokens are escrowed while an offer is open;
+    // the fiat side is settled directly between the two students.
+    gameOffers: defineTable({
+      sellerId: v.id("users"),
+      sellerName: v.string(),
+      amount: v.number(),
+      unitPriceToman: v.number(),
+      status: v.union(v.literal("open"), v.literal("settled"), v.literal("cancelled")),
+      buyerId: v.optional(v.id("users")),
+      buyerName: v.optional(v.string()),
+      note: v.optional(v.string()),
+      createdAt: v.number(),
+      closedAt: v.optional(v.number()),
+    })
+      .index("by_status", ["status"])
+      .index("by_seller", ["sellerId"]),
+
   },
   {
     schemaValidation: false,

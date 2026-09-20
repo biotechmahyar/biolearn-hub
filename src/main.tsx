@@ -18,6 +18,8 @@ import "./types/global.d.ts";
 
 // Lazy load route components for better code splitting
 const Landing = lazy(() => import("./pages/Landing.tsx"));
+const VirtualLab = lazy(() => import("./pages/VirtualLab.tsx"));
+const GenovaGame = lazy(() => import("./pages/GenovaGame.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
@@ -134,6 +136,10 @@ createRoot(document.getElementById("root")!).render(
                 path="/auth"
                 element={<AuthPage redirectAfterAuth="/dashboard" />}
               />
+
+              {/* New experiences (public) */}
+              <Route path="/lab" element={<VirtualLab />} />
+              <Route path="/game" element={<GenovaGame />} />
 
               {/* Catalog */}
               <Route path="/courses" element={<Courses />} />
