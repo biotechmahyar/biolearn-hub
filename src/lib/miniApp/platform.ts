@@ -46,6 +46,18 @@ export interface MiniAppPlatform {
 
   /** Show a platform-native confirm dialog. Falls back to window.confirm. */
   showConfirm(message: string): Promise<boolean>;
+
+  /**
+   * Show/hide the platform's native back button (Telegram/Bale header).
+   * No-op in a plain browser, where back is handled by the browser itself.
+   */
+  showBackButton(visible: boolean): void;
+
+  /**
+   * Subscribe to native back-button presses.
+   * Returns an unsubscribe function. No-op in a plain browser.
+   */
+  onBackButton(handler: () => void): () => void;
 }
 
 // ── SDK Access Helpers ─────────────────────────────────────────────────────
@@ -150,6 +162,25 @@ const telegramPlatform: MiniAppPlatform = {
     }
     return window.confirm(message);
   },
+
+  showBackButton(visible: boolean) {
+    const backButton = getTelegramWebApp()?.BackButton as Record<string, Function> | undefined;
+    if (!backButton) return;
+    try {
+      visible ? backButton.show?.() : backButton.hide?.();
+    } catch {
+      // Older clients do not implement the back button — ignore.
+    }
+  },
+
+  onBackButton(handler: () => void) {
+    const backButton = getTelegramWebApp()?.BackButton as Record<string, Function> | undefined;
+    if (typeof backButton?.onClick !== "function") return () => {};
+    backButton.onClick(handler);
+    return () => {
+      backButton.offClick?.(handler);
+    };
+  },
 };
 
 // ── Bale Adapter ───────────────────────────────────────────────────────────
@@ -217,6 +248,27 @@ const balePlatform: MiniAppPlatform = {
     // Bale SDK does not document showConfirm — use browser fallback
     return window.confirm(message);
   },
+
+  showBackButton(visible: boolean) {
+    if (!getBaleInitData()) return; // not really inside Bale
+    const backButton = getBaleWebApp()?.BackButton as Record<string, Function> | undefined;
+    if (!backButton) return;
+    try {
+      visible ? backButton.show?.() : backButton.hide?.();
+    } catch {
+      // ignore
+    }
+  },
+
+  onBackButton(handler: () => void) {
+    if (!getBaleInitData()) return () => {};
+    const backButton = getBaleWebApp()?.BackButton as Record<string, Function> | undefined;
+    if (typeof backButton?.onClick !== "function") return () => {};
+    backButton.onClick(handler);
+    return () => {
+      backButton.offClick?.(handler);
+    };
+  },
 };
 
 // ── Browser Fallback ───────────────────────────────────────────────────────
@@ -250,6 +302,15 @@ const browserPlatform: MiniAppPlatform = {
 
   async showConfirm(message: string) {
     return window.confirm(message);
+  },
+
+  // The browser handles its own back navigation.
+  showBackButton() {
+    // no-op
+  },
+
+  onBackButton() {
+    return () => {};
   },
 };
 

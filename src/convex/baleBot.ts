@@ -129,6 +129,30 @@ export const _findUserById = internalQuery({
   },
 });
 
+/**
+ * Bale linking status for the signed-in user (mirrors the Telegram equivalent).
+ * Read-only and scoped to the caller's own record — it never returns platform
+ * ids of other users and cannot change anything.
+ */
+export const getLinkingStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const user = await ctx.db.get(userId);
+    if (!user) return null;
+
+    const bots = await ctx.db.query("baleBot").collect();
+    return {
+      linked: !!user.baleId,
+      baleUsername: user.baleUsername ?? null,
+      baleFirstName: user.baleFirstName ?? null,
+      linkedAt: user.baleLinkedAt ?? null,
+      botUsername: process.env.BALE_BOT_USERNAME ?? bots[0]?.botUsername ?? null,
+    };
+  },
+});
+
 // ── Mutations ────────────────────────────────────────────────────────────────
 
 /** Save Bale bot token (admin-only) */
