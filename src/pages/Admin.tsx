@@ -177,7 +177,8 @@ type Section =
   | "telegram"
   | "aiSubscriptions"
   | "siteDemos"
-  | "certificateTemplates";
+  | "certificateTemplates"
+  | "testimonials";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -198,6 +199,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
+      { key: "testimonials", label: "نظرات دانشجویان", icon: MessageSquare },
       { key: "comments", label: "دیدگاه‌ها", icon: MessageSquare },
       { key: "backup", label: "بکاپ و خروجی", icon: Download },
       { key: "sync", label: "مدیریت سینک", icon: RefreshCw },
@@ -717,6 +719,7 @@ export default function Admin() {
             {section === "telegram" && <AdminTelegram />}
             {section === "aiSubscriptions" && <AdminAISubscriptions />}
             {section === "siteDemos" && <SiteDemosAdmin />}
+            {section === "testimonials" && <AdminTestimonials />}
           </div>
         </main>
       </div>
@@ -1202,6 +1205,185 @@ function AdminMarketplaceToggle() {
             >
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
               {confirming ? "فعال کن" : "غیرفعال کن"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Testimonials Admin ──────────────────────────────────────────────────────
+function AdminTestimonials() {
+  const items = useQuery(api.content.listTestimonials);
+  const create = useMutation(api.content.createTestimonial);
+  const update = useMutation(api.content.updateTestimonial);
+  const remove = useMutation(api.content.deleteTestimonial);
+
+  const [dialog, setDialog] = useState<null | { mode: "create"; item?: any }>(null);
+  const [form, setForm] = useState({
+    name: "",
+    role: "",
+    text: "",
+    rating: 5,
+    course: "",
+    accent: "teal",
+  });
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const openCreate = () => {
+    setForm({ name: "", role: "", text: "", rating: 5, course: "", accent: "teal" });
+    setErr(null);
+    setDialog({ mode: "create" });
+  };
+
+  const openEdit = (item: any) => {
+    setForm({
+      name: item.name ?? "",
+      role: item.role ?? "",
+      text: item.text ?? "",
+      rating: item.rating ?? 5,
+      course: item.course ?? "",
+      accent: item.accent ?? "teal",
+    });
+    setErr(null);
+    setDialog({ mode: "create", item });
+  };
+
+  const handleSave = async () => {
+    setErr(null);
+    if (!form.name.trim() || !form.text.trim()) {
+      setErr("نام و متن نظر الزامی است.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (dialog?.item) {
+        await update({ id: dialog.item._id, ...form });
+      } else {
+        await create(form);
+      }
+      setDialog(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ذخیره");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("آیا از حذف این نظر مطمئنید؟")) return;
+    try {
+      await remove({ id: id as any });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "خطا در حذف");
+    }
+  };
+
+  const accents = ["teal", "sky", "violet", "amber", "rose", "emerald", "blue", "indigo", "pink", "orange", "slate", "zinc"];
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="نظرات دانشجویان"
+        subtitle="student testimonials / reviews"
+        count={items?.length}
+      />
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          نظرات ثبت‌شده در صفحه اصلی نمایش داده می‌شوند.
+        </p>
+        <Button size="sm" onClick={openCreate}>
+          <Plus className="ml-1.5 size-4" /> ثبت نظر جدید
+        </Button>
+      </div>
+
+      {/* List */}
+      <div className="space-y-2">
+        {(items ?? []).map((t: any) => (
+          <Card key={t._id} className="border-border/70 shadow-sm">
+            <CardContent className="flex items-start gap-4 p-4">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{(t.name ?? "?").slice(0, 2)}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold">{t.name}</span>
+                  <Badge variant="secondary" className="text-[10px]">{t.role}</Badge>
+                  {t.course && <Badge variant="outline" className="text-[10px]">{t.course}</Badge>}
+                  <span className="text-xs text-amber-500">
+                    {Array.from({ length: t.rating }).map((_: any, i: number) => "★").join("")}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-sm leading-6 text-muted-foreground line-clamp-2">{t.text}</p>
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <Button variant="ghost" size="sm" onClick={() => openEdit(t)}>
+                  <Pencil className="size-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(t._id)} className="text-destructive hover:text-destructive">
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {items && items.length === 0 && (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            هنوز نظری ثبت نشده است.
+          </p>
+        )}
+      </div>
+
+      {/* Dialog */}
+      <Dialog open={!!dialog} onOpenChange={() => setDialog(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{dialog?.item ? "ویرایش نظر" : "ثبت نظر جدید"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {err && <p className="text-sm text-destructive">{err}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>نام دانشجو</Label>
+                <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="مثلاً: سارا رحیمی" />
+              </div>
+              <div>
+                <Label>سمت / نقش</Label>
+                <Input value={form.role} onChange={(e) => setForm((p) => ({ ...p, role: e.target.value }))} placeholder="مثلاً: دانشجوی میکروبیولوژی" />
+              </div>
+            </div>
+            <div>
+              <Label>متن نظر</Label>
+              <Textarea rows={4} value={form.text} onChange={(e) => setForm((p) => ({ ...p, text: e.target.value }))} placeholder="نظر یا تجربه دانشجو..." />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <Label>امتیاز (۱ تا ۵)</Label>
+                <Input type="number" min={1} max={5} value={form.rating} onChange={(e) => setForm((p) => ({ ...p, rating: Math.min(5, Math.max(1, Number(e.target.value))) }))} />
+              </div>
+              <div>
+                <Label>دوره (اختیاری)</Label>
+                <Input value={form.course} onChange={(e) => setForm((p) => ({ ...p, course: e.target.value }))} placeholder="مثلاً: میکروبیولوژی پیشرفته" />
+              </div>
+              <div>
+                <Label>رنگ تم</Label>
+                <Select value={form.accent} onValueChange={(v) => setForm((p) => ({ ...p, accent: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {accents.map((a) => (
+                      <SelectItem key={a} value={a}>{a}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => setDialog(null)}>انصراف</Button>
+            <Button size="sm" disabled={busy} onClick={() => void handleSave()}>
+              {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+              ذخیره
             </Button>
           </div>
         </DialogContent>

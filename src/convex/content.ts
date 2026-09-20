@@ -416,11 +416,7 @@ export const createTestimonial = mutation({
     accent: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("ورود لازم است.");
-    const user = await ctx.db.get(userId);
-    if (!user || (user.role !== "admin" && user.role !== "site_admin"))
-      throw new Error("دسترسی غیرمجاز.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
     return await ctx.db.insert("testimonials", {
       name: args.name,
       role: args.role,
@@ -443,15 +439,11 @@ export const updateTestimonial = mutation({
     accent: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("ورود لازم است.");
-    const user = await ctx.db.get(userId);
-    if (!user || (user.role !== "admin" && user.role !== "site_admin"))
-      throw new Error("دسترسی غیرمجاز.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
     const { id, ...fields } = args;
     const patch: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(fields)) {
-      if (v !== undefined) patch[k] = v;
+    for (const [k, val] of Object.entries(fields)) {
+      if (val !== undefined) patch[k] = val;
     }
     await ctx.db.patch(id, patch);
   },
@@ -460,11 +452,7 @@ export const updateTestimonial = mutation({
 export const deleteTestimonial = mutation({
   args: { id: v.id("testimonials") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("ورود لازم است.");
-    const user = await ctx.db.get(userId);
-    if (!user || (user.role !== "admin" && user.role !== "site_admin"))
-      throw new Error("دسترسی غیرمجاز.");
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
     await ctx.db.delete(args.id);
   },
 });
