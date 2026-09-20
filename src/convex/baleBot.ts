@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -32,15 +32,15 @@ function maskToken(token: string): string {
 
 // ── Queries ──────────────────────────────────────────────────────────────────
 
-/** Get raw token (admin-only, never sent to frontend) */
-export const _getRawToken = query({
+/**
+ * Get the raw Bale bot token — INTERNAL ONLY.
+ *
+ * Deliberately not a public query: the token must never be reachable from a
+ * client, and only server-side callers (actions, the auth layer) may read it.
+ */
+export const _getRawToken = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
-    const user = await ctx.db.get(userId);
-    if (!user || (user.role !== "admin" && user.role !== "site_admin")) return null;
-
     const bots = await ctx.db.query("baleBot").collect();
     const bot = bots[0];
     if (!bot) return null;
@@ -80,8 +80,8 @@ export const getBotConfig = query({
   },
 });
 
-/** Internal: find user by Bale ID — called from linking action */
-export const _findUserByBaleId = query({
+/** Internal: find user by Bale ID — used by the Mini App auth layer */
+export const _findUserByBaleId = internalQuery({
   args: { baleId: v.number() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -91,8 +91,8 @@ export const _findUserByBaleId = query({
   },
 });
 
-/** Internal: find user by ID — used by linkByBaleInitData action */
-export const _findUserById = query({
+/** Internal: find user by ID — server-side lookups only */
+export const _findUserById = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.userId);
@@ -140,8 +140,8 @@ export const saveBotToken = mutation({
   },
 });
 
-/** Update bot info after test connection */
-export const _updateBotInfo = mutation({
+/** Update bot info after test connection (internal) */
+export const _updateBotInfo = internalMutation({
   args: {
     botId: v.optional(v.string()),
     botName: v.optional(v.string()),
@@ -163,21 +163,3 @@ export const _updateBotInfo = mutation({
   },
 });
 
-/** Internal: directly link Bale account to a user (for Mini App auto-link) */
-export const _linkDirect = mutation({
-  args: {
-    userId: v.id("users"),
-    baleId: v.number(),
-    baleUsername: v.optional(v.string()),
-    baleFirstName: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, {
-      baleId: args.baleId,
-      baleUsername: args.baleUsername,
-      baleFirstName: args.baleFirstName,
-      baleLinkedAt: Date.now(),
-    });
-    return { success: true };
-  },
-});

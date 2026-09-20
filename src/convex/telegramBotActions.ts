@@ -324,13 +324,19 @@ export const getMenuButton = action({
 
 // ── Telegram Mini App Auto-Link ─────────────────────────────────────────────
 
-import { validateMiniAppInitData } from "./miniAppAuth";
+import { linkMiniAppIdentity, type MiniAppRunnerCtx } from "./miniAppAuth";
 
 /**
  * Validate Telegram WebApp initData and link the Telegram account
  * to the currently signed-in Genova user.
  *
- * Flow: Telegram WebApp → initData → Backend HMAC validation → Account linking.
+ * Flow: Telegram WebApp → initData → backend HMAC validation → account linking.
+ *
+ * The identity is resolved by the shared Mini App auth layer: initData is
+ * validated against the configured bot tokens (HMAC-SHA256) with an auth_date
+ * freshness check, and the platform + platform user id come from that verified
+ * payload — never from the client. Linking itself is a single transaction that
+ * refuses duplicates in both directions.
  */
 export const linkByTelegramInitData = action({
   args: { initData: v.string() },
@@ -338,44 +344,6 @@ export const linkByTelegramInitData = action({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("لطفاً وارد شوید.");
 
-    // 1. Get the bot token (server-side only)
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
-    if (!tokenData?.token) throw new Error("توکن بات ذخیره نشده است.");
-    const botToken: string = tokenData.token;
-
-    // 2. Validate initData using shared HMAC validator
-    const validated = validateMiniAppInitData(args.initData, botToken);
-    const { user: tgUser } = validated;
-    const telegramId = tgUser.id;
-
-    // 6. Check if this Telegram account is already linked to THIS user
-    const currentUser = await ctx.runQuery(api.telegramBot._findUserById, { userId });
-    if (!currentUser) throw new Error("کاربر Genova یافت نشد.");
-
-    if (currentUser.telegramId === telegramId) {
-      // Already linked — just return success
-      return { success: true, alreadyLinked: true };
-    }
-
-    if (currentUser.telegramId && currentUser.telegramId !== telegramId) {
-      // This Genova user is linked to a DIFFERENT Telegram account
-      throw new Error("حساب Telegram شما قبلاً به حساب دیگری متصل است. ابتدا آن را قطع کنید.");
-    }
-
-    // 7. Check if this Telegram ID is linked to ANOTHER Genova user
-    const existingOwner = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
-    if (existingOwner) {
-      throw new Error("این حساب Telegram قبلاً به یک حساب Genova دیگر متصل شده است.");
-    }
-
-    // 8. Link!
-    await ctx.runMutation(api.telegramBot._linkDirect, {
-      userId,
-      telegramId,
-      telegramUsername: tgUser.username,
-      telegramFirstName: tgUser.first_name,
-    });
-
-    return { success: true, alreadyLinked: false };
+    return await linkMiniAppIdentity(ctx as unknown as MiniAppRunnerCtx, args.initData, userId);
   },
 });

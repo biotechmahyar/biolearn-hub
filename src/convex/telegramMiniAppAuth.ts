@@ -1,159 +1,37 @@
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
-import { query, internalQuery } from "./_generated/server";
+import { query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { resolveMiniAppIdentity } from "./miniAppAuth";
 
 /**
  * Telegram Mini App auth provider
- * ─────────────────────────────────────────────────────────────────
- * Lets a user open /mini inside Telegram and be signed in as their
- * real Genova account (with its real role) without typing anything.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Lets a user open /mini inside Telegram and be signed in as their real Genova
+ * account (with its real role) without typing anything.
  *
  * Flow:
- *  1. Telegram injects `initData` into the WebView (window.Telegram.WebApp).
+ *  1. Telegram injects `initData` into the WebView.
  *  2. The client calls signIn("telegram_miniapp", { initData }).
- *  3. Here we validate initData with HMAC-SHA256 against the bot token
- *     (same algorithm as Telegram docs — implemented with Web Crypto so
- *     this runs in the default Convex runtime, not "use node"), find the
- *     Genova user linked to that telegramId and create a real session.
- *  4. After that, useAuth() / useQuery(...) work in the Mini App exactly
- *     like on the website — including role-based admin queries.
+ *  3. Initialization data is validated server-side by the shared Mini App auth
+ *     layer (`./miniAppAuth`) — HMAC-SHA256 against the bot token plus an
+ *     auth_date freshness check — and the Genova user linked to that platform
+ *     id is resolved.
+ *  4. A real session is created, so useAuth() / useQuery(...) work in the Mini
+ *     App exactly like on the website, including role-gated admin queries.
  *
- * Security: only users who already linked their account through the
- * website (one-time code flow) can sign in this way. The bot token
- * never leaves the server and no password is involved.
+ * Security: the bot token never leaves the server, no password is involved,
+ * and only accounts that were linked beforehand (profile → connect) can sign
+ * in this way. Passing a user id from the client is impossible: the id always
+ * comes from the HMAC-verified initData, and the platform is decided
+ * server-side by which bot token validates the signature.
  */
-
-// ── Web Crypto HMAC implementation of Telegram's initData validation ────────
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function hmacSha256(key: Uint8Array, message: string): Promise<Uint8Array> {
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    key as unknown as ArrayBuffer,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    cryptoKey,
-    new TextEncoder().encode(message) as unknown as ArrayBuffer,
-  );
-  return new Uint8Array(signature);
-}
-
-function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return result === 0;
-}
-
-interface ValidatedInitData {
-  telegramId: number;
-  authDate: number;
-}
-
-/**
- * Validate Telegram Mini App initData (HMAC-SHA256, per official docs).
- * Throws on any failure so invalid requests never reach user lookup.
- */
-async function validateInitData(
-  initData: string,
-  botToken: string,
-): Promise<ValidatedInitData> {
-  const params = new URLSearchParams(initData);
-
-  const hash = params.get("hash");
-  if (!hash) throw new Error("initData معتبر نیست (hash missing).");
-  params.delete("hash");
-
-  const dataCheckString = Array.from(params.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, val]) => `${k}=${val}`)
-    .join("\n");
-
-  // secret_key = HMAC_SHA256(key = "WebAppData", message = botToken)
-  const secretKey = await hmacSha256(
-    new TextEncoder().encode("WebAppData"),
-    botToken,
-  );
-  // computed_hash = HMAC_SHA256(key = secret_key, message = dataCheckString)
-  const computed = await hmacSha256(secretKey, dataCheckString);
-
-  if (!constantTimeEqual(bytesToHex(computed), hash.toLowerCase())) {
-    throw new Error("اعتبارسنجی Mini App ناموفق بود.");
-  }
-
-  const userStr = params.get("user");
-  if (!userStr) throw new Error("اطلاعات کاربر یافت نشد.");
-  let user: { id?: number };
-  try {
-    user = JSON.parse(userStr);
-  } catch {
-    throw new Error("اطلاعات کاربر نامعتبر است.");
-  }
-  if (!user.id || typeof user.id !== "number") {
-    throw new Error("User ID نامعتبر است.");
-  }
-
-  const authDate = parseInt(params.get("auth_date") ?? "0", 10);
-  const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
-  if (authDate > 0 && ageSeconds > 60 * 60 * 24) {
-    throw new Error("نشست تلگرام منقضی شده است. مینی‌اپ را ببندید و دوباره باز کنید.");
-  }
-
-  return { telegramId: user.id, authDate };
-}
-
-// ── Internal lookups (authorize runs in an action ctx, so it uses runQuery) ──
-
-/** Bot token for HMAC validation — server-side only. */
-export const _getBotToken = internalQuery({
-  args: {},
-  handler: async (ctx) => {
-    const bots = await ctx.db.query("telegramBot").collect();
-    const bot = bots[0];
-    if (!bot?.tokenEncrypted) return null;
-    return atob(bot.tokenEncrypted);
-  },
-});
-
-/** The Genova user linked to a Telegram account. */
-export const _findLinkedUser = internalQuery({
-  args: { telegramId: v.number() },
-  handler: async (ctx, args) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_telegramId", (q) => q.eq("telegramId", args.telegramId))
-      .first();
-  },
-});
-
-// ── The provider (kept in auth.ts style: inline, no cross-file typing quirks) ─
 
 /**
  * Build the Telegram Mini App credentials provider.
- * Declared as a function so `auth.ts` constructs it in the same module
- * graph as the other providers (avoids duplicate-type inference issues).
+ * Declared as a function so `auth.ts` constructs it in the same module graph
+ * as the other providers (avoids duplicate-type inference issues).
  */
 export function makeTelegramMiniAppProvider() {
   return ConvexCredentials({
@@ -168,28 +46,22 @@ export function makeTelegramMiniAppProvider() {
         throw new Error("initData تلگرام یافت نشد.");
       }
 
-      // 1. Bot token (server-side only)
-      const botToken: string | null = await ctx.runQuery(
-        internal.telegramMiniAppAuth._getBotToken,
-        {},
-      );
-      if (!botToken) throw new Error("بات تلگرام تنظیم نشده است.");
+      // 1. Validate initData (shared layer) and resolve the platform identity
+      const resolved = await resolveMiniAppIdentity(ctx, initData);
 
-      // 2. Validate initData — throws if HMAC fails or auth_date is stale
-      const { telegramId } = await validateInitData(initData, botToken);
+      // 2. The Genova account linked to this messenger account
+      const user = (await ctx.runQuery(internal.miniAppAuth._findUserByPlatformId, {
+        platform: resolved.platform,
+        platformId: resolved.platformId,
+      })) as { _id: Id<"users"> } | null;
 
-      // 3. The Genova account linked to this Telegram account
-      const user = (await ctx.runQuery(
-        internal.telegramMiniAppAuth._findLinkedUser,
-        { telegramId },
-      )) as { _id: Id<"users"> } | null;
       if (!user) {
         throw new Error(
-          "حساب تلگرام شما به Genova متصل نیست. ابتدا از سایت (پروفایل → اتصال تلگرام) حساب خود را متصل کنید.",
+          "حساب پیام‌رسان شما به Genova متصل نیست. ابتدا از سایت (پروفایل → اتصال) حساب خود را متصل کنید.",
         );
       }
 
-      // 4. Create a real session for that user
+      // 3. Create a real session for that user
       return { userId: user._id };
     },
   });

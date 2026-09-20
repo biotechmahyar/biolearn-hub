@@ -1,15 +1,20 @@
 /**
  * TelegramMiniApp — the main page users see when they open Genova from Telegram.
  *
- * Authentication: when opened inside Telegram, the page auto-signs-in with
- * the platform initData (ConvexCredentials "telegram_miniapp" provider),
- * which creates a REAL session for the linked Genova account — including
- * its role. Admins get an extra admin tab (stats, open questions, pending
- * profile approvals).
+ * Authentication: when opened inside Telegram or Bale, the page auto-signs-in
+ * with the platform initData (ConvexCredentials providers "telegram_miniapp"
+ * / "bale_miniapp"), which creates a REAL session for the linked Genova
+ * account — including its role. Admins get an extra admin tab (stats, open
+ * questions, pending profile approvals).
+ *
+ * Both providers validate initData through the same shared server-side layer
+ * and resolve the platform from the HMAC signature, so the provider id chosen
+ * here is only a hint about which page we are likely on.
  *
  * Compact, mobile-first layout with bottom navigation.
  */
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -35,7 +40,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { platform } from "@/lib/miniApp/platform";
+import { getMiniAppInitData, platform } from "@/lib/miniApp/platform";
 import { toast } from "sonner";
 
 type Tab = "home" | "questions" | "sessions" | "tasks" | "notifications" | "groups" | "profile" | "admin";
@@ -45,17 +50,21 @@ export default function TelegramMiniApp() {
   const { signIn } = useAuthActions();
   const [tab, setTab] = useState<Tab>("home");
 
-  // ── Auto sign-in via Telegram initData (runs once, before auth resolves) ──
+  // ── Auto sign-in via Mini App initData (Telegram or Bale) ────────────────
   const triedRef = useRef(false);
   useEffect(() => {
     if (triedRef.current) return;
-    const initData = platform.getInitData();
+    // Both SDKs read the same tgWebApp* transport, so take whichever has data.
+    const initData = getMiniAppInitData();
     if (!initData || !initData.includes("hash=")) return;
     // If already authenticated, nothing to do.
     if (isAuthenticated) return;
     if (isLoading && isAuthenticated) return;
     triedRef.current = true;
-    signIn("telegram_miniapp", { initData } as never)
+    // Platform hint only — the server validates the signature and decides the
+    // platform, so a mis-detected platform still authenticates correctly.
+    const providerId = platform.name === "bale" ? "bale_miniapp" : "telegram_miniapp";
+    signIn(providerId, { initData } as never)
       .catch((err: unknown) => {
         triedRef.current = false;
         const msg = err instanceof Error ? err.message : String(err);
@@ -109,16 +118,17 @@ export default function TelegramMiniApp() {
         <div className="mb-4 text-5xl">🧬</div>
         <h1 className="text-xl font-bold text-teal-700 dark:text-teal-400 mb-2">Genova</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          برای استفاده از Mini App ابتدا حساب تلگرام خود را از سایت به Genova متصل کنید.
+          برای استفاده از Mini App ابتدا حساب پیام‌رسان خود (تلگرام یا بله) را به Genova متصل کنید. با
+          ورود در همین صفحه، حساب شما به‌صورت خودکار متصل می‌شود.
         </p>
-        <Button
-          onClick={() => {
-            platform.openLink("https://nibrc.ir/auth?returnTo=/mini");
-          }}
-          className="bg-teal-600 hover:bg-teal-700"
-        >
-          ورود به Genova
-          <ExternalLink className="mr-2 size-4" />
+        {/* Client-side navigation (Link, not an <a>) keeps the WebView and the
+            SDK's initData alive, so the messenger account gets auto-linked as
+            soon as the user signs in — no external browser needed. */}
+        <Button asChild className="bg-teal-600 hover:bg-teal-700">
+          <Link to="/auth?returnTo=/mini">
+            ورود به Genova
+            <ExternalLink className="mr-2 size-4" />
+          </Link>
         </Button>
       </div>
     );

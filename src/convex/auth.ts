@@ -6,6 +6,7 @@ import { Password } from "@convex-dev/auth/providers/Password";
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
 import { emailOtp } from "./emailOtp";
 import { makeTelegramMiniAppProvider } from "./telegramMiniAppAuth";
+import { makeBaleMiniAppProvider } from "./baleMiniAppAuth";
 
 // Google login provider: client calls signIn("google", { email, name, picture })
 // with data pre-verified by googleAuth:verifyGoogleToken action.
@@ -42,5 +43,6 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     Anonymous,
     GoogleProvider,
     makeTelegramMiniAppProvider(),
+    makeBaleMiniAppProvider(),
   ],
 });

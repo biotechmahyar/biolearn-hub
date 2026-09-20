@@ -12,6 +12,10 @@
  *
  * Platform detection is deferred until first access of `platform`
  * to ensure SDKs loaded via <script> tags in index.html are available.
+ *
+ * Detection is only a UI hint: the server decides which platform a request
+ * really came from by validating the initData HMAC against the bot tokens
+ * (both messengers ship SDKs that read the same URL parameters).
  */
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -68,6 +72,10 @@ function getTelegramWebApp(): Record<string, unknown> | null {
 /**
  * Safely access the Bale WebApp object.
  * Returns null if the Bale SDK is not loaded (normal browser or SSR).
+ *
+ * Note: the official Bale SDK assigns `window.Bale` unconditionally, even in a
+ * plain browser, so object presence alone proves nothing — pair this with
+ * {@link getBaleInitData} before treating the visitor as a Bale user.
  */
 function getBaleWebApp(): Record<string, unknown> | null {
   try {
@@ -146,17 +154,27 @@ const telegramPlatform: MiniAppPlatform = {
 
 // ── Bale Adapter ───────────────────────────────────────────────────────────
 
+/**
+ * The initData Bale actually injected, or null when we are not inside Bale.
+ *
+ * Because the Bale SDK defines `window.Bale` in every browser, a non-empty
+ * `initData` is the only reliable "we are really inside Bale" signal.
+ */
+function getBaleInitData(): string | null {
+  const webApp = getBaleWebApp();
+  const initData = webApp?.initData;
+  return typeof initData === "string" && initData.length > 0 ? initData : null;
+}
+
 const balePlatform: MiniAppPlatform = {
   name: "bale",
 
   isAvailable() {
-    return getBaleWebApp() !== null;
+    return getBaleInitData() !== null;
   },
 
   getInitData() {
-    const webApp = getBaleWebApp();
-    const initData = webApp?.initData;
-    return typeof initData === "string" && initData.length > 0 ? initData : null;
+    return getBaleInitData();
   },
 
   getUser() {
@@ -172,6 +190,7 @@ const balePlatform: MiniAppPlatform = {
   },
 
   close() {
+    if (!getBaleInitData()) return; // not actually inside Bale — nothing to close
     const webApp = getBaleWebApp();
     if (typeof webApp?.close === "function") {
       webApp.close();
@@ -180,7 +199,9 @@ const balePlatform: MiniAppPlatform = {
 
   openLink(url: string) {
     const webApp = getBaleWebApp();
-    if (typeof webApp?.openLink === "function") {
+    // Only route through the Bale bridge when we are really inside Bale,
+    // otherwise the link would silently go nowhere.
+    if (getBaleInitData() && typeof webApp?.openLink === "function") {
       webApp.openLink(url);
     } else {
       window.open(url, "_blank");
@@ -270,6 +291,18 @@ export function getPlatform(): MiniAppPlatform {
     _platform = detectPlatform();
   }
   return _platform;
+}
+
+/**
+ * Read Mini App initData from whichever supported SDK actually received it.
+ *
+ * Telegram and Bale use the same `tgWebApp*` transport and both SDKs are
+ * loaded on every page, so the first non-empty value is the real initData.
+ * Platform attribution is intentionally left to the server, which decides it
+ * from the HMAC signature — the client never has to guess.
+ */
+export function getMiniAppInitData(): string | null {
+  return telegramPlatform.getInitData() ?? balePlatform.getInitData();
 }
 
 /**
