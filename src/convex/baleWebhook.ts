@@ -173,23 +173,75 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
 
   const text = typeof message.text === "string" ? message.text.trim() : "";
   const isStart = text === "/start" || text.startsWith("/start ");
+  const isHelp = text === "/help";
 
-  if (isStart) {
+  if (isStart || isHelp) {
     const config = (await ctx.runQuery(internal.baleBot._getBotRuntimeConfig, {})) as {
       configured: boolean;
       active: boolean;
       startMessage: string | null;
+      botUsername?: string | null;
+      siteUrl?: string | null;
     } | null;
 
     if (config?.configured && config.active) {
       // Non-privileged, static welcome text. Failures are swallowed: the
       // webhook must still acknowledge the update.
+      const siteUrl = config.siteUrl ?? process.env.SITE_URL ?? "";
+      const miniAppUrl = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/mini` : "";
+      const botUsername = config.botUsername ?? "";
+
+      // Build the persistent reply keyboard (like Telegram) + mini app button
+      const replyKeyboard = {
+        keyboard: [
+          [
+            { text: "\u{1F916} هوش مصنوعی" },
+            { text: "\u{1F4AC} ثبت س\u0648\u0627\u0644" },
+          ],
+          [
+            { text: "\u{1F464} پروفایل" },
+            { text: "\u{1F4B0} اشتراک و سکه" },
+          ],
+          [
+            { text: "\u{1F517} معرفی به دوستان (سکه رایگان)" },
+          ],
+          [
+            {
+              text: "\u{1F680} باز کردن Genova",
+              web_app: miniAppUrl ? { url: miniAppUrl } : undefined,
+            },
+          ],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+      };
+
       await sendBaleMessage(
         ctx as unknown as BaleApiCtx,
         chatId,
         config.startMessage ?? DEFAULT_START_MESSAGE,
+        { reply_markup: replyKeyboard },
       );
     }
+  }
+
+  // ── Reply-keyboard button routing ──────────────────────────────────────
+  const replyButtonMap: Record<string, string> = {
+    "\u{1F916} هوش مصنوعی": "برای استفاده از هوش مصنوعی، ابتدا حساب خود را در سایت Genova متصل کنید و سپس از بخش چت‌بات استفاده کنید.",
+    "\u{1F4AC} ثبت سؤال": "برای ثبت سؤال، لطفاً سؤال خود را مستقیماً تایپ کنید تا برای مدیران ارسال شود.",
+    "\u{1F464} پروفایل": "برای مشاهده پروفایل خود، وارد مینی‌اپ Genova شوید.",
+    "\u{1F4B0} اشتراک و سکه": "برای مشاهده اشتراک و سکه‌های خود، وارد مینی‌اپ Genova شوید.",
+    "\u{1F517} معرفی به دوستان (سکه رایگان)": "برای دریافت لینک دعوت و کسب سکه رایگان، وارد مینی‌اپ Genova شوید.",
+  };
+
+  const replyResponse = replyButtonMap[text];
+  if (replyResponse) {
+    await sendBaleMessage(
+      ctx as unknown as BaleApiCtx,
+      chatId,
+      replyResponse,
+    );
+    return jsonResponse({ ok: true, type });
   }
 
   // Every other message is acknowledged and ignored — no privileged work is

@@ -74,6 +74,8 @@ export const _getBotRuntimeConfig = internalQuery({
       configured: (typeof envToken === "string" && envToken.trim().length > 0) || !!bot?.tokenEncrypted,
       active: bot?.active ?? true,
       startMessage: bot?.startMessage?.trim() || null,
+      botUsername: bot?.botUsername?.trim() || null,
+      siteUrl: process.env.SITE_URL ?? null,
     };
   },
 });

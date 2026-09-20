@@ -686,29 +686,29 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── Future teaser ───────────────────────────────────────────────── */}
+      {/* ── Active features ──────────────────────────────────────────────── */}
       <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
         <div className="grid gap-4 lg:grid-cols-3">
           {[
-            { icon: Bot, title: "AI Tutor تخصصی", desc: "پاسخ به سؤالات علوم زیستی در سطح دلخواه، مبتنی بر محتوای تأییدشدهٔ پلتفرم — به‌زودی." },
-            { icon: Send, title: "ربات تلگرام", desc: "کوئیز روزانه، یادآوری کلاس، اطلاع‌رسانی و دیکشنری در تلگرام — در فاز بعدی." },
-            { icon: Sparkles, title: "مسیر یادگیری شخصی", desc: "پیشنهاد خودکار ویدیو، فلش‌کارت و آزمون بر اساس پروفایل یادگیری تو — در حال طراحی." },
+            { icon: Bot, title: "AI Tutor تخصصی", desc: "پاسخ به سؤالات علوم زیستی در سطح دلخواه، مبتنی بر محتوای تأییدشدهٔ پلتفرم — همین الان فعاله.", to: "/ai-chat" },
+            { icon: Send, title: "ربات تلگرام", desc: "کوئیز روزانه، یادآوری کلاس، اطلاع‌رسانی و دیکشنری در تلگرام — ما رو دنبال کنید.", href: "https://t.me/genova_iaut" },
+            { icon: Sparkles, title: "مسیر یادگیری شخصی", desc: "پیشنهاد خودکار ویدیو، فلش‌کارت و آزمون بر اساس پروفایل یادگیری تو — فعال و آماده استفاده.", to: "/dashboard" },
           ].map((f) => (
-            <div
+            <Link
               key={f.title}
-              className="flex items-start gap-4 rounded-2xl border border-dashed border-border bg-card/40 p-6"
+              to={(f as any).to || "/"}
+              target={(f as any).href ? "_blank" : undefined}
+              rel={(f as any).href ? "noopener noreferrer" : undefined}
+              className="group flex items-start gap-4 rounded-2xl border border-border bg-card p-6 transition-all hover:border-primary/50 hover:shadow-md"
             >
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                 <f.icon className="size-5" />
               </span>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold">{f.title}</h3>
-                  <Badge variant="outline" className="rounded-full text-[10px]">به‌زودی</Badge>
-                </div>
+                <h3 className="text-sm font-bold">{f.title}</h3>
                 <p className="mt-1.5 text-[13px] leading-6 text-muted-foreground">{f.desc}</p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>
