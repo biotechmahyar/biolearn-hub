@@ -3,7 +3,7 @@
 import { v } from "convex/values";
 import { action } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 async function fetchJson(url: string, init?: RequestInit): Promise<any> {
   const resp = await fetch(url, init);
@@ -17,7 +17,7 @@ export const testConnection = action({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("عدم دسترسی.");
 
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن بات ذخیره نشده است.");
 
     const token: string = tokenData.token;
@@ -28,7 +28,7 @@ export const testConnection = action({
       });
 
       if (data.ok) {
-        await ctx.runMutation(api.telegramBot._updateBotInfo, {
+        await ctx.runMutation(internal.telegramBot._updateBotInfo, {
           botId: String(data.result.id),
           botName: data.result.first_name,
           botUsername: data.result.username,
@@ -42,7 +42,7 @@ export const testConnection = action({
           botUsername: data.result.username as string,
         };
       } else {
-        await ctx.runMutation(api.telegramBot._updateBotInfo, {
+        await ctx.runMutation(internal.telegramBot._updateBotInfo, {
           connected: false,
           lastTestResult: (data.description as string) || "خطای نامشخص",
         });
@@ -50,7 +50,7 @@ export const testConnection = action({
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "خطای شبکه";
-      await ctx.runMutation(api.telegramBot._updateBotInfo, {
+      await ctx.runMutation(internal.telegramBot._updateBotInfo, {
         connected: false,
         lastTestResult: msg,
       });
@@ -66,7 +66,7 @@ export const disconnectBot = action({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("عدم دسترسی.");
 
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     try {
@@ -75,7 +75,7 @@ export const disconnectBot = action({
       });
     } catch { /* ignore */ }
 
-    await ctx.runMutation(api.telegramBot._updateBotInfo, {
+    await ctx.runMutation(internal.telegramBot._updateBotInfo, {
       connected: false,
       webhookUrl: undefined,
       botId: undefined,
@@ -91,7 +91,7 @@ export const disconnectBot = action({
 export const getBotCommands = action({
   args: {},
   handler: async (ctx) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     try {
@@ -117,7 +117,7 @@ export const setBotCommands = action({
     ),
   },
   handler: async (ctx, args) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     // Validate and sanitize commands for Telegram API
@@ -158,7 +158,7 @@ export const setBotCommands = action({
 export const setupWebhook = action({
   args: { customUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     // Use custom URL or auto-build from CONVEX_SITE_URL
@@ -177,7 +177,7 @@ export const setupWebhook = action({
       );
 
       if (setData.ok) {
-        await ctx.runMutation(api.telegramBot._updateBotInfo, { webhookUrl });
+        await ctx.runMutation(internal.telegramBot._updateBotInfo, { webhookUrl });
       }
       return { success: setData.ok as boolean, webhookUrl, error: setData.ok ? undefined : (setData.description as string) };
     } catch (err: unknown) {
@@ -190,7 +190,7 @@ export const setupWebhook = action({
 export const setWebhook = action({
   args: { url: v.string() },
   handler: async (ctx, args) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     try {
@@ -199,7 +199,7 @@ export const setWebhook = action({
         { signal: AbortSignal.timeout(15000) },
       );
       if (data.ok) {
-        await ctx.runMutation(api.telegramBot._updateBotInfo, { webhookUrl: args.url });
+        await ctx.runMutation(internal.telegramBot._updateBotInfo, { webhookUrl: args.url });
       }
       return { success: data.ok as boolean, error: data.ok ? undefined : (data.description as string) };
     } catch (err: unknown) {
@@ -212,7 +212,7 @@ export const setWebhook = action({
 export const getWebhookInfo = action({
   args: {},
   handler: async (ctx) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     try {
@@ -245,7 +245,7 @@ export const getWebhookInfo = action({
 export const removeWebhook = action({
   args: {},
   handler: async (ctx) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     try {
@@ -253,7 +253,7 @@ export const removeWebhook = action({
         `https://api.telegram.org/bot${tokenData.token}/deleteWebhook`,
         { signal: AbortSignal.timeout(10000) },
       );
-      await ctx.runMutation(api.telegramBot._updateBotInfo, { webhookUrl: undefined });
+      await ctx.runMutation(internal.telegramBot._updateBotInfo, { webhookUrl: undefined });
       return { success: data.ok as boolean, error: data.ok ? undefined : (data.description as string) };
     } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : "خطا" };
@@ -265,7 +265,7 @@ export const removeWebhook = action({
 export const setMenuButton = action({
   args: {},
   handler: async (ctx) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     const siteUrl = process.env.SITE_URL || "https://nibrc.ir";
@@ -298,7 +298,7 @@ export const setMenuButton = action({
 export const getMenuButton = action({
   args: {},
   handler: async (ctx) => {
-    const tokenData = await ctx.runQuery(api.telegramBot._getRawToken);
+    const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
     try {

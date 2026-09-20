@@ -1,5 +1,10 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import {
+  query,
+  mutation,
+  internalQuery,
+  internalMutation,
+} from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -35,7 +40,15 @@ function maskToken(token: string): string {
 // ── Queries ──────────────────────────────────────────────────────────────────
 
 /** Public query for webhook handler — returns token for server-side use only */
-export const getBotConfigPublic = query({
+/**
+ * Internal bot config incl. the raw token — INTERNAL ONLY.
+ *
+ * This used to be a public, unauthenticated query, which meant the raw bot
+ * token was readable by anyone who called it. It is only ever consumed by
+ * server-side handlers (webhook + one-time setup endpoint), so it is now an
+ * internalQuery. No client ever called it.
+ */
+export const getBotConfigPublic = internalQuery({
   args: {},
   handler: async (ctx) => {
     const bots = await ctx.db.query("telegramBot").collect();
@@ -81,8 +94,13 @@ export const getBotConfig = query({
   },
 });
 
-/** Get raw token (admin-only, never sent to frontend) */
-export const _getRawToken = query({
+/**
+ * Get the raw bot token — INTERNAL ONLY.
+ *
+ * Must never be a public query: any client that could read it would control
+ * the bot. Only server-side callers (actions, webhook, auth layer) may use it.
+ */
+export const _getRawToken = internalQuery({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -199,8 +217,8 @@ export const saveCommands = mutation({
   },
 });
 
-/** Internal mutation to update bot info from actions */
-export const _updateBotInfo = mutation({
+/** Internal mutation to update bot info from actions (internal only) */
+export const _updateBotInfo = internalMutation({
   args: {
     botId: v.optional(v.string()),
     botName: v.optional(v.string()),
@@ -313,7 +331,7 @@ export const unlinkTelegram = mutation({
   },
 });
 /** Internal: find user by Telegram ID — called from webhook handler */
-export const _findUserByTelegramId = query({
+export const _findUserByTelegramId = internalQuery({
   args: { telegramId: v.number() },
   handler: async (ctx, args) => {
     return await ctx.db
@@ -325,7 +343,7 @@ export const _findUserByTelegramId = query({
 
 
 /** Internal: look up a linking code — called from webhook handler */
-export const _findLinkingCode = query({
+export const _findLinkingCode = internalQuery({
   args: { code: v.string() },
   handler: async (ctx, args) => {
     const results = await ctx.db
@@ -357,7 +375,7 @@ export const authByTelegramId = query({
 });
 
 /** Internal: mark a linking code as used and link the Telegram account */
-export const _completeLinking = mutation({
+export const _completeLinking = internalMutation({
   args: {
     codeId: v.id("telegramLinkingCodes"),
     telegramId: v.number(),
@@ -398,32 +416,19 @@ export const _completeLinking = mutation({
   },
 });
 
-/** Internal: find user by ID — used by linkByTelegramInitData action */
-export const _findUserById = query({
+/** Internal: find user by ID — server-side lookups only */
+export const _findUserById = internalQuery({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.userId);
   },
 });
 
-/** Internal: directly link Telegram to a user (for Mini App auto-link) */
-export const _linkDirect = mutation({
-  args: {
-    userId: v.id("users"),
-    telegramId: v.number(),
-    telegramUsername: v.optional(v.string()),
-    telegramFirstName: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, {
-      telegramId: args.telegramId,
-      telegramUsername: args.telegramUsername,
-      telegramFirstName: args.telegramFirstName,
-      telegramLinkedAt: Date.now(),
-    });
-    return { success: true };
-  },
-});
+// NOTE: the old public `_linkDirect` mutation was removed. It accepted an
+// arbitrary `userId` from the caller, so any signed-in client could have linked
+// its own Telegram account onto another user's record and then signed in as
+// that user (account takeover). Linking now goes through the shared, HMAC-
+// driven, transactional `miniAppAuth.linkMiniAppIdentity`.
 
 /** Count users with linked Telegram accounts */
 export const _countLinkedUsers = query({

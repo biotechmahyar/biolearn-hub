@@ -86,7 +86,7 @@ async function notifyAdminsOfQuestion(ctx: any, admins: { telegramId: number; na
 }
 
 async function handleAsk(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.");
     return;
@@ -99,7 +99,7 @@ async function handleAsk(ctx: any, token: string, chatId: number, telegramId: nu
 }
 
 async function handleAiStart(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.");
     return;
@@ -121,7 +121,7 @@ async function handleAiStart(ctx: any, token: string, chatId: number, telegramId
 }
 
 async function handleSessionRequest(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.");
     return;
@@ -139,7 +139,7 @@ async function handlePendingText(ctx: any, token: string, chatId: number, telegr
   const pending = await ctx.runQuery(internal.telegramBotExtras.getPendingInput, { telegramId });
   if (!pending) return false;
 
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
     return false;
@@ -192,7 +192,7 @@ async function handlePendingText(ctx: any, token: string, chatId: number, telegr
       await sendMsg(token, chatId, "⚠️ خطا در پاسخ‌دهی. دوباره /answer را بفرستید.");
       return true;
     }
-    const me = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+    const me = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
     const result = await ctx.runMutation(internal.telegramBotExtras.answerBotQuestion, {
       questionId: qid as any,
       answer: text,
@@ -324,7 +324,7 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
 
   // Account linking flow
   if (code && code.length >= 6) {
-    const codeDoc = await ctx.runQuery(api.telegramBot._findLinkingCode, { code });
+    const codeDoc = await ctx.runQuery(internal.telegramBot._findLinkingCode, { code });
     if (!codeDoc) {
       await sendMsg(token, chatId, "❌ لینک اتصال معتبر نیست یا منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
       return;
@@ -337,7 +337,7 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
       await sendMsg(token, chatId, "⚠️ این لینک اتصال قبلاً استفاده شده است.\n\nاگر می‌خواهید حساب جدیدی متصل کنید، از سایت کد جدید دریافت کنید.");
       return;
     }
-    const existingUser = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+    const existingUser = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
     if (existingUser && existingUser._id !== codeDoc.userId) {
       await sendMsg(token, chatId, "⚠️ این حساب Telegram قبلاً به حساب دیگری متصل شده است.\n\nبرای اتصال به حساب جدید، ابتدا اتصال قبلی را قطع کنید.");
       return;
@@ -346,7 +346,7 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
       await sendMsg(token, chatId, `✅ این حساب Telegram قبلاً به حساب Genova شما متصل شده است.\n\nخوش آمدید ${firstName}!`);
       return;
     }
-    const result = await ctx.runMutation(api.telegramBot._completeLinking, {
+    const result = await ctx.runMutation(internal.telegramBot._completeLinking, {
       codeId: codeDoc._id, telegramId, telegramUsername: username, telegramFirstName: firstName,
     });
     if (result.success) {
@@ -400,7 +400,7 @@ async function handleHelp(ctx: any, token: string, chatId: number) {
 }
 
 async function handleProfile(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId,
       "❌ حساب Telegram شما هنوز به Genova متصل نشده است.\n\nبرای اتصال، از سایت کد اتصال دریافت کنید.",
@@ -422,7 +422,7 @@ username: ${user.email || "—"}
 }
 
 async function handleQuestions(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا /start را ارسال کنید.");
     return;
@@ -455,7 +455,7 @@ async function handleQuestions(ctx: any, token: string, chatId: number, telegram
 }
 
 async function handleSessions(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا /start را ارسال کنید.");
     return;
@@ -490,7 +490,7 @@ async function handleSessions(ctx: any, token: string, chatId: number, telegramI
 }
 
 async function handleTasks(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا /start را ارسال کنید.");
     return;
@@ -524,7 +524,7 @@ async function handleTasks(ctx: any, token: string, chatId: number, telegramId: 
 }
 
 async function handleNotifications(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا /start را ارسال کنید.");
     return;
@@ -545,7 +545,7 @@ ${masterEnabled ? "اعلان‌های شما فعال هستند و از طری
 }
 
 async function handleGroups(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا /start را ارسال کنید.");
     return;
@@ -579,7 +579,7 @@ async function handleGroups(ctx: any, token: string, chatId: number, telegramId:
 }
 
 async function handleSettings(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا /start را ارسال کنید.");
     return;
@@ -615,7 +615,7 @@ async function handleGenova(ctx: any, token: string, chatId: number) {
  * the mini app / website wallet).
  */
 async function handleReferral(ctx: any, token: string, chatId: number, telegramId: number) {
-  const user = await ctx.runQuery(api.telegramBot._findUserByTelegramId, { telegramId });
+  const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
     await sendMsg(token, chatId, "❌ حساب شما متصل نیست. ابتدا از سایت حساب خود را متصل کنید.", {
       inline_keyboard: [[urlBtn("🔗 اتصال حساب", `${SITE_URL}/auth`)]],
@@ -624,7 +624,7 @@ async function handleReferral(ctx: any, token: string, chatId: number, telegramI
   }
 
   // Personal deep link: REF + userId → /start REF<id> credits the inviter
-  const botConfig = await ctx.runQuery(api.telegramBot.getBotConfigPublic);
+  const botConfig = await ctx.runQuery(internal.telegramBot.getBotConfigPublic);
   const botUsername = (botConfig?.[0] as any)?.botUsername ?? null;
   const link = botUsername
     ? `https://t.me/${botUsername}?start=REF${user._id}`
@@ -715,7 +715,7 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
         return new Response("OK", { status: 200 });
       }
 
-      const bots = await ctx.runQuery(api.telegramBot.getBotConfigPublic);
+      const bots = await ctx.runQuery(internal.telegramBot.getBotConfigPublic);
       if (!bots || !bots[0]?.token) return new Response("OK", { status: 200 });
 
       await handleCallbackQuery(ctx, bots[0].token, chatId, telegramId, firstName, username, callbackData);
@@ -734,7 +734,7 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
 
     if (!chatId || !telegramId) return new Response("OK", { status: 200 });
 
-    const bots = await ctx.runQuery(api.telegramBot.getBotConfigPublic);
+    const bots = await ctx.runQuery(internal.telegramBot.getBotConfigPublic);
     if (!bots || !bots[0]?.token) return new Response("OK", { status: 200 });
 
     const token = bots[0].token;

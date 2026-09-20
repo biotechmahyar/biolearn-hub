@@ -1,5 +1,5 @@
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { internal } from "./_generated/api";
 
 /**
  * GET /telegram/setup-webhook
@@ -9,7 +9,7 @@ import { api } from "./_generated/api";
 export const setupWebhookOnce = httpAction(async (ctx) => {
   try {
     // Get bot config from DB
-    const bots = await ctx.runQuery(api.telegramBot.getBotConfigPublic);
+    const bots = await ctx.runQuery(internal.telegramBot.getBotConfigPublic);
     if (!bots || bots.length === 0 || !bots[0].token) {
       return new Response("No bot token configured", { status: 400 });
     }

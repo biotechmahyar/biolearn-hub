@@ -36,15 +36,45 @@ function maskToken(token: string): string {
  * Get the raw Bale bot token — INTERNAL ONLY.
  *
  * Deliberately not a public query: the token must never be reachable from a
- * client, and only server-side callers (actions, the auth layer) may read it.
+ * client, and only server-side callers (auth layer, bot API layer) may read it.
+ *
+ * Source order:
+ *   1. `BALE_BOT_TOKEN` from the deployment environment (the documented source)
+ *   2. the admin-configured `baleBot` row, for backward compatibility
  */
 export const _getRawToken = internalQuery({
   args: {},
   handler: async (ctx) => {
+    const envToken = process.env.BALE_BOT_TOKEN;
+    if (typeof envToken === "string" && envToken.trim().length > 0) {
+      return { token: envToken.trim(), source: "env" as const };
+    }
+
     const bots = await ctx.db.query("baleBot").collect();
     const bot = bots[0];
-    if (!bot) return null;
-    return { token: deobfuscateToken(bot.tokenEncrypted) };
+    if (!bot?.tokenEncrypted) return null;
+    return { token: deobfuscateToken(bot.tokenEncrypted), source: "db" as const };
+  },
+});
+
+/**
+ * Internal: runtime config the webhook needs.
+ *
+ * Reads existing `baleBot` fields only — no new tables or fields were added
+ * for the Bale bot/webhook step.
+ */
+export const _getBotRuntimeConfig = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const bots = await ctx.db.query("baleBot").collect();
+    const bot = bots[0];
+    const envToken = process.env.BALE_BOT_TOKEN;
+
+    return {
+      configured: (typeof envToken === "string" && envToken.trim().length > 0) || !!bot?.tokenEncrypted,
+      active: bot?.active ?? true,
+      startMessage: bot?.startMessage?.trim() || null,
+    };
   },
 });
 
