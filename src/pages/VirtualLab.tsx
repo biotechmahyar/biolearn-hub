@@ -149,39 +149,51 @@ export default function VirtualLab() {
     setMobileNav("tools");
   }, []);
 
+  const isDark = theme === "dark";
+
   return (
-    <div className={cn("lab-app flex h-screen overflow-hidden text-white transition-colors duration-300", theme === "dark" ? "bg-[#060b18]" : "bg-[#f8fafc] text-slate-900")}>
+    <div className={cn("lab-app flex h-screen overflow-hidden transition-colors duration-300", isDark ? "bg-[#060b18] text-white" : "bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 text-slate-800")}>
       {/* ── Ambient background ──────────────────────────────────────────── */}
       <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-indigo-600/[0.07] blur-[150px]" />
-        <div className="absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-cyan-600/[0.05] blur-[120px]" />
-        <div className="absolute top-1/2 left-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-600/[0.04] blur-[100px]" />
-        {/* Subtle grid pattern */}
-        <div className="absolute inset-0 opacity-[0.015]"
-          style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+        {isDark ? (
+          <>
+            <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-indigo-600/[0.07] blur-[150px]" />
+            <div className="absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-cyan-600/[0.05] blur-[120px]" />
+            <div className="absolute top-1/2 left-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-600/[0.04] blur-[100px]" />
+            <div className="absolute inset-0 opacity-[0.015]"
+              style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+          </>
+        ) : (
+          <>
+            <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-blue-200/30 blur-[150px]" />
+            <div className="absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-slate-200/40 blur-[120px]" />
+            <div className="absolute inset-0 opacity-[0.03]"
+              style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
+          </>
+        )}
       </div>
 
       {/* ── Sidebar (desktop) ───────────────────────────────────────────── */}
       <aside className={cn(
-        "relative z-30 flex w-[280px] flex-col border-l border-white/[0.04] transition-transform duration-300 ease-out",
-        cn(theme === "dark" ? "bg-[#0a1020]/80" : "bg-white/90 border-l-slate-200/50", "backdrop-blur-2xl"),
+        "relative z-30 flex w-[280px] flex-col border-l transition-transform duration-300 ease-out",
+        isDark ? "border-white/[0.04] bg-[#0a1020]/80" : "border-slate-200/60 bg-white/95 shadow-xl shadow-slate-200/30",
+        "backdrop-blur-2xl",
         "fixed inset-y-0 right-0 xl:relative xl:translate-x-0",
         sidebarOpen ? "translate-x-0" : "translate-x-full",
       )}>
-        {/* Logo */}
-        <div className="relative px-5 py-5 border-b border-white/[0.04]">
+        {/* Logo */}          <div className={cn("relative px-5 py-5 border-b", isDark ? "border-white/[0.04]" : "border-slate-200/60")}>
           <div className="flex items-center gap-3">
             <div className="relative flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
               <FlaskConical className="size-5 text-white" />
               <div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-white/20 to-transparent" />
             </div>
             <div>
-              <h1 className="text-[13px] font-extrabold tracking-tight text-white">آزمایشگاه مجازی</h1>
-              <p className="text-[10px] font-medium text-white/30 tracking-wide">GENOVA VIRTUAL LAB</p>
+              <h1 className={cn("text-[13px] font-extrabold tracking-tight", isDark ? "text-white" : "text-slate-800")}>آزمایشگاه مجازی</h1>
+              <p className={cn("text-[10px] font-medium tracking-wide", isDark ? "text-white/30" : "text-slate-400")}>GENOVA VIRTUAL LAB</p>
             </div>
           </div>
           <button onClick={() => setSidebarOpen(false)}
-            className="absolute top-4 left-4 rounded-xl p-1.5 text-white/30 hover:bg-white/5 hover:text-white/60 xl:hidden transition-colors">
+            className={cn("absolute top-4 left-4 rounded-xl p-1.5 xl:hidden transition-colors", isDark ? "text-white/30 hover:bg-white/5 hover:text-white/60" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
             <X className="size-4" />
           </button>
         </div>
@@ -193,7 +205,7 @@ export default function VirtualLab() {
             return (
               <div key={group.id} className="mb-5">
                 <div className="px-5 mb-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/20">{group.label}</p>
+                  <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", isDark ? "text-white/20" : "text-slate-400")}>{group.label}</p>
                 </div>
                 <div className="space-y-0.5 px-3">
                   {groupTools.map((tool) => {
@@ -204,8 +216,8 @@ export default function VirtualLab() {
                         className={cn(
                           "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-right transition-all duration-200",
                           isActive
-                            ? "bg-white/[0.06] text-white"
-                            : "text-white/35 hover:bg-white/[0.03] hover:text-white/60",
+                            ? (isDark ? "bg-white/[0.06] text-white" : "bg-blue-50 text-blue-700")
+                            : (isDark ? "text-white/35 hover:bg-white/[0.03] hover:text-white/60" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"),
                         )}>
                         {isActive && (
                           <motion.div layoutId="sidebar-active"
@@ -214,15 +226,15 @@ export default function VirtualLab() {
                         )}
                         <span className={cn(
                           "relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-                          isActive ? "bg-white/10 text-white" : "bg-white/[0.03] text-white/25 group-hover:text-white/40",
+                          isActive ? (isDark ? "bg-white/10 text-white" : "bg-blue-100 text-blue-600") : (isDark ? "bg-white/[0.03] text-white/25 group-hover:text-white/40" : "bg-slate-100 text-slate-400 group-hover:text-slate-600"),
                         )}>
                           <Icon className="size-4" />
                         </span>
                         <div className="relative z-10 min-w-0 flex-1">
-                          <p className={cn("text-[12px] font-semibold leading-tight", isActive ? "text-white" : "")}>{tool.title}</p>
-                          <p className="mt-0.5 text-[9px] font-medium text-white/20 uppercase tracking-wider">{tool.titleEn}</p>
+                          <p className={cn("text-[12px] font-semibold leading-tight", isActive ? (isDark ? "text-white" : "text-blue-700") : (isDark ? "" : "text-slate-700"))}>{tool.title}</p>
+                          <p className={cn("mt-0.5 text-[9px] font-medium uppercase tracking-wider", isDark ? "text-white/20" : "text-slate-400")}>{tool.titleEn}</p>
                         </div>
-                        {isActive && <span className="relative z-10 size-1.5 rounded-full bg-white/60" />}
+                        {isActive && <span className={cn("relative z-10 size-1.5 rounded-full", isDark ? "bg-white/60" : "bg-blue-500")} />}
                       </button>
                     );
                   })}
@@ -233,18 +245,18 @@ export default function VirtualLab() {
 
           {/* Coming Soon */}
           <div className="px-5 mb-2">
-            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-white/15">به‌زودی</p>
+            <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", isDark ? "text-white/15" : "text-slate-300")}>به‌زودی</p>
           </div>
           <div className="space-y-0.5 px-3">
             {FUTURE_TOOLS.map((tool) => {
               const Icon = tool.icon;
               return (
                 <div key={tool.title} className="flex items-center gap-3 rounded-xl px-3 py-2 opacity-25">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.02]">
+                  <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", isDark ? "bg-white/[0.02]" : "bg-slate-100")}>
                     <Icon className="size-4" style={{ color: tool.color }} />
                   </span>
-                  <p className="text-[11px] font-medium text-white/50">{tool.title}</p>
-                  <Lock className="mr-auto size-3 text-white/15" />
+                  <p className={cn("text-[11px] font-medium", isDark ? "text-white/50" : "text-slate-400")}>{tool.title}</p>
+                  <Lock className={cn("mr-auto size-3", isDark ? "text-white/15" : "text-slate-300")} />
                 </div>
               );
             })}
@@ -252,9 +264,10 @@ export default function VirtualLab() {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-white/[0.04] p-3">
+        <div className={cn("border-t p-3", isDark ? "border-white/[0.04]" : "border-slate-200/60")}>
           <Link to="/"
-            className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[11px] font-medium text-white/25 transition-all hover:bg-white/[0.03] hover:text-white/50">
+            className={cn("flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[11px] font-medium transition-all",
+              isDark ? "text-white/25 hover:bg-white/[0.03] hover:text-white/50" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
             <Home className="size-3.5" />
             بازگشت به سایت اصلی
           </Link>
@@ -270,30 +283,35 @@ export default function VirtualLab() {
       {/* ── Main content ────────────────────────────────────────────────── */}
       <main className="relative z-10 flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
-        <header className="flex items-center gap-3 border-b border-white/[0.04] bg-[#060b18]/60 px-4 py-3 backdrop-blur-xl xl:px-6">
+        <header className={cn("flex items-center gap-3 border-b px-4 py-3 backdrop-blur-xl xl:px-6",
+          isDark ? "border-white/[0.04] bg-[#060b18]/60" : "border-slate-200/60 bg-white/70")}>
           <button onClick={() => setSidebarOpen(true)}
-            className="rounded-xl p-2 text-white/30 hover:bg-white/5 hover:text-white/60 xl:hidden transition-colors">
+            className={cn("rounded-xl p-2 xl:hidden transition-colors", isDark ? "text-white/30 hover:bg-white/5 hover:text-white/60" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
             <Menu className="size-5" />
           </button>
 
-          <div className="flex items-center gap-2 text-[11px] text-white/25">
+          <Link to="/" className={cn("rounded-xl p-2 transition-colors", isDark ? "text-white/30 hover:bg-white/5 hover:text-white/60" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
+            <Home className="size-4" />
+          </Link>
+
+          <div className={cn("flex items-center gap-2 text-[11px]", isDark ? "text-white/25" : "text-slate-400")}>
             <FlaskConical className="size-3" />
             <span className="font-medium">آزمایشگاه</span>
-            <ChevronLeft className="size-3 text-white/15" />
-            <span className="font-semibold text-white/60">{currentTool.title}</span>
+            <ChevronLeft className="size-3" />
+            <span className={cn("font-semibold", isDark ? "text-white/60" : "text-slate-600")}>{currentTool.title}</span>
           </div>
 
           <div className="mr-auto flex items-center gap-2">
-            <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            <button onClick={() => setTheme(isDark ? "light" : "dark")}
               className={cn("flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-medium transition-all",
-                theme === "dark"
+                isDark
                   ? "bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
-                  : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700")}>
-              {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
-              {theme === "dark" ? "روشن" : "تاریک"}
+                  : "bg-blue-50 text-blue-600 hover:bg-blue-100")}>
+              {isDark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+              {isDark ? "روشن" : "تاریک"}
             </button>
             <Badge variant="outline" className={cn("rounded-full text-[9px] font-medium",
-              theme === "dark" ? "border-white/[0.06] bg-white/[0.02] text-white/30" : "border-slate-200 bg-slate-50 text-slate-400")}>
+              isDark ? "border-white/[0.06] bg-white/[0.02] text-white/30" : "border-slate-200 bg-white text-slate-500")}>
               <Sparkles className="mr-1 size-2.5" />
               {TOOLS.length} ابزار
             </Badge>
@@ -316,7 +334,7 @@ export default function VirtualLab() {
       </main>
 
       {/* ── Mobile bottom nav ───────────────────────────────────────────── */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-white/[0.06] bg-[#0a1020]/95 backdrop-blur-2xl xl:hidden safe-area-bottom">
+      <nav className={cn("fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-2xl xl:hidden safe-area-bottom", isDark ? "border-white/[0.06] bg-[#0a1020]/95" : "border-slate-200/60 bg-white/95")}>
         <div className="flex items-stretch">
           {[
             { id: "home" as const, icon: Home, label: "خانه", action: () => { selectTool("dna-analysis"); } },
@@ -328,10 +346,10 @@ export default function VirtualLab() {
             return (
               <button key={item.id} onClick={item.action}
                 className={cn("flex flex-1 flex-col items-center gap-1 py-3 transition-colors",
-                  active ? "text-white" : "text-white/25")}>
+                  active ? (isDark ? "text-white" : "text-blue-600") : (isDark ? "text-white/25" : "text-slate-400"))}>
                 <Icon className="size-5" />
                 <span className="text-[9px] font-bold">{item.label}</span>
-                {active && <span className="size-1 rounded-full bg-white/60 -mt-0.5" />}
+                {active && <span className={cn("size-1 rounded-full -mt-0.5", isDark ? "bg-white/60" : "bg-blue-500")} />}
               </button>
             );
           })}

@@ -17,8 +17,10 @@ import {
   Calendar,
   ClipboardList,
   FileText,
+  FlaskConical,
   GraduationCap,
   HelpCircle,
+  Pickaxe,
   Bell,
   ListChecks,
   ShoppingBag,
@@ -76,6 +78,8 @@ export function HomeScreen({ nav, user }: { nav: MiniNav; user: MiniUser }) {
     { label: "سؤالات من", icon: ClipboardList, onClick: () => nav({ name: "questions" }) },
     { label: "جلسات", icon: Calendar, onClick: () => nav({ name: "sessions" }) },
     { label: "گروهها", icon: Users, onClick: () => nav({ name: "groups" }) },
+    { label: "آزمایشگاه مجازی", icon: FlaskConical, onClick: () => { window.open("/lab", "_blank"); } },
+    { label: "بازی ژنوا", icon: Pickaxe, onClick: () => { window.open("/game", "_blank"); } },
   ];
 
   return (

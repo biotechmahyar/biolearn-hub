@@ -610,6 +610,11 @@ export default function Landing() {
                     </span>
                   ))}
                 </div>
+                <div className="mt-3 flex items-center gap-2 text-[10px] text-white/80">
+                  <FlaskConical className="size-4" />
+                  <Dna className="size-4" />
+                  <span>تجزیه کن، آنالیز کن، کشف کن</span>
+                </div>
               </div>
             </Link>
           </motion.div>
