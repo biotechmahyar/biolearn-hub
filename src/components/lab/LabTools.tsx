@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AiInterpretButton } from "@/components/lab/BioAnalysisTools";
 import { faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -103,6 +104,7 @@ function DilutionCalculator() {
         <div className="space-y-2">
           <ResultRow label="حجم محلول مادر" value={`${v1.toFixed(3)} mL`} tone="primary" />
           <ResultRow label="حجم حلال (آب/بافر)" value={`${diluent.toFixed(3)} mL`} />
+        <AiInterpretButton resultText={`Dilution: C1=${stock} mg/mL, C2=${target} mg/mL, V2=${volume} mL → V1=${v1.toFixed(3)} mL, Diluent=${diluent.toFixed(3)} mL`} toolName="محاسبه رقت" />
         </div>
         {!valid ? (
           <p className="text-[11px] text-amber-600 dark:text-amber-400">
@@ -149,6 +151,7 @@ function MolarityCalculator() {
           <ResultRow label="غلظت (mM)" value={`${molarityMm.toFixed(3)} mM`} tone="primary" />
           <ResultRow label="غلظت (M)" value={`${molarityM.toFixed(6)} M`} />
           <ResultRow label="مقدار ماده (mmol)" value={moles.toFixed(4)} />
+        <AiInterpretButton resultText={`Molarity: Mass=${mass} mg, MW=${mw} g/mol, Volume=${volume} mL → ${molarityMm.toFixed(3)} mM (${molarityM.toFixed(6)} M)`} toolName="محاسبه غلظت مولی" />
         </div>
       </CardContent>
     </Card>
@@ -212,6 +215,7 @@ function SerialDilutionCalculator() {
             </tbody>
           </table>
         </div>
+        <AiInterpretButton resultText={`Serial Dilution: Start=${start} mg/mL, ${stepCount} steps, factor=${factor} → ${table.map(r => `${r.label}: ${r.concentration.toPrecision(4)} mg/mL`).join(", ")}`} toolName="سری رقت" />
       </CardContent>
     </Card>
   );
@@ -243,6 +247,7 @@ function CfuCalculator() {
           <NumberField label="حجم تلقیح" value={plated} onChange={setPlated} suffix="mL" />
         </div>
         <ResultRow label="بار میکروبی نمونه" value={`${cfu.toExponential(2)} CFU/mL`} tone="primary" />
+        <AiInterpretButton resultText={`CFU: Colonies=${colonies}, Dilution=10^-${exponent}, Volume=${plated} mL → ${cfu.toExponential(2)} CFU/mL (${reliable ? "reliable" : "outside range"})`} toolName="شمارش CFU" />
         <div className="flex items-center gap-2">
           <Badge variant={reliable ? "secondary" : "outline"} className="rounded-full text-[10px]">
             {reliable ? "شمارش در محدوده معتبر (۳۰–۳۰۰)" : "خارج از محدوده معتبر — رقت را تغییر بده"}
@@ -279,6 +284,7 @@ function MasterMixCalculator() {
         </div>
         <ResultRow label="حجم کل مستر‌میکس" value={`${total.toFixed(1)} µL`} tone="primary" />
         <ResultRow label="حجم هر واکنش (با احتیاط)" value={`${((total / (n || 1)) || 0).toFixed(1)} µL`} />
+        <AiInterpretButton resultText={`MasterMix: ${reactions} reactions × ${perReaction} µL + ${overage}% overage → Total ${total.toFixed(1)} µL`} toolName="مستر‌میکس PCR" />
       </CardContent>
     </Card>
   );

@@ -255,7 +255,7 @@ function SimpleBarChart({ data, color = "#8b5cf6" }: { data: { label: string; va
 
 // ── AI Interpretation ──────────────────────────────────────────────────────
 
-function AiInterpretButton({ resultText, toolName }: { resultText: string; toolName: string }) {
+export function AiInterpretButton({ resultText, toolName }: { resultText: string; toolName: string }) {
   const { isAuthenticated } = useAuth();
   const createConvo = useMutation(api.aiChat.createConversation);
   const sendMessage = useMutation(api.aiChat.sendMessage);
@@ -824,6 +824,7 @@ ${composition.map((c) => `${c.aa} | ${c.three} | ${c.count} | ${c.percent.toFixe
             <div className="flex flex-wrap gap-2">
               <CopyBtn text={result.txt} />
               <DownloadTxtBtn content={result.txt} filename="protein_analysis.txt" />
+              <AiInterpretButton resultText={result.txt} toolName="تحلیل پروتئین" />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -971,6 +972,7 @@ export function GcWindowTool() {
                 rows={result.csvRows}
                 filename="gc_sliding_window.csv"
               />
+              <AiInterpretButton resultText={`GC% Window Analysis\nAverage: ${result.avg.toFixed(1)}%\nMax: ${result.max.toFixed(1)}%\nMin: ${result.min.toFixed(1)}%`} toolName="محاسبه GC%" />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -1100,6 +1102,7 @@ export function PatternSearchTool() {
                 rows={result.csvRows}
                 filename="pattern_search.csv"
               />
+              <AiInterpretButton resultText={`Pattern Search\nPattern: ${pattern}\nMatches: ${result.matches.length}\nPositions: ${result.matches.join(", ")}`} toolName="جستجوی الگو" />
             </div>
 
             {result.matches.length > 0 ? (
@@ -1263,6 +1266,7 @@ export function NucleotideCounterTool() {
                 <ClipboardCopy className="size-3" /> کپی توالی
               </Button>
             </div>
+              <AiInterpretButton resultText={`Nucleotide Count\nType: ${seqType}\nTotal: ${result.total}`} toolName="شمارش نوکلئوتیدها" />
 
             {showChart && (
               <ResultBlock title="📊 نمودار توزیع">

@@ -973,6 +973,7 @@ export function MultiplexPrimerTool() {
         <>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/50" onClick={() => downloadFile(`هدف,Forward,Reverse,Tm Fwd,Tm Rev,GC\n${result.targets.map((t) => `${t.name},${t.fwd},${t.rev},${t.tmFwd},${t.tmRev},${t.gcFwd.toFixed(0)}/${t.gcRev.toFixed(0)}`).join("\n")}`, "multiplex_primers.csv", "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
+            <AiInterpretButton resultText={`Multiplex Primer Design\n${result.targets.map((t) => `${t.name}: Fwd=${t.fwd} Rev=${t.rev}`).join("\n")}`} toolName="پرایمر مولتیپلکس" />
           </div>
           {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/80">⚠️ {w}</p>)}</div>}
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
@@ -1068,6 +1069,7 @@ export function RealTimePrimerTool() {
         <>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/50" onClick={() => downloadFile(`Gene,${geneName}\nForward,${result.fwd}\nReverse,${result.rev}\nTm,${result.tmFwd}/${result.tmRev}\nProduct,${result.productLen} bp`, `qPCR_${geneName || "primers"}.csv`, "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
+            <AiInterpretButton resultText={`qPCR Primer\nGene: ${geneName}\nForward: ${result.fwd}\nReverse: ${result.rev}\nProduct: ${result.productLen} bp`} toolName="پرایمر qPCR" />
           </div>
           {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/80">⚠️ {w}</p>)}</div>}
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
