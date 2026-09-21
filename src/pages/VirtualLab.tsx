@@ -36,7 +36,6 @@ import {
   ArrowDownAZ,
   Beaker,
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { LabTools } from "@/components/lab/LabTools";
 import {
@@ -188,7 +187,7 @@ export default function VirtualLab() {
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 py-4 scrollbar-theme">
+        <div className="flex-1 overflow-y-auto py-4 lab-scrollbar">
           {GROUPS.map((group) => {
             const groupTools = TOOLS.filter((t) => t.group === group.id);
             return (
@@ -250,7 +249,7 @@ export default function VirtualLab() {
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Footer */}
         <div className="border-t border-white/[0.04] p-3">

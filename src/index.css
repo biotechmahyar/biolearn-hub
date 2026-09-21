@@ -325,22 +325,32 @@
 .lab-app table { border-collapse: separate; border-spacing: 0; }
 .lab-app thead th { position: sticky; top: 0; background: #0a1020; z-index: 1; }
 
-/* ── Lab scrollbar (Radix ScrollArea custom thumb) ─────────────────── */
-.lab-app [data-slot="scroll-area-scrollbar"] {
-  width: 6px !important;
+/* ── Lab sidebar scrollbar ───────────────────────────────────────── */
+.lab-app .lab-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 130, 180, 0.35) transparent;
 }
-.lab-app [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"] {
-  background: rgba(120, 130, 180, 0.35) !important;
-  border-radius: 999px !important;
+.lab-app .lab-scrollbar::-webkit-scrollbar {
+  width: 5px;
 }
-.lab-app [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"]:hover {
-  background: rgba(140, 150, 200, 0.55) !important;
+.lab-app .lab-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
-.lab-app [data-slot="scroll-area-viewport"] {
-  scrollbar-width: none !important;
+.lab-app .lab-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(120, 130, 180, 0.35);
+  border-radius: 999px;
 }
-.lab-app [data-slot="scroll-area-viewport"]::-webkit-scrollbar {
-  display: none !important;
+.lab-app .lab-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 150, 200, 0.55);
+}
+.lab-light .lab-app .lab-scrollbar {
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+.lab-light .lab-app .lab-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+.lab-light .lab-app .lab-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* ── Lab light theme ─────────────────────────────────────────────────── */
