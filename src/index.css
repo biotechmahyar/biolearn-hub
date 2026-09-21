@@ -306,36 +306,22 @@
   100% { transform: translateY(100vh); }
 }
 
-/* ── Virtual Lab dark theme overrides ──────────────────────────────────── */
-.lab-dark .bg-background { background-color: #0a0a1a !important; }
-.lab-dark .bg-card { background-color: rgba(255,255,255,0.03) !important; border-color: rgba(255,255,255,0.06) !important; }
-.lab-dark .bg-muted { background-color: rgba(255,255,255,0.06) !important; }
-.lab-dark .bg-muted/50 { background-color: rgba(255,255,255,0.04) !important; }
-.lab-dark .bg-muted/40 { background-color: rgba(255,255,255,0.03) !important; }
-.lab-dark .bg-muted/60 { background-color: rgba(255,255,255,0.05) !important; }
-.lab-dark .text-foreground { color: white !important; }
-.lab-dark .text-muted-foreground { color: rgba(255,255,255,0.5) !important; }
-.lab-dark .border-border { border-color: rgba(255,255,255,0.08) !important; }
-.lab-dark .border-border/50 { border-color: rgba(255,255,255,0.06) !important; }
-.lab-dark input, .lab-dark textarea, .lab-dark select {
-  background-color: rgba(255,255,255,0.05) !important;
-  border-color: rgba(255,255,255,0.1) !important;
-  color: white !important;
+/* ── Virtual Lab premium dark theme ─────────────────────────────────────── */
+.lab-app { font-feature-settings: "ss01", "ss02"; }
+.lab-app input, .lab-app textarea, .lab-app select {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(255,255,255,0.08) !important;
+  color: rgba(255,255,255,0.9) !important;
+  border-radius: 0.75rem;
+  transition: all 0.2s;
 }
-.lab-dark input::placeholder, .lab-dark textarea::placeholder {
-  color: rgba(255,255,255,0.3) !important;
+.lab-app input:focus, .lab-app textarea:focus, .lab-app select:focus {
+  border-color: rgba(99,102,241,0.4) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1) !important;
 }
-.lab-dark .text-violet-600 { color: #a78bfa !important; }
-.lab-dark .dark\:text-violet-400 { color: #a78bfa !important; }
-.lab-dark .bg-violet-500\/5 { background-color: rgba(139,92,246,0.08) !important; }
-.lab-dark .bg-violet-500\/10 { background-color: rgba(139,92,246,0.12) !important; }
-.lab-dark .border-violet-500\/20 { border-color: rgba(139,92,246,0.2) !important; }
-.lab-dark .border-violet-300\/40 { border-color: rgba(139,92,246,0.3) !important; }
-.lab-dark table { color: rgba(255,255,255,0.7) !important; }
-.lab-dark thead { color: rgba(255,255,255,0.4) !important; }
-.lab-dark tbody tr { border-color: rgba(255,255,255,0.06) !important; }
-.lab-dark .bg-emerald-500\/5 { background-color: rgba(16,185,129,0.08) !important; }
-.lab-dark .text-emerald-700, .lab-dark .dark\:text-emerald-300 { color: #6ee7b7 !important; }
-.lab-dark .bg-amber-500\/10 { background-color: rgba(245,158,11,0.1) !important; }
-.lab-dark .text-amber-700, .lab-dark .dark\:text-amber-300 { color: #fcd34d !important; }
-.lab-dark .bg-amber-500\/5 { background-color: rgba(245,158,11,0.06) !important; }
+.lab-app input::placeholder, .lab-app textarea::placeholder {
+  color: rgba(255,255,255,0.2) !important;
+}
+.lab-app table { border-collapse: separate; border-spacing: 0; }
+.lab-app thead th { position: sticky; top: 0; background: #0a1020; z-index: 1; }
+.lab-app .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }

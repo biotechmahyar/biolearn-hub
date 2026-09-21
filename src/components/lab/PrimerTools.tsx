@@ -879,3 +879,206 @@ export function DimerCheckerTool() {
     </div>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  5. MULTIPLEX PRIMER DESIGN
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface MultiplexTarget { id: string; name: string; sequence: string }
+
+export function MultiplexPrimerTool() {
+  const [targets, setTargets] = useState<MultiplexTarget[]>([
+    { id: "1", name: "test1", sequence: "" },
+    { id: "2", name: "test2", sequence: "" },
+  ]);
+  const [primerLen, setPrimerLen] = useState("18");
+  const [tmMin, setTmMin] = useState("55");
+  const [tmMax, setTmMax] = useState("65");
+  const [gcMin, setGcMin] = useState("40");
+  const [gcMax, setGcMax] = useState("60");
+  const [tmDiff, setTmDiff] = useState("5");
+  const [maxDg, setMaxDg] = useState("-7");
+  const [result, setResult] = useState<null | { targets: { name: string; fwd: string; rev: string; tmFwd: number; tmRev: number; gcFwd: number; gcRev: number }[]; warnings: string[] }>(null);
+
+  const addTarget = () => setTargets((p) => [...p, { id: Date.now().toString(), name: `test${p.length + 1}`, sequence: "" }]);
+  const removeTarget = (id: string) => setTargets((p) => p.filter((t) => t.id !== id));
+  const updateTarget = (id: string, field: keyof MultiplexTarget, value: string) =>
+    setTargets((p) => p.map((t) => t.id === id ? { ...t, [field]: value } : t));
+
+  const design = () => {
+    const len = parseInt(primerLen) || 18;
+    const tmLo = parseFloat(tmMin) || 55;
+    const tmHi = parseFloat(tmMax) || 65;
+    const gcLo = parseFloat(gcMin) || 40;
+    const gcHi = parseFloat(gcMax) || 60;
+    const maxTmDiff = parseFloat(tmDiff) || 5;
+    const warnings: string[] = [];
+
+    const designed = targets.map((target) => {
+      const seq = cleanSeq(target.sequence);
+      if (seq.length < len * 2) return { name: target.name, fwd: "—", rev: "—", tmFwd: 0, tmRev: 0, gcFwd: 0, gcRev: 0 };
+      let bestFwd = "", bestFwdTm = 0, bestFwdGc = 0;
+      for (let i = 0; i <= seq.length - len; i++) {
+        const sub = seq.substring(i, i + len); const gc = gcPercent(sub); const tm = tmBasic(sub);
+        if (gc >= gcLo && gc <= gcHi && tm >= tmLo && tm <= tmHi) { bestFwd = sub; bestFwdTm = tm; bestFwdGc = gc; break; }
+      }
+      let bestRev = "", bestRevTm = 0, bestRevGc = 0;
+      for (let i = len; i <= seq.length; i++) {
+        const sub = seq.substring(i - len, i); const rc = reverseComplement(sub); const gc = gcPercent(rc); const tm = tmBasic(rc);
+        if (gc >= gcLo && gc <= gcHi && tm >= tmLo && tm <= tmHi) { bestRev = rc; bestRevTm = tm; bestRevGc = gc; break; }
+      }
+      return { name: target.name, fwd: bestFwd || "یافت نشد", rev: bestRev || "یافت نشد", tmFwd: Math.round(bestFwdTm), tmRev: Math.round(bestRevTm), gcFwd: bestFwdGc, gcRev: bestRevGc };
+    });
+    const tms = designed.filter((d) => d.tmFwd > 0).map((d) => d.tmFwd);
+    if (tms.length > 1 && Math.max(...tms) - Math.min(...tms) > maxTmDiff)
+      warnings.push(`اختلاف Tm (${(Math.max(...tms) - Math.min(...tms)).toFixed(1)}°C) بیشتر از حد مجاز (${maxTmDiff}°C) است`);
+    designed.forEach((d) => { if (d.fwd === "یافت نشد") warnings.push(`برای ${d.name}: Forward یافت نشد`); if (d.rev === "یافت نشد") warnings.push(`برای ${d.name}: Reverse یافت نشد`); });
+    setResult({ targets: designed, warnings });
+  };
+
+  const reset = () => { setTargets([{ id: "1", name: "test1", sequence: "" }, { id: "2", name: "test2", sequence: "" }]); setResult(null); };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-purple-600/20 text-purple-400"><Pipette className="size-5" /></span>
+        <div><h2 className="text-lg font-black text-white">پرایمر مولتیپلکس</h2><p className="text-[11px] text-white/40">طراحی همزمان پرایمر برای چندین هدف</p></div>
+      </div>
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+        <label className="text-[11px] font-bold text-white/50">🧬 ورودی توالی‌های هدف</label>
+        {targets.map((target, i) => (
+          <div key={target.id} className="rounded-xl border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-purple-300">🎯 هدف {i + 1}</span>
+              {targets.length > 1 && <button onClick={() => removeTarget(target.id)} className="mr-auto text-[10px] text-rose-400/60 hover:text-rose-400">✖️ حذف</button>}
+            </div>
+            <Input value={target.name} onChange={(e) => updateTarget(target.id, "name", e.target.value)} placeholder="نام هدف" className="h-8 text-[11px]" />
+            <Textarea value={target.sequence} onChange={(e) => updateTarget(target.id, "sequence", e.target.value)} rows={2} dir="ltr" placeholder="TGCGCAAAG..." className="font-mono text-[11px]" />
+          </div>
+        ))}
+        <button onClick={addTarget} className="w-full rounded-xl border border-dashed border-white/10 py-2 text-[11px] font-medium text-white/30 hover:border-white/20 hover:text-white/50 transition-colors">➕ افزودن هدف جدید</button>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div><label className="mb-1 block text-[10px] text-white/30">طول پرایمر</label><Input type="number" value={primerLen} onChange={(e) => setPrimerLen(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">محدوده Tm</label><div className="flex gap-1"><Input type="number" value={tmMin} onChange={(e) => setTmMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={tmMax} onChange={(e) => setTmMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">محدوده GC%</label><div className="flex gap-1"><Input type="number" value={gcMin} onChange={(e) => setGcMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={gcMax} onChange={(e) => setGcMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">حداکثر اختلاف Tm</label><Input type="number" value={tmDiff} onChange={(e) => setTmDiff(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">حداکثر دیمر مجاز</label><Input value={maxDg} onChange={(e) => setMaxDg(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={design} className="h-9 gap-1.5 bg-purple-600 text-white hover:bg-purple-500 text-[11px] font-bold">🎯 طراحی پرایمر مولتیپلکس</Button>
+          {result && <Button onClick={reset} variant="ghost" className="h-9 text-[11px] text-white/30 hover:text-white/60">🔄 Reset</Button>}
+        </div>
+      </div>
+      {result && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/50" onClick={() => downloadFile(`هدف,Forward,Reverse,Tm Fwd,Tm Rev,GC\n${result.targets.map((t) => `${t.name},${t.fwd},${t.rev},${t.tmFwd},${t.tmRev},${t.gcFwd.toFixed(0)}/${t.gcRev.toFixed(0)}`).join("\n")}`, "multiplex_primers.csv", "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
+          </div>
+          {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/80">⚠️ {w}</p>)}</div>}
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead className="text-white/30"><tr><th className="px-2 py-1 text-right">هدف</th><th className="px-2 py-1 text-right">Forward</th><th className="px-2 py-1 text-right">Reverse</th><th className="px-2 py-1 text-right">Tm</th><th className="px-2 py-1 text-right">GC%</th></tr></thead>
+                <tbody>{result.targets.map((t, i) => (
+                  <tr key={i} className="border-t border-white/[0.04]"><td className="px-2 py-1.5 font-bold text-purple-300">{t.name}</td><td className="px-2 py-1.5 font-mono text-[10px] text-cyan-300" dir="ltr">{t.fwd}</td><td className="px-2 py-1.5 font-mono text-[10px] text-rose-300" dir="ltr">{t.rev}</td><td className="px-2 py-1.5 text-white/60">{t.tmFwd}/{t.tmRev}°C</td><td className="px-2 py-1.5 text-white/50">{t.gcFwd.toFixed(0)}/{t.gcRev.toFixed(0)}%</td></tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  6. REAL-TIME (qPCR) PRIMER DESIGN
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function RealTimePrimerTool() {
+  const [geneName, setGeneName] = useState("");
+  const [seqInput, setSeqInput] = useState("");
+  const [primerLen, setPrimerLen] = useState("18");
+  const [tmMin, setTmMin] = useState("58");
+  const [tmMax, setTmMax] = useState("62");
+  const [gcMin, setGcMin] = useState("45");
+  const [gcMax, setGcMax] = useState("60");
+  const [productMin, setProductMin] = useState("70");
+  const [productMax, setProductMax] = useState("150");
+  const [tmDiff, setTmDiff] = useState("2.0");
+  const [hairpin, setHairpin] = useState(false);
+  const [result, setResult] = useState<null | { fwd: string; rev: string; tmFwd: number; tmRev: number; gcFwd: number; gcRev: number; productLen: number; warnings: string[] }>(null);
+
+  const design = () => {
+    const seq = cleanSeq(seqInput); const len = parseInt(primerLen) || 18;
+    const tmLo = parseFloat(tmMin) || 58; const tmHi = parseFloat(tmMax) || 62;
+    const gcLo = parseFloat(gcMin) || 45; const gcHi = parseFloat(gcMax) || 60;
+    const prodMin = parseInt(productMin) || 70; const prodMax = parseInt(productMax) || 150;
+    const maxTmDiff = parseFloat(tmDiff) || 2; const warnings: string[] = [];
+    if (seq.length < prodMax) warnings.push("طول توالی کمتر از حداکثر محصول است");
+    let bestFwd = "", bestFwdTm = 0, bestFwdGc = 0, bestFwdPos = 0;
+    for (let i = 0; i <= seq.length - len; i++) {
+      const sub = seq.substring(i, i + len); const gc = gcPercent(sub); const tm = tmBasic(sub);
+      if (gc >= gcLo && gc <= gcHi && tm >= tmLo && tm <= tmHi) { bestFwd = sub; bestFwdTm = tm; bestFwdGc = gc; bestFwdPos = i; break; }
+    }
+    let bestRev = "", bestRevTm = 0, bestRevGc = 0, bestRevPos = 0;
+    for (let start = bestFwdPos + prodMin - len; start <= Math.min(bestFwdPos + prodMax - len, seq.length - len); start++) {
+      if (start < 0) continue;
+      const sub = seq.substring(start, start + len); const rc = reverseComplement(sub); const gc = gcPercent(rc); const tm = tmBasic(rc);
+      if (gc >= gcLo && gc <= gcHi && tm >= tmLo && tm <= tmHi) { bestRev = rc; bestRevTm = tm; bestRevGc = gc; bestRevPos = start + len; break; }
+    }
+    if (!bestFwd) warnings.push("Forward یافت نشد");
+    if (!bestRev) warnings.push("Reverse یافت نشد");
+    if (bestFwd && bestRev && Math.abs(bestFwdTm - bestRevTm) > maxTmDiff)
+      warnings.push(`اختلاف Tm (${Math.abs(bestFwdTm - bestRevTm).toFixed(1)}°C) بیشتر از حد مجاز (${maxTmDiff}°C) است`);
+    if (hairpin && bestFwd && checkHairpin(bestFwd).found) warnings.push("hairpin در Forward شناسایی شد");
+    if (hairpin && bestRev && checkHairpin(bestRev).found) warnings.push("hairpin در Reverse شناسایی شد");
+    setResult({ fwd: bestFwd || "یافت نشد", rev: bestRev || "یافت نشد", tmFwd: Math.round(bestFwdTm), tmRev: Math.round(bestRevTm), gcFwd: bestFwdGc, gcRev: bestRevGc, productLen: bestFwd && bestRev ? bestRevPos - bestFwdPos : 0, warnings });
+  };
+
+  const reset = () => { setSeqInput(""); setGeneName(""); setResult(null); };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-amber-600/20 text-amber-400"><Thermometer className="size-5" /></span>
+        <div><h2 className="text-lg font-black text-white">طراحی پرایمر qPCR</h2><p className="text-[11px] text-white/40">طراحی پرایمر برای Real-Time PCR</p></div>
+      </div>
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div><label className="mb-1 block text-[10px] text-white/30">🎯 نام ژن / هدف</label><Input value={geneName} onChange={(e) => setGeneName(e.target.value)} placeholder="مثلاً GAPDH" className="h-8 text-[11px]" /></div>
+        </div>
+        <div><label className="mb-1 block text-[10px] text-white/30">🧬 توالی DNA هدف</label><Textarea value={seqInput} onChange={(e) => setSeqInput(e.target.value)} rows={3} dir="ltr" placeholder="AAGGATAGTTCCGCCTAGG..." className="font-mono text-[11px]" /></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div><label className="mb-1 block text-[10px] text-white/30">طول پرایمر</label><Input type="number" value={primerLen} onChange={(e) => setPrimerLen(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">محدوده Tm</label><div className="flex gap-1"><Input type="number" value={tmMin} onChange={(e) => setTmMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={tmMax} onChange={(e) => setTmMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">محدوده GC%</label><div className="flex gap-1"><Input type="number" value={gcMin} onChange={(e) => setGcMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={gcMax} onChange={(e) => setGcMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">طول محصول (bp)</label><div className="flex gap-1"><Input type="number" value={productMin} onChange={(e) => setProductMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={productMax} onChange={(e) => setProductMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">حداکثر اختلاف Tm</label><Input type="number" value={tmDiff} onChange={(e) => setTmDiff(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-white/30">جلوگیری از Hairpin</label>
+            <button onClick={() => setHairpin(!hairpin)} className={cn("h-8 rounded-xl border px-3 text-[11px] font-medium transition-colors", hairpin ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-white/10 bg-white/5 text-white/40")}>{hairpin ? "فعال" : "غیرفعال"}</button>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={design} className="h-9 gap-1.5 bg-amber-600 text-white hover:bg-amber-500 text-[11px] font-bold">🔬 طراحی پرایمر qPCR</Button>
+          {result && <Button onClick={reset} variant="ghost" className="h-9 text-[11px] text-white/30 hover:text-white/60">🔄 Reset</Button>}
+        </div>
+      </div>
+      {result && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/50" onClick={() => downloadFile(`Gene,${geneName}\nForward,${result.fwd}\nReverse,${result.rev}\nTm,${result.tmFwd}/${result.tmRev}\nProduct,${result.productLen} bp`, `qPCR_${geneName || "primers"}.csv`, "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
+          </div>
+          {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/80">⚠️ {w}</p>)}</div>}
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl bg-white/[0.03] p-4"><p className="text-[10px] font-bold text-cyan-400/60 mb-2">🔹 Forward</p><p className="font-mono text-sm text-cyan-300" dir="ltr">{result.fwd}</p><div className="mt-2 flex gap-3 text-[10px] text-white/40"><span>Tm: {result.tmFwd}°C</span><span>GC: {result.gcFwd.toFixed(1)}%</span></div></div>
+              <div className="rounded-xl bg-white/[0.03] p-4"><p className="text-[10px] font-bold text-rose-400/60 mb-2">🔸 Reverse</p><p className="font-mono text-sm text-rose-300" dir="ltr">{result.rev}</p><div className="mt-2 flex gap-3 text-[10px] text-white/40"><span>Tm: {result.tmRev}°C</span><span>GC: {result.gcRev.toFixed(1)}%</span></div></div>
+            </div>
+            {result.productLen > 0 && <div className="rounded-xl bg-white/[0.03] p-3 text-center"><p className="text-[10px] text-white/30">طول محصول</p><p className="text-lg font-black text-amber-300">{result.productLen} bp</p></div>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
