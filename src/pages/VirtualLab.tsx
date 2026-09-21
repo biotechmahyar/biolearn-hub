@@ -34,6 +34,9 @@ import {
   Menu,
   X,
   ArrowDownAZ,
+  ArrowRightLeft,
+  Beaker,
+  Target,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { LabTools } from "@/components/lab/LabTools";
@@ -59,6 +62,16 @@ import {
   MultiplexPrimerTool,
   RealTimePrimerTool,
 } from "@/components/lab/PrimerTools";
+import {
+  OrfFinderTool,
+  SequenceAlignmentTool,
+  FormatConverterTool,
+  PcrSimulatorTool,
+  CodonUsageTool,
+  GcSkewTool,
+  ChiSquareTool,
+  ProbeDesignerTool,
+} from "@/components/lab/AdvancedTools";
 import { cn } from "@/lib/utils";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -71,7 +84,9 @@ type ToolId =
   | "calculators"
   | "primer-design" | "blast-search" | "tm-calculator" | "dimer-checker"
   | "multiplex" | "realtime"
-  | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation";
+  | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation"
+  | "orf-finder" | "seq-alignment" | "format-converter" | "pcr-simulator"
+  | "codon-usage" | "gc-skew" | "chi-square" | "probe-designer";
 
 interface ToolDef {
   id: ToolId;
@@ -80,7 +95,7 @@ interface ToolDef {
   description: string;
   icon: typeof Dna;
   component: React.ComponentType;
-  group: "sequence" | "calc" | "primer" | "enzyme";
+  group: "sequence" | "calc" | "primer" | "enzyme" | "advanced";
 }
 
 const TOOLS: ToolDef[] = [
@@ -101,16 +116,20 @@ const TOOLS: ToolDef[] = [
   { id: "enzyme-search", title: "جستجوی آنزیم", titleEn: "Enzyme Search", description: "۴ نوع جستجوی مختلف", icon: Search, component: EnzymeSearchTool, group: "enzyme" },
   { id: "enzyme-compat", title: "سازگاری آنزیم‌ها", titleEn: "Compatibility", description: "Compatible & Isoschizomers", icon: GitCompare, component: EnzymeCompatibilityTool, group: "enzyme" },
   { id: "methylation", title: "آنالیز متیلاسیون", titleEn: "Methylation", description: "شناسایی جزایر CpG", icon: Atom, component: DnaMethylationTool, group: "enzyme" },
+  // ── Advanced tools
+  { id: "orf-finder", title: "یافتن ORF", titleEn: "ORF Finder", description: "شناسایی ORF و ترجمه ۶ فریم", icon: FileSearch, component: OrfFinderTool, group: "advanced" },
+  { id: "seq-alignment", title: "همترازی توالی", titleEn: "Alignment", description: "Needleman-Wunsch Global Alignment", icon: GitCompare, component: SequenceAlignmentTool, group: "advanced" },
+  { id: "format-converter", title: "تبدیل فرمت", titleEn: "Convert", description: "DNA ↔ RNA ↔ Protein", icon: ArrowRightLeft, component: FormatConverterTool, group: "advanced" },
+  { id: "pcr-simulator", title: "شبیه‌سازی PCR", titleEn: "PCR Sim", description: "شبیه‌سازی تکثیر PCR", icon: Beaker, component: PcrSimulatorTool, group: "advanced" },
+  { id: "codon-usage", title: "فراوانی کدون", titleEn: "Codon", description: "جدول فراوانی کدون‌ها", icon: BarChart3, component: CodonUsageTool, group: "advanced" },
+  { id: "gc-skew", title: "GC Skew / AT Skew", titleEn: "GC Skew", description: "آنالیز عدم تقارن GC در ژنوم", icon: GitCompare, component: GcSkewTool, group: "advanced" },
+  { id: "chi-square", title: "آزمون Chi-Square", titleEn: "Chi-Sq", description: "آزمون آماری ترکیب نوکلئوتیدی", icon: Shield, component: ChiSquareTool, group: "advanced" },
+  { id: "probe-designer", title: "طراحی Probe", titleEn: "Probe", description: "طراحی Probe هیبریداسیون", icon: Target, component: ProbeDesignerTool, group: "advanced" },
 ];
 
 const FUTURE_TOOLS = [
-  { title: "آنزیم‌های محدودکننده (به‌زودی)", icon: Shield, color: "#f43f5e" },
-  { title: "ORF و ترجمه", icon: FileSearch, color: "#818cf8" },
-  { title: "همترازی توالی", icon: GitCompare, color: "#2dd4bf" },
-  { title: "تبدیل فرمت", icon: FileSearch, color: "#fb923c" },
-  { title: "شبیه‌سازی PCR", icon: TestTube2, color: "#a78bfa" },
-  { title: "ابزارهای عمومی", icon: Wrench, color: "#94a3b8" },
-  { title: "ابزارهای تخصصی", icon: Atom, color: "#f472b6" },
+  { title: "ترجمه ۶ فریم پروتئین (پیشرفته)", icon: Atom, color: "#f472b6" },
+  { title: "ابزارهای تخصصی", icon: Zap, color: "#fb923c" },
   { title: "دیتاست بیوانفورماتیک", icon: Database, color: "#34d399" },
 ];
 
@@ -119,6 +138,7 @@ const GROUPS = [
   { id: "calc" as const, label: "ابزارها و شبیه‌سازها", accent: "from-emerald-500 to-teal-500" },
   { id: "primer" as const, label: "ابزارهای پرایمر", accent: "from-cyan-500 to-blue-500" },
   { id: "enzyme" as const, label: "آنزیم‌های محدودکننده", accent: "from-rose-500 to-pink-500" },
+  { id: "advanced" as const, label: "ابزارهای پیشرفته", accent: "from-amber-500 to-orange-500" },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
