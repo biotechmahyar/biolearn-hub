@@ -4,7 +4,7 @@
  * A standalone full-screen application with premium SaaS-quality design.
  * Sophisticated visual identity, not generic dark theme.
  */
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { Link } from "react-router";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -22,6 +22,8 @@ import {
   SearchCode,
   Shield,
   Sparkles,
+  Sun,
+  Moon,
   TestTube2,
   Thermometer,
   Wrench,
@@ -115,6 +117,14 @@ export default function VirtualLab() {
   const [activeTool, setActiveTool] = useState<ToolId>("dna-analysis");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileNav, setMobileNav] = useState<"home" | "tools" | "primer">("tools");
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    try { return (localStorage.getItem("lab-theme") as "dark" | "light") || "dark"; } catch { return "dark"; }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("lab-theme", theme);
+    document.documentElement.classList.toggle("lab-light", theme === "light");
+  }, [theme]);
 
   const currentTool = TOOLS.find((t) => t.id === activeTool) ?? TOOLS[0];
   const ToolComponent = currentTool.component;
@@ -127,7 +137,7 @@ export default function VirtualLab() {
   }, []);
 
   return (
-    <div className="lab-app flex h-screen overflow-hidden bg-[#060b18] text-white">
+    <div className={cn("lab-app flex h-screen overflow-hidden text-white transition-colors duration-300", theme === "dark" ? "bg-[#060b18]" : "bg-[#f8fafc] text-slate-900")}>
       {/* ── Ambient background ──────────────────────────────────────────── */}
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-indigo-600/[0.07] blur-[150px]" />
@@ -141,7 +151,7 @@ export default function VirtualLab() {
       {/* ── Sidebar (desktop) ───────────────────────────────────────────── */}
       <aside className={cn(
         "relative z-30 flex w-[280px] flex-col border-l border-white/[0.04] transition-transform duration-300 ease-out",
-        "bg-[#0a1020]/80 backdrop-blur-2xl",
+        cn(theme === "dark" ? "bg-[#0a1020]/80" : "bg-white/90 border-l-slate-200/50", "backdrop-blur-2xl"),
         "fixed inset-y-0 right-0 xl:relative xl:translate-x-0",
         sidebarOpen ? "translate-x-0" : "translate-x-full",
       )}>
@@ -164,7 +174,7 @@ export default function VirtualLab() {
         </div>
 
         {/* Navigation */}
-        <ScrollArea className="flex-1 py-4">
+        <ScrollArea className="flex-1 py-4 scrollbar-theme">
           {GROUPS.map((group) => {
             const groupTools = TOOLS.filter((t) => t.group === group.id);
             return (
@@ -261,7 +271,16 @@ export default function VirtualLab() {
           </div>
 
           <div className="mr-auto flex items-center gap-2">
-            <Badge variant="outline" className="rounded-full border-white/[0.06] bg-white/[0.02] text-[9px] font-medium text-white/30">
+            <button onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={cn("flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-medium transition-all",
+                theme === "dark"
+                  ? "bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
+                  : "bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700")}>
+              {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+              {theme === "dark" ? "روشن" : "تاریک"}
+            </button>
+            <Badge variant="outline" className={cn("rounded-full text-[9px] font-medium",
+              theme === "dark" ? "border-white/[0.06] bg-white/[0.02] text-white/30" : "border-slate-200 bg-slate-50 text-slate-400")}>
               <Sparkles className="mr-1 size-2.5" />
               {TOOLS.length} ابزار
             </Badge>

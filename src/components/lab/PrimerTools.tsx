@@ -193,7 +193,8 @@ function AiInterpretButton({ resultText, toolName }: { resultText: string; toolN
       const convoId = await createConvo({ title: `تفسیر ${toolName}` });
       await sendMessage({ conversationId: convoId as any, content: `لطفاً نتایج زیر را تفسیر کن:\n\n${resultText}` });
       setDone(true);
-      toast.success("تفسیر ارسال شد!");
+      window.open("/ai-chat", "_blank");
+      toast.success("چت هوش مصنوعی در تب جدید باز شد");
     } catch (e) { toast.error(e instanceof Error ? e.message : "خطا"); }
     finally { setLoading(false); }
   }, [isAuthenticated, resultText, toolName, createConvo, sendMessage]);

@@ -324,4 +324,43 @@
 }
 .lab-app table { border-collapse: separate; border-spacing: 0; }
 .lab-app thead th { position: sticky; top: 0; background: #0a1020; z-index: 1; }
+
+/* ── Lab scrollbar (Radix ScrollArea custom thumb) ─────────────────── */
+.lab-app [data-slot="scroll-area-scrollbar"] {
+  width: 6px !important;
+}
+.lab-app [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"] {
+  background: rgba(120, 130, 180, 0.35) !important;
+  border-radius: 999px !important;
+}
+.lab-app [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"]:hover {
+  background: rgba(140, 150, 200, 0.55) !important;
+}
+.lab-app [data-slot="scroll-area-viewport"] {
+  scrollbar-width: none !important;
+}
+.lab-app [data-slot="scroll-area-viewport"]::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* ── Lab light theme ─────────────────────────────────────────────────── */
+.lab-light .lab-app input, .lab-light .lab-app textarea, .lab-light .lab-app select {
+  background: rgba(0,0,0,0.03) !important;
+  border-color: rgba(0,0,0,0.1) !important;
+  color: rgba(0,0,0,0.85) !important;
+}
+.lab-light .lab-app input:focus, .lab-light .lab-app textarea:focus, .lab-light .lab-app select:focus {
+  border-color: rgba(99,102,241,0.4) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.08) !important;
+}
+.lab-light .lab-app input::placeholder, .lab-light .lab-app textarea::placeholder {
+  color: rgba(0,0,0,0.3) !important;
+}
+.lab-light .lab-app [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"] {
+  background: rgba(0,0,0,0.18) !important;
+}
+.lab-light .lab-app [data-slot="scroll-area-scrollbar"] > [data-slot="scroll-area-thumb"]:hover {
+  background: rgba(0,0,0,0.3) !important;
+}
+.lab-light .lab-app thead th { background: #f1f5f9; }
 .lab-app .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }

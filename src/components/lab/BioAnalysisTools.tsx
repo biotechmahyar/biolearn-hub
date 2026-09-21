@@ -275,7 +275,8 @@ export function AiInterpretButton({ resultText, toolName }: { resultText: string
         content: `لطفاً نتایج زیر را از ابزار «${toolName}» آزمایشگاه مجازی ژنوا تفسیر کن. به زبان ساده و علمی توضیح بده که هر عدد چه معنایی دارد و چه نتیجه‌ای می‌توان گرفت.\n\n${resultText}`,
       });
       setDone(true);
-      toast.success("تفسیر با هوش مصنوعی ارسال شد! برای مشاهده پاسخ به بخش هوش مصنوعی بروید.");
+      window.open("/ai-chat", "_blank");
+      toast.success("چت هوش مصنوعی در تب جدید باز شد");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "خطا در ارسال تفسیر");
     } finally {
