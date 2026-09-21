@@ -34,7 +34,6 @@ import {
   Menu,
   X,
   ArrowDownAZ,
-  Beaker,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { LabTools } from "@/components/lab/LabTools";
@@ -129,7 +128,7 @@ const GROUPS = [
 export default function VirtualLab() {
   const [activeTool, setActiveTool] = useState<ToolId>("dna-analysis");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [mobileNav, setMobileNav] = useState<"home" | "tools" | "primer">("tools");
+  const [toolSearch, setToolSearch] = useState("");
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     try { return (localStorage.getItem("lab-theme") as "dark" | "light") || "dark"; } catch { return "dark"; }
   });
@@ -143,10 +142,30 @@ export default function VirtualLab() {
   const ToolComponent = currentTool.component;
   const currentGroup = GROUPS.find((g) => g.id === currentTool.group);
 
+  const filteredTools = useMemo(() => {
+    if (!toolSearch.trim()) return TOOLS;
+    const q = toolSearch.trim().toLowerCase();
+    return TOOLS.filter((t) =>
+      t.title.toLowerCase().includes(q) ||
+      t.titleEn.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q)
+    );
+  }, [toolSearch]);
+
+  const filteredGroups = useMemo(() => {
+    if (!toolSearch.trim()) return GROUPS;
+    return GROUPS.filter((g) => filteredTools.some((t) => t.group === g.id));
+  }, [toolSearch, filteredTools]);
+
+  const filteredFutureTools = useMemo(() => {
+    if (!toolSearch.trim()) return FUTURE_TOOLS;
+    const q = toolSearch.trim().toLowerCase();
+    return FUTURE_TOOLS.filter((t) => t.title.toLowerCase().includes(q));
+  }, [toolSearch]);
+
   const selectTool = useCallback((id: ToolId) => {
     setActiveTool(id);
     setSidebarOpen(false);
-    setMobileNav("tools");
   }, []);
 
   const isDark = theme === "dark";
@@ -198,10 +217,36 @@ export default function VirtualLab() {
           </button>
         </div>
 
+        {/* Search */}
+        <div className={cn("px-4 pb-3 pt-2", isDark ? "" : "")}>
+          <div className={cn(
+            "relative flex items-center gap-2 rounded-xl border px-3 py-2 transition-all",
+            isDark ? "border-white/[0.06] bg-white/[0.03] focus-within:border-indigo-500/40 focus-within:bg-white/[0.05]" : "border-slate-200 bg-white/60 focus-within:border-blue-400 focus-within:bg-white",
+          )}>
+            <Search className={cn("size-3.5 shrink-0", isDark ? "text-white/25" : "text-slate-400")} />
+            <input
+              type="text"
+              placeholder="جستجوی ابزار..."
+              value={toolSearch}
+              onChange={(e) => setToolSearch(e.target.value)}
+              className={cn(
+                "w-full bg-transparent text-[11px] font-medium outline-none placeholder:text-[11px]",
+                isDark ? "text-white placeholder:text-white/20" : "text-slate-700 placeholder:text-slate-400",
+              )}
+            />
+            {toolSearch && (
+              <button onClick={() => setToolSearch("")} className={cn("rounded-md p-0.5 transition-colors", isDark ? "text-white/20 hover:text-white/50" : "text-slate-300 hover:text-slate-500")}>
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Navigation */}
         <div className="flex-1 overflow-y-auto py-4 lab-scrollbar">
-          {GROUPS.map((group) => {
-            const groupTools = TOOLS.filter((t) => t.group === group.id);
+          {filteredGroups.map((group) => {
+            const groupTools = filteredTools.filter((t) => t.group === group.id);
+            if (groupTools.length === 0) return null;
             return (
               <div key={group.id} className="mb-5">
                 <div className="px-5 mb-2">
@@ -244,11 +289,13 @@ export default function VirtualLab() {
           })}
 
           {/* Coming Soon */}
-          <div className="px-5 mb-2">
-            <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", isDark ? "text-white/15" : "text-slate-300")}>به‌زودی</p>
-          </div>
-          <div className="space-y-0.5 px-3">
-            {FUTURE_TOOLS.map((tool) => {
+          {filteredFutureTools.length > 0 && (
+            <>
+              <div className="px-5 mb-2">
+                <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", isDark ? "text-white/15" : "text-slate-300")}>به‌زودی</p>
+              </div>
+              <div className="space-y-0.5 px-3">
+                {filteredFutureTools.map((tool) => {
               const Icon = tool.icon;
               return (
                 <div key={tool.title} className="flex items-center gap-3 rounded-xl px-3 py-2 opacity-25">
@@ -260,7 +307,15 @@ export default function VirtualLab() {
                 </div>
               );
             })}
-          </div>
+              </div>
+            </>
+          )}
+          {toolSearch && filteredTools.length === 0 && filteredFutureTools.length === 0 && (
+            <div className="px-5 py-8 text-center">
+              <Search className={cn("mx-auto mb-2 size-8", isDark ? "text-white/10" : "text-slate-300")} />
+              <p className={cn("text-[11px] font-medium", isDark ? "text-white/20" : "text-slate-400")}>ابزاری یافت نشد</p>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -333,28 +388,6 @@ export default function VirtualLab() {
         </div>
       </main>
 
-      {/* ── Mobile bottom nav ───────────────────────────────────────────── */}
-      <nav className={cn("fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-2xl xl:hidden safe-area-bottom", isDark ? "border-white/[0.06] bg-[#0a1020]/95" : "border-slate-200/60 bg-white/95")}>
-        <div className="flex items-stretch">
-          {[
-            { id: "home" as const, icon: Home, label: "خانه", action: () => { selectTool("dna-analysis"); } },
-            { id: "tools" as const, icon: Beaker, label: "تحلیل", action: () => { selectTool("dna-analysis"); } },
-            { id: "primer" as const, icon: Pipette, label: "پرایمر", action: () => { selectTool("primer-design"); } },
-          ].map((item) => {
-            const Icon = item.icon;
-            const active = mobileNav === item.id || (item.id === "tools" && currentTool.group === "sequence") || (item.id === "primer" && currentTool.group === "primer");
-            return (
-              <button key={item.id} onClick={item.action}
-                className={cn("flex flex-1 flex-col items-center gap-1 py-3 transition-colors",
-                  active ? (isDark ? "text-white" : "text-blue-600") : (isDark ? "text-white/25" : "text-slate-400"))}>
-                <Icon className="size-5" />
-                <span className="text-[9px] font-bold">{item.label}</span>
-                {active && <span className={cn("size-1 rounded-full -mt-0.5", isDark ? "bg-white/60" : "bg-blue-500")} />}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
     </div>
   );
 }
