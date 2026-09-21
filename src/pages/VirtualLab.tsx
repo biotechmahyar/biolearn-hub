@@ -15,6 +15,7 @@ import {
   Dna,
   FlaskConical,
   FileSearch,
+  Scissors,
   GitCompare,
   Home,
   Lock,
@@ -27,6 +28,7 @@ import {
   TestTube2,
   Thermometer,
   Wrench,
+  Search,
   Zap,
   Database,
   Menu,
@@ -46,6 +48,12 @@ import {
   NucleotideCounterTool,
 } from "@/components/lab/BioAnalysisTools";
 import {
+  RestrictionMapperTool,
+  EnzymeSearchTool,
+  EnzymeCompatibilityTool,
+  DnaMethylationTool,
+} from "@/components/lab/RestrictionTools";
+import {
   PrimerDesignTool,
   BlastSearchTool,
   TmCalculatorTool,
@@ -64,7 +72,8 @@ type ToolId =
   | "gc-window" | "pattern-search" | "nucleotide-counter"
   | "calculators"
   | "primer-design" | "blast-search" | "tm-calculator" | "dimer-checker"
-  | "multiplex" | "realtime";
+  | "multiplex" | "realtime"
+  | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation";
 
 interface ToolDef {
   id: ToolId;
@@ -73,7 +82,7 @@ interface ToolDef {
   description: string;
   icon: typeof Dna;
   component: React.ComponentType;
-  group: "sequence" | "calc" | "primer";
+  group: "sequence" | "calc" | "primer" | "enzyme";
 }
 
 const TOOLS: ToolDef[] = [
@@ -90,10 +99,14 @@ const TOOLS: ToolDef[] = [
   { id: "dimer-checker", title: "بررسی دیمر", titleEn: "Dimer Check", description: "تشخیص دیمر و Hairpin", icon: Zap, component: DimerCheckerTool, group: "primer" },
   { id: "multiplex", title: "پرایمر مولتیپلکس", titleEn: "Multiplex", description: "طراحی همزمان چند پرایمر", icon: Pipette, component: MultiplexPrimerTool, group: "primer" },
   { id: "realtime", title: "پرایمر qPCR", titleEn: "Real-Time", description: "طراحی پرایمر Real-Time PCR", icon: Thermometer, component: RealTimePrimerTool, group: "primer" },
+  { id: "restriction-mapper", title: "Restriction Mapper", titleEn: "Restriction Map", description: "جستجوی جایگاه برش در توالی", icon: Scissors, component: RestrictionMapperTool, group: "enzyme" },
+  { id: "enzyme-search", title: "جستجوی آنزیم", titleEn: "Enzyme Search", description: "۴ نوع جستجوی مختلف", icon: Search, component: EnzymeSearchTool, group: "enzyme" },
+  { id: "enzyme-compat", title: "سازگاری آنزیم‌ها", titleEn: "Compatibility", description: "Compatible & Isoschizomers", icon: GitCompare, component: EnzymeCompatibilityTool, group: "enzyme" },
+  { id: "methylation", title: "آنالیز متیلاسیون", titleEn: "Methylation", description: "شناسایی جزایر CpG", icon: Atom, component: DnaMethylationTool, group: "enzyme" },
 ];
 
 const FUTURE_TOOLS = [
-  { title: "آنزیم‌های محدودکننده", icon: Shield, color: "#f43f5e" },
+  { title: "آنزیم‌های محدودکننده (به‌زودی)", icon: Shield, color: "#f43f5e" },
   { title: "ORF و ترجمه", icon: FileSearch, color: "#818cf8" },
   { title: "همترازی توالی", icon: GitCompare, color: "#2dd4bf" },
   { title: "تبدیل فرمت", icon: FileSearch, color: "#fb923c" },
@@ -107,6 +120,7 @@ const GROUPS = [
   { id: "sequence" as const, label: "تحلیل توالی", accent: "from-indigo-500 to-violet-500" },
   { id: "calc" as const, label: "ابزارها و شبیه‌سازها", accent: "from-emerald-500 to-teal-500" },
   { id: "primer" as const, label: "ابزارهای پرایمر", accent: "from-cyan-500 to-blue-500" },
+  { id: "enzyme" as const, label: "آنزیم‌های محدودکننده", accent: "from-rose-500 to-pink-500" },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
