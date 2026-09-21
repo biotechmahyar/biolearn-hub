@@ -11,7 +11,8 @@
  *
  * All computations are purely client-side. No data is sent to the server.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useMutation } from "convex/react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -19,16 +20,20 @@ import {
   ClipboardCopy,
   Download,
   FileText,
+  Loader2,
   Search,
   SearchCode,
+  Sparkles,
   Dna,
   ArrowDownAZ,
 } from "lucide-react";
+import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -178,8 +183,8 @@ function downloadCsv(headers: string[], rows: (string | number)[][], filename: s
 
 function ResultBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 space-y-2">
-      <h4 className="text-xs font-bold text-violet-600 dark:text-violet-400">{title}</h4>
+    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3 backdrop-blur-sm">
+      <h4 className="text-xs font-black tracking-wide text-violet-300/80">{title}</h4>
       {children}
     </div>
   );
@@ -187,9 +192,9 @@ function ResultBlock({ title, children }: { title: string; children: React.React
 
 function KV({ label, value, primary }: { label: string; value: string; primary?: boolean }) {
   return (
-    <div className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-1.5 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className={cn("font-bold", primary && "text-violet-600 dark:text-violet-400")} dir="ltr">{value}</span>
+    <div className="flex items-center justify-between rounded-xl bg-white/[0.04] px-4 py-2.5 text-xs">
+      <span className="text-white/50">{label}</span>
+      <span className={cn("font-black tabular-nums", primary ? "text-violet-300" : "text-white/80")} dir="ltr">{value}</span>
     </div>
   );
 }
@@ -226,20 +231,87 @@ function DownloadCsvBtn({ headers, rows, filename }: { headers: string[]; rows: 
 function SimpleBarChart({ data, color = "#8b5cf6" }: { data: { label: string; value: number }[]; color?: string }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   return (
-    <div className="flex items-end gap-2 h-32 px-2">
+    <div className="flex items-end gap-2 h-36 px-2">
       {data.map((d) => (
-        <div key={d.label} className="flex flex-col items-center gap-1 flex-1 min-w-0">
-          <span className="text-[10px] font-bold">{d.value}</span>
+        <div key={d.label} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+          <span className="text-[11px] font-black tabular-nums" style={{ color }}>{d.value}</span>
           <motion.div
             initial={{ height: 0 }}
             animate={{ height: `${(d.value / maxVal) * 100}%` }}
-            transition={{ duration: 0.5 }}
-            className="w-full rounded-t-md min-h-[2px]"
-            style={{ background: color }}
-          />
-          <span className="text-[10px] text-muted-foreground truncate w-full text-center">{d.label}</span>
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="w-full rounded-t-lg min-h-[2px] relative overflow-hidden"
+            style={{ background: `linear-gradient(to top, ${color}40, ${color})` }}
+          >
+            <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10" />
+          </motion.div>
+          <span className="text-[11px] font-bold text-white/60 truncate w-full text-center">{d.label}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── AI Interpretation ──────────────────────────────────────────────────────
+
+function AiInterpretButton({ resultText, toolName }: { resultText: string; toolName: string }) {
+  const { isAuthenticated } = useAuth();
+  const createConvo = useMutation(api.aiChat.createConversation);
+  const sendMessage = useMutation(api.aiChat.sendMessage);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleInterpret = useCallback(async () => {
+    if (!isAuthenticated) {
+      toast.error("برای استفاده از تفسیر هوش مصنوعی ابتدا وارد حساب شوید.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const convoId = await createConvo({ title: `تفسیر ${toolName}` });
+      await sendMessage({
+        conversationId: convoId as any,
+        content: `لطفاً نتایج زیر را از ابزار «${toolName}» آزمایشگاه مجازی ژنوا تفسیر کن. به زبان ساده و علمی توضیح بده که هر عدد چه معنایی دارد و چه نتیجه‌ای می‌توان گرفت.\n\n${resultText}`,
+      });
+      setDone(true);
+      toast.success("تفسیر با هوش مصنوعی ارسال شد! برای مشاهده پاسخ به بخش هوش مصنوعی بروید.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "خطا در ارسال تفسیر");
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, resultText, toolName, createConvo, sendMessage]);
+
+  return (
+    <div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1.5 border-violet-500/30 bg-violet-500/10 text-[11px] text-violet-300 hover:bg-violet-500/20 hover:text-violet-200"
+        onClick={handleInterpret}
+        disabled={loading}
+      >
+        {loading ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <Sparkles className="size-3.5" />
+        )}
+        تفسیر با هوش مصنوعی
+      </Button>
+      {done && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4"
+        >
+          <div className="flex items-start gap-2">
+            <Sparkles className="size-4 shrink-0 text-violet-400 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-violet-300">تفسیر هوش مصنوعی</p>
+              <p className="mt-1 text-[11px] leading-6 text-violet-200/70">نتایج به چت هوش مصنوعی ارسال شد. برای مشاهده تفسیر کامل به بخش AI Chat سایت مراجعه کنید.</p>
+            </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }
@@ -297,19 +369,19 @@ ${frame3}
   }, [seq, valid]);
 
   return (
-    <Card className="border-violet-500/30">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Dna className="size-4 text-violet-500" />
-          تحلیل DNA
-        </CardTitle>
-        <p className="text-[11px] text-muted-foreground">
-          توالی DNA را وارد کنید: تحلیل کامل شامل درصد GC، شمارش نوکلئوتیدها، Reverse Complement و ترجمه پروتئین
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-400">
+          <Dna className="size-5" />
+        </span>
         <div>
-          <label className="mb-1 block text-[11px] text-muted-foreground">🧬 ورودی توالی DNA</label>
+          <h2 className="text-lg font-black text-white">تحلیل DNA</h2>
+          <p className="text-[11px] text-white/40">شمارش نوکلئوتیدها، درصد GC، Reverse Complement و ترجمه پروتئین</p>
+        </div>
+      </div>
+
+      <div>
+          <label className="mb-1 block text-[11px] text-white/40">🧬 ورودی توالی DNA</label>
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -330,6 +402,7 @@ ${frame3}
             <div className="flex flex-wrap gap-2">
               <CopyBtn text={result.txt} />
               <DownloadTxtBtn content={result.txt} filename="dna_analysis.txt" />
+              <AiInterpretButton resultText={result.txt} toolName="تحلیل DNA" />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -379,8 +452,7 @@ ${frame3}
             توالی DNA را وارد کنید تا تحلیل نمایش داده شود
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 
@@ -458,17 +530,16 @@ ${dotBracket}
   }, [seq, valid]);
 
   return (
-    <Card className="border-violet-500/30">
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <Dna className="size-4 text-violet-500" />
-          تحلیل RNA
-        </CardTitle>
-        <p className="text-[11px] text-muted-foreground">
-          توالی RNA را وارد کنید: تحلیل شامل درصد GC، وزن مولکولی، cDNA معادل، ترجمه پروتئین و پیش‌بینی ساختار ثانویه
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-400">
+          <Dna className="size-5" />
+        </span>
+        <div>
+          <h2 className="text-lg font-black text-white">تحلیل RNA</h2>
+          <p className="text-[11px] text-white/40">شمارش، وزن مولکولی، cDNA، ترجمه و ساختار ثانویه</p>
+        </div>
+      </div>
         <div>
           <label className="mb-1 block text-[11px] text-muted-foreground">🧬 ورودی توالی RNA</label>
           <Textarea
@@ -491,6 +562,7 @@ ${dotBracket}
             <div className="flex flex-wrap gap-2">
               <CopyBtn text={result.txt} />
               <DownloadTxtBtn content={result.txt} filename="rna_analysis.txt" />
+              <AiInterpretButton resultText={result.txt} toolName="تحلیل RNA" />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
@@ -537,8 +609,7 @@ ${dotBracket}
             توالی RNA را وارد کنید تا تحلیل نمایش داده شود
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 
