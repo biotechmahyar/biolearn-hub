@@ -159,8 +159,10 @@ function gcPercent(seq: string): number {
   return (gc / seq.length) * 100;
 }
 
+const UTF8_BOM = "\uFEFF";
+
 function downloadFile(content: string, filename: string, mime = "text/plain") {
-  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+  const blob = new Blob([UTF8_BOM + content], { type: `${mime};charset=utf-8` });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -172,7 +174,7 @@ function downloadFile(content: string, filename: string, mime = "text/plain") {
 function downloadCsv(headers: string[], rows: (string | number)[][], filename: string) {
   const csvContent = [
     headers.join(","),
-    ...rows.map((row) => row.join(",")),
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
   ].join("\n");
   downloadFile(csvContent, filename, "text/csv");
 }

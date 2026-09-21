@@ -28,7 +28,9 @@ import {
   Shield,
   Sparkles,
   TestTube2,
+  Thermometer,
   Wrench,
+  Zap,
   Database,
   Menu,
   X,
@@ -47,6 +49,12 @@ import {
   PatternSearchTool,
   NucleotideCounterTool,
 } from "@/components/lab/BioAnalysisTools";
+import {
+  PrimerDesignTool,
+  BlastSearchTool,
+  TmCalculatorTool,
+  DimerCheckerTool,
+} from "@/components/lab/PrimerTools";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -62,7 +70,11 @@ type ToolId =
   | "gc-window"
   | "pattern-search"
   | "nucleotide-counter"
-  | "calculators";
+  | "calculators"
+  | "primer-design"
+  | "blast-search"
+  | "tm-calculator"
+  | "dimer-checker";
 
 interface ToolDef {
   id: ToolId;
@@ -71,7 +83,7 @@ interface ToolDef {
   description: string;
   icon: typeof Dna;
   component: React.ComponentType;
-  group: "sequence" | "calc";
+  group: "sequence" | "calc" | "primer";
 }
 
 const TOOLS: ToolDef[] = [
@@ -82,10 +94,15 @@ const TOOLS: ToolDef[] = [
   { id: "pattern-search", title: "جستجوی الگو", titleEn: "Pattern Search", description: "جستجوی الگو در توالی با حساسیت دلخواه", icon: SearchCode, component: PatternSearchTool, group: "sequence" },
   { id: "nucleotide-counter", title: "شمارش نوکلئوتیدها", titleEn: "Nucleotide Counter", description: "شمارش و نمودار توزیع نوکلئوتیدها", icon: ArrowDownAZ, component: NucleotideCounterTool, group: "sequence" },
   { id: "calculators", title: "محاسبه‌گرها", titleEn: "Calculators", description: "رقت، غلظت مولی، CFU، مستر‌میکس PCR و شبیه‌سازها", icon: Calculator, component: LabTools, group: "calc" },
+  { id: "primer-design", title: "طراحی پرایمر", titleEn: "Primer Design", description: "طراحی پرایمر Forward و Reverse", icon: Pipette, component: PrimerDesignTool, group: "primer" },
+  { id: "blast-search", title: "BLAST Search", titleEn: "BLAST Search", description: "جستجوی توالی در دیتاست‌ها", icon: SearchCode, component: BlastSearchTool, group: "primer" },
+  { id: "tm-calculator", title: "محاسبه Tm", titleEn: "Tm Calculator", description: "دمای ذوب با روش‌های مختلف", icon: Thermometer, component: TmCalculatorTool, group: "primer" },
+  { id: "dimer-checker", title: "بررسی دیمر", titleEn: "Dimer Checker", description: "تشخیص دیمر و Hairpin پرایمرها", icon: Zap, component: DimerCheckerTool, group: "primer" },
 ];
 
 const FUTURE_TOOLS = [
-  { title: "ابزارهای پرایمر", icon: Pipette, color: "text-cyan-400" },
+  { title: "پرایمر Multiplex", icon: Pipette, color: "text-cyan-400" },
+  { title: "پرایمر Real-Time", icon: Thermometer, color: "text-amber-400" },
   { title: "آنزیم‌های محدودکننده", icon: Shield, color: "text-rose-400" },
   { title: "ORF و ترجمه", icon: FileSearch, color: "text-indigo-400" },
   { title: "همترازی توالی", icon: GitCompare, color: "text-teal-400" },
@@ -206,6 +223,31 @@ export default function VirtualLab() {
                   <p className="mt-0.5 text-[10px] text-violet-300/40 truncate">{tool.titleEn}</p>
                 </div>
                 {isActive && <span className="size-1.5 rounded-full bg-emerald-400" />}
+              </button>
+            );
+          })}
+
+          {/* Primer Tools */}
+          <div className="px-3 mt-4 mb-1">
+            <p className="px-2 text-[9px] font-bold uppercase tracking-widest text-cyan-400/50">
+              ابزارهای پرایمر
+            </p>
+          </div>
+          {TOOLS.filter((t) => t.group === "primer").map((tool) => {
+            const Icon = tool.icon;
+            const isActive = activeTool === tool.id;
+            return (
+              <button key={tool.id} onClick={() => selectTool(tool.id)}
+                className={cn("mx-2 mb-0.5 flex w-[calc(100%-16px)] items-center gap-3 rounded-xl px-3 py-2.5 text-right transition-all",
+                  isActive ? "bg-gradient-to-l from-cyan-600/20 to-teal-600/10 text-white shadow-sm shadow-cyan-500/10" : "text-violet-200/50 hover:bg-violet-500/5 hover:text-violet-200/80")}>
+                <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", isActive ? "bg-cyan-600/30 text-cyan-300" : "bg-violet-500/5 text-violet-400/40")}>
+                  <Icon className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold leading-tight">{tool.title}</p>
+                  <p className="mt-0.5 text-[10px] text-violet-300/40 truncate">{tool.titleEn}</p>
+                </div>
+                {isActive && <span className="size-1.5 rounded-full bg-cyan-400" />}
               </button>
             );
           })}
