@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { ArrowLeft, Sparkles, Layers } from "lucide-react";
 import { PublicLayout } from "@/components/site/PublicLayout";
 import { api } from "@/convex/_generated/api";
@@ -31,7 +31,19 @@ type SkillRow = {
 
 export default function Skills() {
   const skills = useQuery(api.skills.listSkills);
+  const seedDefaults = useMutation(api.skills.seedDefaultSkills);
   const [field, setField] = useState("all");
+  const seededRef = useRef(false);
+
+  // First visit with an empty catalog → seed the default skill pages once.
+  useEffect(() => {
+    if (skills && skills.length === 0 && !seededRef.current) {
+      seededRef.current = true;
+      seedDefaults({}).catch(() => {
+        /* seeding is best-effort; empty state still renders */
+      });
+    }
+  }, [skills, seedDefaults]);
 
   const filtered = useMemo(() => {
     const rows = (skills ?? []) as SkillRow[];

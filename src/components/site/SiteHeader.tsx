@@ -14,6 +14,7 @@ import {
   BookOpen,
   Bot,
   ChevronDown,
+  FileText,
   FlaskConical,
   GraduationCap,
   LayoutDashboard,
@@ -177,6 +178,10 @@ export function SiteHeader() {
                   </DropdownMenuItem>
                 )}
 
+                <DropdownMenuItem onClick={() => navigate("/resume")} className="cursor-pointer">
+                  <FileText className="ml-2 size-4" />
+                  رزومه من
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive">
                   <LogOut className="ml-2 size-4" />
@@ -235,6 +240,10 @@ export function SiteHeader() {
                     <Button size="sm" onClick={() => { setOpen(false); switchPanel(isStaff ? (myPanelLabel ?? "پنل من") : "پنل دانشجویی", isStaff ? myPanel : "/dashboard", isStaff ? role : "student"); }}>
                       <ShieldCheck className="ml-2 size-4" />
                       {isStaff ? myPanelLabel : "پنل دانشجویی"}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => { setOpen(false); navigate("/resume"); }}>
+                      <FileText className="ml-2 size-4" />
+                      رزومه من
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleSignOut}>
                       <LogOut className="ml-2 size-4" />

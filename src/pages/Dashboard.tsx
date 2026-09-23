@@ -183,6 +183,29 @@ export default function Dashboard() {
 
         {/* Content */}
         <main className="min-w-0 flex-1">
+          {tab === "overview" && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 bg-gradient-to-l from-primary/10 to-background px-4 py-3.5">
+              <div className="flex items-center gap-3">
+                <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10">
+                  <FileText className="size-4 text-emerald-500" />
+                </span>
+                <div>
+                  <p className="text-sm font-extrabold">رزومه دیجیتال و لینک عمومی اختصاصی</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    رزومه‌ات را بساز و دوره‌ها، مهارت‌ها و گواهی‌هایت را با یک لینک به اشتراک بگذار.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild size="sm" className="rounded-full">
+                  <Link to="/resume">رزومه من</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="rounded-full">
+                  <Link to="/skills">مهارت‌ها</Link>
+                </Button>
+              </div>
+            </div>
+          )}
           {tab === "overview" && <Overview onNavigate={setTab} />}
           {tab === "courses" && <MyCourses />}
           {tab === "workshops" && <MyWorkshops />}

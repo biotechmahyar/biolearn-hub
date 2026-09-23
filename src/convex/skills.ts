@@ -273,3 +273,132 @@ export const setCourseTrack = mutation({
     return { ok: true };
   },
 });
+
+// ── Default skills seeding (only when the table is completely empty) ─────
+const DEFAULT_SKILLS: {
+  name: string;
+  slug: string;
+  field: string;
+  accent: string;
+  icon: string;
+  description: string;
+}[] = [
+  {
+    name: "میکروبیولوژی عملی",
+    slug: "microbiology-practical",
+    field: "microbiology",
+    accent: "teal",
+    icon: "🦠",
+    description:
+      "تکنیک‌های کشت، نگه‌داری، شناسایی و کنترل میکروارگانیسم‌ها از سطح پایه تا سطح پیشرفته — با تمرین‌های آزمایشگاهی مرحله‌به‌مرحله.",
+  },
+  {
+    name: "استخراج DNA و RNA",
+    slug: "dna-rna-extraction",
+    field: "lab",
+    accent: "emerald",
+    icon: "🧬",
+    description:
+      "استخراج اسیدهای نوکلئیک از نمونه‌های مختلف، ارزیابی خلوص و غلظت و عیب‌یابی رایج‌ترین خطاهای آزمایشگاهی.",
+  },
+  {
+    name: "تکنیک‌های PCR",
+    slug: "pcr-techniques",
+    field: "genetics",
+    accent: "sky",
+    icon: "🌡️",
+    description:
+      "طراحی واکنش، بهینه‌سازی شرایط، PCR سراسری و نیمه‌کمّی و تفسیر نتایج به‌صورت کاملاً عملی.",
+  },
+  {
+    name: "الکتروفورز و بلات‌ترنسفر",
+    slug: "gel-electrophoresis",
+    field: "lab",
+    accent: "indigo",
+    icon: "🔬",
+    description:
+      "اجرای ژل آگارز و پلی‌آکریل‌آمید، بلات‌ترنسفر DNA/RNA/پروتئین و مستندسازی نتایج.",
+  },
+  {
+    name: "بیوانفورماتیک پایه",
+    slug: "bioinformatics-basics",
+    field: "bioinformatics",
+    accent: "violet",
+    icon: "💻",
+    description:
+      "جستجو در پایگاه‌های داده، آنالیز سکانس، درخت تکاملی و ابزارهای رایج تحلیل داده‌های زیستی.",
+  },
+  {
+    name: "زیست‌فناوری میکروارگانیسم‌ها",
+    slug: "microbial-biotech",
+    field: "biotech",
+    accent: "amber",
+    icon: "⚗️",
+    description:
+      "کاربردهای صنعتی میکروارگانیسم‌ها، تخمیر، بهینه‌سازی فرایند و تولید محصولات زیستی.",
+  },
+  {
+    name: "رنگ‌آمیزی و میکروسکوپی",
+    slug: "microscopy-staining",
+    field: "lab",
+    accent: "rose",
+    icon: "🔍",
+    description:
+      "رنگ‌آمیزی‌های گرم، اسید فست، رایت و ژیمسا؛ تنظیم میکروسکوپ و تصویربرداری صحیح از نمونه‌ها.",
+  },
+  {
+    name: "ژنتیک مولکولی",
+    slug: "molecular-genetics",
+    field: "genetics",
+    accent: "emerald",
+    icon: "🧫",
+    description:
+      "مکانیسم‌های بیان ژن، کلونینگ مولکولی، وکتورها و کاربردهای عملی تکنیک‌های ژنتیک مدرن.",
+  },
+  {
+    name: "کشت بافت گیاهی",
+    slug: "plant-tissue-culture",
+    field: "biotech",
+    accent: "teal",
+    icon: "🌱",
+    description:
+      "کشت بافت و سلول‌های گیاهی، محیط‌های کشت، ریزوم‌زایی و انتقال گیاهان تراریخته.",
+  },
+  {
+    name: "طراحی پرایمر و آنالیز سکانس",
+    slug: "primer-design",
+    field: "bioinformatics",
+    accent: "sky",
+    icon: "📊",
+    description:
+      "طراحی پرایمر برای PCR و کلونینگ، بررسی Tm و تشکیل ساختارهای فرعی و اعتبارسنجی سکانس‌ها.",
+  },
+];
+
+/**
+ * Seeds the default skill pages — runs only while the skills table is empty,
+ * so it never overwrites admin-created data.
+ */
+export const seedDefaultSkills = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const existing = await ctx.db.query("skills").first();
+    if (existing) return { seeded: 0 };
+    const now = Date.now();
+    for (let i = 0; i < DEFAULT_SKILLS.length; i++) {
+      const s = DEFAULT_SKILLS[i];
+      await ctx.db.insert("skills", {
+        name: s.name,
+        slug: s.slug,
+        description: s.description,
+        icon: s.icon,
+        accent: s.accent,
+        field: s.field,
+        order: i,
+        published: true,
+        createdAt: now,
+      });
+    }
+    return { seeded: DEFAULT_SKILLS.length };
+  },
+});
