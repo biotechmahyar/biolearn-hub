@@ -49,6 +49,8 @@ export const listCourses = query({
     featuredOnly: v.optional(v.boolean()),
     popularOnly: v.optional(v.boolean()),
     limit: v.optional(v.number()),
+    track: v.optional(v.union(v.literal("standard"), v.literal("genova_plus"))),
+    skillSlug: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     let courses = await ctx.db
@@ -58,6 +60,8 @@ export const listCourses = query({
 
     if (args.featuredOnly) courses = courses.filter((c) => c.featured);
     if (args.popularOnly) courses = courses.filter((c) => c.popular);
+    if (args.track) courses = courses.filter((c) => (c.track ?? "standard") === args.track);
+    if (args.skillSlug) courses = courses.filter((c) => (c.skillSlugs ?? []).includes(args.skillSlug!));
     if (args.categorySlug) {
       const cat = await ctx.db
         .query("categories")

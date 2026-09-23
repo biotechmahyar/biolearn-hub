@@ -22,6 +22,8 @@ type Course = {
   syllabus: { title: string; durationMin: number; free: boolean }[];
   category?: { name: string; slug: string; accent: string } | null;
   featured?: boolean;
+  track?: "standard" | "genova_plus" | string;
+  practical?: boolean;
 };
 
 export function CourseCard({ course }: { course: Course }) {
@@ -42,7 +44,12 @@ export function CourseCard({ course }: { course: Course }) {
           <div className="absolute inset-0 flex items-center justify-center">
             <Icon className="size-12 text-white/90 drop-shadow-sm" />
           </div>
-          <div className="absolute right-3 top-3 flex gap-2">
+          <div className="absolute right-3 top-3 flex flex-wrap gap-2">
+            {course.track === "genova_plus" && (
+              <Badge className="border-0 bg-gradient-to-l from-amber-400 to-emerald-400 font-extrabold text-slate-900 shadow-sm">
+                ژنوا پلاس
+              </Badge>
+            )}
             <Badge className="border-0 bg-black/25 text-white backdrop-blur-sm">
               {MODE_LABELS[course.mode] ?? course.mode}
             </Badge>
@@ -59,6 +66,14 @@ export function CourseCard({ course }: { course: Course }) {
             <Badge variant="secondary" className={cn("rounded-full ring-1", a.chip)}>
               {course.category?.name ?? "دوره"}
             </Badge>
+            {course.practical && (
+              <Badge
+                variant="secondary"
+                className="rounded-full bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/30 dark:text-emerald-400"
+              >
+                آموزش عملی
+              </Badge>
+            )}
             <span className="flex items-center gap-1">
               <Star className="size-3.5 fill-amber-400 text-amber-400" />
               {faNum(course.rating)}

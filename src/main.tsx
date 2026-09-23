@@ -50,6 +50,10 @@ const WorkshopDetail = lazy(() => import("./pages/WorkshopDetail.tsx"));
 const AcademyPathDetail = lazy(() => import("./pages/AcademyPathDetail.tsx"));
 const Instructors = lazy(() => import("./pages/Instructors.tsx"));
 const InstructorDetail = lazy(() => import("./pages/InstructorDetail.tsx"));
+const Skills = lazy(() => import("./pages/Skills.tsx"));
+const SkillDetail = lazy(() => import("./pages/SkillDetail.tsx"));
+const PublicResume = lazy(() => import("./pages/PublicResume.tsx"));
+const ResumeEditor = lazy(() => import("./pages/ResumeEditor.tsx"));
 const FreeContent = lazy(() => import("./pages/FreeContent.tsx"));
 const ArticleDetail = lazy(() => import("./pages/ArticleDetail.tsx"));
 const Dictionary = lazy(() => import("./pages/Dictionary.tsx"));
@@ -158,6 +162,9 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/academy-path/:slug" element={<AcademyPathDetail />} />
               <Route path="/instructors" element={<Instructors />} />
               <Route path="/instructors/:slug" element={<InstructorDetail />} />
+              <Route path="/skills" element={<Skills />} />
+              <Route path="/skills/:slug" element={<SkillDetail />} />
+              <Route path="/u/:slug" element={<PublicResume />} />
               <Route path="/free-content" element={<FreeContent />} />
               <Route path="/free-content/:slug" element={<ArticleDetail />} />
               <Route path="/dictionary" element={<Dictionary />} />
@@ -203,6 +210,14 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RequireAuth>
                     <ProfileCompletion />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/resume"
+                element={
+                  <RequireAuth>
+                    <ResumeEditor />
                   </RequireAuth>
                 }
               />

@@ -180,7 +180,9 @@ type Section =
   | "aiSubscriptions"
   | "siteDemos"
   | "certificateTemplates"
-  | "testimonials";
+  | "testimonials"
+  | "popups"
+  | "skills";
 
 const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: typeof Activity }[] }[] = [
   {
@@ -199,6 +201,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "paymentGateway", label: "درگاه پرداخت", icon: CreditCard },
       { key: "marketplaceToggle", label: "بازارچه", icon: Store },
       { key: "gameToggle", label: "تنظیمات بازی", icon: Gamepad2 },
+      { key: "popups", label: "پاپ‌آپ‌های سایت", icon: Megaphone },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
@@ -213,6 +216,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
     title: "محتوای آموزشی",
     items: [
       { key: "courses", label: "دوره‌ها", icon: BookOpen },
+      { key: "skills", label: "مهارت‌ها و ژنوا پلاس", icon: Sparkles },
       { key: "exams", label: "آزمون‌ها", icon: ClipboardList },
       { key: "questions", label: "بانک سؤال", icon: HelpCircle },
       { key: "articles", label: "مقالات رایگان", icon: FileText },
@@ -724,9 +728,632 @@ export default function Admin() {
             {section === "aiSubscriptions" && <AdminAISubscriptions />}
             {section === "siteDemos" && <SiteDemosAdmin />}
             {section === "testimonials" && <AdminTestimonials />}
+            {section === "popups" && <AdminPopups />}
+            {section === "skills" && <AdminSkills />}
           </div>
         </main>
       </div>
+    </div>
+  );
+}
+
+// ── Site popups (پاپ‌آپ اعلان‌های سایت) ────────────────────────────────────
+function AdminPopups() {
+  const popups = useQuery(api.popups.listPopups);
+  const create = useMutation(api.popups.createPopup);
+  const update = useMutation(api.popups.updatePopup);
+  const remove = useMutation(api.popups.deletePopup);
+
+  const KINDS = [
+    { value: "new_course", label: "دوره جدید" },
+    { value: "new_instructor", label: "مدرس جدید" },
+    { value: "new_workshop", label: "کارگاه جدید" },
+    { value: "published", label: "محتوای جدید" },
+    { value: "important", label: "اطلاعیه مهم" },
+    { value: "custom", label: "سفارشی" },
+  ];
+
+  const [form, setForm] = useState({
+    kind: "custom",
+    title: "",
+    body: "",
+    icon: "",
+    link: "",
+    linkLabel: "",
+    priority: "5",
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    setErr(null);
+    if (form.title.trim().length < 3) {
+      setErr("عنوان اعلان باید حداقل ۳ کاراکتر باشد.");
+      return;
+    }
+    if (!form.body.trim()) {
+      setErr("متن اعلان را وارد کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await create({
+        kind: form.kind as any,
+        title: form.title,
+        body: form.body,
+        icon: form.icon || undefined,
+        link: form.link || undefined,
+        linkLabel: form.linkLabel || undefined,
+        priority: Number(form.priority) || 5,
+      });
+      setForm({ ...form, title: "", body: "", icon: "", link: "", linkLabel: "" });
+      toast.success("پاپ‌آپ ساخته شد");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ساخت پاپ‌آپ");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="پاپ‌آپ‌های سایت"
+        subtitle="site / popup announcements"
+        count={popups?.length}
+      />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">پاپ‌آپ جدید</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {KINDS.map((k) => (
+                  <SelectItem key={k.value} value={k.value}>
+                    {k.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              placeholder="اولویت نمایش (۱ تا ۱۰)"
+              value={form.priority}
+              onChange={(e) => setForm({ ...form, priority: e.target.value })}
+            />
+          </div>
+          <Input
+            placeholder="عنوان اعلان (مثلاً: دوره جدید میکروبیولوژی اضافه شد)"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+          />
+          <Textarea
+            rows={3}
+            placeholder="متن کوتاه اعلان…"
+            value={form.body}
+            onChange={(e) => setForm({ ...form, body: e.target.value })}
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Input
+              placeholder="آیکون (ایموجی)"
+              value={form.icon}
+              onChange={(e) => setForm({ ...form, icon: e.target.value })}
+            />
+            <Input
+              dir="ltr"
+              placeholder="لینک (مثلاً /courses/x)"
+              value={form.link}
+              onChange={(e) => setForm({ ...form, link: e.target.value })}
+            />
+            <Input
+              placeholder="متن دکمه"
+              value={form.linkLabel}
+              onChange={(e) => setForm({ ...form, linkLabel: e.target.value })}
+            />
+          </div>
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          <Button className="rounded-lg" onClick={handleCreate} disabled={busy}>
+            {busy ? (
+              <Loader2 className="ml-1.5 size-4 animate-spin" />
+            ) : (
+              <Plus className="ml-1.5 size-4" />
+            )}
+            ساخت پاپ‌آپ
+          </Button>
+          <p className="text-[11px] leading-5 text-muted-foreground">
+            اعلان‌های خودکار (مثل «دوره جدید اضافه شد» برای دوره‌های منتشرشده در ۷۲ ساعت
+            اخیر) بدون نیاز به ساخت دستی نمایش داده می‌شوند. کاربر با بستن اعلان، دیگر
+            آن را نمی‌بیند و هیچ محتوایی از سایت حذف نمی‌شود.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">
+            لیست پاپ‌آپ‌ها ({faNum(popups?.length ?? 0)})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {popups === undefined ? (
+            <Loading />
+          ) : popups.length === 0 ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">
+              هنوز پاپ‌آپی ساخته نشده است.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>اعلان</TableHead>
+                  <TableHead>نوع</TableHead>
+                  <TableHead>وضعیت</TableHead>
+                  <TableHead className="text-left">عملیات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(popups as any[]).map((p) => (
+                  <TableRow key={p._id}>
+                    <TableCell className="max-w-72">
+                      <p className="truncate text-xs font-bold">
+                        {p.icon ?? "📢"} {p.title}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {p.body}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {KINDS.find((k) => k.value === p.kind)?.label ?? p.kind}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[11px]",
+                          p.active
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                            : "border-slate-400/30 bg-slate-400/10 text-slate-500",
+                        )}
+                      >
+                        {p.active ? "فعال" : "غیرفعال"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-md text-xs"
+                          onClick={() => update({ id: p._id, active: !p.active })}
+                        >
+                          {p.active ? "غیرفعال کن" : "فعال کن"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-md border-destructive/40 text-xs text-destructive"
+                          onClick={() => remove({ id: p._id })}
+                          title="حذف پاپ‌آپ"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ── Skills + Genova Plus (مهارت‌ها و ژنوا پلاس) ───────────────────────────
+function AdminSkills() {
+  const skills = useQuery(api.skills.listSkillsAdmin);
+  const courses = useQuery(api.admin.adminListCourses);
+  const createSkill = useMutation(api.skills.createSkill);
+  const updateSkill = useMutation(api.skills.updateSkill);
+  const deleteSkill = useMutation(api.skills.deleteSkill);
+  const setTrack = useMutation(api.skills.setCourseTrack);
+
+  const FIELD_OPTS = [
+    { value: "microbiology", label: "میکروبیولوژی" },
+    { value: "biotech", label: "زیست‌فناوری" },
+    { value: "genetics", label: "ژنتیک" },
+    { value: "bioinformatics", label: "بیوانفورماتیک" },
+    { value: "lab", label: "آزمایشگاه" },
+    { value: "general", label: "عمومی" },
+  ];
+  const ACCENT_OPTS = ["teal", "emerald", "sky", "amber", "violet", "rose", "indigo"];
+
+  const emptyForm = { name: "", slug: "", description: "", icon: "", accent: "teal", field: "general" };
+  const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [linkingSkill, setLinkingSkill] = useState<{ id: string; slug: string; name: string } | null>(null);
+
+  const handleSaveSkill = async () => {
+    setErr(null);
+    if (form.name.trim().length < 2) {
+      setErr("نام مهارت لازم است.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (editingId) {
+        await updateSkill({
+          id: editingId as any,
+          name: form.name,
+          description: form.description,
+          icon: form.icon,
+          accent: form.accent,
+          field: form.field,
+        });
+        toast.success("مهارت بروزرسانی شد");
+      } else {
+        await createSkill({
+          name: form.name,
+          slug: form.slug || undefined,
+          description: form.description || undefined,
+          icon: form.icon || undefined,
+          accent: form.accent as any,
+          field: form.field as any,
+        });
+        toast.success("مهارت ساخته شد");
+      }
+      setForm(emptyForm);
+      setEditingId(null);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "خطا در ذخیره مهارت");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleCourseSkill = async (course: any, slug: string) => {
+    const current: string[] = course.skillSlugs ?? [];
+    const next = current.includes(slug)
+      ? current.filter((s) => s !== slug)
+      : [...current, slug];
+    await setTrack({
+      courseId: course._id,
+      track: course.track ?? "standard",
+      practical: course.practical,
+      skillSlugs: next,
+    });
+  };
+
+  const togglePlusTrack = async (course: any) => {
+    await setTrack({
+      courseId: course._id,
+      track: course.track === "genova_plus" ? "standard" : "genova_plus",
+      practical: course.practical,
+    });
+  };
+
+  const togglePractical = async (course: any) => {
+    await setTrack({
+      courseId: course._id,
+      track: course.track ?? "standard",
+      practical: !(course.practical ?? false),
+    });
+  };
+
+  const allCourses = (courses ?? []) as any[];
+  const plusCourses = allCourses.filter((c) => c.track === "genova_plus");
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="مهارت‌ها و ژنوا پلاس"
+        subtitle="skills / genova plus track"
+        count={skills?.length}
+      />
+
+      {/* ── Skill create / edit ─────────────────────────────── */}
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">
+            {editingId ? "ویرایش مهارت" : "مهارت جدید"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Input
+              placeholder="نام مهارت (مثلاً استخراج DNA)"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <Input
+              dir="ltr"
+              placeholder="slug (اختیاری — لاتین)"
+              value={form.slug}
+              onChange={(e) => setForm({ ...form, slug: e.target.value })}
+              disabled={!!editingId}
+            />
+          </div>
+          <Textarea
+            rows={2}
+            placeholder="توضیح کوتاه درباره این مهارت…"
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Input
+              placeholder="آیکون (ایموجی)"
+              value={form.icon}
+              onChange={(e) => setForm({ ...form, icon: e.target.value })}
+            />
+            <Select value={form.field} onValueChange={(v) => setForm({ ...form, field: v })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FIELD_OPTS.map((f) => (
+                  <SelectItem key={f.value} value={f.value}>
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={form.accent} onValueChange={(v) => setForm({ ...form, accent: v })}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ACCENT_OPTS.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {a}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          <div className="flex gap-2">
+            <Button className="rounded-lg" onClick={handleSaveSkill} disabled={busy}>
+              {busy ? (
+                <Loader2 className="ml-1.5 size-4 animate-spin" />
+              ) : (
+                <Plus className="ml-1.5 size-4" />
+              )}
+              {editingId ? "ذخیره تغییرات" : "ساخت مهارت"}
+            </Button>
+            {editingId && (
+              <Button
+                variant="outline"
+                className="rounded-lg"
+                onClick={() => {
+                  setEditingId(null);
+                  setForm(emptyForm);
+                }}
+              >
+                انصراف
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Skills list ─────────────────────────────────────── */}
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">
+            مهارت‌ها ({faNum(skills?.length ?? 0)})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {skills === undefined ? (
+            <Loading />
+          ) : skills.length === 0 ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">
+              هنوز مهارتی ساخته نشده است.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>مهارت</TableHead>
+                  <TableHead>حوزه</TableHead>
+                  <TableHead>دوره‌ها</TableHead>
+                  <TableHead>وضعیت</TableHead>
+                  <TableHead className="text-left">عملیات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(skills as any[]).map((s) => (
+                  <TableRow key={s._id}>
+                    <TableCell className="max-w-56">
+                      <p className="truncate text-xs font-bold">
+                        {s.icon ?? "🧬"} {s.name}
+                      </p>
+                      <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground" dir="ltr">
+                        /skills/{s.slug}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {FIELD_OPTS.find((f) => f.value === s.field)?.label ?? s.field}
+                    </TableCell>
+                    <TableCell className="text-xs">{faNum(s.courseCount ?? 0)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[11px]",
+                          s.published
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
+                            : "border-slate-400/30 bg-slate-400/10 text-slate-500",
+                        )}
+                      >
+                        {s.published ? "منتشر" : "پیش‌نویس"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-md text-xs"
+                          onClick={() =>
+                            setLinkingSkill(
+                              linkingSkill?.id === s._id
+                                ? null
+                                : { id: s._id, slug: s.slug, name: s.name },
+                            )
+                          }
+                        >
+                          دوره‌ها
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-md text-xs"
+                          onClick={() => updateSkill({ id: s._id, published: !s.published })}
+                        >
+                          {s.published ? "انتشار‌زدايی" : "انتشار"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-md text-xs"
+                          onClick={() => {
+                            setEditingId(s._id);
+                            setForm({
+                              name: s.name,
+                              slug: s.slug,
+                              description: s.description ?? "",
+                              icon: s.icon ?? "",
+                              accent: s.accent ?? "teal",
+                              field: s.field ?? "general",
+                            });
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-md border-destructive/40 text-xs text-destructive"
+                          onClick={() => deleteSkill({ id: s._id })}
+                          title="حذف مهارت (دوره‌ها دست‌نخورده می‌مانند)"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+
+          {/* Course ↔ skill linking panel */}
+          {linkingSkill && (
+            <div className="border-t border-border/70 p-4">
+              <p className="text-xs font-extrabold">
+                انتخاب دوره‌های مرتبط با «{linkingSkill.name}»
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                دوره‌های انتخاب‌شده در صفحه اختصاصی این مهارت نمایش داده می‌شوند.
+              </p>
+              <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto scrollbar-theme pr-1">
+                {allCourses.length === 0 && (
+                  <p className="text-xs text-muted-foreground">دوره‌ای موجود نیست.</p>
+                )}
+                {allCourses.map((c) => {
+                  const linked = (c.skillSlugs ?? []).includes(linkingSkill.slug);
+                  return (
+                    <div
+                      key={c._id}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold">{c.title}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {c.published ? "منتشر" : "پیش‌نویس"}
+                          {c.track === "genova_plus" ? " · ژنوا پلاس" : ""}
+                          {c.practical ? " · عملی" : ""}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={linked ? "default" : "outline"}
+                        className="h-7 shrink-0 rounded-md text-xs"
+                        onClick={() => toggleCourseSkill(c, linkingSkill.slug)}
+                      >
+                        {linked ? "حذف از مهارت" : "افزودن به مهارت"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Genova Plus track management ────────────────────── */}
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base">
+            دوره‌های ژنوا پلاس ({faNum(plusCourses.length)})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-[11px] leading-5 text-muted-foreground">
+            دوره‌های این مسیر، آموزش‌های تخصصی و مهارت‌محور با اجرای عملی هستند و به
+            دلیل تجهیزات و امکانات، قیمت بالاتری نسبت به دوره‌های معمولی ژنوا دارند.
+            (قیمت را در ویرایش دوره تنظیم کنید.)
+          </p>
+          <div className="space-y-1.5">
+            {allCourses.length === 0 && (
+              <p className="text-xs text-muted-foreground">دوره‌ای موجود نیست.</p>
+            )}
+            {allCourses.map((c) => (
+              <div
+                key={c._id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/40 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold">{c.title}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {c.published ? "منتشر" : "پیش‌نویس"} · {formatPrice(c.price ?? 0)}
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  <Button
+                    size="sm"
+                    variant={c.track === "genova_plus" ? "default" : "outline"}
+                    className="h-7 rounded-md text-xs"
+                    onClick={() => togglePlusTrack(c)}
+                  >
+                    {c.track === "genova_plus" ? "در ژنوا پلاس" : "افزودن به پلاس"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={c.practical ? "default" : "outline"}
+                    className="h-7 rounded-md text-xs"
+                    onClick={() => togglePractical(c)}
+                  >
+                    {c.practical ? "دوره عملی" : "تئوری"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

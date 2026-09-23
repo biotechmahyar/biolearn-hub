@@ -212,6 +212,10 @@ const schema = defineSchema(
         UN(L("draft"), L("pending"), L("approved"), L("rejected")),
       ),
       reviewNote: OPT(STR()),
+      // ── Genova Plus & skills (backward-compatible optional) ──────────
+      track: OPT(UN(L("standard"), L("genova_plus"))), // ژنوا پلاس track
+      practical: OPT(BOOL()), // دوره عملی (executes labs — costs more)
+      skillSlugs: OPT(ARR(STR())), // linked skill pages (skills table)
     })
       .index("by_slug", ["slug"])
       .index("by_category", ["categoryId"])
@@ -1378,6 +1382,79 @@ const schema = defineSchema(
       .index("by_course", ["courseId"])
       .index("by_status", ["status"])
       .index("by_verification_code", ["verificationCode"]),
+    // ── Student digital resumes (public page /u/<slug>) ──────────────────
+    resumes: defineTable({
+      userId: ID("users"),
+      slug: STR(), // public handle, e.g. "g-abc123"
+      headline: OPT(STR()),
+      summary: OPT(STR()),
+      skills: ARR(STR()),
+      education: ARR(
+        OBJ({
+          degree: STR(),
+          field: OPT(STR()),
+          institute: OPT(STR()),
+          year: OPT(STR()),
+        }),
+      ),
+      experience: ARR(
+        OBJ({
+          title: STR(),
+          org: OPT(STR()),
+          period: OPT(STR()),
+          description: OPT(STR()),
+        }),
+      ),
+      achievements: ARR(STR()),
+      projects: ARR(
+        OBJ({
+          name: STR(),
+          description: OPT(STR()),
+          link: OPT(STR()),
+        }),
+      ),
+      languages: ARR(OBJ({ name: STR(), level: OPT(STR()) })),
+      links: ARR(OBJ({ label: STR(), url: STR() })),
+      isVisible: BOOL(),
+      updatedAt: NUM(),
+      createdAt: NUM(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_slug", ["slug"]),
+    // ── Site popup announcements (modern dismissible cards) ─────────────
+    sitePopups: defineTable({
+      kind: UN(
+        L("new_course"),
+        L("new_instructor"),
+        L("new_workshop"),
+        L("published"),
+        L("important"),
+        L("custom"),
+      ),
+      title: STR(),
+      body: STR(),
+      icon: OPT(STR()),
+      link: OPT(STR()),
+      linkLabel: OPT(STR()),
+      active: BOOL(),
+      startsAt: OPT(NUM()),
+      endsAt: OPT(NUM()),
+      priority: OPT(NUM()),
+      createdBy: ID("users"),
+      createdAt: NUM(),
+    }).index("by_active", ["active"]),
+    // ── Skills (مهارت‌ها) — skill pages with related courses ─────────────
+    skills: defineTable({
+      name: STR(),
+      slug: STR(),
+      description: OPT(STR()),
+      icon: OPT(STR()), // emoji or lucide icon name
+      accent: OPT(STR()), // teal | emerald | sky | amber | violet | rose | indigo
+      field: OPT(STR()), // microbiology | biotech | genetics | bioinformatics | lab | general
+      order: NUM(),
+      published: BOOL(),
+      createdAt: NUM(),
+    }).index("by_slug", ["slug"]),
     // ── Certificate Templates ─────────────────────────────────────────────
     certificateTemplates: defineTable({
       name: STR(),

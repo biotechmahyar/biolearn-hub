@@ -39,6 +39,7 @@ import { api } from "@/convex/_generated/api";
 
 const BASE_NAV = [
   { to: "/courses", label: "دوره‌ها" },
+  { to: "/skills", label: "مهارت‌ها" },
   { to: "/tests", label: "آزمون‌ها" },
   { to: "/free-content", label: "محتوای رایگان" },
   { to: "/products", label: "محصولات" },
