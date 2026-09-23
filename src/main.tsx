@@ -20,6 +20,7 @@ import "./types/global.d.ts";
 const Landing = lazy(() => import("./pages/Landing.tsx"));
 const VirtualLab = lazy(() => import("./pages/VirtualLab.tsx"));
 const GenovaGame = lazy(() => import("./pages/GenovaGame.tsx"));
+const GameDisabled = lazy(() => import("./pages/GameDisabled.tsx"));
 const AuthPage = lazy(() => import("./pages/Auth.tsx"));
 const Dashboard = lazy(() => import("./pages/Dashboard.tsx"));
 const Admin = lazy(() => import("./pages/Admin.tsx"));
@@ -140,6 +141,7 @@ createRoot(document.getElementById("root")!).render(
               {/* New experiences (public) */}
               <Route path="/lab" element={<VirtualLab />} />
               <Route path="/game" element={<GenovaGame />} />
+              <Route path="/game/disabled" element={<GameDisabled />} />
 
               {/* Catalog */}
               <Route path="/courses" element={<Courses />} />

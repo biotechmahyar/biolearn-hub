@@ -232,23 +232,34 @@ function DownloadCsvBtn({ headers, rows, filename }: { headers: string[]; rows: 
 
 function SimpleBarChart({ data, color = "#8b5cf6" }: { data: { label: string; value: number }[]; color?: string }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const CHART_H = 160;
+  const LABEL_H = 28;
+  const barMaxH = CHART_H - LABEL_H;
   return (
-    <div className="flex items-end gap-2 h-36 px-2">
-      {data.map((d) => (
-        <div key={d.label} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
-          <span className="text-[11px] font-black tabular-nums" style={{ color }}>{d.value}</span>
-          <motion.div
-            initial={{ height: 0 }}
-            animate={{ height: `${(d.value / maxVal) * 100}%` }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="w-full rounded-t-lg min-h-[2px] relative overflow-hidden"
-            style={{ background: `linear-gradient(to top, ${color}40, ${color})` }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10" />
-          </motion.div>
-          <span className="text-[11px] font-bold text-white/60 truncate w-full text-center">{d.label}</span>
-        </div>
-      ))}
+    <div className="w-full px-2">
+      <div className="flex items-end gap-2" style={{ height: CHART_H }}>
+        {data.map((d) => {
+          const pct = (d.value / maxVal) * 100;
+          const barH = Math.max((pct / 100) * barMaxH, 4);
+          return (
+            <div key={d.label} className="flex flex-col items-center gap-1.5 flex-1 min-w-0">
+              <span className="text-[11px] font-black tabular-nums" style={{ color }}>{d.value}</span>
+              <div className="w-full flex-1 flex items-end">
+                <motion.div
+                  initial={{ height: 0 }}
+                  animate={{ height: barH }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  className="w-full rounded-t-lg relative overflow-hidden"
+                  style={{ background: `linear-gradient(to top, ${color}40, ${color})` }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10" />
+                </motion.div>
+              </div>
+              <span className="text-[11px] font-bold text-white/60 truncate w-full text-center">{d.label}</span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

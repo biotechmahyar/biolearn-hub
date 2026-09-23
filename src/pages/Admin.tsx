@@ -81,6 +81,7 @@ import {
   Layers,
   Loader2,
   Lock,
+  Gamepad2,
   Clock,
   Mail,
   Menu,
@@ -154,6 +155,7 @@ type Section =
   | "offlinePayments"
   | "paymentGateway"
   | "marketplaceToggle"
+  | "gameToggle"
   | "myprofile"
   | "online"
   | "comments"
@@ -196,6 +198,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "payments", label: "پرداخت دستمزد", icon: Receipt },
       { key: "paymentGateway", label: "درگاه پرداخت", icon: CreditCard },
       { key: "marketplaceToggle", label: "بازارچه", icon: Store },
+      { key: "gameToggle", label: "تنظیمات بازی", icon: Gamepad2 },
       { key: "coupons", label: "کدهای تخفیف", icon: Ticket },
       { key: "support", label: "پشتیبانی", icon: ShieldCheck },
       { key: "announcements", label: "اطلاعیه‌ها", icon: BellRing },
@@ -697,6 +700,7 @@ export default function Admin() {
             {section === "payments" && <AdminPayments />}
             {section === "paymentGateway" && <AdminPaymentGateway />}
             {section === "marketplaceToggle" && <AdminMarketplaceToggle />}
+            {section === "gameToggle" && <AdminGameToggle />}
             {section === "classRequests" && <AdminClassRequests />}
             {section === "studentReports" && <AdminStudentReports />}
             {section === "profiles" && <AdminProfiles />}
@@ -1110,6 +1114,79 @@ function AdminCourses() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ── Game Toggle (فعال/غیرفعال کردن بازی بلاکچین) ─────────────────────────────────────
+function AdminGameToggle() {
+  const enabled = useQuery(api.siteSettings.isGameEnabled);
+  const toggleGame = useMutation(api.siteSettings.toggleGame);
+  const [busy, setBusy] = useState(false);
+
+  const handleToggle = async (target: boolean) => {
+    setBusy(true);
+    try {
+      await toggleGame({ enabled: target });
+      toast.success(target ? "بازی بلاکچین فعال شد" : "بازی بلاکچین غیرفعال شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <SectionHeader
+        title="تنظیمات بازی"
+        subtitle="فعال/غیرفعال کردن بازی بلاکچین ژنوا"
+      />
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-4 py-5">
+          {enabled === undefined ? (
+            <div className="flex justify-center py-6"><Loader2 className="size-5 animate-spin" /></div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`flex size-11 items-center justify-center rounded-xl ${enabled ? "bg-sky-500/10 text-sky-500" : "bg-amber-500/10 text-amber-500"}`}>
+                    {enabled ? <Gamepad2 className="size-5" /> : <Lock className="size-5" />}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">{enabled ? "بازی بلاکچین فعال است" : "بازی بلاکچین غیرفعال است"}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {enabled
+                        ? "کاربران با کلیک روی بنر بازی، وارد صفحه بازی می‌شوند."
+                        : "با کلیک روی بنر بازی، صفحه «این بخش در حال توسعه است» نمایش داده می‌شود."}
+                    </p>
+                  </div>
+                </div>
+                <Badge variant={enabled ? "default" : "secondary"} className="text-xs">
+                  {enabled ? "فعال" : "غیرفعال"}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {enabled ? (
+                  <Button variant="destructive" size="sm" disabled={busy} onClick={() => void handleToggle(false)}>
+                    {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                    غیرفعال کردن بازی
+                  </Button>
+                ) : (
+                  <Button size="sm" disabled={busy} onClick={() => void handleToggle(true)}>
+                    {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : null}
+                    فعال کردن بازی
+                  </Button>
+                )}
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+                وقتی بازی غیرفعال باشد، کلیک روی بنر «بازی بلاکچین ژنوا» در صفحه اصلی به جای ورود به بازی،
+                صفحه «این بخش در حال توسعه است» را باز می‌کند. سایر بخش‌های سایت بدون تغییر کار می‌کنند.
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

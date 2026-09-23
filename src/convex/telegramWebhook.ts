@@ -135,9 +135,17 @@ async function handleSessionRequest(ctx: any, token: string, chatId: number, tel
 }
 
 /** Handle a plain text message that may belong to a pending bot flow. */
-async function handlePendingText(ctx: any, token: string, chatId: number, telegramId: number, firstName: string, text: string): Promise<boolean> {
+async function handlePendingText(ctx: any, token: string, chatId: number, telegramId: number, firstName: string, username: string | undefined, text: string): Promise<boolean> {
   const pending = await ctx.runQuery(internal.telegramBotExtras.getPendingInput, { telegramId });
   if (!pending) return false;
+
+  // Linking-code entry — must run BEFORE the linked-user lookup because the
+  // caller is not linked yet.
+  if (pending.kind === "link_code") {
+    await ctx.runMutation(internal.telegramBotExtras.clearPendingInput, { telegramId });
+    await applyLinkingCode(ctx, token, chatId, telegramId, firstName, username, text);
+    return true;
+  }
 
   const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
@@ -318,12 +326,17 @@ async function handleCancel(ctx: any, token: string, chatId: number, telegramId:
 
 // ── Command handlers ──────────────────────────────────────────────────────
 
-async function handleStart(ctx: any, token: string, chatId: number, telegramId: number, firstName: string, username: string | undefined, text: string) {
-  const parts = text.split(/\s+/);
-  const code = parts[1]?.trim().toUpperCase();
-
-  // Account linking flow
-  if (code && code.length >= 6) {
+/** Shared linking-by-code flow: used by `/start <CODE>` and the "کد دارم" button. */
+async function applyLinkingCode(
+  ctx: any,
+  token: string,
+  chatId: number,
+  telegramId: number,
+  firstName: string,
+  username: string | undefined,
+  rawCode: string,
+) {
+    const code = rawCode.trim().toUpperCase();
     const codeDoc = await ctx.runQuery(internal.telegramBot._findLinkingCode, { code });
     if (!codeDoc) {
       await sendMsg(token, chatId, "❌ لینک اتصال معتبر نیست یا منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
@@ -359,6 +372,27 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
       };
       await sendMsg(token, chatId, reasons[result.reason] || "❌ خطای نامشخص.");
     }
+}
+
+async function handleStart(ctx: any, token: string, chatId: number, telegramId: number, firstName: string, username: string | undefined, text: string) {
+  const parts = text.split(/\s+/);
+  const code = parts[1]?.trim().toUpperCase();
+
+  // Account linking flow (/start <CODE>)
+  if (code && code.length >= 6) {
+    await applyLinkingCode(ctx, token, chatId, telegramId, firstName, username, code);
+    return;
+  }
+
+  // Check if user is linked — if not, prompt for code
+  const existingUser = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
+  if (!existingUser) {
+    await sendMsg(token, chatId, `سلام ${firstName}! 👋\n\nحساب شما هنوز به Genova متصل نشده است.\n\n🔑 آیا کد اتصال حساب دارید؟`, {
+      inline_keyboard: [
+        [{ text: "🔑 کد دارم", callback_data: "cmd_enter_code" }],
+        [{ text: "📋 دریافت کد از سایت", url: `${SITE_URL}/profile` }],
+      ],
+    });
     return;
   }
 
@@ -375,6 +409,16 @@ async function handleStart(ctx: any, token: string, chatId: number, telegramId: 
   // Reference-style layout: two rows of two, one wide referral row, one
   // wide mini-app row — glued to the message keyboard (persistent).
   await sendMsg(token, chatId, welcomeMsg, GENOVA_REPLY_KEYBOARD);
+}
+
+async function handleEnterCode(ctx: any, token: string, chatId: number, telegramId: number) {
+  await ctx.runMutation(internal.telegramBotExtras.setPendingInput, {
+    telegramId,
+    kind: "link_code",
+  });
+  await sendMsg(token, chatId, "لطفاً کد اتصال حساب خود را ارسال کنید:\n\n(کد ۸ کاراکتری که از بخش پروفایل سایت دریافت کرده‌اید)", {
+    inline_keyboard: [[{ text: "❌ انصراف", callback_data: "cmd_cancel" }]],
+  });
 }
 
 async function handleHelp(ctx: any, token: string, chatId: number) {
@@ -681,6 +725,9 @@ async function handleCallbackQuery(ctx: any, token: string, chatId: number, tele
     case "cmd_session":
       await handleSessionRequest(ctx, token, chatId, telegramId);
       break;
+    case "cmd_enter_code":
+      await handleEnterCode(ctx, token, chatId, telegramId);
+      break;
     case "cmd_answer":
       await handleAnswerStart(ctx, token, chatId, telegramId);
       break;
@@ -810,7 +857,7 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
             break;
           }
           // Any other plain text: try the pending bot flows (AI / ask / session / answer)
-          const handled = await handlePendingText(ctx, token, chatId, telegramId, firstName, text);
+          const handled = await handlePendingText(ctx, token, chatId, telegramId, firstName, username, text);
           if (!handled) {
             await sendMsg(token, chatId,
               `برای شروع /start را ارسال کنید.\nبرای راهنما /help را ارسال کنید.`,

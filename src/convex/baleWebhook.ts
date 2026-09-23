@@ -19,17 +19,21 @@
  *   signature/secret-token mechanism (unlike Mini App initData HMAC, which we
  *   verify in ./miniAppAuth). So a POST arriving here is *not* proof that it
  *   came from Bale. Consequently this endpoint must stay non-privileged:
- *     • no authentication, no account linking, no user creation
- *     • no database writes of any kind
+ *     • no authentication, no user creation
+ *     • account linking only consumes a one-time, short-lived, unused code
+ *       that the *signed-in* user generated on the website (same table as the
+ *       Telegram bot) — a payload alone can never link anything
+ *     • no database writes beyond consuming that code
  *     • no payment approval (`pre_checkout_query` is deliberately ignored)
  *     • Bale ids from the payload are treated as external identifiers only
  *   Mini App authentication always goes through the validated
  *   `WebApp.initData` flow (see ./baleMiniAppAuth and ./miniAppAuth).
  *   `web_app_data` payloads are never used as identity.
  *
- *   The only outbound effect today is replying to `/start` with the configured
- *   welcome text (a non-privileged, static message). If Bale ever ships a
- *   webhook secret, verify it here before extending this handler.
+ *   Outbound effects: replying to `/start` with the configured welcome text
+ *   (a non-privileged, static message), prompting for a linking code, and
+ *   consuming a valid linking code. If Bale ever ships a webhook secret,
+ *   verify it here before extending this handler.
  */
 
 import { httpAction } from "./_generated/server";
@@ -94,6 +98,68 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   });
 }
 
+/**
+ * Try to link the Bale account using a one-time code generated on the website.
+ *
+ * The code table is shared with the Telegram bot (created by the signed-in
+ * user via telegramBot.generateLinkingCode). Validation happens twice: friendly
+ * checks here for good error messages, then atomically again inside
+ * baleBot._completeLinkingByCode.
+ */
+async function tryBaleLinkByCode(
+  ctx: unknown,
+  chatId: number,
+  baleUser: BaleUser,
+  rawCode: string,
+): Promise<void> {
+  if (typeof baleUser.id !== "number") return;
+  const c = ctx as any;
+  const apiCtx = ctx as unknown as BaleApiCtx;
+  const send = (t: string) => sendBaleMessage(apiCtx, chatId, t);
+
+  const code = rawCode.trim().toUpperCase();
+  const codeDoc = await c.runQuery(internal.telegramBot._findLinkingCode, { code });
+  if (!codeDoc) {
+    await send("❌ کد اتصال معتبر نیست یا منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
+    return;
+  }
+  if (Date.now() > codeDoc.expiresAt) {
+    await send("⏰ کد اتصال منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
+    return;
+  }
+  if (codeDoc.usedAt) {
+    await send("⚠️ این کد قبلاً استفاده شده است.\n\nاگر می‌خواهید حساب جدیدی متصل کنید، از سایت کد جدید بگیرید.");
+    return;
+  }
+
+  const existing = await c.runQuery(internal.baleBot._findUserByBaleId, { baleId: baleUser.id });
+  if (existing && existing._id !== codeDoc.userId) {
+    await send("⚠️ این حساب Bale قبلاً به حساب دیگری متصل شده است.\n\nبرای اتصال به حساب جدید، ابتدا اتصال قبلی را قطع کنید.");
+    return;
+  }
+  if (existing && existing._id === codeDoc.userId) {
+    await send(`✅ این حساب Bale قبلاً به حساب Genova شما متصل شده است.\n\nخوش آمدید ${baleUser.first_name ?? ""}!`);
+    return;
+  }
+
+  const result = await c.runMutation(internal.baleBot._completeLinkingByCode, {
+    codeId: codeDoc._id,
+    baleId: baleUser.id,
+    baleUsername: baleUser.username,
+    baleFirstName: baleUser.first_name,
+  });
+  if (result?.success) {
+    await send(`✅ حساب Bale شما با موفقیت به Genova متصل شد!\n\nخوش آمدید ${baleUser.first_name ?? ""}! 🎉`);
+  } else {
+    const reasons: Record<string, string> = {
+      already_used: "⚠️ این کد قبلاً استفاده شده است.",
+      expired: "⏰ این کد منقضی شده است.",
+      already_linked: "⚠️ این حساب Bale قبلاً به حساب دیگری متصل شده.",
+    };
+    await send(reasons[result?.reason as string] || "❌ خطای نامشخص.");
+  }
+}
+
 export const handleBaleWebhook = httpAction(async (ctx, request) => {
   // 1. Only POST updates are meaningful.
   if (request.method !== "POST") {
@@ -141,8 +207,21 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
   }
 
   if (type === "callback_query") {
-    // Button presses carry no authenticated identity and there is nothing to
-    // do with them yet: acknowledge without any side effect.
+    // Only the linking-code prompt has a button; everything else is
+    // acknowledged without any side effect.
+    const cq = update.callback_query as
+      | { data?: unknown; message?: { chat?: { id?: unknown } } }
+      | undefined;
+    const data = typeof cq?.data === "string" ? cq.data : "";
+    const cbChatId = cq?.message?.chat?.id;
+    if (data === "cmd_enter_code" && typeof cbChatId === "number") {
+      await sendBaleMessage(
+        ctx as unknown as BaleApiCtx,
+        cbChatId,
+        "🔑 لطفاً کد اتصال حساب خود را ارسال کنید:\n\n(کد ۸ کاراکتری که از بخش پروفایل سایت دریافت کرده‌اید)",
+      );
+      return jsonResponse({ ok: true, type });
+    }
     return jsonResponse({ ok: true, type });
   }
 
@@ -173,6 +252,16 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
 
   const text = typeof message.text === "string" ? message.text.trim() : "";
   const isStart = text === "/start" || text.startsWith("/start ");
+
+  // `/start <CODE>` — direct linking with a code from the website.
+  if (isStart && message.from) {
+    const startCode = text.split(/\s+/)[1]?.trim();
+    if (startCode && startCode.length >= 6) {
+      await tryBaleLinkByCode(ctx, chatId, message.from, startCode);
+      return jsonResponse({ ok: true, type });
+    }
+  }
+
   const isHelp = text === "/help";
 
   if (isStart || isHelp) {
@@ -222,6 +311,19 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
         config.startMessage ?? DEFAULT_START_MESSAGE,
         { reply_markup: replyKeyboard },
       );
+
+      // Prompt for the linking code when this Bale user is not linked yet.
+      const linkedUser = message.from?.id
+        ? await (ctx as any).runQuery(internal.baleBot._findUserByBaleId, { baleId: message.from.id })
+        : null;
+      if (!linkedUser) {
+        await sendBaleMessage(
+          ctx as unknown as BaleApiCtx,
+          chatId,
+          "🔑 آیا کد اتصال حساب دارید؟\n\nاگر کد اتصال از سایت دریافت کرده‌اید، دکمه زیر را بزنید و کد را بفرستید.",
+          { reply_markup: { inline_keyboard: [[{ text: "🔑 کد دارم", callback_data: "cmd_enter_code" }]] } },
+        );
+      }
     }
   }
 
@@ -241,6 +343,12 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       chatId,
       replyResponse,
     );
+    return jsonResponse({ ok: true, type });
+  }
+
+  // One-time linking code entry (8 chars generated on the website profile).
+  if (/^[A-Za-z0-9]{8}$/.test(text) && message.from) {
+    await tryBaleLinkByCode(ctx, chatId, message.from, text);
     return jsonResponse({ ok: true, type });
   }
 

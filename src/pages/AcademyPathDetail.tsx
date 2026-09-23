@@ -288,9 +288,24 @@ function AcademyPathDetailInner() {
               </CardContent>
             </Card>
           ) : (
-            <div className="relative mt-6 space-y-4 pr-6">
-              {/* Timeline spine */}
-              <div className="absolute bottom-4 right-[9px] top-4 w-0.5 bg-gradient-to-b from-primary/50 via-primary/20 to-transparent" />
+            <div className="relative mt-6 space-y-5 pr-8">
+              {/* Timeline spine — decorative wavy path */}
+              <svg className="absolute bottom-6 right-0 top-6 w-6" viewBox="0 0 24 300" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="pathGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.6" />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.1" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M 12 0 Q 4 30 12 60 Q 20 90 12 120 Q 4 150 12 180 Q 20 210 12 240 Q 4 270 12 300"
+                  fill="none"
+                  stroke="url(#pathGrad)"
+                  strokeWidth="2"
+                  strokeDasharray="6 4"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
 
               {validItems.map((item: any, idx: number) => {
                 const workshopId = item.workshopId ?? "";
@@ -300,17 +315,17 @@ function AcademyPathDetailInner() {
                 const soon = !!item.comingSoon && !past;
                 return (
                   <div key={item.itemId} className="relative">
-                    {/* Node dot */}
+                    {/* Node dot — positioned along the path */}
                     <span
                       className={cn(
-                        "absolute -right-6 top-6 flex size-5 items-center justify-center rounded-full border-2 text-[9px] font-bold",
+                        "absolute -right-8 top-6 flex size-7 items-center justify-center rounded-full border-2 text-[10px] font-bold shadow-sm transition-transform hover:scale-110",
                         owned
-                          ? "border-emerald-500 bg-emerald-500 text-white"
+                          ? "border-emerald-500 bg-emerald-500 text-white shadow-emerald-500/30"
                           : past
                             ? "border-muted-foreground/30 bg-muted text-muted-foreground"
                             : soon
-                              ? "border-amber-500/50 bg-amber-500/10"
-                              : "border-primary bg-primary/10 text-primary",
+                              ? "border-amber-500/50 bg-amber-500/10 text-amber-600"
+                              : "border-primary bg-primary/10 text-primary shadow-primary/20",
                       )}
                     >
                       {owned ? "✓" : faNum(idx + 1)}

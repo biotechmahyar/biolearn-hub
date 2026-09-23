@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +41,7 @@ import {
 import { toast } from "sonner";
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuth();
+  const { user, signIn, signOut } = useAuth();
   const role = user?.role;
   const isAdmin = role === "admin" || role === "site_admin";
   const isManager = role === "site_admin";
@@ -49,6 +49,10 @@ export default function ProfilePage() {
 
   // ── Profile Data ──────────────────────────────────────────────────────
   const updateProfile = useMutation(api.profiles.updateMyProfile);
+  const generateLinkCode = useMutation(api.telegramBot.generateLinkingCode);
+  const changeMyPassword = useAction(api.userAuthActions.changeMyPasswordAction);
+  const tgStatus = useQuery(api.telegramBot.getLinkingStatus);
+  const baleStatus = useQuery(api.baleBot.getLinkingStatus);
 
   // ── User Stats ────────────────────────────────────────────────────────
   const enrollments = useQuery(api.enroll.getMyEnrollments);
@@ -71,6 +75,8 @@ export default function ProfilePage() {
   const [isSavingName, setIsSavingName] = useState(false);
   const [isChangingPw, setIsChangingPw] = useState(false);
   const [showTelegramLink, setShowTelegramLink] = useState(false);
+  const [showBaleLink, setShowBaleLink] = useState(false);
+  const [linkCode, setLinkCode] = useState<string | null>(null);
 
   // ── Sync name from profile ────────────────────────────────────────────
   useEffect(() => {
@@ -102,22 +108,46 @@ export default function ProfilePage() {
       toast.error("رمز عبور جدید باید حداقل ۶ کاراکتر باشد");
       return;
     }
+    if (!user?.email) {
+      toast.error("تغییر رمز فقط برای حساب‌های ایمیل/رمز ممکن است.");
+      return;
+    }
     setIsChangingPw(true);
     try {
+      // 1) Verify the current password through the real auth provider
+      try {
+        await signIn("password", { email: user.email, password: currentPassword });
+      } catch {
+        toast.error("رمز عبور فعلی اشتباه است.");
+        return;
+      }
+      // 2) Replace the stored password server-side (own account only)
+      await changeMyPassword({ newPassword });
+      // 3) Re-establish the session with the new password
+      try {
+        await signIn("password", { email: user.email, password: newPassword });
+      } catch {
+        // Sessions were invalidated — the user will sign in again normally.
+      }
       toast.success("تغییر رمز با موفقیت انجام شد");
       setCurrentPassword("");
       setNewPassword("");
-    } catch {
-      toast.error("خطا در تغییر رمز عبور");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در تغییر رمز عبور");
     } finally {
       setIsChangingPw(false);
     }
   };
 
-  const handleCopyTelegramLink = () => {
-    const link = `https://t.me/GenovaBot?start=${user?._id ?? ""}`;
-    navigator.clipboard.writeText(link);
-    toast.success("لینک کپی شد");
+  const handleGetLinkCode = async () => {
+    try {
+      const res = await generateLinkCode({});
+      setLinkCode(res.code);
+      navigator.clipboard.writeText(res.code);
+      toast.success("کد اتصال ساخته و کپی شد (۱۰ دقیقه معتبر)");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در ساخت کد اتصال");
+    }
   };
 
   // ── Loading ───────────────────────────────────────────────────────────
@@ -301,24 +331,98 @@ export default function ProfilePage() {
               </Button>
               {showTelegramLink && (
                 <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    لینک اتصال حساب تلگرام:
+                  <p className="text-xs font-bold text-muted-foreground">
+                    اتصال حساب تلگرام:
                   </p>
+                  <ol className="list-decimal pr-4 space-y-1 text-[11px] text-muted-foreground">
+                    <li>کد زیر را کپی کنید</li>
+                    <li>ربات را در تلگرام استارت بزنید</li>
+                    <li>«کد دارم» را بزنید و کد را بفرستید</li>
+                  </ol>
                   <div className="flex gap-1.5">
                     <code
-                      className="flex-1 text-[11px] bg-background px-2 py-1.5 rounded border truncate"
+                      className="flex-1 text-center text-sm font-black tracking-widest bg-background px-2 py-1.5 rounded border"
                       dir="ltr"
                     >
-                      https://t.me/GenovaBot?start={user._id}
+                      {linkCode ?? "— کدی ساخته نشده —"}
                     </code>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={handleCopyTelegramLink}
+                    <Button size="sm" variant="secondary" onClick={handleGetLinkCode}>
+                      {linkCode ? "کد جدید" : "دریافت کد"}
+                    </Button>
+                    {linkCode && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(linkCode);
+                          toast.success("کد کپی شد");
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      window.open(
+                        tgStatus?.botUsername
+                          ? `https://t.me/${tgStatus.botUsername}`
+                          : "https://t.me/GenovaBot",
+                        "_blank",
+                      )
+                    }
+                  >
+                    باز کردن ربات تلگرام
+                  </Button>
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => setShowBaleLink(!showBaleLink)}
+              >
+                <MessageSquare className="w-4 h-4" />
+                {showBaleLink ? "مخفی کردن لینک" : "اتصال بله"}
+              </Button>
+              {showBaleLink && (
+                <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-bold text-muted-foreground">
+                    اتصال حساب بله:
+                  </p>
+                  <ol className="list-decimal pr-4 space-y-1 text-[11px] text-muted-foreground">
+                    <li>کد بالا را کپی کنید (کد مشترک هر دو ربات است)</li>
+                    <li>ربات را در بله استارت بزنید</li>
+                    <li>«کد دارم» را بزنید و کد را بفرستید</li>
+                  </ol>
+                  <div className="flex gap-1.5">
+                    <code
+                      className="flex-1 text-center text-sm font-black tracking-widest bg-background px-2 py-1.5 rounded border"
+                      dir="ltr"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      {linkCode ?? "— کدی ساخته نشده —"}
+                    </code>
+                    <Button size="sm" variant="secondary" onClick={handleGetLinkCode}>
+                      {linkCode ? "کد جدید" : "دریافت کد"}
                     </Button>
                   </div>
+                  {baleStatus?.botUsername ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => window.open(`https://ble.ir/${baleStatus.botUsername}`, "_blank")}
+                    >
+                      باز کردن ربات بله
+                    </Button>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      ربات Genova را در بله جستجو کنید و استارت بزنید.
+                    </p>
+                  )}
                 </div>
               )}
 

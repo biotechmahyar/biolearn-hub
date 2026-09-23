@@ -9,9 +9,9 @@ import { PublicLayout } from "@/components/site/PublicLayout";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { iconFor } from "@/components/site/icons";
 import { api } from "@/convex/_generated/api";
+import { useQuery } from "convex/react";
 import { accent, faNum, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useQuery } from "convex/react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -51,6 +51,8 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { usePageConfig } from "@/hooks/usePageConfig";
 
 export default function Landing() {
+  const gameSetting = useQuery(api.siteSettings.getSetting, { key: "game.enabled" });
+  const gameEnabled = gameSetting === null ? true : gameSetting !== false;
   const { isIran } = useMode();
   // Convex queries (used in global mode)
   const categoriesConvex = useQuery(api.content.listCategories);
@@ -626,7 +628,7 @@ export default function Landing() {
             transition={{ duration: 0.45, delay: 0.08 }}
           >
             <Link
-              to="/game"
+              to={gameEnabled ? "/game" : "/game/disabled"}
               className="group relative block overflow-hidden rounded-3xl border border-sky-400/30 bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 p-6 shadow-lg shadow-sky-900/20 transition-transform hover:-translate-y-1"
             >
               <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_85%_15%,rgba(255,255,255,0.35),transparent_45%)]" />

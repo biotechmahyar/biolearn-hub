@@ -261,5 +261,64 @@ export const toggleMarketplace = mutation({
   },
 });
 
+// ── Compute Game toggle ────────────────────────────────────────────────────
+
+/** Check if the Compute Game section is enabled (used by the landing page) */
+export const isGameEnabled = query({
+  args: {},
+  handler: async (ctx) => {
+    const row = await ctx.db
+      .query("siteSettings")
+      .withIndex("by_key", (q) => q.eq("key", "game.enabled"))
+      .first();
+    if (!row) return true; // default: enabled
+    try {
+      return JSON.parse(row.value);
+    } catch {
+      return true;
+    }
+  },
+});
+
+/** Admin: toggle the Compute Game section */
+export const toggleGame = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
+      throw new Error("دسترسی مدیریتی لازم است.");
+    }
+
+    const existing = await ctx.db
+      .query("siteSettings")
+      .withIndex("by_key", (q) => q.eq("key", "game.enabled"))
+      .first();
+
+    const value = JSON.stringify(args.enabled);
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        value,
+        updatedBy: user._id,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("siteSettings", {
+        key: "game.enabled",
+        value,
+        description: "فعال/غیرفعال بودن بازی بلاکچین ژنوا",
+        updatedBy: user._id,
+        updatedAt: Date.now(),
+      });
+    }
+
+    await logAudit(ctx, user, "game.toggle", "game", undefined, {
+      enabled: args.enabled,
+    });
+
+    return { ok: true };
+  },
+});
+
 /** Export logAudit for use in other modules */
 export { logAudit };

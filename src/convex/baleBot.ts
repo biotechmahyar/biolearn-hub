@@ -157,6 +157,46 @@ export const getLinkingStatus = query({
 
 // ── Mutations ────────────────────────────────────────────────────────────────
 
+/**
+ * Internal: complete account linking from a one-time code entered in the bot.
+ *
+ * The code is created by the signed-in user on the website (see
+ * telegramBot.generateLinkingCode — the same table serves both bots), so an
+ * arbitrary webhook payload alone can never link anything without a valid,
+ * unexpired, unused code. Everything is re-validated atomically here.
+ */
+export const _completeLinkingByCode = internalMutation({
+  args: {
+    codeId: v.id("telegramLinkingCodes"),
+    baleId: v.number(),
+    baleUsername: v.optional(v.string()),
+    baleFirstName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const codeDoc = await ctx.db.get(args.codeId);
+    if (!codeDoc || codeDoc.usedAt) return { success: false as const, reason: "already_used" as const };
+    if (Date.now() > codeDoc.expiresAt) return { success: false as const, reason: "expired" as const };
+
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_baleId", (q) => q.eq("baleId", args.baleId))
+      .first();
+    if (existingUser && existingUser._id !== codeDoc.userId) {
+      return { success: false as const, reason: "already_linked" as const };
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(args.codeId, { usedAt: now });
+    await ctx.db.patch(codeDoc.userId, {
+      baleId: args.baleId,
+      baleUsername: args.baleUsername,
+      baleFirstName: args.baleFirstName,
+      baleLinkedAt: now,
+    });
+    return { success: true as const, userId: codeDoc.userId };
+  },
+});
+
 /** Save Bale bot token (admin-only) */
 export const saveBotToken = mutation({
   args: { token: v.string() },
