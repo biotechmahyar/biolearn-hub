@@ -190,7 +190,7 @@ export default function Dashboard() {
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 pb-24 sm:px-6 lg:flex-row lg:pb-6">
         {/* Mobile navigation: five high-level areas keep the main bar short. */}
-        <div className="sticky top-16 z-20 -mx-4 border-b border-border/70 bg-background/90 px-4 py-2 backdrop-blur-lg lg:hidden">
+        <div className="sticky top-20 z-20 -mx-4 border-b border-border/70 bg-background/90 px-4 py-2 backdrop-blur-lg lg:hidden">
           <div className="flex gap-1 overflow-x-auto pb-1">
             {NAV_GROUPS.map((group) => {
               const active = group.id === activeGroup.id;
