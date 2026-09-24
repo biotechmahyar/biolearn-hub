@@ -192,7 +192,9 @@ export default function Dashboard() {
             </span>
             <div className="min-w-0">
               <p className={cn("text-[10px] font-bold", isDashboardDark ? "text-slate-400" : "text-slate-500")}>مسیر فعلی تو</p>
-              <p className={cn("truncate text-sm font-extrabold", isDashboardDark ? "text-white" : "text-slate-800")}>{activeGroup.label}</p>
+              <p className={cn("truncate text-sm font-extrabold", isDashboardDark ? "text-white" : "text-slate-800")}>
+                {TABS.find((candidate) => candidate.key === tab)?.label ?? "نمای کلی"}
+              </p>
             </div>
           </div>
 
@@ -223,29 +225,10 @@ export default function Dashboard() {
       </header>
 
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 pb-24 sm:px-6 lg:flex-row lg:pb-6">
-        {/* Mobile navigation: five high-level areas keep the main bar short. */}
-        <div className="sticky top-20 z-20 -mx-4 border-b border-border/70 bg-background/90 px-4 py-2 backdrop-blur-lg lg:hidden">
-          <div className="flex gap-1 overflow-x-auto pb-1">
-            {NAV_GROUPS.map((group) => {
-              const active = group.id === activeGroup.id;
-              return (
-                <button
-                  key={group.id}
-                  type="button"
-                  onClick={() => setTab(group.tabs[0])}
-                  className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-colors",
-                    active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  <group.icon className="size-3.5" />
-                  {group.label}
-                </button>
-              );
-            })}
-          </div>
-          {activeGroup.tabs.length > 1 ? (
-            <div className="mt-1 flex gap-1 overflow-x-auto pb-1">
+        {/* Mobile navigation shows only the sub-sections of the active area. */}
+        {activeGroup.tabs.length > 1 ? (
+          <div className="sticky top-20 z-20 -mx-4 border-b border-border/70 bg-background/90 px-4 py-2 backdrop-blur-lg lg:hidden">
+            <div className="flex gap-1 overflow-x-auto pb-1">
               {activeGroup.tabs.map((key) => {
                 const item = TABS.find((candidate) => candidate.key === key);
                 if (!item) return null;
@@ -255,17 +238,18 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => setTab(key)}
                     className={cn(
-                      "shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
-                      tab === key ? "bg-primary/12 text-primary" : "text-muted-foreground",
+                      "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-colors",
+                      tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
                     )}
                   >
+                    <item.icon className="size-3.5" />
                     {item.label}
                   </button>
                 );
               })}
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
 
         {/* Desktop grouped sidebar */}
         <aside className="hidden shrink-0 lg:block lg:w-64">
