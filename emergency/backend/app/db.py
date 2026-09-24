@@ -70,6 +70,47 @@ CREATE TABLE IF NOT EXISTS emergency_auth_keys (
     created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS emergency_roles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    permissions_json TEXT NOT NULL DEFAULT '[]',
+    panel_access_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS emergency_user_roles (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+    assigned_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id),
+    FOREIGN KEY(role_id) REFERENCES emergency_roles(id),
+    UNIQUE(user_id, role_id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_profiles (
+    user_id TEXT PRIMARY KEY,
+    display_name TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    phone TEXT,
+    bio TEXT,
+    avatar_url TEXT,
+    resume_url TEXT,
+    university TEXT,
+    field_of_study TEXT,
+    graduation_year INTEGER,
+    skills_json TEXT NOT NULL DEFAULT '[]',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    telegram_id TEXT,
+    bale_id TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
 CREATE INDEX IF NOT EXISTS emergency_accounts_user_idx
     ON emergency_auth_accounts(user_id);
 CREATE INDEX IF NOT EXISTS emergency_sessions_token_idx
@@ -78,6 +119,12 @@ CREATE INDEX IF NOT EXISTS emergency_sessions_refresh_idx
     ON emergency_auth_sessions(refresh_token_hash);
 CREATE INDEX IF NOT EXISTS emergency_tokens_hash_idx
     ON emergency_auth_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS emergency_roles_name_idx
+    ON emergency_roles(name);
+CREATE INDEX IF NOT EXISTS emergency_user_roles_user_idx
+    ON emergency_user_roles(user_id);
+CREATE INDEX IF NOT EXISTS emergency_user_roles_role_idx
+    ON emergency_user_roles(role_id);
 """
 
 

@@ -4,15 +4,15 @@ Independent fallback service for Genova. This directory is intentionally separat
 
 ## Current phase
 
-Phase 3 implements the independent authentication layer:
+Phase 4 adds the independent user directory on top of phase 3 authentication:
 
 - Local SQLite users, password accounts, sessions, access/refresh tokens, and signing keys
 - Portable password verification for PBKDF2, scrypt, SHA-256, and portable records
-- Optional bcrypt and Argon2 verification when their runtimes are installed
 - Local login, Bearer identity resolution, refresh rotation, and idempotent logout
 - Imported opaque token records and JWT verification using imported signing keys
-- Role and active-user status returned by `/api/auth/me`
-- Snapshot-compatible idempotent upsert methods for identity and auth records
+- Snapshot-compatible profiles with academic, contact, media, skills, Telegram, and Bale metadata
+- Role definitions, permissions, panel-access metadata, and user-role assignments
+- Authenticated profile self-service and admin-only directory/role APIs
 
 The versioned snapshot contract remains defined in `backend/app/snapshot_contract.py` and `docs/snapshot-contract.md`. The operational snapshot exporter/importer is intentionally not implemented yet. No runtime dependency on the main Vite/Convex application exists.
 
@@ -53,8 +53,8 @@ emergency/
 
 1. Independent service scaffold — complete
 2. Snapshot data model — complete
-3. Full authentication/session compatibility — current
-4. Users, profiles, and roles
+3. Full authentication/session compatibility — complete
+4. Users, profiles, and roles — current
 5. Courses and learning data
 6. Bots, payments, and runtime configuration
 7. Emergency admin panel and import/export tooling
