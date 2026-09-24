@@ -5,6 +5,7 @@ provides a local SQLite auth store and compatibility endpoints for imported
 identity/session records without importing the main application at runtime.
 """
 from fastapi import Depends, FastAPI, HTTPException, Query, Response
+import secrets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -19,10 +20,11 @@ from .auth_service import (
 from .config import settings
 from .db import database_is_ready
 from .directory_service import DirectoryNotFound, DirectoryPermissionDenied, UserDirectoryService
+from .learning_service import LearningNotFound, LearningService, LearningValidationError
 
 app = FastAPI(
     title="Genova Emergency Service",
-    version="0.4.0",
+    version="0.5.0",
     description="Independent fallback service for Genova.",
 )
 
@@ -90,6 +92,37 @@ class RoleAssignmentRequest(BaseModel):
     assignmentId: str | None = None
 
 
+class EnrollmentRequest(BaseModel):
+    courseId: str
+
+
+class ProgressRequest(BaseModel):
+    status: str = "in_progress"
+    progressPercent: float = 0
+    lastPosition: int | None = None
+    completedAt: int | None = None
+
+
+class StudyPlanRequest(BaseModel):
+    title: str
+    status: str = "active"
+    metadata: dict[str, object] | None = None
+
+
+class LearningEventRequest(BaseModel):
+    eventType: str
+    courseId: str | None = None
+    lessonId: str | None = None
+    payload: dict[str, object] | None = None
+    occurredAt: int | None = None
+
+
+class AssessmentResponseRequest(BaseModel):
+    questionId: str
+    optionId: str | None = None
+    answerText: str | None = None
+
+
 @app.get("/", tags=["system"])
 async def root() -> dict[str, str]:
     return {
@@ -106,13 +139,14 @@ async def health() -> HealthResponse:
     return HealthResponse(
         service="genova-emergency",
         status=overall_status,
-        version="0.4.0",
+        version="0.5.0",
         database=database_status,
     )
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
 directory_service = UserDirectoryService()
+learning_service = LearningService()
 
 
 def _to_user_response(user: AuthenticatedUser) -> UserResponse:
@@ -264,6 +298,181 @@ async def remove_user_role(
     except DirectoryPermissionDenied as error:
         raise HTTPException(status_code=403, detail=str(error)) from error
     return Response(status_code=204)
+
+
+@app.get("/api/content/courses", tags=["content"])
+async def list_content_courses() -> list[dict[str, object]]:
+    return learning_service.list_courses(public_only=True)
+
+
+@app.get("/api/content/courses/{course_id}", tags=["content"])
+async def get_content_course(course_id: str) -> dict[str, object]:
+    try:
+        course = learning_service.get_course(course_id)
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    if course["status"] != "published":
+        raise HTTPException(status_code=404, detail="course_not_found")
+    return course
+
+
+@app.get("/api/admin/content/courses", tags=["content"])
+async def list_admin_content_courses(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    try:
+        directory_service.require_admin(user)
+    except DirectoryPermissionDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    return learning_service.list_courses(public_only=False)
+
+
+@app.get("/api/learning/me", tags=["learning"])
+async def get_my_learning(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    return learning_service.get_learning_overview(user.id)
+
+
+@app.post("/api/learning/me/enrollments", tags=["learning"])
+async def enroll_in_course(
+    request: EnrollmentRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    enrollment_id = f"{user.id}:{request.courseId}"
+    try:
+        learning_service.upsert_enrollment(
+            enrollment_id=enrollment_id,
+            user_id=user.id,
+            course_id=request.courseId,
+        )
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"id": enrollment_id, "userId": user.id, "courseId": request.courseId, "status": "active"}
+
+
+@app.put("/api/learning/me/progress/{lesson_id}", tags=["learning"])
+async def update_my_progress(
+    lesson_id: str,
+    request: ProgressRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    try:
+        learning_service.upsert_lesson_progress(
+            progress_id=f"{user.id}:{lesson_id}",
+            user_id=user.id,
+            lesson_id=lesson_id,
+            status=request.status,
+            progress_percent=max(0, min(100, request.progressPercent)),
+            last_position=request.lastPosition,
+            completed_at=request.completedAt,
+        )
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"userId": user.id, "lessonId": lesson_id, "status": request.status}
+
+
+@app.post("/api/learning/me/events", tags=["learning"])
+async def record_learning_event(
+    request: LearningEventRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    event_id = secrets.token_hex(16)
+    try:
+        learning_service.record_learning_event(
+            event_id=event_id,
+            user_id=user.id,
+            event_type=request.eventType,
+            course_id=request.courseId,
+            lesson_id=request.lessonId,
+            payload=request.payload,
+            occurred_at=request.occurredAt,
+        )
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"id": event_id, "userId": user.id, "eventType": request.eventType}
+
+
+@app.post("/api/learning/me/plans", tags=["learning"])
+async def create_study_plan(
+    request: StudyPlanRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    plan_id = secrets.token_hex(16)
+    learning_service.upsert_study_plan(
+        plan_id=plan_id,
+        user_id=user.id,
+        title=request.title,
+        status=request.status,
+        metadata=request.metadata,
+    )
+    return {"id": plan_id, "userId": user.id, "title": request.title, "status": request.status}
+
+
+@app.get("/api/assessments/{assessment_id}", tags=["assessments"])
+async def get_assessment(assessment_id: str) -> dict[str, object]:
+    try:
+        return learning_service.get_assessment(assessment_id)
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/api/assessments/{assessment_id}/attempts", tags=["assessments"])
+async def start_assessment_attempt(
+    assessment_id: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    attempt_id = secrets.token_hex(16)
+    try:
+        return learning_service.start_attempt(
+            attempt_id=attempt_id,
+            assessment_id=assessment_id,
+            user_id=user.id,
+        )
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/api/attempts/{attempt_id}/responses", tags=["assessments"])
+async def submit_assessment_response(
+    attempt_id: str,
+    request: AssessmentResponseRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    response_id = secrets.token_hex(16)
+    try:
+        return learning_service.submit_response(
+            response_id=response_id,
+            attempt_id=attempt_id,
+            question_id=request.questionId,
+            user_id=user.id,
+            option_id=request.optionId,
+            answer_text=request.answerText,
+        )
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except LearningValidationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/api/attempts/{attempt_id}/complete", tags=["assessments"])
+async def complete_assessment_attempt(
+    attempt_id: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    try:
+        return learning_service.complete_attempt(attempt_id=attempt_id, user_id=user.id)
+    except LearningNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @app.post("/api/auth/login", response_model=SessionResponse, tags=["auth"])

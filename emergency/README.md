@@ -4,15 +4,14 @@ Independent fallback service for Genova. This directory is intentionally separat
 
 ## Current phase
 
-Phase 4 adds the independent user directory on top of phase 3 authentication:
+Phase 5 adds independent content, learning, and assessment compatibility on top of the phase 3 authentication and phase 4 directory:
 
-- Local SQLite users, password accounts, sessions, access/refresh tokens, and signing keys
-- Portable password verification for PBKDF2, scrypt, SHA-256, and portable records
-- Local login, Bearer identity resolution, refresh rotation, and idempotent logout
-- Imported opaque token records and JWT verification using imported signing keys
-- Snapshot-compatible profiles with academic, contact, media, skills, Telegram, and Bale metadata
-- Role definitions, permissions, panel-access metadata, and user-role assignments
-- Authenticated profile self-service and admin-only directory/role APIs
+- Course categories, courses, sections, lessons, metadata, and publication state
+- Learner enrollment, lesson progress, learning events, and study plans
+- Assessment definitions, questions, options, attempts, responses, and scoring
+- Snapshot-compatible idempotent upsert methods for all phase-five records
+- Public published-course catalog and authenticated learner APIs
+- Admin-only view of all course states
 
 The versioned snapshot contract remains defined in `backend/app/snapshot_contract.py` and `docs/snapshot-contract.md`. The operational snapshot exporter/importer is intentionally not implemented yet. No runtime dependency on the main Vite/Convex application exists.
 
@@ -54,8 +53,8 @@ emergency/
 1. Independent service scaffold — complete
 2. Snapshot data model — complete
 3. Full authentication/session compatibility — complete
-4. Users, profiles, and roles — current
-5. Courses and learning data
+4. Users, profiles, and roles — complete
+5. Content, learning, and assessments — current
 6. Bots, payments, and runtime configuration
 7. Emergency admin panel and import/export tooling
 8. Independent user interface

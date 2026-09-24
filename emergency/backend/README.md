@@ -26,6 +26,18 @@ uvicorn app.main:app --reload
 - `GET /api/admin/roles` — role definitions and permissions
 - `PUT /api/admin/users/{user_id}/roles` — assign a role
 - `DELETE /api/admin/users/{user_id}/roles/{role_id}` — remove a role assignment
+- `GET /api/content/courses` — published course catalog
+- `GET /api/content/courses/{course_id}` — course with sections and lessons
+- `GET /api/admin/content/courses` — all course states for administrators
+- `GET /api/learning/me` — enrollments, progress, and study plans
+- `POST /api/learning/me/enrollments` — enroll the current user
+- `PUT /api/learning/me/progress/{lesson_id}` — update lesson progress
+- `POST /api/learning/me/events` — record a learning event
+- `POST /api/learning/me/plans` — create a study plan
+- `GET /api/assessments/{assessment_id}` — learner-safe assessment definition
+- `POST /api/assessments/{assessment_id}/attempts` — start an assessment attempt
+- `POST /api/attempts/{attempt_id}/responses` — submit an answer
+- `POST /api/attempts/{attempt_id}/complete` — finalize and score an attempt
 
 The login and refresh responses contain an emergency-local opaque access/refresh
 pair. The service keeps the raw token value in the local session/token tables
@@ -43,7 +55,15 @@ For phase-four identity records, first insert the user with
 `UserDirectoryService.upsert_profile`, `upsert_role`, and `assign_role`.
 Role assignments retain their source assignment IDs and can be replayed safely.
 The service also exposes `list_users`, `get_user`, `get_profile`,
-`get_user_roles`, and admin-protected assignment operations. The operational
+`get_user_roles`, and admin-protected assignment operations.
+
+For phase-five records, use `LearningService.upsert_category`, `upsert_course`,
+`upsert_section`, `upsert_lesson`, `upsert_enrollment`,
+`upsert_lesson_progress`, `upsert_study_plan`, `record_learning_event`,
+`upsert_assessment`, `upsert_question`, and `upsert_option`. Assessment
+attempts and responses can be imported with `start_attempt`,
+`submit_response`, and `complete_attempt`. These methods retain source IDs,
+validate relationships, and are safe to replay. The operational
 exporter/importer is a later phase; no import from the main Convex application
 is performed here.
 
