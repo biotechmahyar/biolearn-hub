@@ -105,6 +105,25 @@ const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "profile", label: "پروفایل", icon: User },
 ];
 
+type NavGroup = {
+  id: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  tabs: TabKey[];
+};
+
+const NAV_GROUPS: NavGroup[] = [
+  { id: "overview", label: "خانه", icon: LayoutDashboard, tabs: ["overview"] },
+  { id: "learning", label: "یادگیری من", icon: BookOpen, tabs: ["courses", "workshops", "academyPath", "progress"] },
+  { id: "practice", label: "تمرین و آزمون", icon: ClipboardList, tabs: ["tests", "flashcards"] },
+  { id: "activity", label: "فعالیت‌ها", icon: Radio, tabs: ["live", "announcements", "inbox", "support"] },
+  { id: "profile", label: "پروفایل من", icon: User, tabs: ["profile", "certificate", "orders", "downloads", "bookmarks"] },
+];
+
+function groupForTab(tab: TabKey): NavGroup {
+  return NAV_GROUPS.find((group) => group.tabs.includes(tab)) ?? NAV_GROUPS[0];
+}
+
 export default function Dashboard() {
   const { isIran } = useMode();
   const { user, signOut } = useAuth();
@@ -120,6 +139,7 @@ export default function Dashboard() {
     return <Navigate to={panelForRole(role)} replace />;
   }
   const tab = (searchParams.get("tab") as TabKey) || "overview";
+  const activeGroup = groupForTab(tab);
 
   const setTab = (t: TabKey) => setSearchParams(t === "overview" ? {} : { tab: t });
 
@@ -153,30 +173,87 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:flex-row">
-        {/* Sidebar */}
-        <aside className="shrink-0 lg:w-60">
-          <nav className="flex gap-1.5 overflow-x-auto pb-1 lg:flex-col lg:pb-0">
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={cn(
-                  "flex shrink-0 items-center gap-2.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors",
-                  tab === t.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                )}
-              >
-                <t.icon className="size-4" />
-                {t.label}
-                {t.key === "inbox" && unreadCount > 0 && (
-                  <span className="mr-auto flex size-5 items-center justify-center rounded-full bg-red-500/15 text-[10px] font-bold text-red-500">
-                    {faNum(unreadCount)}
-                  </span>
-                )}
-              </button>
+      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 pb-24 sm:px-6 lg:flex-row lg:pb-6">
+        {/* Mobile navigation: five high-level areas keep the main bar short. */}
+        <div className="sticky top-16 z-20 -mx-4 border-b border-border/70 bg-background/90 px-4 py-2 backdrop-blur-lg lg:hidden">
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {NAV_GROUPS.map((group) => {
+              const active = group.id === activeGroup.id;
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => setTab(group.tabs[0])}
+                  className={cn(
+                    "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-colors",
+                    active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  <group.icon className="size-3.5" />
+                  {group.label}
+                </button>
+              );
+            })}
+          </div>
+          {activeGroup.tabs.length > 1 ? (
+            <div className="mt-1 flex gap-1 overflow-x-auto pb-1">
+              {activeGroup.tabs.map((key) => {
+                const item = TABS.find((candidate) => candidate.key === key);
+                if (!item) return null;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    className={cn(
+                      "shrink-0 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                      tab === key ? "bg-primary/12 text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Desktop grouped sidebar */}
+        <aside className="hidden shrink-0 lg:block lg:w-64">
+          <nav className="space-y-6">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.id}>
+                <p className="mb-2 px-3 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/70">
+                  {group.label}
+                </p>
+                <div className="space-y-1">
+                  {group.tabs.map((key) => {
+                    const item = TABS.find((candidate) => candidate.key === key);
+                    if (!item) return null;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setTab(key)}
+                        className={cn(
+                          "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                          tab === key
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        <item.icon className="size-4" />
+                        <span>{item.label}</span>
+                        {key === "inbox" && unreadCount > 0 ? (
+                          <span className="mr-auto flex size-5 items-center justify-center rounded-full bg-red-500/15 text-[10px] font-bold text-red-500">
+                            {faNum(unreadCount)}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </nav>
         </aside>
@@ -224,6 +301,30 @@ export default function Dashboard() {
           {tab === "profile" && <StudentProfileTab />}
         </main>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/95 px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-lg lg:hidden">
+        <div className="mx-auto flex max-w-md items-center justify-around gap-1">
+          {NAV_GROUPS.map((group) => {
+            const active = group.id === activeGroup.id;
+            return (
+              <button
+                key={group.id}
+                type="button"
+                onClick={() => setTab(group.tabs[0])}
+                className={cn(
+                  "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-[10px] font-bold transition-colors",
+                  active ? "text-primary" : "text-muted-foreground",
+                )}
+              >
+                <span className={cn("rounded-lg p-1.5", active && "bg-primary/10")}>
+                  <group.icon className="size-4" />
+                </span>
+                <span className="max-w-full truncate">{group.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
@@ -278,11 +379,66 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold">سلام {user?.name?.split(" ")[0] ?? "دانشجو"} 👋</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          امروز هم یک قدم به تسلط نزدیک‌تر شو. خلاصهٔ وضعیت یادگیری تو:
-        </p>
+      <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/15 via-background to-emerald-500/5 p-5 sm:p-7">
+        <div className="pointer-events-none absolute -left-12 -top-16 size-40 rounded-full bg-primary/10 blur-2xl" />
+        <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div className="max-w-2xl">
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-bold text-primary">
+              <span className="rounded-full bg-primary/10 px-2.5 py-1">مسیر یادگیری شخصی</span>
+              <span className="text-muted-foreground">امروز، قدم بعدی تو مشخص است</span>
+            </div>
+            <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+              سلام {user?.name?.split(" ")[0] ?? "دانشجو"} 👋
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-7 text-muted-foreground">
+              {continueCourse
+                ? `آخرین مسیرت در «${continueCourse.course?.title}» آماده ادامه است. یک جلسه کوتاه هم می‌تواند امروزت را کامل کند.`
+                : "با یک دوره رایگان یا آزمون تعیین سطح شروع کن تا مسیر یادگیری اختصاصی‌ات شکل بگیرد."}
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button onClick={() => onNavigate("courses")} className="rounded-full">
+                <Play className="ml-2 size-4" />
+                {continueCourse ? "ادامه یادگیری" : "شروع یادگیری"}
+              </Button>
+              <Button onClick={() => onNavigate("tests")} variant="outline" className="rounded-full">
+                <ClipboardList className="ml-2 size-4" />
+                سنجش پیشرفت
+              </Button>
+            </div>
+          </div>
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-72 lg:grid-cols-1">
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
+              <p className="text-[10px] font-bold text-muted-foreground">دوره فعال</p>
+              <p className="mt-1 truncate text-sm font-extrabold">{enrollments.length ? faNum(enrollments.length) : "—"}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-background/70 p-3">
+              <p className="text-[10px] font-bold text-muted-foreground">میانگین آزمون</p>
+              <p className="mt-1 text-sm font-extrabold">{avgPercent !== null ? `${faNum(avgPercent)}٪` : "—"}</p>
+            </div>
+            <div className="col-span-2 rounded-2xl border border-border/70 bg-background/70 p-3 sm:col-span-1">
+              <p className="text-[10px] font-bold text-muted-foreground">امتیاز کوئیز</p>
+              <p className="mt-1 text-sm font-extrabold">{faNum(profile?.totalPoints ?? 0)}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <button type="button" onClick={() => onNavigate("courses")} className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 text-right transition-colors hover:border-primary/35 hover:bg-primary/5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary"><BookOpen className="size-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-xs font-extrabold">ادامه مسیر یادگیری</span><span className="block truncate text-[10px] text-muted-foreground">دوره‌ها و درس‌های من</span></span>
+          <ChevronLeft className="size-4 text-muted-foreground transition-transform group-hover:-translate-x-1" />
+        </button>
+        <button type="button" onClick={() => onNavigate("tests")} className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 text-right transition-colors hover:border-violet-500/35 hover:bg-violet-500/5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-500"><Target className="size-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-xs font-extrabold">تمرین و سنجش</span><span className="block truncate text-[10px] text-muted-foreground">آزمون، کوئیز و فلش‌کارت</span></span>
+          <ChevronLeft className="size-4 text-muted-foreground transition-transform group-hover:-translate-x-1" />
+        </button>
+        <button type="button" onClick={() => onNavigate("academyPath")} className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 text-right transition-colors hover:border-emerald-500/35 hover:bg-emerald-500/5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500"><Route className="size-4" /></span>
+          <span className="min-w-0 flex-1"><span className="block text-xs font-extrabold">مسیر آکادمی</span><span className="block truncate text-[10px] text-muted-foreground">حرکت مرحله‌به‌مرحله</span></span>
+          <ChevronLeft className="size-4 text-muted-foreground transition-transform group-hover:-translate-x-1" />
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -650,12 +806,12 @@ function AcademyPathTab() {
                 <span className="text-[11px] font-bold text-muted-foreground">{faNum(doneCount)}/{faNum(p.items.length)}</span>
               </div>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="relative space-y-3 pr-4 before:absolute before:bottom-5 before:right-4 before:top-5 before:w-px before:bg-border">
               {p.items.map((item: any, idx: number) => {
                 const enrolled = isEnrolled(item.workshopId);
                 const isPast = item.date ? new Date(item.date).getTime() < Date.now() : false;
                 return (
-                  <div key={item.itemId} className="flex flex-col gap-2 rounded-xl border border-border/60 p-3 sm:flex-row sm:items-center">
+                  <div key={item.itemId} className="relative flex flex-col gap-2 rounded-2xl border border-border/60 bg-card/50 p-3 transition-colors hover:border-primary/30 hover:bg-card sm:flex-row sm:items-center">
                     <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold",
                       enrolled ? "bg-emerald-500/15 text-emerald-600" : "bg-primary/10 text-primary"
                     )}>
