@@ -54,6 +54,7 @@ import type * as siteDemos from "../siteDemos.js";
 import type * as siteSettings from "../siteSettings.js";
 import type * as siteStudio from "../siteStudio.js";
 import type * as skills from "../skills.js";
+import type * as studyPlanner from "../studyPlanner.js";
 import type * as superAdmin from "../superAdmin.js";
 import type * as support from "../support.js";
 import type * as syncData from "../syncData.js";
@@ -123,6 +124,7 @@ declare const fullApi: ApiFromModules<{
   siteSettings: typeof siteSettings;
   siteStudio: typeof siteStudio;
   skills: typeof skills;
+  studyPlanner: typeof studyPlanner;
   superAdmin: typeof superAdmin;
   support: typeof support;
   syncData: typeof syncData;

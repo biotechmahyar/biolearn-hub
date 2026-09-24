@@ -133,6 +133,26 @@ const schema = defineSchema(
       bankCardNumber: OPT(STR()),
       bankSheba: OPT(STR()),
     }).index("email", ["email"]).index("by_telegramId", ["telegramId"]).index("by_baleId", ["baleId"]),
+    studyPlans: defineTable({
+      userId: ID("users"),
+      subject: STR(),
+      courseId: OPT(ID("courses")),
+      weeklyMinutes: NUM(),
+      sessionsPerWeek: NUM(),
+      color: STR(),
+      note: OPT(STR()),
+      createdAt: NUM(),
+      updatedAt: NUM(),
+    }).index("by_user", ["userId"]),
+    studySessions: defineTable({
+      userId: ID("users"),
+      planId: ID("studyPlans"),
+      date: STR(),
+      minutes: NUM(),
+      note: OPT(STR()),
+      createdAt: NUM(),
+    }).index("by_user", ["userId"]).index("by_plan", ["planId"]),
+
     // ── Catalog ──────────────────────────────────────────────────────────
     categories: defineTable({
       name: STR(), // Persian display name

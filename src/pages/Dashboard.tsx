@@ -26,6 +26,7 @@ import {
   ArrowUp,
   BarChart3,
   BellRing,
+  CalendarDays,
   BookOpen,
   Bookmark,
   BookmarkCheck,
@@ -86,12 +87,13 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-type TabKey = "overview" | "courses" | "workshops" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate" | "academyPath" | "orders";
+type TabKey = "overview" | "courses" | "workshops" | "studyPlan" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate" | "academyPath" | "orders";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
   { key: "courses", label: "مرکز یادگیری", icon: BookOpen },
   { key: "workshops", label: "کارگاه‌ها", icon: GraduationCap },
+  { key: "studyPlan", label: "برنامه‌ریزی مطالعه", icon: CalendarDays },
   { key: "academyPath", label: "مسیر آکادمی", icon: Route },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
   { key: "live", label: "کلاس‌های زنده", icon: Radio },
@@ -116,7 +118,7 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   { id: "overview", label: "خانه", icon: LayoutDashboard, tabs: ["overview"] },
-  { id: "learning", label: "یادگیری من", icon: BookOpen, tabs: ["courses", "workshops", "academyPath", "progress"] },
+  { id: "learning", label: "یادگیری من", icon: BookOpen, tabs: ["courses", "workshops", "studyPlan", "academyPath", "progress"] },
   { id: "practice", label: "تمرین و آزمون", icon: ClipboardList, tabs: ["tests", "flashcards"] },
   { id: "activity", label: "فعالیت‌ها", icon: Radio, tabs: ["live", "announcements", "inbox", "support"] },
   { id: "profile", label: "پروفایل من", icon: User, tabs: ["profile", "certificate", "orders", "downloads", "bookmarks"] },
@@ -319,6 +321,7 @@ export default function Dashboard() {
           {tab === "overview" && <Overview onNavigate={setTab} />}
           {tab === "courses" && <MyLearningHub onNavigate={setTab} />}
           {tab === "workshops" && <MyWorkshops />}
+          {tab === "studyPlan" && <StudyPlanner />}
           {tab === "academyPath" && <AcademyPathTab />}
           {tab === "tests" && <TestsTab />}
           {tab === "progress" && <ProgressTab />}
@@ -358,6 +361,135 @@ export default function Dashboard() {
           })}
         </div>
       </nav>
+    </div>
+  );
+}
+
+// ── Study planner ──────────────────────────────────────────────────────────
+function StudyPlanner() {
+  const plans = useQuery(api.studyPlanner.listMyPlans) ?? [];
+  const recentSessions = useQuery(api.studyPlanner.listMyRecentSessions) ?? [];
+  const enrollments = useQuery(api.enroll.getMyEnrollments) ?? [];
+  const savePlan = useMutation(api.studyPlanner.savePlan);
+  const deletePlan = useMutation(api.studyPlanner.deletePlan);
+  const logSession = useMutation(api.studyPlanner.logSession);
+  const [subject, setSubject] = useState("");
+  const [weeklyMinutes, setWeeklyMinutes] = useState("180");
+  const [sessionsPerWeek, setSessionsPerWeek] = useState("3");
+  const [color, setColor] = useState("sky");
+  const [courseId, setCourseId] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const courseOptions = enrollments
+    .map((item: any) => item.course)
+    .filter(Boolean)
+    .filter((course: any, index: number, all: any[]) => all.findIndex((candidate) => candidate._id === course._id) === index);
+
+  const handleCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await savePlan({
+        subject,
+        courseId: courseId ? (courseId as any) : undefined,
+        weeklyMinutes: Number(weeklyMinutes),
+        sessionsPerWeek: Number(sessionsPerWeek),
+        color,
+      });
+      setSubject("");
+      setCourseId("");
+      toast.success("برنامه مطالعه ذخیره شد.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "ذخیره برنامه انجام نشد.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLog = async (planId: any) => {
+    try {
+      await logSession({ planId, minutes: 30 });
+      toast.success("یک جلسه ۳۰ دقیقه‌ای ثبت شد.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "ثبت مطالعه انجام نشد.");
+    }
+  };
+
+  const handleDelete = async (planId: any) => {
+    try {
+      await deletePlan({ planId });
+      toast.success("برنامه حذف شد.");
+    } catch (error: any) {
+      toast.error(error?.message ?? "حذف برنامه انجام نشد.");
+    }
+  };
+
+  const totalPlanned = plans.reduce((sum, plan: any) => sum + (plan.weeklyMinutes ?? 0), 0);
+  const totalCompleted = plans.reduce((sum, plan: any) => sum + (plan.weeklyCompletedMinutes ?? 0), 0);
+  const percent = totalPlanned ? Math.min(100, Math.round((totalCompleted / totalPlanned) * 100)) : 0;
+
+  return (
+    <div className="space-y-6">
+      <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-l from-primary/10 via-background to-cyan-500/5 p-5 sm:p-7">
+        <div className="relative flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+          <div>
+            <p className="text-[11px] font-bold text-primary">برنامه‌ریزی شخصی</p>
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight">زمانت را برای درس‌هایت برنامه‌ریزی کن</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">برای هر درس هدف هفتگی تعیین کن، جلسات کوتاه ثبت کن و پیشرفت واقعی مطالعه‌ات را ببین.</p>
+          </div>
+          <div className="min-w-52 rounded-2xl border border-primary/15 bg-card/80 p-4">
+            <div className="flex items-center justify-between text-xs font-bold"><span>پیشرفت هفتگی</span><span className="text-primary">{faNum(percent)}٪</span></div>
+            <Progress value={percent} className="mt-3 h-2.5" />
+            <p className="mt-2 text-[11px] text-muted-foreground">{faNum(totalCompleted)} از {faNum(totalPlanned)} دقیقه هدف</p>
+          </div>
+        </div>
+      </section>
+
+      <form onSubmit={handleCreate} className="rounded-3xl border border-border/70 bg-card p-5 shadow-sm sm:p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"><CalendarDays className="size-5" /></span>
+          <div><h2 className="text-base font-extrabold">افزودن برنامه جدید</h2><p className="text-xs text-muted-foreground">هدف مطالعه‌ات را مشخص کن.</p></div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-5">
+          <Input required value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="نام درس" className="md:col-span-2" />
+          <select value={courseId} onChange={(event) => setCourseId(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="">بدون دوره مرتبط</option>
+            {courseOptions.map((course: any) => <option key={course._id} value={course._id}>{course.title}</option>)}
+          </select>
+          <Input required min={30} max={10000} type="number" value={weeklyMinutes} onChange={(event) => setWeeklyMinutes(event.target.value)} placeholder="دقیقه در هفته" />
+          <Input required min={1} max={14} type="number" value={sessionsPerWeek} onChange={(event) => setSessionsPerWeek(event.target.value)} placeholder="جلسه در هفته" />
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground">رنگ برنامه:</span>
+            {[{ key: "sky", class: "bg-sky-500" }, { key: "emerald", class: "bg-emerald-500" }, { key: "violet", class: "bg-violet-500" }, { key: "amber", class: "bg-amber-500" }].map((item) => (
+              <button key={item.key} type="button" onClick={() => setColor(item.key)} className={cn("size-5 rounded-full ring-offset-2 transition", item.class, color === item.key ? "ring-2 ring-foreground" : "opacity-60 hover:opacity-100")} aria-label={`رنگ ${item.key}`} />
+            ))}
+          </div>
+          <Button type="submit" disabled={saving} className="rounded-full">{saving ? "در حال ذخیره..." : "ذخیره برنامه"}</Button>
+        </div>
+      </form>
+
+      {plans.length ? (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {plans.map((plan: any) => {
+            const planPercent = plan.weeklyMinutes ? Math.min(100, Math.round((plan.weeklyCompletedMinutes / plan.weeklyMinutes) * 100)) : 0;
+            return <Card key={plan._id} className="border-border/70 shadow-sm">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3"><span className={cn("mt-1 size-3 shrink-0 rounded-full", plan.color === "emerald" ? "bg-emerald-500" : plan.color === "violet" ? "bg-violet-500" : plan.color === "amber" ? "bg-amber-500" : "bg-sky-500")} /><div className="min-w-0"><h3 className="truncate text-sm font-extrabold">{plan.subject}</h3><p className="mt-1 text-xs text-muted-foreground">{faNum(plan.weeklyMinutes)} دقیقه در هفته · {faNum(plan.sessionsPerWeek)} جلسه</p></div></div>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(plan._id)} className="text-muted-foreground hover:text-red-500" title="حذف برنامه"><Trash2 className="size-4" /></Button>
+                </div>
+                <div className="mt-5 flex items-center justify-between text-xs font-bold"><span>پیشرفت این هفته</span><span>{faNum(planPercent)}٪</span></div>
+                <Progress value={planPercent} className="mt-2 h-2" />
+                <div className="mt-4 flex items-center justify-between gap-3"><p className="text-[11px] text-muted-foreground">امروز: {faNum(plan.todayMinutes ?? 0)} دقیقه · {faNum(plan.sessionCount ?? 0)} جلسه ثبت‌شده</p><Button type="button" size="sm" variant="outline" onClick={() => handleLog(plan._id)} className="rounded-full">ثبت ۳۰ دقیقه مطالعه</Button></div>
+              </CardContent>
+            </Card>;
+          })}
+        </div>
+      ) : <Card className="border-dashed border-primary/25 bg-primary/5"><CardContent className="p-8 text-center"><CalendarDays className="mx-auto size-8 text-primary" /><p className="mt-3 text-sm font-extrabold">هنوز برنامه‌ای نساخته‌ای</p><p className="mt-1 text-xs text-muted-foreground">از فرم بالا اولین درس و زمان مطالعه هفتگی‌ات را اضافه کن.</p></CardContent></Card>}
+
+      <Card className="border-border/70"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="size-4 text-primary" /> فعالیت مطالعه اخیر</CardTitle></CardHeader><CardContent className="space-y-2">{recentSessions.length ? recentSessions.map((session: any) => { const plan = plans.find((item: any) => item._id === session.planId); return <div key={session._id} className="flex items-center justify-between rounded-xl bg-muted/45 px-3 py-2.5 text-sm"><span>{plan?.subject ?? "جلسه مطالعه"}</span><span className="text-xs text-muted-foreground">{faNum(session.minutes)} دقیقه · {formatDate(session.createdAt)}</span></div>; }) : <p className="text-sm text-muted-foreground">پس از ثبت اولین جلسه، فعالیت‌ها اینجا نمایش داده می‌شوند.</p>}</CardContent></Card>
     </div>
   );
 }
