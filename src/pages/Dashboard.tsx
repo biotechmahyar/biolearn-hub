@@ -88,7 +88,7 @@ type TabKey = "overview" | "courses" | "workshops" | "tests" | "progress" | "fla
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
-  { key: "courses", label: "دوره‌های من", icon: BookOpen },
+  { key: "courses", label: "مرکز یادگیری", icon: BookOpen },
   { key: "workshops", label: "کارگاه‌ها", icon: GraduationCap },
   { key: "academyPath", label: "مسیر آکادمی", icon: Route },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
@@ -284,7 +284,7 @@ export default function Dashboard() {
             </div>
           )}
           {tab === "overview" && <Overview onNavigate={setTab} />}
-          {tab === "courses" && <MyCourses />}
+          {tab === "courses" && <MyLearningHub onNavigate={setTab} />}
           {tab === "workshops" && <MyWorkshops />}
           {tab === "academyPath" && <AcademyPathTab />}
           {tab === "tests" && <TestsTab />}
@@ -376,6 +376,7 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
   ];
 
   const continueCourse = (enrollments ?? []).find((e) => (e.percent ?? 0) < 100);
+  const weakTopic = profile?.topics?.find((topic: any) => topic.level === "weak");
 
   return (
     <div className="space-y-6">
@@ -455,6 +456,18 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
           </Card>
         ))}
       </div>
+
+      {weakTopic ? (
+        <Card className="border-amber-500/25 bg-amber-500/5 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-500"><Sparkles className="size-5" /></span>
+              <div><p className="text-sm font-extrabold">پیشنهاد امروز برای تو</p><p className="mt-1 text-xs leading-6 text-muted-foreground">برای تقویت «{weakTopic.topicName}» یک تمرین کوتاه یا چند تست موضوعی انجام بده. میانگین فعلی تو {faNum(weakTopic.percent)}٪ است.</p></div>
+            </div>
+            <div className="flex shrink-0 gap-2"><Button onClick={() => onNavigate("tests")} size="sm" className="rounded-full">تمرین هدفمند</Button><Button onClick={() => onNavigate("flashcards")} size="sm" variant="outline" className="rounded-full">فلش‌کارت</Button></div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Learning profile */}
       {profile && profile.topics.length > 0 && (
@@ -615,6 +628,89 @@ function Overview({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+// ── Unified learning hub ───────────────────────────────────────────────────
+function MyLearningHub({ onNavigate }: { onNavigate: (t: TabKey) => void }) {
+  const enrollments = useQuery(api.enroll.getMyEnrollments) ?? [];
+  const workshops = useQuery(api.promotions.listMyWorkshopEnrollments) ?? [];
+  const paths = useQuery(api.academyPaths.listPublishedPathsWithPricing) ?? [];
+  const enrolledSteps = useQuery(api.academyPaths.listMyPathProgress) ?? [];
+  const enrolledStepIds = new Set(enrolledSteps.map((id) => String(id)));
+  const activePath = paths.find((path: any) => path.items?.some((item: any) => enrolledStepIds.has(String(item.workshopId))));
+  const activePathProgress = activePath?.items?.length
+    ? Math.round((activePath.items.filter((item: any) => enrolledStepIds.has(String(item.workshopId))).length / activePath.items.length) * 100)
+    : 0;
+  const activeCourse = enrollments.find((item: any) => (item.percent ?? 0) < 100) ?? enrollments[0];
+  const activeWorkshop = workshops
+    .filter((item: any) => item.workshopDate && new Date(item.workshopDate).getTime() >= Date.now())
+    .sort((a: any, b: any) => new Date(a.workshopDate).getTime() - new Date(b.workshopDate).getTime())[0];
+
+  return (
+    <div className="space-y-6">
+      <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-l from-primary/10 via-background to-transparent p-5 sm:p-7">
+        <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-[11px] font-bold text-primary">مرکز یادگیری من</p>
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight">همه‌چیز برای ادامه مسیر، یک‌جا</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+              دوره‌ها، کارگاه‌ها و مسیر آکادمی را بر اساس وضعیت واقعی تو دنبال کن.
+            </p>
+          </div>
+          <Button onClick={() => onNavigate("tests")} variant="outline" className="rounded-full">
+            <Target className="ml-2 size-4" />
+            سنجش نیازهای من
+          </Button>
+        </div>
+      </section>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><BookOpen className="size-4 text-primary" /> دوره‌ها</div>
+          <p className="mt-3 text-2xl font-extrabold">{faNum(enrollments.length)}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">دوره ثبت‌نام‌شده</p>
+        </div>
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><GraduationCap className="size-4 text-emerald-500" /> کارگاه‌ها</div>
+          <p className="mt-3 text-2xl font-extrabold">{faNum(workshops.length)}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">کارگاه ثبت‌نام‌شده</p>
+        </div>
+        <div className="rounded-2xl border border-border/70 bg-card p-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground"><Route className="size-4 text-violet-500" /> مسیر آکادمی</div>
+          <p className="mt-3 text-2xl font-extrabold">{activePathProgress ? `${faNum(activePathProgress)}٪` : "—"}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">پیشرفت مسیر فعال</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="border-border/70">
+          <CardHeader className="pb-3"><CardTitle className="flex items-center justify-between text-base"><span className="flex items-center gap-2"><Play className="size-4 text-primary" /> ادامه یادگیری</span><Button variant="ghost" size="sm" onClick={() => onNavigate("courses")} className="h-7 text-xs">همه دوره‌ها</Button></CardTitle></CardHeader>
+          <CardContent>
+            {activeCourse ? (
+              <Link to={(() => { const lastId = (activeCourse as any).lastLessonId; return lastId ? `/courses/${activeCourse.course?.slug}/lesson/${lastId}` : `/courses/${activeCourse.course?.slug}`; })()} className="group block rounded-2xl border border-border/70 bg-card/50 p-4 transition-colors hover:border-primary/35">
+                <div className="flex items-start gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><BookOpen className="size-5" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-extrabold">{activeCourse.course?.title}</span><span className="mt-1 block text-xs text-muted-foreground">{faNum(activeCourse.percent ?? 0)}٪ تکمیل شده</span></span><ChevronLeft className="size-4 text-muted-foreground transition-transform group-hover:-translate-x-1" /></div>
+                <Progress value={activeCourse.percent ?? 0} className="mt-4 h-2" />
+              </Link>
+            ) : <EmptyState icon={BookOpen} title="هنوز دوره‌ای نداری" desc="از دوره‌های رایگان شروع کن." cta={<Button asChild className="rounded-full"><Link to="/courses">مشاهده دوره‌ها</Link></Button>} />}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70">
+          <CardHeader className="pb-3"><CardTitle className="flex items-center justify-between text-base"><span className="flex items-center gap-2"><Radio className="size-4 text-emerald-500" /> کارگاه پیش‌رو</span><Button variant="ghost" size="sm" onClick={() => onNavigate("workshops")} className="h-7 text-xs">همه کارگاه‌ها</Button></CardTitle></CardHeader>
+          <CardContent>
+            {activeWorkshop ? <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4"><p className="text-sm font-extrabold">{activeWorkshop.workshopTitle}</p><p className="mt-1 text-xs text-muted-foreground">{activeWorkshop.workshopTopic}</p><p className="mt-3 text-xs font-bold text-emerald-600">{new Date(activeWorkshop.workshopDate).toLocaleDateString("fa-IR")} · ساعت {activeWorkshop.workshopTime}</p><Button asChild size="sm" className="mt-4 rounded-full"><Link to="/workshops">مشاهده کارگاه‌ها</Link></Button></div> : <p className="py-6 text-center text-sm text-muted-foreground">در حال حاضر کارگاه پیش‌رویی ثبت نشده است.</p>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {activePath ? (
+        <Card className="border-border/70">
+          <CardHeader className="pb-3"><CardTitle className="flex items-center justify-between text-base"><span className="flex items-center gap-2"><Route className="size-4 text-violet-500" /> مسیر فعال تو</span><Button variant="ghost" size="sm" onClick={() => onNavigate("academyPath")} className="h-7 text-xs">مشاهده مسیر</Button></CardTitle></CardHeader>
+          <CardContent className="space-y-3"><div className="flex items-center justify-between gap-3"><div><p className="text-sm font-extrabold">{activePath.title}</p><p className="mt-1 text-xs text-muted-foreground">{activePath.items?.length ?? 0} مرحله تخصصی</p></div><span className="text-sm font-extrabold text-primary">{faNum(activePathProgress)}٪</span></div><Progress value={activePathProgress} className="h-2.5" /><p className="text-xs text-muted-foreground">با تکمیل هر مرحله، مسیر تخصصی خودت را مرحله‌به‌مرحله کامل کن.</p></CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
