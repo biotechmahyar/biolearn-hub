@@ -1,4 +1,5 @@
 import { ClassTimer } from "@/components/site/ClassTimer";
+import { AcademyPathTabRedesigned } from "@/components/site/AcademyPathRedesigned";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -322,7 +323,7 @@ export default function Dashboard() {
           {tab === "courses" && <MyLearningHub onNavigate={setTab} />}
           {tab === "workshops" && <MyWorkshops />}
           {tab === "studyPlan" && <StudyPlanner />}
-          {tab === "academyPath" && <AcademyPathTab />}
+          {tab === "academyPath" && <AcademyPathTabRedesigned />}
           {tab === "tests" && <TestsTab />}
           {tab === "progress" && <ProgressTab />}
           {tab === "flashcards" && <FlashcardsTab />}
