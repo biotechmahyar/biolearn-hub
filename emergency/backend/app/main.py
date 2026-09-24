@@ -4,10 +4,14 @@ This service is intentionally separate from the Vite/Convex application. It
 provides a local SQLite auth store and compatibility endpoints for imported
 identity/session records without importing the main application at runtime.
 """
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from pathlib import Path
 import secrets
+import time
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -24,6 +28,12 @@ from .db import database_is_ready
 from .directory_service import DirectoryNotFound, DirectoryPermissionDenied, UserDirectoryService
 from .learning_service import LearningNotFound, LearningService, LearningValidationError
 from .runtime_service import RuntimeNotFound, RuntimeService
+from .operations_service import (
+    BackupService,
+    ReadinessService,
+    TelemetryService,
+)
+from .security import LoginRateLimiter, safe_request_id
 from .snapshot_service import (
     SnapshotError,
     SnapshotImportError,
@@ -33,9 +43,18 @@ from .snapshot_service import (
 
 app = FastAPI(
     title="Genova Emergency Service",
-    version="0.7.0",
+    version="0.8.0",
     description="Independent fallback service for Genova.",
+    docs_url="/docs" if settings.docs_enabled else None,
+    redoc_url="/redoc" if settings.docs_enabled else None,
+    openapi_url="/openapi.json" if settings.docs_enabled else None,
 )
+
+if settings.trusted_hosts:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.trusted_hosts,
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,6 +70,7 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     database: str
+    uptimeSeconds: int
 
 
 class LoginRequest(BaseModel):
@@ -135,11 +155,18 @@ class AssessmentResponseRequest(BaseModel):
 class SnapshotExportRequest(BaseModel):
     artifactName: str
     includeSecrets: bool = False
-    sourceVersion: str = "emergency-0.7.0"
+    sourceVersion: str = "emergency-0.8.0"
 
 
 class SnapshotImportRequest(BaseModel):
     allowOlderRecovery: bool = False
+
+
+class MaintenanceRequest(BaseModel):
+    telemetryDays: int = 30
+    artifactDays: int = 30
+    artifactKeep: int = 14
+    backupDays: int = 30
 
 
 @app.get("/", tags=["system"])
@@ -158,8 +185,27 @@ async def health() -> HealthResponse:
     return HealthResponse(
         service="genova-emergency",
         status=overall_status,
-        version="0.7.0",
+        version="0.8.0",
         database=database_status,
+        uptimeSeconds=max(0, int(time.time() - settings.service_start_time)),
+    )
+
+
+@app.get("/health/live", tags=["system"])
+async def liveness() -> dict[str, object]:
+    return {
+        "status": "alive",
+        "version": "0.8.0",
+        "uptimeSeconds": max(0, int(time.time() - settings.service_start_time)),
+    }
+
+
+@app.get("/health/ready", tags=["system"])
+async def readiness() -> JSONResponse:
+    report = readiness_service.check()
+    return JSONResponse(
+        status_code=200 if report["status"] == "ready" else 503,
+        content=report,
     )
 
 
@@ -168,6 +214,64 @@ directory_service = UserDirectoryService()
 learning_service = LearningService()
 runtime_service = RuntimeService()
 snapshot_service = SnapshotService()
+telemetry_service = TelemetryService()
+readiness_service = ReadinessService()
+backup_service = BackupService()
+login_rate_limiter = LoginRateLimiter()
+
+
+def _apply_security_headers(response: Response, request: Request, request_id: str) -> Response:
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    )
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.middleware("http")
+async def emergency_request_middleware(request: Request, call_next: RequestResponseEndpoint) -> Response:
+    request_id = safe_request_id(request.headers.get("x-request-id")) or secrets.token_hex(12)
+    request.state.request_id = request_id
+    started = time.perf_counter()
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > settings.max_request_body_bytes:
+                response = JSONResponse(
+                    status_code=413,
+                    content={"detail": "request_body_too_large"},
+                )
+                telemetry_service.record_request(
+                    request,
+                    status_code=413,
+                    duration_ms=(time.perf_counter() - started) * 1000,
+                )
+                return _apply_security_headers(response, request, request_id)
+        except ValueError:
+            response = JSONResponse(status_code=400, content={"detail": "invalid_content_length"})
+            return _apply_security_headers(response, request, request_id)
+
+    try:
+        response = await call_next(request)
+    except Exception as error:
+        telemetry_service.record_error(request, error, request_id=request_id)
+        telemetry_service.record_request(
+            request,
+            status_code=500,
+            duration_ms=(time.perf_counter() - started) * 1000,
+        )
+        raise
+
+    duration_ms = (time.perf_counter() - started) * 1000
+    telemetry_service.record_request(request, status_code=response.status_code, duration_ms=duration_ms)
+    return _apply_security_headers(response, request, request_id)
 
 
 def _to_user_response(user: AuthenticatedUser) -> UserResponse:
@@ -591,15 +695,30 @@ async def my_payment_transaction(
 
 
 @app.post("/api/auth/login", response_model=SessionResponse, tags=["auth"])
-async def login(request: LoginRequest) -> SessionResponse:
+async def login(http_request: Request, request: LoginRequest) -> SessionResponse:
+    client_host = http_request.client.host if http_request.client else None
+    allowed, retry_after = login_rate_limiter.check(request.identifier, client_host)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail="too_many_login_attempts",
+            headers={"Retry-After": str(retry_after)},
+        )
     service = get_auth_service()
     try:
         user = service.authenticate(request.identifier, request.password)
         session = service.create_local_session(user)
     except InvalidCredentials as error:
-        raise HTTPException(status_code=401, detail="invalid_credentials") from error
+        retry_after = login_rate_limiter.record_failure(request.identifier, client_host)
+        raise HTTPException(
+            status_code=401,
+            detail="invalid_credentials",
+            headers={"Retry-After": str(retry_after)},
+        ) from error
     except AuthError as error:
+        login_rate_limiter.record_failure(request.identifier, client_host)
         raise HTTPException(status_code=401, detail=str(error)) from error
+    login_rate_limiter.reset(request.identifier, client_host)
     return SessionResponse(user=_to_user_response(user), **session)
 
 
@@ -643,10 +762,19 @@ async def emergency_overview(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> dict[str, object]:
     _require_admin(credentials)
+    readiness = readiness_service.check()
+    backups = backup_service.list()
     return {
         "health": {
             "database": "ready" if database_is_ready() else "unavailable",
+            "readiness": readiness["status"],
             "serviceVersion": app.version,
+        },
+        "readiness": readiness,
+        "telemetry": telemetry_service.summary(),
+        "backups": {
+            "count": len(backups),
+            "latest": backups[0] if backups else None,
         },
         **snapshot_service.overview(),
     }
@@ -703,6 +831,53 @@ async def import_snapshot(
         raise HTTPException(status_code=400, detail=error.errors) from error
     except SnapshotError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.get("/api/admin/emergency/metrics", tags=["emergency-admin"])
+async def emergency_metrics(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> PlainTextResponse:
+    _require_admin(credentials)
+    return PlainTextResponse(
+        content=telemetry_service.prometheus_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+@app.get("/api/admin/backups", tags=["emergency-admin"])
+async def list_backups(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    backups = backup_service.list()
+    return {"count": len(backups), "backups": backups[:50]}
+
+
+@app.post("/api/admin/backups", status_code=201, tags=["emergency-admin"])
+async def create_backup(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    try:
+        return backup_service.create(reason="manual-admin")
+    except Exception as error:
+        raise HTTPException(status_code=500, detail="backup_failed") from error
+
+
+@app.post("/api/admin/maintenance/prune", tags=["emergency-admin"])
+async def prune_maintenance_data(
+    request: MaintenanceRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    return {
+        "telemetry": telemetry_service.prune(retention_days=request.telemetryDays),
+        "artifacts": snapshot_service.prune_artifacts(
+            retention_days=request.artifactDays,
+            keep=request.artifactKeep,
+        ),
+        "backups": backup_service.prune(retention_days=request.backupDays),
+    }
 
 
 # This static panel has no Vite/React dependency. Mounting it last keeps every

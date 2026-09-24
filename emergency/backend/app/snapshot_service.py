@@ -20,6 +20,7 @@ from typing import Any, Mapping
 
 from .config import settings
 from .db import connect
+from .operations_service import BackupService
 from .snapshot_contract import (
     SNAPSHOT_CONTRACT_VERSION,
     SNAPSHOT_SECTIONS,
@@ -264,8 +265,19 @@ def _parse_timestamp(value: str) -> datetime:
 class SnapshotService:
     """Create, inspect, and safely replay local emergency snapshots."""
 
-    def __init__(self, artifact_root: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        artifact_root: str | Path | None = None,
+        *,
+        backup_root: str | Path | None = None,
+    ) -> None:
         self.artifact_root = Path(artifact_root or settings.artifact_root).resolve()
+        selected_backup_root = (
+            backup_root
+            if backup_root is not None
+            else (Path(artifact_root).parent / "backups" if artifact_root is not None else settings.backup_root)
+        )
+        self.backup_service = BackupService(selected_backup_root)
 
     def overview(self) -> dict[str, Any]:
         table_names = sorted({spec.table for specs in _TABLE_LISTS.values() for spec in specs})
@@ -317,7 +329,7 @@ class SnapshotService:
         artifact_name: str,
         *,
         include_secrets: bool = False,
-        source_version: str = "emergency-0.7.0",
+        source_version: str = "emergency-0.8.0",
     ) -> dict[str, Any]:
         destination = self._artifact_directory(artifact_name)
         if destination.exists():
@@ -494,6 +506,12 @@ class SnapshotService:
             relationship_errors = self._relationship_errors(connection, data)
             if relationship_errors:
                 raise SnapshotValidationError(relationship_errors)
+            try:
+                pre_import_backup = self.backup_service.create(
+                    reason=f"pre-import-{manifest.snapshot_id[:32]}"
+                )
+            except Exception as error:
+                raise SnapshotImportError("pre_import_backup_failed") from error
 
             connection.execute("BEGIN IMMEDIATE")
             applied: dict[str, int] = {}
@@ -550,7 +568,35 @@ class SnapshotService:
             "replayed": False,
             "applied": applied,
             "importedAt": now,
+            "preImportBackup": pre_import_backup,
             "diagnostics": data.get("diagnostics", []),
+        }
+
+    def prune_artifacts(
+        self,
+        *,
+        retention_days: int,
+        keep: int,
+    ) -> dict[str, Any]:
+        bounded_days = min(max(int(retention_days), 1), 3650)
+        bounded_keep = min(max(int(keep), 0), 10_000)
+        cutoff = time.time() - bounded_days * 86400
+        if not self.artifact_root.exists():
+            return {"removed": [], "remaining": 0}
+        candidates: list[tuple[float, Path]] = []
+        for path in self.artifact_root.iterdir():
+            if not self._is_safe_artifact_name(path.name) or path.is_symlink() or not path.is_dir():
+                continue
+            candidates.append((path.stat().st_mtime, path))
+        candidates.sort(key=lambda item: (item[0], item[1].name), reverse=True)
+        removed: list[str] = []
+        for index, (modified_at, path) in enumerate(candidates):
+            if index >= bounded_keep and modified_at < cutoff:
+                shutil.rmtree(path)
+                removed.append(path.name)
+        return {
+            "removed": removed,
+            "remaining": len(self.list_artifacts()),
         }
 
     def _artifact_directory(self, artifact_name: str, *, create: bool = False) -> Path:

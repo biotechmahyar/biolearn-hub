@@ -60,6 +60,24 @@
         <article class="status-card"><div class="metric"><span id="artifactCount">—</span><small>Artifact</small></div></article>
       </div>
 
+      <section class="panel operations-panel">
+        <div class="panel-head"><div><span class="step">05</span><h2>آمادگی و تله‌متری محلی</h2></div><span class="tag" id="readinessTag">READINESS</span></div>
+        <div class="operations-grid">
+          <div class="operation-metrics">
+            <div><small>درخواست / ۱ ساعت</small><strong id="requestsHour">—</strong></div>
+            <div><small>میانگین پاسخ</small><strong id="averageDuration">—</strong></div>
+            <div><small>بیشترین تأخیر</small><strong id="maxDuration">—</strong></div>
+            <div><small>خطاهای ۲۴ ساعت</small><strong id="errorCount">—</strong></div>
+          </div>
+          <div class="operation-side">
+            <p>Backup معتبر SQLite</p>
+            <div class="operation-actions"><button class="secondary" id="backupButton">ساخت backup</button><button class="ghost" id="pruneButton">اجرای retention</button></div>
+            <small id="backupSummary">در حال بررسی…</small>
+          </div>
+        </div>
+        <pre id="telemetryOutput" dir="ltr">Telemetry is aggregated locally without request bodies, raw paths, IPs, auth headers, or exception messages.</pre>
+      </section>
+
       <div class="workspace-grid">
         <section class="panel">
           <div class="panel-head"><div><span class="step">01</span><h2>ساخت artifact</h2></div><span class="tag">PRIVATE FILES</span></div>

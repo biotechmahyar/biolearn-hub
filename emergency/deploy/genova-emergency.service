@@ -1,0 +1,33 @@
+[Unit]
+Description=Genova Emergency Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=genova-emergency
+Group=genova-emergency
+WorkingDirectory=/opt/genova-emergency
+EnvironmentFile=/etc/genova-emergency/emergency.env
+Environment=EMERGENCY_ENV=production
+ExecStart=/opt/genova-emergency/.venv/bin/uvicorn app.main:app --app-dir /opt/genova-emergency/backend --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+ReadWritePaths=/opt/genova-emergency/data
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

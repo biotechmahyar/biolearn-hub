@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Genova Emergency maintenance daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=genova-emergency-maintenance.service
+
+[Install]
+WantedBy=timers.target

@@ -19,6 +19,11 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+from app.config import settings  # noqa: E402
+from app.operations_service import (  # noqa: E402
+    BackupService,
+    TelemetryService,
+)
 from app.snapshot_service import (  # noqa: E402
     SnapshotError,
     SnapshotService,
@@ -38,7 +43,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include raw signing keys, live tokens, and secret runtime configuration",
     )
-    export_parser.add_argument("--source-version", default="emergency-0.7.0")
+    export_parser.add_argument("--source-version", default="emergency-0.8.0")
 
     validate_parser = subparsers.add_parser("validate", help="Validate an artifact")
     validate_parser.add_argument("name")
@@ -50,6 +55,14 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Explicitly allow an artifact older than the latest imported snapshot",
     )
+
+    subparsers.add_parser("backup", help="Create a verified online SQLite backup")
+
+    prune_parser = subparsers.add_parser("prune", help="Apply telemetry, artifact, and backup retention")
+    prune_parser.add_argument("--telemetry-days", type=int, default=settings.telemetry_retention_days)
+    prune_parser.add_argument("--artifact-days", type=int, default=settings.artifact_retention_days)
+    prune_parser.add_argument("--artifact-keep", type=int, default=settings.artifact_retention_keep)
+    prune_parser.add_argument("--backup-days", type=int, default=settings.backup_retention_days)
     return parser
 
 
@@ -67,11 +80,26 @@ def main() -> int:
             )
         elif arguments.command == "validate":
             result = service.validate(arguments.name)
-        else:
+        elif arguments.command == "import":
             result = service.import_artifact(
                 arguments.name,
                 allow_older_recovery=arguments.allow_older_recovery,
             )
+        elif arguments.command == "backup":
+            result = BackupService().create(reason="manual")
+        else:
+            result = {
+                "telemetry": TelemetryService().prune(
+                    retention_days=arguments.telemetry_days
+                ),
+                "artifacts": service.prune_artifacts(
+                    retention_days=arguments.artifact_days,
+                    keep=arguments.artifact_keep,
+                ),
+                "backups": BackupService().prune(
+                    retention_days=arguments.backup_days
+                ),
+            }
     except SnapshotError as error:
         errors = getattr(error, "errors", None)
         print(

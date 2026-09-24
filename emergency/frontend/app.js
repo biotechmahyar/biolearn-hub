@@ -146,13 +146,34 @@
     $("artifactCount").textContent = artifacts.length.toLocaleString("fa-IR");
   }
 
+  function renderOperations(overview) {
+    const telemetry = overview.telemetry || {};
+    const backups = overview.backups || {};
+    const readiness = overview.readiness || {};
+    $("healthValue").textContent = readiness.status === "ready" ? "آماده و پایدار" : "نیازمند بررسی";
+    $("readinessTag").textContent = String(readiness.status || "unknown").toUpperCase();
+    $("readinessTag").style.color = readiness.status === "ready" ? "var(--mint)" : "var(--danger)";
+    $("requestsHour").textContent = Number(telemetry.requestsLastHour || 0).toLocaleString("fa-IR");
+    $("averageDuration").textContent = `${Number(telemetry.averageDurationMs || 0).toLocaleString("fa-IR")} ms`;
+    $("maxDuration").textContent = `${Number(telemetry.maxDurationMs || 0).toLocaleString("fa-IR")} ms`;
+    $("errorCount").textContent = Number((telemetry.recentErrors || []).length).toLocaleString("fa-IR");
+    $("backupSummary").textContent = backups.latest
+      ? `${backups.count} backup · آخرین: ${backups.latest.name}`
+      : `${backups.count || 0} backup · هنوز backupی ساخته نشده`;
+    $("telemetryOutput").textContent = JSON.stringify({
+      privacy: telemetry.privacy,
+      routes: telemetry.routes,
+      recentErrors: telemetry.recentErrors
+    }, null, 2);
+  }
+
   async function loadOverview() {
     const overview = await api("/api/admin/emergency/overview");
     const counts = overview.databaseCounts || {};
-    $("healthValue").textContent = overview.health.database === "ready" ? "آماده و پایدار" : "افتغال";
     $("userCount").textContent = Number(counts.emergency_users || 0).toLocaleString("fa-IR");
     $("courseCount").textContent = Number(counts.emergency_courses || 0).toLocaleString("fa-IR");
     renderInventory(counts);
+    renderOperations(overview);
     if (overview.latestImport) {
       $("artifactMeta").textContent = `آخرین بازیابی: ${overview.latestImport.snapshot_id}`;
     }
@@ -254,6 +275,37 @@
   });
   $("refreshButton").addEventListener("click", refreshAll);
   $("reloadInventory").addEventListener("click", () => refreshAll());
+  $("backupButton").addEventListener("click", async () => {
+    const button = $("backupButton");
+    setButtonBusy(button, true, "در حال backup…");
+    try {
+      const result = await api("/api/admin/backups", { method: "POST" });
+      toast(`Backup ساخته شد: ${result.name}`);
+      await refreshAll();
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      setButtonBusy(button, false);
+    }
+  });
+  $("pruneButton").addEventListener("click", async () => {
+    if (!window.confirm("داده‌های خارج از retention حذف شوند؟ آخرین artifactها و backupها بر اساس تنظیمات حفظ می‌شوند.")) return;
+    const button = $("pruneButton");
+    setButtonBusy(button, true, "در حال پاک‌سازی…");
+    try {
+      const result = await api("/api/admin/maintenance/prune", {
+        method: "POST",
+        body: JSON.stringify({ telemetryDays: 30, artifactDays: 30, artifactKeep: 14, backupDays: 30 })
+      });
+      $("telemetryOutput").textContent = JSON.stringify(result, null, 2);
+      toast("Retention اجرا شد.");
+      await refreshAll();
+    } catch (error) {
+      toast(error.message, true);
+    } finally {
+      setButtonBusy(button, false);
+    }
+  });
   $("validateButton").addEventListener("click", validateSelected);
   $("importButton").addEventListener("click", importSelected);
   $("artifactSelect").addEventListener("change", validateSelected);
@@ -269,7 +321,7 @@
     try {
       const result = await api("/api/admin/snapshots/export", {
         method: "POST",
-        body: JSON.stringify({ artifactName: name, includeSecrets, sourceVersion: "emergency-0.7.0" })
+        body: JSON.stringify({ artifactName: name, includeSecrets, sourceVersion: "emergency-0.8.0" })
       });
       message.style.color = "var(--mint)";
       message.textContent = "Artifact ساخته شد؛ secretها در پاسخ HTTP نمایش داده نشده‌اند.";

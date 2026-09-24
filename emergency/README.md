@@ -2,11 +2,11 @@
 
 نسخه اضطراری مستقل ژنوا؛ یک سرویس FastAPI + SQLite که در runtime هیچ وابستگی به Vite، React، Convex، Freebuff یا سایت اصلی ندارد.
 
-## وضعیت فعلی — Phase 7
+## وضعیت فعلی — Phase 8
 
-- گام‌های ۱ تا ۶: auth، کاربران/پروفایل/نقش‌ها، محتوا/یادگیری/ارزیابی و runtime/ربات/پرداخت تکمیل شده‌اند.
-- گام ۷: pipeline عملیاتی Snapshot v1، validation، import تراکنشی، CLI و پنل `/admin` تکمیل شده است.
-- گام ۸: برنامه‌ریزی و تکمیل مسیر ارتقای production/telemetry خواهد بود؛ تا تأیید بعدی شروع نشده است.
+- گام‌های ۱ تا ۷: auth، دامنه‌های ژنوا، Snapshot v1، recovery tooling و پنل مستقل تکمیل شده‌اند.
+- گام ۸: readiness/live health، telemetry کم‌کاردینالی و privacy-safe، rate limiting، backup پیش از import، retention، deployment reference و runbook production تکمیل شده است.
+- استقرار واقعی، TLS و انتخاب collector خارجی همچنان عملیات deployment هستند و credential یا دسترسی سرور لازم دارند.
 
 ## اجرای مستقل
 
@@ -46,6 +46,17 @@ backup-name/
 
 تمام نام‌های artifact به نام directory بدون `/`، `..`، symlink و character set محدود نیاز دارند و هر فایل حداکثر 100 MiB است.
 
+## Production hardening
+
+- health: `/health/live`, `/health/ready` و `/health`
+- auth login limiter، trusted hosts، request body limit و security headers
+- SQLite request aggregates و error fingerprints بدون ذخیره body، query، IP، header یا پیام exception
+- metrics به فرمت Prometheus، فقط با Bearer admin
+- backup سازگار SQLite با `PRAGMA integrity_check` پیش از هر import واقعی
+- retention روزانه برای telemetry، artifact و backup
+- systemd، timer، Nginx و environment template نمونه در `emergency/deploy/`
+- راهنمای اجرا و incident response: `emergency/docs/production-runbook.md`
+
 ## CLI
 
 ```bash
@@ -53,6 +64,8 @@ python3 emergency/scripts/snapshot.py list
 python3 emergency/scripts/snapshot.py export backup-2026-09-24
 python3 emergency/scripts/snapshot.py validate backup-2026-09-24
 python3 emergency/scripts/snapshot.py import backup-2026-09-24
+python3 emergency/scripts/snapshot.py backup
+python3 emergency/scripts/snapshot.py prune
 ```
 
 برای recovery کامل و کنترل‌شده:

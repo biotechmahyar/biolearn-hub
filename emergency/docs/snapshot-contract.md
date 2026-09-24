@@ -76,7 +76,7 @@ application.
 - Phase 5: content, learning and assessment data — complete
 - Phase 6: bots, payments and runtime configuration — complete
 - Phase 7: operational export/import tooling, validation, recovery controls and emergency admin panel — complete
-- Phase 8: production/telemetry hardening and rollout — current next boundary
+- Phase 8: production/telemetry hardening, verified pre-import backup, retention and rollout references — complete
 
 ## Operational artifact (Phase 7)
 
@@ -92,9 +92,10 @@ Import performs these gates before opening the write transaction:
 4. required sections, exact record counts and unique source IDs
 5. complete parent-ID relationship preflight
 
-Inside `BEGIN IMMEDIATE`, records are upserted in dependency order with their
-source IDs and source timestamps. The import history and audit event commit in
-the same transaction. Any SQL failure rolls back every write. Re-importing the
+Before `BEGIN IMMEDIATE`, the service creates a private online SQLite backup and
+requires `PRAGMA integrity_check = ok`; backup failure aborts import. Records
+are then upserted in dependency order with their source IDs and source
+timestamps. The import history and audit event commit in the same transaction. Any SQL failure rolls back every write. Re-importing the
 same snapshot ID is a no-op. An older snapshot is rejected unless an explicit
 recovery flag is supplied.
 

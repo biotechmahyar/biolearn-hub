@@ -116,6 +116,7 @@ def test_full_snapshot_round_trip_preserves_ids_and_replay_is_idempotent(tmp_pat
     second = service.import_artifact("recovery-artifact")
     assert first["replayed"] is False
     assert first["applied"]["emergency_users"] == 1
+    assert Path(first["preImportBackup"]["path"]).exists()
     assert second["replayed"] is True
 
     with connect() as connection:

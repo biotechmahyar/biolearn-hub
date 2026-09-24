@@ -85,6 +85,17 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .check.compact { margin-top: 15px; padding-top: 13px; }
 .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .action-message { margin-bottom: 0; }
+.operations-panel { margin-bottom: 12px; }
+.operations-grid { display: grid; grid-template-columns: 1.5fr .8fr; gap: 18px; }
+.operation-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.operation-metrics > div { border: 1px solid var(--line); padding: 14px; background: rgba(5,13,11,.45); }
+.operation-metrics small, .operation-side small { color: var(--muted); font-size: 10px; display: block; }
+.operation-metrics strong { display: block; color: var(--mint); font: 20px monospace; margin-top: 8px; direction: ltr; }
+.operation-side { border-right: 2px solid var(--amber); padding-right: 16px; display: flex; flex-direction: column; justify-content: center; }
+.operation-side p { margin: 0 0 12px; font-size: 12px; }
+.operation-actions { display: flex; gap: 7px; margin-bottom: 10px; }
+.operation-actions button { font-size: 10px; padding: 9px 11px; }
+.operations-panel pre { min-height: 100px; max-height: 220px; }
 .diagnostics-panel, .inventory-panel { margin-top: 12px; }
 .diagnostic-summary { border: 1px solid var(--line); padding: 15px; display: flex; justify-content: space-between; gap: 16px; font-size: 12px; }
 .diagnostic-summary span { color: var(--muted); }
@@ -96,6 +107,6 @@ pre { margin: 12px 0 0; min-height: 180px; max-height: 380px; overflow: auto; ba
 .toast.show { transform: translateY(0); opacity: 1; }
 .toast.error { background: var(--danger); }
 .hidden { display: none !important; }
-@media (max-width: 850px) { .login-shell, .workspace-grid { grid-template-columns: 1fr; } .login-shell { padding: 50px 0; } .login-copy { text-align: center; } .login-copy .assurance, .login-copy .eyebrow { justify-content: center; } .status-grid { grid-template-columns: 1fr 1fr; } .inventory { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 520px) { .shell { width: min(100% - 24px, 1180px); } .topbar { height: 72px; } .system-pill span { display: none; } .hero-row { align-items: flex-start; flex-direction: column; } .status-grid { grid-template-columns: 1fr; } .status-card { min-height: 84px; } .panel, .login-card { padding: 20px; } .input-action, .button-row { grid-template-columns: 1fr; } .inventory { grid-template-columns: 1fr; } .diagnostic-summary { flex-direction: column; } }
+@media (max-width: 850px) { .login-shell, .workspace-grid, .operations-grid { grid-template-columns: 1fr; } .login-shell { padding: 50px 0; } .login-copy { text-align: center; } .login-copy .assurance, .login-copy .eyebrow { justify-content: center; } .status-grid { grid-template-columns: 1fr 1fr; } .inventory { grid-template-columns: 1fr 1fr; } .operation-side { border-right: 0; border-top: 2px solid var(--amber); padding: 16px 0 0; } }
+@media (max-width: 520px) { .shell { width: min(100% - 24px, 1180px); } .topbar { height: 72px; } .system-pill span { display: none; } .hero-row { align-items: flex-start; flex-direction: column; } .status-grid { grid-template-columns: 1fr; } .status-card { min-height: 84px; } .panel, .login-card { padding: 20px; } .input-action, .button-row { grid-template-columns: 1fr; } .operation-metrics { grid-template-columns: 1fr 1fr; } .operation-actions { flex-direction: column; } .inventory { grid-template-columns: 1fr; } .diagnostic-summary { flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }

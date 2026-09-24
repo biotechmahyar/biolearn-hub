@@ -9,8 +9,9 @@ The emergency system is a separate FastAPI + SQLite application rooted at `emerg
 1. **HTTP/API** — compatibility auth, directory, content, learning, assessment, runtime, bot, payment and admin snapshot routes.
 2. **Domain services** — idempotent domain rules and redacted read models.
 3. **SQLite** — local durable state with foreign keys enabled on every connection.
-4. **Snapshot service** — versioned artifact export, validation, preflight, transactional import, replay and audit.
-5. **Standalone admin UI** — static HTML/CSS/JS mounted at `/admin`, with no build pipeline.
+4. **Snapshot service** — versioned artifact export, validation, preflight, verified pre-import backup, transactional import, replay and audit.
+5. **Operations layer** — live/readiness probes, low-cardinality local telemetry, Prometheus output, retention and consistent SQLite backups.
+6. **Standalone admin UI** — static HTML/CSS/JS mounted at `/admin`, with no build pipeline.
 
 ## Snapshot flow
 
@@ -42,10 +43,13 @@ The 18-section Snapshot v1 contract is materialized from every currently impleme
 - non-secret exports exclude raw tokens, signing keys, secret settings and secret-bearing bot/payment configs
 - full recovery exports are explicitly marked and must be transported as protected files
 - API and UI return metadata/diagnostics, not secret-bearing artifact records
-- imports are versioned, relationship-preflighted, transactional, replay-safe and audited
+- imports are versioned, relationship-preflighted, backed up, transactional, replay-safe and audited
+- telemetry stores route templates and fingerprints, not request content or exception messages
+- readiness covers SQLite integrity, disk capacity, artifact storage and backup storage
+- Nginx/systemd examples enforce TLS termination, bounded bodies, coarse rate limits and a single writer process
 
 ## Phase status
 
 - Phase 1–6: complete
 - Phase 7: emergency admin panel and import/export tooling — complete
-- Phase 8: current next boundary; not started without approval
+- Phase 8: production/telemetry hardening, verified backup/retention and rollout references — complete

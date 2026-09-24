@@ -380,6 +380,27 @@ CREATE TABLE IF NOT EXISTS emergency_audit_events (
     metadata_json TEXT NOT NULL DEFAULT '{}'
 );
 
+CREATE TABLE IF NOT EXISTS emergency_request_metrics (
+    minute INTEGER NOT NULL,
+    method TEXT NOT NULL,
+    route TEXT NOT NULL,
+    status_class INTEGER NOT NULL,
+    request_count INTEGER NOT NULL DEFAULT 0,
+    duration_total_ms REAL NOT NULL DEFAULT 0,
+    max_duration_ms REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY(minute, method, route, status_class)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_error_events (
+    id TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    occurred_at INTEGER NOT NULL,
+    method TEXT NOT NULL,
+    route TEXT NOT NULL,
+    exception_type TEXT NOT NULL,
+    message_fingerprint TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS emergency_accounts_user_idx ON emergency_auth_accounts(user_id);
 CREATE INDEX IF NOT EXISTS emergency_sessions_token_idx ON emergency_auth_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS emergency_sessions_refresh_idx ON emergency_auth_sessions(refresh_token_hash);
@@ -403,6 +424,8 @@ CREATE INDEX IF NOT EXISTS emergency_payment_transactions_gateway_idx ON emergen
 CREATE INDEX IF NOT EXISTS emergency_payment_status_transaction_idx ON emergency_payment_status_history(transaction_id);
 CREATE INDEX IF NOT EXISTS emergency_snapshot_imports_created_idx ON emergency_snapshot_imports(created_at);
 CREATE INDEX IF NOT EXISTS emergency_audit_occurred_idx ON emergency_audit_events(occurred_at);
+CREATE INDEX IF NOT EXISTS emergency_request_metrics_minute_idx ON emergency_request_metrics(minute);
+CREATE INDEX IF NOT EXISTS emergency_error_events_occurred_idx ON emergency_error_events(occurred_at);
 """
 
 
