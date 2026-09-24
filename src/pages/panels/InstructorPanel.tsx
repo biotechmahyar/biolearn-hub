@@ -119,6 +119,7 @@ type Tab =
   | "assess-grades"
   | "comm-qa"
   | "comm-messages"
+  | "comm-support"
   | "comm-announcements"
   | "workshops-list"
   | "academy-path"
@@ -180,6 +181,7 @@ const SIDEBAR: SidebarSection[] = [
     children: [
       { id: "comm-qa", label: "پرسش و پاسخ", icon: HelpCircle },
       { id: "comm-messages", label: "پیام‌ها", icon: MessageSquare },
+      { id: "comm-support", label: "پشتیبانی دانشجویان", icon: LifeBuoy },
       { id: "comm-announcements", label: "اطلاعیه‌ها", icon: BellRing },
     ],
   },
@@ -465,6 +467,7 @@ export default function InstructorPanel() {
           {/* ارتباط */}
           {tab === "comm-qa" && <QAView rooms={rooms} />}
           {tab === "comm-messages" && <MessagesView />}
+          {tab === "comm-support" && <InstructorSupportView />}
           {tab === "comm-announcements" && <AnnouncementsView instructorName={user?.name ?? null} />}
           {tab === "workshops-list" && <WorkshopsView />}
           {tab === "academy-path" && <AcademyPathView />}
