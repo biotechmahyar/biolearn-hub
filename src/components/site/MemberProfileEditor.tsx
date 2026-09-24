@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ChangePasswordCard } from "@/components/site/ChangePasswordCard";
+import TelegramAccount from "@/components/site/TelegramAccount";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -213,6 +214,7 @@ export function MemberProfileEditor() {
         </CardContent>
       </Card>
       <ChangePasswordCard />
+      {isAdminUser ? <TelegramAccount /> : null}
     </div>
   );
 }
