@@ -149,25 +149,40 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="dashboard-light min-h-screen bg-background text-foreground">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur-lg">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link to="/" className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+      <header className="sticky top-0 z-30 border-b border-sky-100 bg-white/90 px-3 py-2.5 backdrop-blur-xl sm:px-6">
+        <div className="relative mx-auto flex max-w-7xl items-center gap-3 overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50/80 px-3 py-2.5 shadow-[0_10px_30px_-24px_rgba(14,165,233,0.55)] sm:px-4">
+          <div className="pointer-events-none absolute -left-8 -top-16 size-32 rounded-full bg-sky-200/35 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-20 right-24 size-32 rounded-full bg-cyan-200/25 blur-2xl" />
+          <Link to="/" className="relative flex min-w-0 items-center gap-2.5">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white shadow-lg shadow-sky-200/60">
               <GraduationCap className="size-5" />
             </span>
-            <span className="hidden text-[15px] font-extrabold sm:block">
-              Genova <span className="font-mono text-xs font-medium text-muted-foreground">· workspace</span>
+            <span className="hidden min-w-0 sm:block">
+              <span className="block text-[10px] font-extrabold uppercase tracking-[0.22em] text-sky-600">Genova</span>
+              <span className="block truncate text-sm font-extrabold text-slate-900">فضای یادگیری دانشجو</span>
             </span>
           </Link>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-muted-foreground sm:block">
-              {user?.name ?? "دانشجو"}
+
+          <div className="relative mx-auto hidden min-w-0 items-center gap-3 border-x border-sky-100/80 px-5 md:flex">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm ring-1 ring-sky-100">
+              <Sparkles className="size-4" />
             </span>
-            <Button variant="outline" size="sm" className="rounded-full" onClick={handleSignOut}>
-              <LogOut className="ml-1.5 size-3.5" />
-              خروج
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-slate-500">مسیر فعلی تو</p>
+              <p className="truncate text-sm font-extrabold text-slate-800">{activeGroup.label}</p>
+            </div>
+          </div>
+
+          <div className="relative mr-auto flex items-center gap-2 sm:mr-0">
+            <div className="hidden items-center gap-2 rounded-xl border border-white/80 bg-white/75 px-2.5 py-1.5 shadow-sm sm:flex">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-amber-50 text-xs font-extrabold text-amber-600">{(user?.name ?? "د")[0]}</span>
+              <span className="max-w-24 truncate text-xs font-bold text-slate-700">{user?.name ?? "دانشجو"}</span>
+            </div>
+            <Button variant="ghost" size="sm" className="rounded-xl px-2.5 text-slate-500 hover:bg-white hover:text-slate-900" onClick={handleSignOut} title="خروج از حساب">
+              <LogOut className="size-4" />
+              <span className="hidden sm:inline">خروج</span>
             </Button>
           </div>
         </div>
