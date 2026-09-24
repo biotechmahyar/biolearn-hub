@@ -38,6 +38,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { GameMarket } from "@/components/game/GameMarket";
+import GameDisabled from "@/pages/GameDisabled";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -69,9 +70,13 @@ const shortHash = (value?: string | null) =>
 
 export default function GenovaGame() {
   const { isAuthenticated } = useAuth();
-  const wallet = useQuery(api.game.getMyWallet, isAuthenticated ? {} : "skip");
-  const offers = useQuery(api.game.listOffers, {});
-  const leaderboard = useQuery(api.game.leaderboard, {});
+  const enabled = useQuery(api.siteSettings.isGameEnabled);
+  const wallet = useQuery(
+    api.game.getMyWallet,
+    isAuthenticated && enabled === true ? {} : "skip",
+  );
+  const offers = useQuery(api.game.listOffers, enabled === true ? {} : "skip");
+  const leaderboard = useQuery(api.game.leaderboard, enabled === true ? {} : "skip");
 
   const [job, setJob] = useState<{
     jobId: string;
@@ -105,6 +110,18 @@ export default function GenovaGame() {
   const startJob = useMutation(api.game.startJob);
   const submitJob = useMutation(api.game.submitJob);
   const skipJob = useMutation(api.game.skipJob);
+
+  if (enabled === undefined) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+        در حال بررسی وضعیت بازی…
+      </div>
+    );
+  }
+
+  if (!enabled) {
+    return <GameDisabled />;
+  }
 
   const miningTotal = Math.max(1, (wallet?.solvedToday ?? 0) + (wallet?.dailyLimit ?? 1) * 0);
   const usingPercent = Math.round(

@@ -86,6 +86,13 @@ export default function TelegramMiniApp() {
   const [tab, setTab] = useState<MiniTab>("home");
   const [stack, setStack] = useState<MiniScreen[]>([]);
 
+  // Bale keeps the loading screen visible until the Mini App explicitly calls
+  // ready(). Telegram implements the same method, so both adapters can notify
+  // their host after the initial render without any platform-specific UI code.
+  useEffect(() => {
+    getPlatform().ready();
+  }, []);
+
   // ── Auto sign-in via Mini App initData (Telegram or Bale) ────────────────
   const triedRef = useRef(false);
   useEffect(() => {

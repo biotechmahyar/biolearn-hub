@@ -51,6 +51,7 @@ export function HomeScreen({ nav, user }: { nav: MiniNav; user: MiniUser }) {
   const notifications = useQuery(api.support.listNotifications, {});
   const announcements = useQuery(api.notifications.listAnnouncements, {});
   const quiz = useQuery(api.tests.getDailyQuiz, {});
+  const gameEnabled = useQuery(api.siteSettings.isGameEnabled);
 
   const isAdmin = user.role === "admin" || user.role === "site_admin";
   const loading = enrollments === undefined;
@@ -79,7 +80,9 @@ export function HomeScreen({ nav, user }: { nav: MiniNav; user: MiniUser }) {
     { label: "جلسات", icon: Calendar, onClick: () => nav({ name: "sessions" }) },
     { label: "گروهها", icon: Users, onClick: () => nav({ name: "groups" }) },
     { label: "آزمایشگاه مجازی", icon: FlaskConical, onClick: () => { window.open("/lab", "_blank"); } },
-    { label: "بازی ژنوا", icon: Pickaxe, onClick: () => { window.open("/game", "_blank"); } },
+    ...(gameEnabled === true
+      ? [{ label: "بازی ژنوا", icon: Pickaxe, onClick: () => { window.open("/game", "_blank"); } }]
+      : []),
   ];
 
   return (

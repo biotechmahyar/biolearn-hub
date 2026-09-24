@@ -3,6 +3,8 @@
 
 <head>
   <meta charset="UTF-8" />
+  <!-- Bale's SDK must be the first script in the document (official requirement). -->
+  <script src="https://tapi.bale.ai/miniapp.js?3"></script>
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -31,9 +33,6 @@
   <!-- Telegram WebApp SDK — provides window.Telegram.WebApp (initData etc.)
        when the site is opened as a Mini App inside Telegram. Harmless in browser. -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- Bale Mini App SDK — loads window.Bale.WebApp when opened inside Bale Messenger.
-       In a normal browser this is a harmless no-op. -->
-  <script src="https://tapi.bale.ai/miniapp.js?3"></script>
 </head>
 
 <body>

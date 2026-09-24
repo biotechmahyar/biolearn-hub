@@ -1,10 +1,8 @@
 import { api } from "@/convex/_generated/api";
 import { faNum, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useMutation, useQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { CheckCircle2, ChevronLeft, Clock3, Loader2, MapPin, Route, Trophy } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,8 +11,6 @@ import { Progress } from "@/components/ui/progress";
 export function AcademyPathTabRedesigned() {
   const paths = useQuery(api.academyPaths.listPublishedPathsWithPricing);
   const enrolledWorkshops = useQuery(api.academyPaths.listMyPathProgress);
-  const enroll = useMutation(api.promotions.enrollWorkshop);
-  const [busyId, setBusyId] = useState<string | null>(null);
 
   if (paths === undefined) {
     return <div className="flex min-h-64 items-center justify-center"><Loader2 className="size-7 animate-spin text-primary" /></div>;
@@ -24,21 +20,6 @@ export function AcademyPathTabRedesigned() {
   }
 
   const isEnrolled = (workshopId: string) => (enrolledWorkshops ?? []).includes(workshopId as any);
-  const handleEnroll = async (workshopId: string, free: boolean) => {
-    if (!free) {
-      toast.info("این کارگاه پرداختی است؛ برای ثبت‌نام از صفحه کارگاه استفاده کن.");
-      return;
-    }
-    setBusyId(workshopId);
-    try {
-      await enroll({ workshopId: workshopId as any });
-      toast.success("ثبت‌نام انجام شد!");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "خطا در ثبت‌نام");
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   return (
     <div className="space-y-8">
@@ -88,8 +69,18 @@ export function AcademyPathTabRedesigned() {
                 </svg>
                 {path.items.map((item, index) => {
                   const enrolled = isEnrolled(item.workshopId);
-                  const isPast = item.date ? new Date(item.date).getTime() < Date.now() : false;
+                  const itemPrice = item.price ?? 0;
+                  const itemIsFree = item.free ?? itemPrice === 0;
+                  const hasSchedule = Boolean(item.date);
+                  const isPast = hasSchedule && new Date(item.date).getTime() < Date.now();
                   const isNext = !enrolled && !isPast && (index === 0 || isEnrolled(path.items[index - 1].workshopId));
+                  const statusLabel = isPast
+                    ? "برگزار شده"
+                    : !hasSchedule
+                      ? "به‌زودی"
+                      : itemIsFree
+                        ? "ثبت‌نام رایگان"
+                        : "ثبت‌نام با پرداخت";
                   return (
                     <div key={item.itemId} className="relative">
                       <span className={cn("absolute -right-12 top-7 z-10 flex size-9 -translate-x-1/2 items-center justify-center rounded-2xl border-4 border-background text-xs font-extrabold shadow-sm", enrolled ? "bg-emerald-500 text-white" : isNext ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{enrolled ? <CheckCircle2 className="size-4" /> : <span>{faNum(index + 1)}</span>}</span>
@@ -97,7 +88,33 @@ export function AcademyPathTabRedesigned() {
                         <CardContent className="p-4 sm:p-5">
                           <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                             <div className="min-w-0 flex-1"><div className="mb-2 flex flex-wrap items-center gap-2"><span className="text-[10px] font-extrabold text-muted-foreground">ایستگاه {faNum(index + 1)}</span>{enrolled ? <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600">تکمیل‌شده</span> : isNext ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">قدم بعدی</span> : null}</div><h3 className="text-sm font-extrabold sm:text-base">{item.title}</h3><p className="mt-1 max-w-2xl text-xs leading-6 text-muted-foreground">{item.topic}</p><div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground"><span>{item.date ? new Date(item.date).toLocaleDateString("fa-IR") : "زمان اعلام می‌شود"}</span>{item.time ? <span className="flex items-center gap-1"><Clock3 className="size-3" /> ساعت {item.time}</span> : null}<span className="font-bold text-emerald-600">{item.free ? "رایگان" : formatPrice(item.price)}</span></div></div>
-                            <div className="flex shrink-0 items-center gap-2">{enrolled ? <Button size="sm" variant="outline" className="rounded-full" asChild><Link to={`/workshops/${item.slug}`}>ورود به کارگاه</Link></Button> : isPast ? <span className="rounded-full bg-muted px-3 py-1.5 text-[11px] text-muted-foreground">برگزار شده</span> : <Button size="sm" className="rounded-full" disabled={busyId === item.workshopId} onClick={() => handleEnroll(item.workshopId, item.free)}>{busyId === item.workshopId ? <Loader2 className="size-3.5 animate-spin" /> : item.free ? "ثبت‌نام رایگان" : "مشاهده و ثبت‌نام"}</Button>}</div>
+                            <div className="flex shrink-0 flex-col items-end gap-1.5 text-left">
+                              {enrolled ? (
+                                <Button size="sm" variant="outline" className="rounded-full" asChild>
+                                  <Link to={`/workshops/${item.slug}`}>ورود به کارگاه</Link>
+                                </Button>
+                              ) : (
+                                <>
+                                  <span className={cn(
+                                    "rounded-full px-3 py-1.5 text-[11px] font-bold",
+                                    isPast
+                                      ? "bg-muted text-muted-foreground"
+                                      : !hasSchedule
+                                        ? "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                        : itemIsFree
+                                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                          : "bg-primary/10 text-primary",
+                                  )}>
+                                    {statusLabel}
+                                  </span>
+                                  {!isPast ? (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {hasSchedule ? "ثبت‌نام از صفحه کارگاه" : "زمان ثبت‌نام اعلام می‌شود"}
+                                    </span>
+                                  ) : null}
+                                </>
+                              )}
+                            </div>
                           </div>
                         </CardContent>
                       </Card>

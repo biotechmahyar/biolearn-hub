@@ -26,6 +26,17 @@ const TOKEN_NAME = "Genova Compute Token";
 const DAILY_JOB_LIMIT = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** The admin switch is authoritative for both the page and game mutations. */
+async function assertGameEnabled(ctx: any) {
+  const setting = await ctx.db
+    .query("siteSettings")
+    .withIndex("by_key", (q: any) => q.eq("key", "game.enabled"))
+    .first();
+  if (setting?.value === "false") {
+    throw new Error("بازی ژنوا در حال حاضر غیرفعال است.");
+  }
+}
+
 // ── Hashing (hash chain) ────────────────────────────────────────────────────
 
 /**
@@ -457,6 +468,7 @@ export const startJob = mutation({
   handler: async (ctx) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("برای شرکت در بازی ابتدا وارد حساب شوید.");
+    await assertGameEnabled(ctx);
 
     const since = Date.now() - DAY_MS;
     const recent = await ctx.db
@@ -517,6 +529,7 @@ export const submitJob = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("برای ثبت پاسخ ابتدا وارد حساب شوید.");
+    await assertGameEnabled(ctx);
 
     const job = await ctx.db.get(args.jobId);
     if (!job) throw new Error("محاسبه یافت نشد.");
@@ -567,6 +580,7 @@ export const skipJob = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    await assertGameEnabled(ctx);
     const job = await ctx.db.get(args.jobId);
     if (!job || job.userId !== user._id) return { ok: true };
     if (job.status === "open") {
@@ -588,6 +602,7 @@ export const transfer = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("برای انتقال توکن ابتدا وارد حساب شوید.");
+    await assertGameEnabled(ctx);
     if (!Number.isInteger(args.amount) || args.amount <= 0) {
       throw new Error("مقدار توکن باید یک عدد صحیح مثبت باشد.");
     }
@@ -636,6 +651,7 @@ export const createOffer = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("برای ثبت آگهی ابتدا وارد حساب شوید.");
+    await assertGameEnabled(ctx);
     if (!Number.isInteger(args.amount) || args.amount <= 0) {
       throw new Error("مقدار توکن باید یک عدد صحیح مثبت باشد.");
     }
@@ -671,6 +687,7 @@ export const cancelOffer = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    await assertGameEnabled(ctx);
     const offer = await ctx.db.get(args.offerId);
     if (!offer) throw new Error("آگهی یافت نشد.");
     if (offer.sellerId !== user._id) throw new Error("این آگهی متعلق به شما نیست.");
@@ -697,6 +714,7 @@ export const acceptOffer = mutation({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    await assertGameEnabled(ctx);
     const offer = await ctx.db.get(args.offerId);
     if (!offer) throw new Error("آگهی یافت نشد.");
     if (offer.status !== "open") throw new Error("این آگهی دیگر باز نیست.");

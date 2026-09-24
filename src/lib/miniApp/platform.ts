@@ -35,6 +35,9 @@ export interface MiniAppPlatform {
   /** Return the platform-injected user object, or null. */
   getUser(): Record<string, unknown> | null;
 
+  /** Notify the host that the Mini App has finished its initial render. */
+  ready(): void;
+
   /** Close / dismiss the Mini App (no-op on plain browser). */
   close(): void;
 
@@ -104,6 +107,22 @@ function getBaleWebApp(): Record<string, unknown> | null {
   return null;
 }
 
+/**
+ * Some Bale WebView versions expose the same official SDK as `window.WebApp`.
+ * Prefer the documented `window.Bale.WebApp`, but keep this fallback so a
+ * partially-loaded SDK cannot leave the Mini App stuck on the auth screen.
+ */
+function getLegacyBaleWebApp(): Record<string, unknown> | null {
+  try {
+    const webApp = (window as unknown as Record<string, unknown>)?.WebApp;
+    return webApp && typeof webApp === "object"
+      ? (webApp as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Telegram Adapter ───────────────────────────────────────────────────────
 
 const telegramPlatform: MiniAppPlatform = {
@@ -131,6 +150,13 @@ const telegramPlatform: MiniAppPlatform = {
         : null;
     }
     return null;
+  },
+
+  ready() {
+    const webApp = getTelegramWebApp();
+    if (typeof webApp?.ready === "function") {
+      webApp.ready();
+    }
   },
 
   close() {
@@ -194,9 +220,12 @@ const telegramPlatform: MiniAppPlatform = {
  * `initData` is the only reliable "we are really inside Bale" signal.
  */
 function getBaleInitData(): string | null {
-  const webApp = getBaleWebApp();
-  const initData = webApp?.initData;
-  return typeof initData === "string" && initData.length > 0 ? initData : null;
+  const documentedData = getBaleWebApp()?.initData;
+  if (typeof documentedData === "string" && documentedData.length > 0) {
+    return documentedData;
+  }
+  const legacyData = getLegacyBaleWebApp()?.initData;
+  return typeof legacyData === "string" && legacyData.length > 0 ? legacyData : null;
 }
 
 const balePlatform: MiniAppPlatform = {
@@ -222,16 +251,23 @@ const balePlatform: MiniAppPlatform = {
     return null;
   },
 
+  ready() {
+    const webApp = getBaleWebApp() ?? getLegacyBaleWebApp();
+    if (typeof webApp?.ready === "function") {
+      webApp.ready();
+    }
+  },
+
   close() {
     if (!getBaleInitData()) return; // not actually inside Bale — nothing to close
-    const webApp = getBaleWebApp();
+    const webApp = getBaleWebApp() ?? getLegacyBaleWebApp();
     if (typeof webApp?.close === "function") {
       webApp.close();
     }
   },
 
   openLink(url: string) {
-    const webApp = getBaleWebApp();
+    const webApp = getBaleWebApp() ?? getLegacyBaleWebApp();
     // Only route through the Bale bridge when we are really inside Bale,
     // otherwise the link would silently go nowhere.
     if (getBaleInitData() && typeof webApp?.openLink === "function") {
@@ -253,7 +289,7 @@ const balePlatform: MiniAppPlatform = {
 
   showBackButton(visible: boolean) {
     if (!getBaleInitData()) return; // not really inside Bale
-    const backButton = getBaleWebApp()?.BackButton as Record<string, Function> | undefined;
+    const backButton = (getBaleWebApp() ?? getLegacyBaleWebApp())?.BackButton as Record<string, Function> | undefined;
     if (!backButton) return;
     try {
       visible ? backButton.show?.() : backButton.hide?.();
@@ -264,7 +300,7 @@ const balePlatform: MiniAppPlatform = {
 
   onBackButton(handler: () => void) {
     if (!getBaleInitData()) return () => {};
-    const backButton = getBaleWebApp()?.BackButton as Record<string, Function> | undefined;
+    const backButton = (getBaleWebApp() ?? getLegacyBaleWebApp())?.BackButton as Record<string, Function> | undefined;
     if (typeof backButton?.onClick !== "function") return () => {};
     backButton.onClick(handler);
     return () => {
@@ -288,6 +324,10 @@ const browserPlatform: MiniAppPlatform = {
 
   getUser() {
     return null;
+  },
+
+  ready() {
+    // no-op
   },
 
   close() {
