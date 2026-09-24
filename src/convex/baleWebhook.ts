@@ -60,12 +60,12 @@ const DEFAULT_START_MESSAGE =
   "سلام! 👋\nبه Genova خوش آمدید.\n\nبرای استفاده از امکانات، مینی‌اپ را از منوی بازو باز کنید.";
 
 interface BaleChat {
-  id?: number;
+  id?: number | string;
   type?: string;
 }
 
 interface BaleUser {
-  id?: number;
+  id?: number | string;
   first_name?: string;
   username?: string;
 }
@@ -91,6 +91,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Bale clients/webhook versions may serialize numeric ids as strings. */
+function normalizeNumericId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    const parsed = Number(value.trim());
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeLinkingCode(value: string): string {
+  // Clipboard content can contain whitespace, ZWNJ, bidi marks, or a hyphen.
+  // They are not part of the generated code and must not make a valid code fail.
+  return value
+    .replace(/[\s\u200c\u200f\u202a-\u202e\u2066-\u2069-]/g, "")
+    .toUpperCase();
+}
+
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -112,12 +130,16 @@ async function tryBaleLinkByCode(
   baleUser: BaleUser,
   rawCode: string,
 ): Promise<void> {
-  if (typeof baleUser.id !== "number") return;
   const c = ctx as any;
   const apiCtx = ctx as unknown as BaleApiCtx;
   const send = (t: string) => sendBaleMessage(apiCtx, chatId, t);
+  const baleId = normalizeNumericId(baleUser.id);
+  if (baleId === null) {
+    await send("❌ شناسه حساب بله قابل خواندن نیست. لطفاً ربات را دوباره باز کنید و کد را دوباره ارسال کنید.");
+    return;
+  }
 
-  const code = rawCode.trim().toUpperCase();
+  const code = normalizeLinkingCode(rawCode);
   const codeDoc = await c.runQuery(internal.telegramBot._findLinkingCode, { code });
   if (!codeDoc) {
     await send("❌ کد اتصال معتبر نیست یا منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
@@ -131,7 +153,7 @@ async function tryBaleLinkByCode(
   // reject it because an older deployment may have marked usedAt while it was
   // only linked to Telegram; this is what allows Telegram ↔ Bale linking.
 
-  const existing = await c.runQuery(internal.baleBot._findUserByBaleId, { baleId: baleUser.id });
+  const existing = await c.runQuery(internal.baleBot._findUserByBaleId, { baleId });
   if (existing && existing._id !== codeDoc.userId) {
     await send("⚠️ این حساب Bale قبلاً به حساب دیگری متصل شده است.\n\nبرای اتصال به حساب جدید، ابتدا اتصال قبلی را قطع کنید.");
     return;
@@ -143,7 +165,7 @@ async function tryBaleLinkByCode(
 
   const result = await c.runMutation(internal.baleBot._completeLinkingByCode, {
     codeId: codeDoc._id,
-    baleId: baleUser.id,
+    baleId,
     baleUsername: baleUser.username,
     baleFirstName: baleUser.first_name,
   });
@@ -191,7 +213,7 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
   const update = parsed as BaleUpdate;
 
   // 3. Structural validation: a real Bale update always carries update_id.
-  if (typeof update.update_id !== "number") {
+  if (normalizeNumericId(update.update_id) === null) {
     return jsonResponse({ ok: false, error: "invalid_update" }, 400);
   }
 
@@ -212,8 +234,8 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       | { data?: unknown; message?: { chat?: { id?: unknown } } }
       | undefined;
     const data = typeof cq?.data === "string" ? cq.data : "";
-    const cbChatId = cq?.message?.chat?.id;
-    if (data === "cmd_enter_code" && typeof cbChatId === "number") {
+    const cbChatId = normalizeNumericId(cq?.message?.chat?.id);
+    if (data === "cmd_enter_code" && cbChatId !== null) {
       await sendBaleMessage(
         ctx as unknown as BaleApiCtx,
         cbChatId,
@@ -221,9 +243,9 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       );
       return jsonResponse({ ok: true, type });
     }
-    if (data === "cmd_unlink" && typeof cbChatId === "number") {
-      const fromId = (cq as { from?: { id?: unknown } } | undefined)?.from?.id;
-      if (typeof fromId === "number") {
+    if (data === "cmd_unlink" && cbChatId !== null) {
+      const fromId = normalizeNumericId((cq as { from?: { id?: unknown } } | undefined)?.from?.id);
+      if (fromId !== null) {
         const result = await (ctx as any).runMutation(internal.baleBot._unlinkBaleById, { baleId: fromId });
         await sendBaleMessage(
           ctx as unknown as BaleApiCtx,
@@ -256,27 +278,32 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
     return jsonResponse({ ok: true, type: "web_app_data" });
   }
 
-  const chatId = message.chat?.id;
-  if (typeof chatId !== "number") {
+  const chatId = normalizeNumericId(message.chat?.id);
+  if (chatId === null) {
     return jsonResponse({ ok: true, type, ignored: true });
   }
 
   const text = typeof message.text === "string" ? message.text.trim() : "";
-  const isStart = text === "/start" || text.startsWith("/start ");
+  const isStart = text === "/start" || text.startsWith("/start ") || text.startsWith("/start@");
 
   // `/start <CODE>` — direct linking with a code from the website.
   if (isStart && message.from) {
-    const startCode = text.split(/\s+/)[1]?.trim();
-    if (startCode && startCode.length >= 6) {
+    const startCode = normalizeLinkingCode(text.replace(/^\/start(?:@\S+)?(?:\s+|$)/i, ""));
+    if (startCode.length >= 6) {
       await tryBaleLinkByCode(ctx, chatId, message.from, startCode);
       return jsonResponse({ ok: true, type });
     }
   }
 
   const isUnlink = text === "/unlink" || text === "/disconnect";
-  if (isUnlink && typeof message.from?.id === "number") {
+  if (isUnlink) {
+    const baleId = normalizeNumericId(message.from?.id);
+    if (baleId === null) {
+      await sendBaleMessage(ctx as unknown as BaleApiCtx, chatId, "❌ شناسه حساب بله قابل خواندن نیست.");
+      return jsonResponse({ ok: true, type });
+    }
     const result = await (ctx as any).runMutation(internal.baleBot._unlinkBaleById, {
-      baleId: message.from.id,
+      baleId,
     });
     if (result?.success) {
       await sendBaleMessage(
@@ -342,8 +369,9 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       );
 
       // Prompt for the linking code when this Bale user is not linked yet.
-      const linkedUser = message.from?.id
-        ? await (ctx as any).runQuery(internal.baleBot._findUserByBaleId, { baleId: message.from.id })
+      const linkedUserId = normalizeNumericId(message.from?.id);
+      const linkedUser = linkedUserId !== null
+        ? await (ctx as any).runQuery(internal.baleBot._findUserByBaleId, { baleId: linkedUserId })
         : null;
       if (!linkedUser) {
         await sendBaleMessage(
@@ -383,9 +411,12 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
   }
 
   // One-time linking code entry (8 chars generated on the website profile).
-  if (/^[A-Za-z0-9]{8}$/.test(text) && message.from) {
-    await tryBaleLinkByCode(ctx, chatId, message.from, text);
-    return jsonResponse({ ok: true, type });
+  if (message.from) {
+    const normalizedText = normalizeLinkingCode(text);
+    if (/^[A-Z0-9]{8}$/.test(normalizedText)) {
+      await tryBaleLinkByCode(ctx, chatId, message.from, normalizedText);
+      return jsonResponse({ ok: true, type });
+    }
   }
 
   // Every other message is acknowledged and ignored — no privileged work is

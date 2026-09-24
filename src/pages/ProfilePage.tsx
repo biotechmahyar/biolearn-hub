@@ -432,6 +432,10 @@ export default function ProfilePage() {
                     <li>ربات را در بله استارت بزنید</li>
                     <li>«کد دارم» را بزنید و کد را بفرستید</li>
                   </ol>
+                  <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold ${baleStatus?.linked ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+                    <span>{baleStatus?.linked ? "● حساب بله متصل است" : "○ حساب بله متصل نیست"}</span>
+                    {baleStatus?.linked && baleStatus.baleUsername ? <span className="font-normal">@{baleStatus.baleUsername}</span> : null}
+                  </div>
                   <div className="flex gap-1.5">
                     <code
                       className="flex-1 text-center text-sm font-black tracking-widest bg-background px-2 py-1.5 rounded border"

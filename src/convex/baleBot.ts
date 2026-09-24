@@ -75,7 +75,10 @@ export const _getBotRuntimeConfig = internalQuery({
       active: bot?.active ?? true,
       startMessage: bot?.startMessage?.trim() || null,
       botUsername: bot?.botUsername?.trim() || null,
-      siteUrl: process.env.SITE_URL ?? null,
+      // Keep the Bale keyboard Mini App button usable in deployments where
+      // SITE_URL was not copied into the Convex environment. This is the same
+      // public site URL used by the Telegram Mini App flow.
+      siteUrl: process.env.SITE_URL ?? "https://nibrc.ir",
     };
   },
 });
