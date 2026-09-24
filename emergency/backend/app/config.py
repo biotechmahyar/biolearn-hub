@@ -1,5 +1,5 @@
 """Environment configuration for the emergency service."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 
 
@@ -19,9 +19,11 @@ class Settings:
         "EMERGENCY_DATABASE_PATH",
         "./data/emergency.sqlite3",
     )
-    cors_origins: list[str] = _csv(
-        os.getenv("EMERGENCY_CORS_ORIGINS"),
-        ["http://localhost:5173", "http://127.0.0.1:5173"],
+    cors_origins: list[str] = field(
+        default_factory=lambda: _csv(
+            os.getenv("EMERGENCY_CORS_ORIGINS"),
+            ["http://localhost:5173", "http://127.0.0.1:5173"],
+        )
     )
 
 
