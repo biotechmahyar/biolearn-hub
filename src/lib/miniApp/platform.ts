@@ -112,7 +112,7 @@ const telegramPlatform: MiniAppPlatform = {
   isAvailable() {
     // The Telegram SDK is also present in a normal browser. Require initData
     // so a browser tab is never mistaken for a Telegram Mini App.
-    return getInitData() !== null;
+    return this.getInitData() !== null;
   },
 
   getInitData() {
@@ -365,7 +365,11 @@ export function getPlatform(): MiniAppPlatform {
  * from the HMAC signature — the client never has to guess.
  */
 export function getMiniAppInitData(): string | null {
-  return telegramPlatform.getInitData() ?? balePlatform.getInitData();
+  // Both SDKs are loaded in the browser, and a plain browser tab can expose
+  // an empty/stale value on the other SDK. Prefer Bale's own value when it is
+  // present so a Bale WebView is not mistaken for a normal browser/Telegram
+  // context. The server still verifies the HMAC and decides the real platform.
+  return balePlatform.getInitData() ?? telegramPlatform.getInitData();
 }
 
 /**

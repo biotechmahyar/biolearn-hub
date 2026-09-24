@@ -318,12 +318,16 @@ export const unlinkTelegram = mutation({
       telegramLinkedAt: undefined,
     });
 
-    // Invalidate all unused linking codes
+    // Keep the account's code usable for the other messenger, but release the
+    // Telegram slot so disconnect → generate a new code → reconnect works.
+    // Previously the stale telegramId stayed on the code and could make a
+    // later connection look like it belonged to another user.
     const codes = await ctx.db
       .query("telegramLinkingCodes")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     for (const c of codes) {
+      if (c.telegramId) await ctx.db.patch(c._id, { telegramId: undefined });
       if (!c.usedAt && !c.telegramId && !c.baleId) await ctx.db.delete(c._id);
     }
 
@@ -347,6 +351,16 @@ export const _unlinkTelegramById = internalMutation({
       telegramFirstName: undefined,
       telegramLinkedAt: undefined,
     });
+
+    const codes = await ctx.db
+      .query("telegramLinkingCodes")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const code of codes) {
+      if (code.telegramId === args.telegramId) {
+        await ctx.db.patch(code._id, { telegramId: undefined });
+      }
+    }
     return { success: true as const };
   },
 });

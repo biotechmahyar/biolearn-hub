@@ -13,7 +13,7 @@ import { useEffect, useRef } from "react";
 import { useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import { getMiniAppInitData, platform } from "@/lib/miniApp/platform";
+import { getMiniAppInitData, getPlatform } from "@/lib/miniApp/platform";
 
 export function TelegramAutoLinker() {
   const linkByTelegramInitData = useAction(api.telegramBotActions.linkByTelegramInitData);
@@ -36,11 +36,13 @@ export function TelegramAutoLinker() {
 
     doneRef.current = true;
 
-    // Route to the correct platform-specific linking action
-    const linkAction = platform.name === "bale"
+    // Resolve after the SDK has had a chance to initialise. The action is only
+    // a hint; shared HMAC validation still identifies the actual platform.
+    const activePlatform = getPlatform();
+    const linkAction = activePlatform.name === "bale"
       ? linkByBaleInitData
       : linkByTelegramInitData;
-    const platformLabel = platform.name === "bale" ? "Bale" : "Telegram";
+    const platformLabel = activePlatform.name === "bale" ? "Bale" : "Telegram";
 
     linkAction({ initData })
       .then((result) => {

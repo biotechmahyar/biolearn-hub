@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { getMiniAppInitData, platform } from "@/lib/miniApp/platform";
+import { getMiniAppInitData, getPlatform } from "@/lib/miniApp/platform";
 import {
   type MiniNav,
   type MiniScreen,
@@ -96,7 +96,10 @@ export default function TelegramMiniApp() {
     triedRef.current = true;
     // Platform hint only — the server validates the signature and decides the
     // platform, so a mis-detected platform still authenticates correctly.
-    const providerId = platform.name === "bale" ? "bale_miniapp" : "telegram_miniapp";
+    // Resolve the adapter inside the effect (not at module import time) so a
+    // slow Bale SDK load cannot permanently select the browser fallback.
+    const activePlatform = getPlatform();
+    const providerId = activePlatform.name === "bale" ? "bale_miniapp" : "telegram_miniapp";
     signIn(providerId, { initData } as never).catch((err: unknown) => {
       triedRef.current = false;
       const msg = err instanceof Error ? err.message : String(err);
@@ -123,9 +126,10 @@ export default function TelegramMiniApp() {
   // In a plain browser both calls are no-ops and the browser handles back.
   useEffect(() => {
     const hasPushed = stack.length > 0;
-    platform.showBackButton(hasPushed);
+    const activePlatform = getPlatform();
+    activePlatform.showBackButton(hasPushed);
     if (!hasPushed) return;
-    return platform.onBackButton(() => goBack());
+    return activePlatform.onBackButton(() => goBack());
   }, [stack.length, goBack]);
 
   const miniUser = user as unknown as MiniUser | null;

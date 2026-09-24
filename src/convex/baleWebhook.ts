@@ -127,10 +127,9 @@ async function tryBaleLinkByCode(
     await send("⏰ کد اتصال منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
     return;
   }
-  if (codeDoc.usedAt && !codeDoc.telegramId && !codeDoc.baleId) {
-    await send("⚠️ این کد قبلاً استفاده شده است.\n\nاگر می‌خواهید حساب جدیدی متصل کنید، از سایت کد جدید بگیرید.");
-    return;
-  }
+  // The same short-lived account code can be used once per messenger. Do not
+  // reject it because an older deployment may have marked usedAt while it was
+  // only linked to Telegram; this is what allows Telegram ↔ Bale linking.
 
   const existing = await c.runQuery(internal.baleBot._findUserByBaleId, { baleId: baleUser.id });
   if (existing && existing._id !== codeDoc.userId) {

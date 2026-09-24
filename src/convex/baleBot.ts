@@ -169,11 +169,15 @@ export const unlinkBale = mutation({
       baleLinkedAt: undefined,
     });
 
+    // Release only Bale's slot. The same account code may still be used for
+    // Telegram (and a later Bale reconnect), so disconnecting one messenger
+    // must not invalidate the other connection.
     const codes = await ctx.db
       .query("telegramLinkingCodes")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     for (const code of codes) {
+      if (code.baleId) await ctx.db.patch(code._id, { baleId: undefined });
       if (!code.usedAt && !code.telegramId && !code.baleId) await ctx.db.delete(code._id);
     }
     return { success: true };
@@ -244,6 +248,16 @@ export const _unlinkBaleById = internalMutation({
       baleFirstName: undefined,
       baleLinkedAt: undefined,
     });
+
+    const codes = await ctx.db
+      .query("telegramLinkingCodes")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+    for (const code of codes) {
+      if (code.baleId === args.baleId) {
+        await ctx.db.patch(code._id, { baleId: undefined });
+      }
+    }
     return { success: true as const };
   },
 });

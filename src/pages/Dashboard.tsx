@@ -582,7 +582,7 @@ function MyWorkshops() {
 
 // ── Academy Path tab ─────────────────────────────────────────────────────────
 function AcademyPathTab() {
-  const paths = useQuery(api.academyPaths.listPublishedPaths);
+  const paths = useQuery(api.academyPaths.listPublishedPathsWithPricing);
   const enrolledWorkshops = useQuery(api.academyPaths.listMyPathProgress);
   const enroll = useMutation(api.promotions.enrollWorkshop);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -626,6 +626,8 @@ function AcademyPathTab() {
       {paths.map((p) => {
         const doneCount = p.items.filter((it: any) => isEnrolled(it.workshopId)).length;
         const pct = p.items.length > 0 ? Math.round((doneCount / p.items.length) * 100) : 0;
+        const pathPrice = p.discountPrice ?? p.price ?? 0;
+        const isPathFree = p.free ?? pathPrice === 0;
         return (
           <Card key={p._id} className="border-border/70 shadow-sm">
             <CardHeader className="pb-3">
@@ -635,6 +637,14 @@ function AcademyPathTab() {
                 <Badge variant="outline" className="rounded-full text-[10px]">{p.level === "beginner" ? "مبتدی" : p.level === "intermediate" ? "متوسط" : p.level === "advanced" ? "پیشرفته" : "ترکیبی"}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">{p.description}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <Badge variant="outline" className="rounded-full text-[10px]">
+                  قیمت مسیر: {isPathFree ? "رایگان" : formatPrice(pathPrice)}
+                </Badge>
+                {p.discountPrice ? (
+                  <span className="text-[10px] font-bold text-emerald-600">تخفیف فعال</span>
+                ) : null}
+              </div>
               <div className="mt-1 flex items-center gap-2">
                 <Progress value={pct} className="h-1.5 flex-1" />
                 <span className="text-[11px] font-bold text-muted-foreground">{faNum(doneCount)}/{faNum(p.items.length)}</span>

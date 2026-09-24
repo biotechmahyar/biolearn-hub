@@ -346,10 +346,9 @@ async function applyLinkingCode(
       await sendMsg(token, chatId, "⏰ لینک اتصال منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
       return;
     }
-    if (codeDoc.usedAt && !codeDoc.telegramId && !codeDoc.baleId) {
-      await sendMsg(token, chatId, "⚠️ این لینک اتصال قبلاً استفاده شده است.\n\nاگر می‌خواهید حساب جدیدی متصل کنید، از سایت کد جدید دریافت کنید.");
-      return;
-    }
+    // A code is intentionally reusable across the two messengers while it is
+    // valid: Telegram and Bale are separate links on the same Genova account.
+    // Legacy rows may have usedAt set, so it must not block a reconnect.
     const existingUser = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
     if (existingUser && existingUser._id !== codeDoc.userId) {
       await sendMsg(token, chatId, "⚠️ این حساب Telegram قبلاً به حساب دیگری متصل شده است.\n\nبرای اتصال به حساب جدید، ابتدا اتصال قبلی را قطع کنید.");

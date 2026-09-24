@@ -568,7 +568,9 @@ export const getPathBySlug = query({
   },
 });
 
-// All published paths with pricing info (for the paths listing section)
+// All published paths with pricing info and their ordered workshop items.
+// The dashboard uses this single source of truth so it cannot accidentally
+// display a default/free price when the admin has configured the path price.
 export const listPublishedPathsWithPricing = query({
   args: {},
   handler: async (ctx) => {
@@ -577,20 +579,47 @@ export const listPublishedPathsWithPricing = query({
       .withIndex("by_published", (q) => q.eq("published", true))
       .collect();
     const now = Date.now();
-    return paths.map((p) => ({
-      _id: p._id,
-      title: p.title,
-      slug: p.slug,
-      description: p.description,
-      level: p.level,
-      color: p.color ?? "emerald",
-      coverImage: p.coverImage ?? null,
-      price: p.price ?? 0,
-      discountPrice:
-        p.discountPrice && p.discountExpiresAt && p.discountExpiresAt > now
-          ? p.discountPrice
-          : undefined,
-    }));
+    const result = [];
+    for (const p of paths) {
+      const pathItems = await ctx.db
+        .query("academyPathItems")
+        .withIndex("by_path", (q) => q.eq("pathId", p._id))
+        .collect();
+      const items = [];
+      for (const item of pathItems.sort((a, b) => a.order - b.order)) {
+        const w = item.workshopId ? await ctx.db.get(item.workshopId) : null;
+        if (!w) continue;
+        items.push({
+          itemId: item._id,
+          order: item.order,
+          workshopId: w._id,
+          title: w.title,
+          topic: w.topic,
+          date: w.date,
+          time: w.time,
+          price: w.price,
+          free: w.free,
+          slug: w.slug,
+        });
+      }
+      result.push({
+        _id: p._id,
+        title: p.title,
+        slug: p.slug,
+        description: p.description,
+        level: p.level,
+        color: p.color ?? "emerald",
+        coverImage: p.coverImage ?? null,
+        price: p.price ?? 0,
+        free: p.free ?? (p.price ?? 0) === 0,
+        discountPrice:
+          p.discountPrice && p.discountExpiresAt && p.discountExpiresAt > now
+            ? p.discountPrice
+            : undefined,
+        items,
+      });
+    }
+    return result;
   },
 });
 
