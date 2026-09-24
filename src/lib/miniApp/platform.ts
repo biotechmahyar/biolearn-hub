@@ -110,7 +110,9 @@ const telegramPlatform: MiniAppPlatform = {
   name: "telegram",
 
   isAvailable() {
-    return getTelegramWebApp() !== null;
+    // The Telegram SDK is also present in a normal browser. Require initData
+    // so a browser tab is never mistaken for a Telegram Mini App.
+    return getInitData() !== null;
   },
 
   getInitData() {

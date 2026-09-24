@@ -259,7 +259,7 @@ export const generateLinkingCode = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     for (const code of existing) {
-      if (!code.usedAt) await ctx.db.delete(code._id);
+      if (!code.usedAt && !code.telegramId && !code.baleId) await ctx.db.delete(code._id);
     }
 
     // Generate a random 8-char code
@@ -324,10 +324,30 @@ export const unlinkTelegram = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     for (const c of codes) {
-      if (!c.usedAt) await ctx.db.delete(c._id);
+      if (!c.usedAt && !c.telegramId && !c.baleId) await ctx.db.delete(c._id);
     }
 
     return { success: true };
+  },
+});
+
+/** Disconnect Telegram when the command is sent from Telegram itself. */
+export const _unlinkTelegramById = internalMutation({
+  args: { telegramId: v.number() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_telegramId", (q) => q.eq("telegramId", args.telegramId))
+      .first();
+    if (!user) return { success: false as const };
+
+    await ctx.db.patch(user._id, {
+      telegramId: undefined,
+      telegramUsername: undefined,
+      telegramFirstName: undefined,
+      telegramLinkedAt: undefined,
+    });
+    return { success: true as const };
   },
 });
 /** Internal: find user by Telegram ID — called from webhook handler */
@@ -384,10 +404,16 @@ export const _completeLinking = internalMutation({
   },
   handler: async (ctx, args) => {
     const codeDoc = await ctx.db.get(args.codeId);
-    if (!codeDoc || codeDoc.usedAt) return { success: false as const, reason: "already_used" as const };
+    if (!codeDoc) return { success: false as const, reason: "already_used" as const };
 
     const now = Date.now();
     if (now > codeDoc.expiresAt) return { success: false as const, reason: "expired" as const };
+
+    // The same account code can link Telegram and Bale independently.
+    // A code is single-use per messenger, not single-use for the whole account.
+    if (codeDoc.telegramId && codeDoc.telegramId !== args.telegramId) {
+      return { success: false as const, reason: "already_used" as const };
+    }
 
     // Check if this telegramId is already linked to another user
     const existingUser = await ctx.db
@@ -400,7 +426,6 @@ export const _completeLinking = internalMutation({
 
     // Mark code as used
     await ctx.db.patch(args.codeId, {
-      usedAt: now,
       telegramId: args.telegramId,
     });
 

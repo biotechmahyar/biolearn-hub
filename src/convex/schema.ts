@@ -945,8 +945,9 @@ const schema = defineSchema(
       code: STR(),             // Random linking code
       createdAt: NUM(),
       expiresAt: NUM(),        // 10 min expiry
-      usedAt: OPT(NUM()), // null = unused
-      telegramId: OPT(NUM()), // Set after linking
+      usedAt: OPT(NUM()), // null = unused (the code may link both messengers)
+      telegramId: OPT(NUM()), // Set after Telegram linking
+      baleId: OPT(NUM()), // Set after Bale linking
     }).index("by_code", ["code"]).index("by_user", ["userId"]),
     // Bot multi-step input state (e.g. user is expected to type a question,
     // an AI prompt or a session request) — one row per telegram user.

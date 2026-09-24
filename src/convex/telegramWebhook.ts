@@ -346,7 +346,7 @@ async function applyLinkingCode(
       await sendMsg(token, chatId, "⏰ لینک اتصال منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
       return;
     }
-    if (codeDoc.usedAt) {
+    if (codeDoc.usedAt && !codeDoc.telegramId && !codeDoc.baleId) {
       await sendMsg(token, chatId, "⚠️ این لینک اتصال قبلاً استفاده شده است.\n\nاگر می‌خواهید حساب جدیدی متصل کنید، از سایت کد جدید دریافت کنید.");
       return;
     }
@@ -443,6 +443,17 @@ async function handleHelp(ctx: any, token: string, chatId: number) {
   await sendMsg(token, chatId, text, GENOVA_REPLY_KEYBOARD);
 }
 
+async function handleUnlink(ctx: any, token: string, chatId: number, telegramId: number) {
+  const result = await ctx.runMutation(internal.telegramBot._unlinkTelegramById, { telegramId });
+  if (result?.success) {
+    await sendMsg(token, chatId, "✅ اتصال Telegram قطع شد.\n\nبرای اتصال دوباره، از سایت کد جدید بگیرید و همین کد را در ربات ارسال کنید.", {
+      inline_keyboard: [[{ text: "🔑 دریافت کد از سایت", url: `${SITE_URL}/dashboard` }]],
+    });
+  } else {
+    await sendMsg(token, chatId, "❌ اتصالی برای این حساب پیدا نشد.");
+  }
+}
+
 async function handleProfile(ctx: any, token: string, chatId: number, telegramId: number) {
   const user = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
   if (!user) {
@@ -461,7 +472,10 @@ username: ${user.email || "—"}
 وضعیت Telegram: ${isLinked ? "✅ متصل" : "❌ متصل نیست"}`;
 
   await sendMsg(token, chatId, text, {
-    inline_keyboard: [[miniAppBtn("🚀 باز کردن پروفایل", "/mini")]],
+    inline_keyboard: [
+      [miniAppBtn("🚀 باز کردن پروفایل", "/mini")],
+      [{ text: "🔌 قطع اتصال Telegram", callback_data: "cmd_unlink" }],
+    ],
   });
 }
 
@@ -728,6 +742,9 @@ async function handleCallbackQuery(ctx: any, token: string, chatId: number, tele
     case "cmd_enter_code":
       await handleEnterCode(ctx, token, chatId, telegramId);
       break;
+    case "cmd_unlink":
+      await handleUnlink(ctx, token, chatId, telegramId);
+      break;
     case "cmd_answer":
       await handleAnswerStart(ctx, token, chatId, telegramId);
       break;
@@ -800,6 +817,10 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
         break;
       case "profile":
         await handleProfile(ctx, token, chatId, telegramId);
+        break;
+      case "unlink":
+      case "disconnect":
+        await handleUnlink(ctx, token, chatId, telegramId);
         break;
       case "questions":
         await handleQuestions(ctx, token, chatId, telegramId);

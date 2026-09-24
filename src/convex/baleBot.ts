@@ -155,6 +155,31 @@ export const getLinkingStatus = query({
   },
 });
 
+/** Disconnect Bale from the signed-in account. */
+export const unlinkBale = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("لطفاً وارد شوید.");
+
+    await ctx.db.patch(userId, {
+      baleId: undefined,
+      baleUsername: undefined,
+      baleFirstName: undefined,
+      baleLinkedAt: undefined,
+    });
+
+    const codes = await ctx.db
+      .query("telegramLinkingCodes")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    for (const code of codes) {
+      if (!code.usedAt && !code.telegramId && !code.baleId) await ctx.db.delete(code._id);
+    }
+    return { success: true };
+  },
+});
+
 // ── Mutations ────────────────────────────────────────────────────────────────
 
 /**
@@ -174,8 +199,14 @@ export const _completeLinkingByCode = internalMutation({
   },
   handler: async (ctx, args) => {
     const codeDoc = await ctx.db.get(args.codeId);
-    if (!codeDoc || codeDoc.usedAt) return { success: false as const, reason: "already_used" as const };
+    if (!codeDoc) return { success: false as const, reason: "already_used" as const };
     if (Date.now() > codeDoc.expiresAt) return { success: false as const, reason: "expired" as const };
+
+    // A linking code belongs to one Genova account and can be used once per
+    // messenger. This lets the same account connect both Telegram and Bale.
+    if (codeDoc.baleId && codeDoc.baleId !== args.baleId) {
+      return { success: false as const, reason: "already_used" as const };
+    }
 
     const existingUser = await ctx.db
       .query("users")
@@ -186,7 +217,7 @@ export const _completeLinkingByCode = internalMutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.codeId, { usedAt: now });
+    await ctx.db.patch(args.codeId, { baleId: args.baleId });
     await ctx.db.patch(codeDoc.userId, {
       baleId: args.baleId,
       baleUsername: args.baleUsername,
@@ -194,6 +225,26 @@ export const _completeLinkingByCode = internalMutation({
       baleLinkedAt: now,
     });
     return { success: true as const, userId: codeDoc.userId };
+  },
+});
+
+/** Disconnect Bale when the command is sent from Bale itself. */
+export const _unlinkBaleById = internalMutation({
+  args: { baleId: v.number() },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_baleId", (q) => q.eq("baleId", args.baleId))
+      .first();
+    if (!user) return { success: false as const };
+
+    await ctx.db.patch(user._id, {
+      baleId: undefined,
+      baleUsername: undefined,
+      baleFirstName: undefined,
+      baleLinkedAt: undefined,
+    });
+    return { success: true as const };
   },
 });
 

@@ -167,8 +167,7 @@ export async function validateMiniAppInitData(
     .join("\n");
 
   // 4. secret = HMAC_SHA256(key = "WebAppData", message = botToken)
-  //    (Telegram writes this as HMAC_SHA256(<bot_token>, "WebAppData") — data
-  //    first, key second — so the key is the literal string "WebAppData".)
+  //    Telegram and Bale both use the literal "WebAppData" as the HMAC key.
   const secretKey = await hmacSha256(
     new TextEncoder().encode("WebAppData"),
     botToken,

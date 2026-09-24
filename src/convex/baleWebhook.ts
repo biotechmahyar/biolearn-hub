@@ -127,7 +127,7 @@ async function tryBaleLinkByCode(
     await send("⏰ کد اتصال منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
     return;
   }
-  if (codeDoc.usedAt) {
+  if (codeDoc.usedAt && !codeDoc.telegramId && !codeDoc.baleId) {
     await send("⚠️ این کد قبلاً استفاده شده است.\n\nاگر می‌خواهید حساب جدیدی متصل کنید، از سایت کد جدید بگیرید.");
     return;
   }
@@ -222,6 +222,18 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       );
       return jsonResponse({ ok: true, type });
     }
+    if (data === "cmd_unlink" && typeof cbChatId === "number") {
+      const fromId = (cq as { from?: { id?: unknown } } | undefined)?.from?.id;
+      if (typeof fromId === "number") {
+        const result = await (ctx as any).runMutation(internal.baleBot._unlinkBaleById, { baleId: fromId });
+        await sendBaleMessage(
+          ctx as unknown as BaleApiCtx,
+          cbChatId,
+          result?.success ? "✅ اتصال بله قطع شد." : "❌ اتصالی برای این حساب پیدا نشد.",
+        );
+      }
+      return jsonResponse({ ok: true, type });
+    }
     return jsonResponse({ ok: true, type });
   }
 
@@ -262,9 +274,27 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
     }
   }
 
+  const isUnlink = text === "/unlink" || text === "/disconnect";
+  if (isUnlink && typeof message.from?.id === "number") {
+    const result = await (ctx as any).runMutation(internal.baleBot._unlinkBaleById, {
+      baleId: message.from.id,
+    });
+    if (result?.success) {
+      await sendBaleMessage(
+        ctx as unknown as BaleApiCtx,
+        chatId,
+        "✅ اتصال بله قطع شد.\n\nبرای اتصال دوباره، از سایت کد جدید بگیرید و کد را در ربات ارسال کنید.",
+        { reply_markup: { inline_keyboard: [[{ text: "دریافت کد از سایت", url: "https://nibrc.ir/dashboard" }]] } },
+      );
+    } else {
+      await sendBaleMessage(ctx as unknown as BaleApiCtx, chatId, "❌ اتصالی برای این حساب پیدا نشد.");
+    }
+    return jsonResponse({ ok: true, type });
+  }
+
   const isHelp = text === "/help";
 
-  if (isStart || isHelp) {
+  if (isStart || isHelp || text === "/profile") {
     const config = (await ctx.runQuery(internal.baleBot._getBotRuntimeConfig, {})) as {
       configured: boolean;
       active: boolean;
@@ -322,6 +352,13 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
           chatId,
           "🔑 آیا کد اتصال حساب دارید؟\n\nاگر کد اتصال از سایت دریافت کرده‌اید، دکمه زیر را بزنید و کد را بفرستید.",
           { reply_markup: { inline_keyboard: [[{ text: "🔑 کد دارم", callback_data: "cmd_enter_code" }]] } },
+        );
+      } else {
+        await sendBaleMessage(
+          ctx as unknown as BaleApiCtx,
+          chatId,
+          "✅ حساب بله شما متصل است.\n\nبرای قطع اتصال، دستور /unlink را بفرستید.",
+          { reply_markup: { inline_keyboard: [[{ text: "🔌 قطع اتصال", callback_data: "cmd_unlink" }]] } },
         );
       }
     }
