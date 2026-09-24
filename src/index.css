@@ -417,3 +417,32 @@
   color-scheme: light;
 }
 
+.dashboard-dark {
+  --background: oklch(0.16 0.025 245);
+  --foreground: oklch(0.96 0.01 225);
+  --card: oklch(0.20 0.03 245);
+  --card-foreground: oklch(0.96 0.01 225);
+  --popover: oklch(0.20 0.03 245);
+  --popover-foreground: oklch(0.96 0.01 225);
+  --primary: oklch(0.72 0.14 220);
+  --primary-foreground: oklch(0.16 0.025 245);
+  --secondary: oklch(0.25 0.03 245);
+  --secondary-foreground: oklch(0.95 0.01 225);
+  --muted: oklch(0.25 0.03 245);
+  --muted-foreground: oklch(0.72 0.02 225);
+  --accent: oklch(0.30 0.04 85);
+  --accent-foreground: oklch(0.95 0.01 85);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.14 220);
+  --sidebar: oklch(0.18 0.025 245);
+  --sidebar-foreground: oklch(0.95 0.01 225);
+  --sidebar-primary: oklch(0.72 0.14 220);
+  --sidebar-primary-foreground: oklch(0.16 0.025 245);
+  --sidebar-accent: oklch(0.27 0.035 245);
+  --sidebar-accent-foreground: oklch(0.95 0.01 225);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.72 0.14 220);
+  color-scheme: dark;
+}
+
