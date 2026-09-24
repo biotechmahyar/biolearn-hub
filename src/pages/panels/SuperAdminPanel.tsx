@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Shield, Lock, Users, BookOpen, FileText, Database, Trash2, Save, Loader2, Eye, EyeOff, ArrowLeft, Globe, Code, MessageSquare, AlertTriangle, KeyRound, Activity, Mail, Heart, UserX, RefreshCw, Copy, Settings, Zap } from "lucide-react";
+import { Shield, Lock, Users, BookOpen, FileText, Database, Trash2, Save, Loader2, Eye, EyeOff, ArrowLeft, Globe, Code, MessageSquare, AlertTriangle, KeyRound, Activity, Mail, Heart, UserX, RefreshCw, Copy, Settings, Zap, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -169,6 +169,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <TabsTrigger value="editor" className="gap-1 text-xs"><Code className="size-3.5" /> ویرایشگر</TabsTrigger>
           <TabsTrigger value="broadcast" className="gap-1 text-xs"><Mail className="size-3.5" /> اطلاع‌رسانی</TabsTrigger>
           <TabsTrigger value="audit" className="gap-1 text-xs"><Eye className="size-3.5" /> گزارش</TabsTrigger>
+          <TabsTrigger value="emergency" className="gap-1 text-xs"><Archive className="size-3.5" /> Snapshot اضطراری</TabsTrigger>
           <TabsTrigger value="settings" className="gap-1 text-xs"><Settings className="size-3.5" /> تنظیمات</TabsTrigger>
         </TabsList></div>
 
@@ -277,12 +278,79 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           </div>)}
         </CardContent></Card>        </TabsContent>
 
+        {/* Emergency snapshot contract */}
+        <TabsContent value="emergency">
+          <EmergencySnapshotTab />
+        </TabsContent>
+
         {/* Settings — Emergency URL */}
         <TabsContent value="settings">
           <SettingsTab />
         </TabsContent>
       </Tabs>
     </div></div>
+  );
+}
+
+function EmergencySnapshotTab() {
+  const sections = [
+    ["هویت و نقش کاربران", "users, profiles, roles"],
+    ["احراز هویت و نشست‌ها", "accounts, sessions, access/refresh tokens"],
+    ["محتوای آموزشی", "courses, sections, lessons, articles, workshops"],
+    ["یادگیری و پیشرفت", "enrollments, progress, certificates, study plans"],
+    ["آزمون و ارزیابی", "exams, questions, attempts, answers, scores"],
+    ["فروش و پرداخت", "orders, invoices, coupons, payment state"],
+    ["ارتباطات", "notifications, inbox, support tickets, mentor messages"],
+    ["تنظیمات و سرویس‌ها", "site settings, bots, webhooks, runtime configuration"],
+    ["فایل‌ها و ممیزی", "file payloads, storage refs, audit events"],
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-amber-500/25 bg-amber-500/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Archive className="size-4 text-amber-600" />
+            قرارداد Snapshot اضطراری ژنوا
+          </CardTitle>
+          <CardDescription className="text-xs">
+            مدل داده و ساختار انتقال کامل سایت در نسخه مستقل Emergency تعریف شده است.
+            این بخش در گام دوم فقط قرارداد و پوشش داده را نمایش می‌دهد؛ عملیات Export واقعی در گام‌های بعدی فعال می‌شود.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className="border-emerald-500/30 text-emerald-600">قرارداد v1 آماده</Badge>
+          <Badge variant="secondary">۹ گروه داده</Badge>
+          <Badge variant="secondary">انتقال یک‌طرفه در نسخه اول</Badge>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {sections.map(([title, detail]) => (
+          <Card key={title}>
+            <CardContent className="py-4">
+              <p className="text-sm font-bold">{title}</p>
+              <p className="mt-1 font-mono text-[10px] leading-5 text-muted-foreground" dir="ltr">{detail}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold">مرحله بعدی</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              پس از تأیید، ساخت Export واقعی از پنل مدیر سامانه و تولید فایل Snapshot کامل اضافه می‌شود.
+            </p>
+          </div>
+          <Button disabled>
+            <Archive className="ml-1.5 size-4" />
+            Export در گام بعد
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

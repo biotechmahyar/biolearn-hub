@@ -4,15 +4,17 @@ Independent fallback service for Genova. This directory is intentionally separat
 
 ## Current phase
 
-Phase 1 establishes a runnable Python service:
+Phase 2 defines the complete emergency data contract:
 
-- FastAPI application
-- Environment-based configuration
-- Local SQLite readiness check
-- Health endpoint
-- Separate test setup
+- Versioned snapshot manifest
+- Identity, authentication, session and token sections
+- Users, profiles, roles and learning data sections
+- Content, assessments and commerce sections
+- Bots, payments, runtime settings, files and audit sections
+- Contract validation rules
+- Admin-panel visibility in the system-admin console
 
-Authentication, snapshot import, and Genova data models are intentionally not implemented yet.
+Authentication implementation, snapshot export, and import are intentionally not implemented yet.
 
 ## Run locally
 
@@ -49,8 +51,8 @@ emergency/
 
 ## Phases
 
-1. Independent service scaffold — current
-2. Snapshot data model
+1. Independent service scaffold — complete
+2. Snapshot data model — current
 3. Full authentication/session compatibility
 4. Users, profiles, and roles
 5. Courses and learning data

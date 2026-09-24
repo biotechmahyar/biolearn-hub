@@ -16,6 +16,10 @@ uvicorn app.main:app --reload
 - `GET /` — service identity
 - `GET /health` — service and SQLite readiness
 
+## Snapshot contract
+
+The versioned data contract is defined in `app/snapshot_contract.py` and documented in `../docs/snapshot-contract.md`. This phase defines the sections and manifest rules only; the exporter and importer are later phases.
+
 ## Configuration
 
 The service reads these environment variables:
