@@ -215,7 +215,13 @@ export const getWorkshopBySlug = query({
 export const listInstructors = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("instructors").collect();
+    const instructors = await ctx.db.query("instructors").collect();
+    return instructors.sort((a, b) => {
+      const aOrder = a.order ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.order ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name, "fa");
+    });
   },
 });
 

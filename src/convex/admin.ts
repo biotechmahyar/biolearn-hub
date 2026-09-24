@@ -511,7 +511,12 @@ export const adminListInstructors = query({
       const courseCount = 0;
       return { ...i, courseCount, userId: i.userId };
     });
-    return enriched;
+    return enriched.sort((a: any, b: any) => {
+      const aOrder = a.order ?? Number.MAX_SAFE_INTEGER;
+      const bOrder = b.order ?? Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return String(a.name).localeCompare(String(b.name), "fa");
+    });
   },
 });
 
@@ -653,19 +658,21 @@ export const adminSetPassword = mutation({
 // ── Instructor CRUD ────────────────────────────────────────────────────────
 export const adminCreateInstructor = mutation({
   args: { name: v.string(), slug: v.optional(v.string()), title: v.string(), bio: v.string(),
-    education: v.array(v.string()), specialties: v.array(v.string()), accent: v.optional(v.string()), verified: v.optional(v.boolean()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()) },
+    education: v.array(v.string()), specialties: v.array(v.string()), accent: v.optional(v.string()), verified: v.optional(v.boolean()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()), order: v.optional(v.number()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const slug = args.slug || args.name.toLowerCase().replace(/[^a-z0-9\u0600-\u06FF]+/g, "-").replace(/^-+|-+$/g, "") + "-" + Date.now().toString(36);
+    const currentInstructors = await ctx.db.query("instructors").collect();
+    const nextOrder = args.order ?? Math.max(0, ...currentInstructors.map((i) => i.order ?? 0)) + 1;
     return await ctx.db.insert("instructors", {
-      ...args, slug, accent: args.accent ?? "teal", verified: args.verified ?? false,
+      ...args, slug, order: nextOrder, accent: args.accent ?? "teal", verified: args.verified ?? false,
     });
   },
 });
 
 export const adminUpdateInstructor = mutation({
   args: { id: v.id("instructors"), name: v.optional(v.string()), title: v.optional(v.string()),
-    bio: v.optional(v.string()), education: v.optional(v.array(v.string())), specialties: v.optional(v.array(v.string())), accent: v.optional(v.string()), verified: v.optional(v.boolean()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()) },
+    bio: v.optional(v.string()), education: v.optional(v.array(v.string())), specialties: v.optional(v.array(v.string())), accent: v.optional(v.string()), verified: v.optional(v.boolean()), userId: v.optional(v.id("users")), photoUrl: v.optional(v.string()), order: v.optional(v.number()) },
   handler: async (ctx, args) => {
     if (!(await isContentStaff(ctx))) throw new Error("دسترسی غیرمجاز.");
     const { id, ...patch } = args;

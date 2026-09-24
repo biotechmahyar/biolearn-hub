@@ -153,6 +153,7 @@ const schema = defineSchema(
       verified: BOOL(),
       userId: OPT(ID("users")), // linked registered user
       photoUrl: OPT(STR()), // instructor photo URL
+      order: OPT(NUM()), // ترتیب نمایش در صفحه اصلی؛ عدد کمترتر بالاتر
     }).index("by_slug", ["slug"])
       .index("by_user", ["userId"]),
     courses: defineTable({

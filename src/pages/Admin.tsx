@@ -4,6 +4,7 @@ import { SiteDemosAdmin } from "@/pages/panels/SiteDemosAdmin";
 import AdminCertificateTemplates from "@/pages/panels/AdminCertificateTemplates";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
+import { InstructorOrderManager } from "@/components/site/InstructorOrderManager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -691,7 +692,7 @@ export default function Admin() {
             {section === "articles" && <AdminArticles />}
             {section === "workshops" && <AdminWorkshops />}
             {section === "products" && <AdminProducts />}
-            {section === "instructors" && <AdminInstructors />}
+            {section === "instructors" && <><AdminInstructors /><InstructorOrderManager /></>}
             {section === "myprofile" && <AdminMyProfile />}
             {section === "examReports" && <AdminExamReports />}
             {section === "offlinePayments" && <AdminOfflinePayments />}
