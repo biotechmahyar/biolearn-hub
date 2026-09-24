@@ -360,6 +360,26 @@ CREATE TABLE IF NOT EXISTS emergency_payment_status_history (
     FOREIGN KEY(transaction_id) REFERENCES emergency_payment_transactions(id)
 );
 
+CREATE TABLE IF NOT EXISTS emergency_snapshot_imports (
+    snapshot_id TEXT PRIMARY KEY,
+    contract_version INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    source_version TEXT NOT NULL,
+    imported_at INTEGER NOT NULL,
+    contains_secrets INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS emergency_audit_events (
+    id TEXT PRIMARY KEY,
+    actor_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    resource_type TEXT NOT NULL,
+    resource_id TEXT,
+    occurred_at INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}'
+);
+
 CREATE INDEX IF NOT EXISTS emergency_accounts_user_idx ON emergency_auth_accounts(user_id);
 CREATE INDEX IF NOT EXISTS emergency_sessions_token_idx ON emergency_auth_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS emergency_sessions_refresh_idx ON emergency_auth_sessions(refresh_token_hash);
@@ -381,6 +401,8 @@ CREATE INDEX IF NOT EXISTS emergency_bot_links_user_idx ON emergency_bot_user_li
 CREATE INDEX IF NOT EXISTS emergency_payment_transactions_user_idx ON emergency_payment_transactions(user_id);
 CREATE INDEX IF NOT EXISTS emergency_payment_transactions_gateway_idx ON emergency_payment_transactions(gateway_id);
 CREATE INDEX IF NOT EXISTS emergency_payment_status_transaction_idx ON emergency_payment_status_history(transaction_id);
+CREATE INDEX IF NOT EXISTS emergency_snapshot_imports_created_idx ON emergency_snapshot_imports(created_at);
+CREATE INDEX IF NOT EXISTS emergency_audit_occurred_idx ON emergency_audit_events(occurred_at);
 """
 
 

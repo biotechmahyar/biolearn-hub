@@ -5,9 +5,11 @@ provides a local SQLite auth store and compatibility endpoints for imported
 identity/session records without importing the main application at runtime.
 """
 from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from pathlib import Path
 import secrets
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .auth_service import (
@@ -22,10 +24,16 @@ from .db import database_is_ready
 from .directory_service import DirectoryNotFound, DirectoryPermissionDenied, UserDirectoryService
 from .learning_service import LearningNotFound, LearningService, LearningValidationError
 from .runtime_service import RuntimeNotFound, RuntimeService
+from .snapshot_service import (
+    SnapshotError,
+    SnapshotImportError,
+    SnapshotService,
+    SnapshotValidationError,
+)
 
 app = FastAPI(
     title="Genova Emergency Service",
-    version="0.6.0",
+    version="0.7.0",
     description="Independent fallback service for Genova.",
 )
 
@@ -124,6 +132,16 @@ class AssessmentResponseRequest(BaseModel):
     answerText: str | None = None
 
 
+class SnapshotExportRequest(BaseModel):
+    artifactName: str
+    includeSecrets: bool = False
+    sourceVersion: str = "emergency-0.7.0"
+
+
+class SnapshotImportRequest(BaseModel):
+    allowOlderRecovery: bool = False
+
+
 @app.get("/", tags=["system"])
 async def root() -> dict[str, str]:
     return {
@@ -140,7 +158,7 @@ async def health() -> HealthResponse:
     return HealthResponse(
         service="genova-emergency",
         status=overall_status,
-        version="0.6.0",
+        version="0.7.0",
         database=database_status,
     )
 
@@ -149,6 +167,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 directory_service = UserDirectoryService()
 learning_service = LearningService()
 runtime_service = RuntimeService()
+snapshot_service = SnapshotService()
 
 
 def _to_user_response(user: AuthenticatedUser) -> UserResponse:
@@ -176,6 +195,15 @@ def _model_dump(model: BaseModel, *, exclude_none: bool = False) -> dict[str, ob
     if hasattr(model, "model_dump"):
         return model.model_dump(exclude_none=exclude_none)
     return model.dict(exclude_none=exclude_none)
+
+
+def _require_admin(credentials: HTTPAuthorizationCredentials | None) -> AuthenticatedUser:
+    user = _authenticated_user(credentials)
+    try:
+        directory_service.require_admin(user)
+    except DirectoryPermissionDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    return user
 
 
 def _profile_values(request: ProfileRequest) -> dict[str, object]:
@@ -608,3 +636,76 @@ async def logout(
     # successful logout, while an unknown token does not reveal token state.
     get_auth_service().revoke_access_token(credentials.credentials)
     return Response(status_code=204)
+
+
+@app.get("/api/admin/emergency/overview", tags=["emergency-admin"])
+async def emergency_overview(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    return {
+        "health": {
+            "database": "ready" if database_is_ready() else "unavailable",
+            "serviceVersion": app.version,
+        },
+        **snapshot_service.overview(),
+    }
+
+
+@app.get("/api/admin/snapshots", tags=["emergency-admin"])
+async def list_snapshots(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    _require_admin(credentials)
+    return snapshot_service.list_artifacts()
+
+
+@app.post("/api/admin/snapshots/export", status_code=201, tags=["emergency-admin"])
+async def export_snapshot(
+    request: SnapshotExportRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    try:
+        return snapshot_service.export(
+            request.artifactName,
+            include_secrets=request.includeSecrets,
+            source_version=request.sourceVersion,
+        )
+    except SnapshotValidationError as error:
+        raise HTTPException(status_code=400, detail=error.errors) from error
+    except SnapshotImportError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.post("/api/admin/snapshots/{artifact_name}/validate", tags=["emergency-admin"])
+async def validate_snapshot(
+    artifact_name: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    return snapshot_service.validate(artifact_name)
+
+
+@app.post("/api/admin/snapshots/{artifact_name}/import", tags=["emergency-admin"])
+async def import_snapshot(
+    artifact_name: str,
+    request: SnapshotImportRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    try:
+        return snapshot_service.import_artifact(
+            artifact_name,
+            allow_older_recovery=request.allowOlderRecovery,
+        )
+    except SnapshotValidationError as error:
+        raise HTTPException(status_code=400, detail=error.errors) from error
+    except SnapshotError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+# This static panel has no Vite/React dependency. Mounting it last keeps every
+# /api route above authoritative and independent from the main application.
+_EMERGENCY_FRONTEND = Path(__file__).resolve().parents[2] / "frontend"
+app.mount("/admin", StaticFiles(directory=_EMERGENCY_FRONTEND, html=True), name="emergency-admin")

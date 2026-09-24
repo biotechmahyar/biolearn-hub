@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#08110f" />
+  <title>Genova Emergency Control</title>
+  <link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+  <div class="ambient-grid" aria-hidden="true"></div>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="/admin/" aria-label="صفحه کنترل اضطراری ژنوا">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span><b>GENOVA</b><small>EMERGENCY CONTROL</small></span>
+      </a>
+      <div class="system-pill" id="connectionStatus"><i></i><span>در حال اتصال</span></div>
+    </header>
+
+    <section class="login-shell" id="loginView">
+      <div class="login-copy">
+        <p class="eyebrow">GENOVA / OFFLINE OPERATIONS</p>
+        <h1>مرکز کنترل<br /><em>نسخه اضطراری</em></h1>
+        <p>یک مسیر مستقل برای مشاهده وضعیت داده‌ها، اعتبارسنجی artifactها و بازیابی امن نسخه‌ها؛ بدون وابستگی runtime به سایت اصلی.</p>
+        <div class="assurance"><span>01</span> SQLite محلی</div>
+        <div class="assurance"><span>02</span> احراز هوید Bearer</div>
+        <div class="assurance"><span>03</span> Import تراکنشی</div>
+      </div>
+      <form class="login-card" id="loginForm">
+        <div class="card-label">دسترسی اپراتور</div>
+        <h2>ورود به پنل</h2>
+        <p>اطلاعات حساب مدیر اضطراری را وارد کنید.</p>
+        <label for="identifier">نام کاربری یا ایمیل</label>
+        <input id="identifier" name="identifier" autocomplete="username" required placeholder="admin@genova.local" />
+        <label for="password">گذرواژه</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required placeholder="••••••••" />
+        <button class="primary" type="submit">ورود امن <span>←</span></button>
+        <p class="form-message" id="loginMessage" role="alert"></p>
+      </form>
+    </section>
+
+    <section class="dashboard hidden" id="dashboardView">
+      <div class="hero-row">
+        <div>
+          <p class="eyebrow">PHASE 07 / RECOVERY OPERATIONS</p>
+          <h1>اتاق عملیات داده</h1>
+          <p>سلامت سرویس، موجودی داده و چرخه کامل Snapshot v1 از یک فضای کنترل مستقل.</p>
+        </div>
+        <button class="ghost" id="logoutButton">خروج از پنل</button>
+      </div>
+
+      <div class="status-grid">
+        <article class="status-card health-card">
+          <div class="status-icon">✓</div><div><small>هسته Emergency</small><strong id="healthValue">در حال بررسی</strong></div>
+        </article>
+        <article class="status-card"><div class="metric"><span id="userCount">—</span><small>کاربر</small></div></article>
+        <article class="status-card"><div class="metric"><span id="courseCount">—</span><small>دوره</small></div></article>
+        <article class="status-card"><div class="metric"><span id="artifactCount">—</span><small>Artifact</small></div></article>
+      </div>
+
+      <div class="workspace-grid">
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">01</span><h2>ساخت artifact</h2></div><span class="tag">PRIVATE FILES</span></div>
+          <p class="panel-copy">یک snapshot نسخه‌دار از وضعیت فعلی Emergency می‌سازد. نام فقط به حروف انگلیسی، عدد، نقطه و خط تیره مجاز است.</p>
+          <label for="artifactName">نام Artifact</label>
+          <div class="input-action"><input id="artifactName" placeholder="backup-2026-09-24" /><button id="exportButton" class="primary">ساخت نسخه</button></div>
+          <label class="check"><input id="includeSecrets" type="checkbox" /><span><b>شامل secretهای عملیاتی</b><small>فقط برای artifact رمزگذاری‌شده و انتقال کنترل‌شده؛ مقدارها در UI نمایش داده نمی‌شوند.</small></span></label>
+          <p class="action-message" id="exportMessage" role="status"></p>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">02</span><h2>Artifact‌های موجود</h2></div><button class="icon-button" id="refreshButton" aria-label="تازه‌سازی">↻</button></div>
+          <label for="artifactSelect">انتخاب artifact</label>
+          <select id="artifactSelect"><option value="">هنوز artifactی وجود ندارد</option></select>
+          <div class="button-row"><button id="validateButton" class="secondary">اعتبارسنجی</button><button id="importButton" class="danger">بازیابی امن</button></div>
+          <label class="check compact"><input id="olderRecovery" type="checkbox" /><span><b>بازیابی صریح نسخه قدیمی‌تر</b><small>فقط برای rollback کنترل‌شده استفاده شود.</small></span></label>
+          <p class="action-message" id="importMessage" role="status"></p>
+        </section>
+      </div>
+
+      <section class="panel diagnostics-panel">
+        <div class="panel-head"><div><span class="step">03</span><h2>Manifest و Diagnostics</h2></div><span class="tag">SNAPSHOT V1</span></div>
+        <div class="diagnostic-summary"><strong id="validationState">هنوز artifactی بررسی نشده</strong><span id="artifactMeta">—</span></div>
+        <pre id="diagnosticsOutput" dir="ltr">Awaiting a validated artifact…</pre>
+      </section>
+
+      <section class="panel inventory-panel">
+        <div class="panel-head"><div><span class="step">04</span><h2>موجودی داده</h2></div><button class="ghost small" id="reloadInventory">به‌روزرسانی</button></div>
+        <div class="inventory" id="inventory"></div>
+      </section>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/admin/app.js" defer></script>
+</body>
+</html>

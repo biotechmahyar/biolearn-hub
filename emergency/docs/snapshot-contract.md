@@ -74,5 +74,32 @@ application.
 - Phase 3: auth/session/token compatibility — complete
 - Phase 4: users, profiles, and roles — complete
 - Phase 5: content, learning and assessment data — complete
-- Phase 6: bots, payments and runtime configuration — current
-- Phase 7+: actual export/import tooling and recovery operations
+- Phase 6: bots, payments and runtime configuration — complete
+- Phase 7: operational export/import tooling, validation, recovery controls and emergency admin panel — complete
+- Phase 8: production/telemetry hardening and rollout — current next boundary
+
+## Operational artifact (Phase 7)
+
+Each artifact is a private directory containing `manifest.json` and `data.json`.
+The manifest carries the complete 18-section contract, record counts, source
+version, secret policy, data filename and SHA-256 of the exact data bytes.
+
+Import performs these gates before opening the write transaction:
+
+1. safe logical artifact name and non-symlink files
+2. manifest schema and supported contract version
+3. valid timestamp and matching data checksum
+4. required sections, exact record counts and unique source IDs
+5. complete parent-ID relationship preflight
+
+Inside `BEGIN IMMEDIATE`, records are upserted in dependency order with their
+source IDs and source timestamps. The import history and audit event commit in
+the same transaction. Any SQL failure rolls back every write. Re-importing the
+same snapshot ID is a no-op. An older snapshot is rejected unless an explicit
+recovery flag is supplied.
+
+Non-secret exports retain password hashes and session/token hashes but remove
+raw token values, signing keys, secret runtime settings, and bot/payment
+records whose config contains a secret-like key. Full recovery exports include
+those values only when explicitly requested and must be encrypted in transport
+and at rest. Secret values are never returned by the admin API or panel.

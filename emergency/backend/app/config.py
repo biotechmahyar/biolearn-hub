@@ -19,6 +19,10 @@ class Settings:
         "EMERGENCY_DATABASE_PATH",
         "./data/emergency.sqlite3",
     )
+    artifact_root: str = os.getenv(
+        "EMERGENCY_ARTIFACT_ROOT",
+        "./data/snapshots",
+    )
     cors_origins: list[str] = field(
         default_factory=lambda: _csv(
             os.getenv("EMERGENCY_CORS_ORIGINS"),

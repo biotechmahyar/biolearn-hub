@@ -1,16 +1,51 @@
 # Emergency architecture
 
-## Current boundary
+## Runtime boundary
 
-The emergency service is a separate process and database. It has no import-time dependency on the main Vite application, Convex, or Freebuff.
+The emergency system is a separate FastAPI + SQLite application rooted at `emergency/`. Its runtime dependency graph does not include the primary TypeScript application, Convex, Freebuff, Vite, React, or the primary site database. The emergency service can therefore start and operate while the main deployment is unavailable.
+
+## Layers
+
+1. **HTTP/API** — compatibility auth, directory, content, learning, assessment, runtime, bot, payment and admin snapshot routes.
+2. **Domain services** — idempotent domain rules and redacted read models.
+3. **SQLite** — local durable state with foreign keys enabled on every connection.
+4. **Snapshot service** — versioned artifact export, validation, preflight, transactional import, replay and audit.
+5. **Standalone admin UI** — static HTML/CSS/JS mounted at `/admin`, with no build pipeline.
+
+## Snapshot flow
 
 ```text
-Main Genova app  ── later snapshot/export ──>  Emergency service
-                                              ├── FastAPI
-                                              ├── SQLite/PostgreSQL
-                                              └── independent frontend
+Emergency SQLite
+  └─ export ──> artifact directory
+                  ├─ manifest.json
+                  └─ data.json + SHA-256
+                         │
+                  validate/preflight
+                         │
+                  BEGIN IMMEDIATE
+                         │
+             dependency-order upserts
+                         │
+               audit + import history
+                         │
+                    COMMIT / ROLLBACK
 ```
 
-Phase 1 provides the service shell and a local SQLite readiness check. Phase 2 defines the versioned snapshot contract and its complete logical data sections. Phase 3 adds the independent auth store, password verification, local session lifecycle, imported opaque-token records, and JWT signing-key verification. Phase 4 adds profiles, academic/contact metadata, role definitions, permissions, and user-role assignments with authenticated self-service and admin APIs. Phase 5 adds course/category/section/lesson content, enrollment and progress records, learning events, study plans, and assessment questions/attempts/responses. Phase 6 adds runtime settings, bot configuration and links, payment gateways, transactions, and payment status history with secret redaction. The operational snapshot exporter/importer and later commerce migration remain separate tasks so each can be tested before the next one starts.
+The 18-section Snapshot v1 contract is materialized from every currently implemented table. Commerce, communication and files remain explicit empty placeholders until their persistence phases exist; they are not silently omitted.
 
-See [`snapshot-contract.md`](./snapshot-contract.md) for the section list and manifest rules.
+## Security model
+
+- all admin API routes reuse emergency Bearer authentication and `UserDirectoryService.require_admin`
+- artifact API input is a logical name, never a path
+- path traversal and symlinks are rejected
+- files are owner-readable/writable only
+- non-secret exports exclude raw tokens, signing keys, secret settings and secret-bearing bot/payment configs
+- full recovery exports are explicitly marked and must be transported as protected files
+- API and UI return metadata/diagnostics, not secret-bearing artifact records
+- imports are versioned, relationship-preflighted, transactional, replay-safe and audited
+
+## Phase status
+
+- Phase 1–6: complete
+- Phase 7: emergency admin panel and import/export tooling — complete
+- Phase 8: current next boundary; not started without approval
