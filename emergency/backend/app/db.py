@@ -279,6 +279,87 @@ CREATE TABLE IF NOT EXISTS emergency_assessment_responses (
     UNIQUE(attempt_id, question_id)
 );
 
+CREATE TABLE IF NOT EXISTS emergency_runtime_settings (
+    key TEXT PRIMARY KEY,
+    value_json TEXT NOT NULL,
+    is_secret INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS emergency_bots (
+    id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'inactive',
+    webhook_url TEXT,
+    config_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS emergency_bot_commands (
+    id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL,
+    command TEXT NOT NULL,
+    description TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    FOREIGN KEY(bot_id) REFERENCES emergency_bots(id),
+    UNIQUE(bot_id, command)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_bot_user_links (
+    id TEXT PRIMARY KEY,
+    bot_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    external_user_id TEXT NOT NULL,
+    linked_at INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(bot_id) REFERENCES emergency_bots(id),
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id),
+    UNIQUE(bot_id, user_id),
+    UNIQUE(bot_id, external_user_id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_payment_gateways (
+    id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    merchant_reference TEXT,
+    status TEXT NOT NULL DEFAULT 'inactive',
+    config_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS emergency_payment_transactions (
+    id TEXT PRIMARY KEY,
+    gateway_id TEXT NOT NULL,
+    user_id TEXT,
+    provider_reference TEXT,
+    order_reference TEXT,
+    amount_minor INTEGER NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'IRR',
+    status TEXT NOT NULL DEFAULT 'pending',
+    paid_at INTEGER,
+    refunded_at INTEGER,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(gateway_id) REFERENCES emergency_payment_gateways(id),
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_payment_status_history (
+    id TEXT PRIMARY KEY,
+    transaction_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    reason TEXT,
+    occurred_at INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(transaction_id) REFERENCES emergency_payment_transactions(id)
+);
+
 CREATE INDEX IF NOT EXISTS emergency_accounts_user_idx ON emergency_auth_accounts(user_id);
 CREATE INDEX IF NOT EXISTS emergency_sessions_token_idx ON emergency_auth_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS emergency_sessions_refresh_idx ON emergency_auth_sessions(refresh_token_hash);
@@ -295,6 +376,11 @@ CREATE INDEX IF NOT EXISTS emergency_progress_user_idx ON emergency_lesson_progr
 CREATE INDEX IF NOT EXISTS emergency_learning_events_user_idx ON emergency_learning_events(user_id);
 CREATE INDEX IF NOT EXISTS emergency_attempts_user_idx ON emergency_assessment_attempts(user_id);
 CREATE INDEX IF NOT EXISTS emergency_responses_attempt_idx ON emergency_assessment_responses(attempt_id);
+CREATE INDEX IF NOT EXISTS emergency_bot_commands_bot_idx ON emergency_bot_commands(bot_id);
+CREATE INDEX IF NOT EXISTS emergency_bot_links_user_idx ON emergency_bot_user_links(user_id);
+CREATE INDEX IF NOT EXISTS emergency_payment_transactions_user_idx ON emergency_payment_transactions(user_id);
+CREATE INDEX IF NOT EXISTS emergency_payment_transactions_gateway_idx ON emergency_payment_transactions(gateway_id);
+CREATE INDEX IF NOT EXISTS emergency_payment_status_transaction_idx ON emergency_payment_status_history(transaction_id);
 """
 
 

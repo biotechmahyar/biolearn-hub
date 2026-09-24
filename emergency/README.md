@@ -4,14 +4,15 @@ Independent fallback service for Genova. This directory is intentionally separat
 
 ## Current phase
 
-Phase 5 adds independent content, learning, and assessment compatibility on top of the phase 3 authentication and phase 4 directory:
+Phase 6 adds independent runtime configuration, bot, and payment compatibility:
 
-- Course categories, courses, sections, lessons, metadata, and publication state
-- Learner enrollment, lesson progress, learning events, and study plans
-- Assessment definitions, questions, options, attempts, responses, and scoring
-- Snapshot-compatible idempotent upsert methods for all phase-five records
-- Public published-course catalog and authenticated learner APIs
-- Admin-only view of all course states
+- Runtime settings with secret redaction
+- Telegram/Bale bot configuration, commands, and user links
+- Payment gateway configuration with redacted secrets
+- Payment transactions with status history and provider/order references
+- Admin runtime, bot, gateway, and transaction read APIs
+- Authenticated user transaction read APIs
+- Snapshot-compatible idempotent upsert methods for all phase-six records
 
 The versioned snapshot contract remains defined in `backend/app/snapshot_contract.py` and `docs/snapshot-contract.md`. The operational snapshot exporter/importer is intentionally not implemented yet. No runtime dependency on the main Vite/Convex application exists.
 
@@ -54,8 +55,8 @@ emergency/
 2. Snapshot data model — complete
 3. Full authentication/session compatibility — complete
 4. Users, profiles, and roles — complete
-5. Content, learning, and assessments — current
-6. Bots, payments, and runtime configuration
+5. Content, learning, and assessments — complete
+6. Bots, payments, and runtime configuration — current
 7. Emergency admin panel and import/export tooling
 8. Independent user interface
 9. End-to-end migration and recovery tests

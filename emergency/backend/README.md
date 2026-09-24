@@ -38,6 +38,13 @@ uvicorn app.main:app --reload
 - `POST /api/assessments/{assessment_id}/attempts` — start an assessment attempt
 - `POST /api/attempts/{attempt_id}/responses` — submit an answer
 - `POST /api/attempts/{attempt_id}/complete` — finalize and score an attempt
+- `GET /api/runtime/public-settings` — redacted public runtime settings
+- `GET /api/admin/runtime/settings` — redacted admin runtime settings
+- `GET /api/admin/bots` — bot configuration with redacted secrets
+- `GET /api/admin/payments/gateways` — payment gateways with redacted secrets
+- `GET /api/admin/payments/transactions` — filtered admin transaction list
+- `GET /api/payments/me/transactions` — current user's transactions
+- `GET /api/payments/me/transactions/{transaction_id}` — current user's transaction detail
 
 The login and refresh responses contain an emergency-local opaque access/refresh
 pair. The service keeps the raw token value in the local session/token tables
@@ -63,9 +70,15 @@ For phase-five records, use `LearningService.upsert_category`, `upsert_course`,
 `upsert_assessment`, `upsert_question`, and `upsert_option`. Assessment
 attempts and responses can be imported with `start_attempt`,
 `submit_response`, and `complete_attempt`. These methods retain source IDs,
-validate relationships, and are safe to replay. The operational
-exporter/importer is a later phase; no import from the main Convex application
-is performed here.
+validate relationships, and are safe to replay.
+
+For phase-six records, use `RuntimeService.upsert_runtime_setting`,
+`upsert_bot`, `upsert_bot_command`, `link_bot_user`, `upsert_payment_gateway`,
+and `upsert_payment_transaction`. Payment status changes append an idempotent
+status-history record. Runtime settings, bot configuration, and gateway
+configuration are stored locally for recovery, but all read APIs redact
+secret-like fields by default. The operational exporter/importer is a later
+phase; no import from the main Convex application is performed here.
 
 Supported portable password algorithms are `pbkdf2_sha256`, `scrypt`,
 `sha256`, and `portable`; `plaintext` is accepted only for explicitly marked

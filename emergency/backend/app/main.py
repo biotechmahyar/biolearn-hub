@@ -21,10 +21,11 @@ from .config import settings
 from .db import database_is_ready
 from .directory_service import DirectoryNotFound, DirectoryPermissionDenied, UserDirectoryService
 from .learning_service import LearningNotFound, LearningService, LearningValidationError
+from .runtime_service import RuntimeNotFound, RuntimeService
 
 app = FastAPI(
     title="Genova Emergency Service",
-    version="0.5.0",
+    version="0.6.0",
     description="Independent fallback service for Genova.",
 )
 
@@ -139,7 +140,7 @@ async def health() -> HealthResponse:
     return HealthResponse(
         service="genova-emergency",
         status=overall_status,
-        version="0.5.0",
+        version="0.6.0",
         database=database_status,
     )
 
@@ -147,6 +148,7 @@ async def health() -> HealthResponse:
 bearer_scheme = HTTPBearer(auto_error=False)
 directory_service = UserDirectoryService()
 learning_service = LearningService()
+runtime_service = RuntimeService()
 
 
 def _to_user_response(user: AuthenticatedUser) -> UserResponse:
@@ -473,6 +475,91 @@ async def complete_assessment_attempt(
         return learning_service.complete_attempt(attempt_id=attempt_id, user_id=user.id)
     except LearningNotFound as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/api/runtime/public-settings", tags=["runtime"])
+async def public_runtime_settings() -> list[dict[str, object]]:
+    return runtime_service.list_runtime_settings(include_secrets=False)
+
+
+@app.get("/api/admin/runtime/settings", tags=["runtime"])
+async def admin_runtime_settings(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    try:
+        directory_service.require_admin(user)
+    except DirectoryPermissionDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    return runtime_service.list_runtime_settings(include_secrets=False)
+
+
+@app.get("/api/admin/bots", tags=["bots"])
+async def admin_bots(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    try:
+        directory_service.require_admin(user)
+    except DirectoryPermissionDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    return runtime_service.list_bots(include_secrets=False)
+
+
+@app.get("/api/admin/payments/gateways", tags=["payments"])
+async def admin_payment_gateways(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    try:
+        directory_service.require_admin(user)
+    except DirectoryPermissionDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    return runtime_service.list_payment_gateways(include_secrets=False)
+
+
+@app.get("/api/admin/payments/transactions", tags=["payments"])
+async def admin_payment_transactions(
+    gateway_id: str | None = Query(default=None),
+    status_filter: str | None = Query(default=None, alias="status"),
+    limit: int = Query(default=100, ge=1, le=500),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    try:
+        directory_service.require_admin(user)
+    except DirectoryPermissionDenied as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+    return runtime_service.list_payment_transactions(
+        gateway_id=gateway_id, status=status_filter, limit=limit
+    )
+
+
+@app.get("/api/payments/me/transactions", tags=["payments"])
+async def my_payment_transactions(
+    status_filter: str | None = Query(default=None, alias="status"),
+    limit: int = Query(default=100, ge=1, le=500),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    return runtime_service.list_payment_transactions(
+        user_id=user.id, status=status_filter, limit=limit
+    )
+
+
+@app.get("/api/payments/me/transactions/{transaction_id}", tags=["payments"])
+async def my_payment_transaction(
+    transaction_id: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    user = _authenticated_user(credentials)
+    try:
+        transaction = runtime_service.get_payment_transaction(transaction_id)
+    except RuntimeNotFound as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    if transaction["userId"] != user.id and user.role.lower() not in directory_service.admin_roles:
+        raise HTTPException(status_code=404, detail="transaction_not_found")
+    return transaction
 
 
 @app.post("/api/auth/login", response_model=SessionResponse, tags=["auth"])

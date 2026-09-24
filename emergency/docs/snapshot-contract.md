@@ -73,6 +73,6 @@ application.
 - Phase 2: this contract and validation tests
 - Phase 3: auth/session/token compatibility — complete
 - Phase 4: users, profiles, and roles — complete
-- Phase 5: content, learning and assessment data — current
-- Phase 6: bots, payments and runtime configuration
+- Phase 5: content, learning and assessment data — complete
+- Phase 6: bots, payments and runtime configuration — current
 - Phase 7+: actual export/import tooling and recovery operations
