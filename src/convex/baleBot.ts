@@ -304,6 +304,52 @@ export const saveBotToken = mutation({
   },
 });
 
+/** Delete the saved Bale bot token and its configuration. */
+export const deleteBotToken = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const bots = await ctx.db.query("baleBot").collect();
+    if (bots[0]) await ctx.db.delete(bots[0]._id);
+    return { success: true };
+  },
+});
+
+/** Enable or disable Bale bot responses without deleting its token. */
+export const toggleBotActive = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const { userId } = await requireAdmin(ctx);
+    const bots = await ctx.db.query("baleBot").collect();
+    const bot = bots[0];
+    if (!bot) throw new Error("بات بله تنظیم نشده است.");
+    const active = !bot.active;
+    await ctx.db.patch(bot._id, {
+      active,
+      updatedBy: userId,
+      updatedAt: Date.now(),
+    });
+    return { active };
+  },
+});
+
+/** Update the Bale bot welcome message. */
+export const updateStartMessage = mutation({
+  args: { message: v.string() },
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdmin(ctx);
+    const bots = await ctx.db.query("baleBot").collect();
+    const bot = bots[0];
+    if (!bot) throw new Error("بات بله تنظیم نشده است.");
+    await ctx.db.patch(bot._id, {
+      startMessage: args.message,
+      updatedBy: userId,
+      updatedAt: Date.now(),
+    });
+    return { success: true };
+  },
+});
+
 /** Update bot info after test connection (internal) */
 export const _updateBotInfo = internalMutation({
   args: {

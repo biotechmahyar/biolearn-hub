@@ -6,6 +6,7 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { linkMiniAppIdentity, type MiniAppRunnerCtx } from "./miniAppAuth";
 import {
+  baleApiCall,
   deleteBaleWebhook,
   getBaleWebhookInfo,
   setBaleWebhook,
@@ -52,6 +53,44 @@ function resolveWebhookUrl(customUrl?: string): string {
   }
   return candidate;
 }
+
+// ── Bot connection test (admin only) ────────────────────────────────────────
+
+/** Verify the saved token with Bale's getMe method. */
+export const testConnection = action({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdminAction(ctx);
+
+    const result = await baleApiCall<{
+      id?: string | number;
+      first_name?: string;
+      username?: string;
+    }>(ctx as unknown as BaleApiCtx, "getMe");
+
+    if (!result.ok) {
+      await ctx.runMutation(internal.baleBot._updateBotInfo, {
+        connected: false,
+        lastTestResult: result.error,
+      });
+      return { success: false as const, error: result.error };
+    }
+
+    const botId = result.result.id === undefined ? undefined : String(result.result.id);
+    const botName = result.result.first_name?.trim() || undefined;
+    const botUsername = result.result.username?.trim() || undefined;
+
+    await ctx.runMutation(internal.baleBot._updateBotInfo, {
+      botId,
+      botName,
+      botUsername,
+      connected: true,
+      lastTestResult: "success",
+    });
+
+    return { success: true as const, botId, botName, botUsername };
+  },
+});
 
 // ── Webhook management (admin only) ─────────────────────────────────────────
 

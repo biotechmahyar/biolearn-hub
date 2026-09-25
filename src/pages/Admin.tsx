@@ -1,5 +1,6 @@
 import { CategoryField } from "@/components/site/CategoryField";
 import { AdminEduManagement } from "@/pages/panels/AdminEduManagement";
+import BaleBotPanel from "@/pages/panels/BaleBotPanel";
 import { SiteDemosAdmin } from "@/pages/panels/SiteDemosAdmin";
 import AdminCertificateTemplates from "@/pages/panels/AdminCertificateTemplates";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
@@ -87,6 +88,7 @@ import {
   Mail,
   Menu,
   MessageSquare,
+  MessageCircle,
   Package,
   Pencil,
   Plus,
@@ -178,6 +180,7 @@ type Section =
   | "auditLogs"
   | "dailyQuiz"
   | "telegram"
+  | "bale"
   | "aiSubscriptions"
   | "siteDemos"
   | "certificateTemplates"
@@ -229,6 +232,7 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "promoBanners", label: "بنر تبلیغاتی", icon: Megaphone },
       { key: "dailyQuiz", label: "کوئیز روزانه", icon: Zap },
       { key: "telegram", label: "تلگرام", icon: Bot },
+      { key: "bale", label: "پیام‌رسان بله", icon: MessageCircle },
       { key: "aiSubscriptions", label: "اشتراک هوش مصنوعی", icon: Sparkles },
       { key: "siteDemos", label: "دمو سایت", icon: Blocks },
       { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon } as any,
@@ -432,6 +436,7 @@ export default function Admin() {
     { label: "میز پشتیبانی", icon: Headset, to: "/panel/support" },
     { label: "مدیریت هوش مصنوعی", icon: Bot, to: "/panel/ai-management" },
     { label: "تلگرام بات", icon: Send, to: "/panel/telegram-bot" },
+    { label: "بله بات", icon: MessageCircle, to: "/panel/bale-bot" },
     // Telegram Admin Center (role switcher / bot flows) is مدیر سامانه-only
     ...(user?.role === "admin"
       ? [{ label: "مدیریت Telegram", icon: Bot, to: "/panel/telegram-admin" }]
@@ -726,6 +731,7 @@ export default function Admin() {
             {section === "auditLogs" && <AdminAuditLogs />}
             {section === "dailyQuiz" && <AdminDailyQuiz />}
             {section === "telegram" && <AdminTelegram />}
+            {section === "bale" && <BaleBotPanel />}
             {section === "aiSubscriptions" && <AdminAISubscriptions />}
             {section === "siteDemos" && <SiteDemosAdmin />}
             {section === "testimonials" && <AdminTestimonials />}
