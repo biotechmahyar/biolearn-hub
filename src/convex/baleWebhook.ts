@@ -39,6 +39,7 @@
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import {
+  answerBaleCallbackQuery,
   getBaleWebhookInfo,
   sendBaleMessage,
   setBaleWebhook,
@@ -228,13 +229,26 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
   }
 
   if (type === "callback_query") {
-    // Only the linking-code prompt has a button; everything else is
-    // acknowledged without any side effect.
     const cq = update.callback_query as
-      | { data?: unknown; message?: { chat?: { id?: unknown } } }
+      | {
+          id?: unknown;
+          data?: unknown;
+          from?: { id?: unknown };
+          message?: { chat?: { id?: unknown } };
+        }
       | undefined;
     const data = typeof cq?.data === "string" ? cq.data : "";
     const cbChatId = normalizeNumericId(cq?.message?.chat?.id);
+    const callbackId = typeof cq?.id === "string" || typeof cq?.id === "number"
+      ? String(cq.id)
+      : null;
+
+    // Bale keeps an inline button spinning until answerCallbackQuery is called,
+    // even when the bot has already sent its follow-up message.
+    if (callbackId) {
+      await answerBaleCallbackQuery(ctx as unknown as BaleApiCtx, callbackId);
+    }
+
     if (data === "cmd_enter_code" && cbChatId !== null) {
       await sendBaleMessage(
         ctx as unknown as BaleApiCtx,
@@ -244,7 +258,7 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       return jsonResponse({ ok: true, type });
     }
     if (data === "cmd_unlink" && cbChatId !== null) {
-      const fromId = normalizeNumericId((cq as { from?: { id?: unknown } } | undefined)?.from?.id);
+      const fromId = normalizeNumericId(cq?.from?.id);
       if (fromId !== null) {
         const result = await (ctx as any).runMutation(internal.baleBot._unlinkBaleById, { baleId: fromId });
         await sendBaleMessage(
@@ -284,7 +298,9 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
   }
 
   const text = typeof message.text === "string" ? message.text.trim() : "";
-  const isStart = text === "/start" || text.startsWith("/start ") || text.startsWith("/start@");
+  const commandMatch = text.match(/^\/([a-zA-Z0-9_]+)(?:@\S+)?(?:\s+|$)/);
+  const command = commandMatch?.[1]?.toLowerCase() ?? null;
+  const isStart = command === "start";
 
   // `/start <CODE>` — direct linking with a code from the website.
   if (isStart && message.from) {
@@ -295,7 +311,7 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
     }
   }
 
-  const isUnlink = text === "/unlink" || text === "/disconnect";
+  const isUnlink = command === "unlink" || command === "disconnect";
   if (isUnlink) {
     const baleId = normalizeNumericId(message.from?.id);
     if (baleId === null) {
@@ -318,9 +334,9 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
     return jsonResponse({ ok: true, type });
   }
 
-  const isHelp = text === "/help";
+  const isHelp = command === "help";
 
-  if (isStart || isHelp || text === "/profile") {
+  if (isStart || isHelp || command === "profile" || command === "genova") {
     const config = (await ctx.runQuery(internal.baleBot._getBotRuntimeConfig, {})) as {
       configured: boolean;
       active: boolean;
@@ -333,10 +349,23 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       // Non-privileged, static welcome text. Failures are swallowed: the
       // webhook must still acknowledge the update.
       const siteUrl = config.siteUrl ?? process.env.SITE_URL ?? "";
-      const miniAppUrl = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/mini` : "";
-      const botUsername = config.botUsername ?? "";
-
-      // Build the persistent reply keyboard (like Telegram) + mini app button
+      let miniAppUrl = "";
+      try {
+        if (siteUrl) {
+          const parsedSiteUrl = new URL(siteUrl);
+          if (parsedSiteUrl.protocol === "https:") {
+            parsedSiteUrl.pathname = "/mini";
+            parsedSiteUrl.search = "";
+            parsedSiteUrl.hash = "";
+            miniAppUrl = parsedSiteUrl.toString();
+          }
+        }
+      } catch {
+        miniAppUrl = "";
+      }
+      // Build the persistent reply keyboard (like Telegram) + mini app button.
+      // Keep this as a keyboard button as well as an inline button below: Bale
+      // supports both, and older clients handle them differently.
       const replyKeyboard = {
         keyboard: [
           [
@@ -353,7 +382,7 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
           [
             {
               text: "\u{1F680} باز کردن Genova",
-              web_app: miniAppUrl ? { url: miniAppUrl } : undefined,
+              ...(miniAppUrl ? { web_app: { url: miniAppUrl } } : {}),
             },
           ],
         ],
@@ -367,6 +396,24 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
         config.startMessage ?? DEFAULT_START_MESSAGE,
         { reply_markup: replyKeyboard },
       );
+
+      // An inline web_app button is the most reliable entry point in current
+      // Bale Android clients. The regular URL is a fallback for old clients.
+      if (miniAppUrl) {
+        await sendBaleMessage(
+          ctx as unknown as BaleApiCtx,
+          chatId,
+          "🚀 Genova آماده است؛ یکی از دکمه‌های زیر را بزنید:",
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🚀 باز کردن Mini App", web_app: { url: miniAppUrl } }],
+                [{ text: "باز کردن در مرورگر", url: miniAppUrl }],
+              ],
+            },
+          },
+        );
+      }
 
       // Prompt for the linking code when this Bale user is not linked yet.
       const linkedUserId = normalizeNumericId(message.from?.id);
@@ -392,6 +439,23 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
   }
 
   // ── Reply-keyboard button routing ──────────────────────────────────────
+  // Older Bale clients send web_app keyboard buttons as plain text. Handle
+  // that fallback explicitly instead of silently dropping the message.
+  if (text === "\u{1F680} باز کردن Genova") {
+    const config = (await ctx.runQuery(internal.baleBot._getBotRuntimeConfig, {})) as {
+      siteUrl?: string | null;
+    } | null;
+    const siteUrl = config?.siteUrl ?? process.env.SITE_URL ?? "https://nibrc.ir";
+    const miniAppUrl = `${siteUrl.replace(/\/+$/, "")}/mini`;
+    await sendBaleMessage(
+      ctx as unknown as BaleApiCtx,
+      chatId,
+      "🚀 باز کردن Genova:",
+      { reply_markup: { inline_keyboard: [[{ text: "ورود به Mini App", web_app: { url: miniAppUrl } }]] } },
+    );
+    return jsonResponse({ ok: true, type });
+  }
+
   const replyButtonMap: Record<string, string> = {
     "\u{1F916} هوش مصنوعی": "برای استفاده از هوش مصنوعی، ابتدا حساب خود را در سایت Genova متصل کنید و سپس از بخش چت‌بات استفاده کنید.",
     "\u{1F4AC} ثبت سؤال": "برای ثبت سؤال، لطفاً سؤال خود را مستقیماً تایپ کنید تا برای مدیران ارسال شود.",
@@ -417,6 +481,17 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       await tryBaleLinkByCode(ctx, chatId, message.from, normalizedText);
       return jsonResponse({ ok: true, type });
     }
+  }
+
+  // Make command failures visible instead of silently swallowing them. The
+  // webhook still performs no privileged work for an unknown command.
+  if (command) {
+    await sendBaleMessage(
+      ctx as unknown as BaleApiCtx,
+      chatId,
+      `❓ دستور «/${command}» شناخته نشد.\n\nدستورهای فعال: /start، /help، /profile، /genova و /unlink`,
+    );
+    return jsonResponse({ ok: true, type });
   }
 
   // Every other message is acknowledged and ignored — no privileged work is

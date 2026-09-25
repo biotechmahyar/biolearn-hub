@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Globe,
   Key,
+  ListChecks,
   Loader2,
   MessageCircle,
   Power,
@@ -43,6 +44,7 @@ export default function BaleBotPanel() {
   const updateStartMessage = useMutation(api.baleBot.updateStartMessage);
   const testConnection = useAction(api.baleBotActions.testConnection);
   const setupWebhook = useAction(api.baleBotActions.setWebhook);
+  const syncCommands = useAction(api.baleBotActions.syncCommands);
   const getWebhookInfo = useAction(api.baleBotActions.getWebhookInfo);
   const removeWebhook = useAction(api.baleBotActions.deleteWebhook);
 
@@ -112,6 +114,16 @@ export default function BaleBotPanel() {
         return;
       }
       toast.success("وب‌هوک بله با موفقیت تنظیم شد.");
+    });
+
+  const handleSyncCommands = () =>
+    run("sync-commands", async () => {
+      const result = await syncCommands({});
+      if (!result.success) {
+        toast.error(result.error ?? "خطا در همگام‌سازی دستورهای بله");
+        return;
+      }
+      toast.success("منوی دستورهای بله همگام‌سازی شد.");
     });
 
   const handleRefreshWebhook = () =>
@@ -341,6 +353,10 @@ export default function BaleBotPanel() {
                 <Button size="sm" onClick={handleSetupWebhook} disabled={loading === "setup-webhook" || !hasToken}>
                   {loading === "setup-webhook" ? <Loader2 className="size-4 animate-spin" /> : <Webhook className="size-4" />}
                   راه‌اندازی خودکار
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleSyncCommands} disabled={loading === "sync-commands" || !hasToken}>
+                  {loading === "sync-commands" ? <Loader2 className="size-4 animate-spin" /> : <ListChecks className="size-4" />}
+                  همگام‌سازی دستورها
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleRefreshWebhook} disabled={loading === "webhook-info" || !hasToken}>
                   {loading === "webhook-info" ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}

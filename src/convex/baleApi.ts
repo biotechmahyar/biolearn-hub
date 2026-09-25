@@ -151,3 +151,23 @@ export async function getBaleWebhookInfo(
 export async function deleteBaleWebhook(ctx: BaleApiCtx): Promise<BaleApiResult<unknown>> {
   return await baleApiCall(ctx, "deleteWebhook");
 }
+
+/** Acknowledge an inline-button click so Bale leaves the button loading state. */
+export async function answerBaleCallbackQuery(
+  ctx: BaleApiCtx,
+  callbackQueryId: string,
+  text?: string,
+): Promise<BaleApiResult<unknown>> {
+  return await baleApiCall(ctx, "answerCallbackQuery", {
+    callback_query_id: callbackQueryId,
+    ...(text ? { text } : {}),
+  });
+}
+
+/** Register the slash commands shown in Bale's bot command menu. */
+export async function setBaleCommands(
+  ctx: BaleApiCtx,
+  commands: Array<{ command: string; description: string }>,
+): Promise<BaleApiResult<unknown>> {
+  return await baleApiCall(ctx, "setMyCommands", { commands });
+}

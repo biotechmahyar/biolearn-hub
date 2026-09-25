@@ -7,9 +7,8 @@
  *
  * Security model
  *  - `initData` is validated with HMAC-SHA256 exactly as documented by both
- *     Telegram and Bale:
- *       secret      = HMAC_SHA256(key = "WebAppData", message = botToken)
- *       computed    = HMAC_SHA256(key = secret,      message = data_check_string)
+ *     Telegram and Bale: *     secret      = HMAC_SHA256(key = botToken, message = "WebAppData")
+ *     computed    = HMAC_SHA256(key = secret,    message = data_check_string)
  *   - `auth_date` freshness is enforced **here** (24h by default) so Telegram
  *     and Bale get the same protection.
  *   - Bot tokens are read server-side only (bot config row, or an env var
@@ -166,11 +165,13 @@ export async function validateMiniAppInitData(
     .map(([k, value]) => `${k}=${value}`)
     .join("\n");
 
-  // 4. secret = HMAC_SHA256(key = "WebAppData", message = botToken)
-  //    Telegram and Bale both use the literal "WebAppData" as the HMAC key.
+  // 4. secret = HMAC_SHA256(key = botToken, message = "WebAppData")
+  //    This is the exact key/message order used by both Telegram and Bale.
+  //    Reversing these two values creates a valid-looking but unverifiable
+  //    signature and prevents the Mini App from signing users in.
   const secretKey = await hmacSha256(
-    new TextEncoder().encode("WebAppData"),
-    botToken,
+    new TextEncoder().encode(botToken),
+    "WebAppData",
   );
 
   // 5. computed = HMAC_SHA256(key = secret, message = data_check_string)

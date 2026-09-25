@@ -9,6 +9,7 @@ import {
   baleApiCall,
   deleteBaleWebhook,
   getBaleWebhookInfo,
+  setBaleCommands,
   setBaleWebhook,
   type BaleApiCtx,
 } from "./baleApi";
@@ -92,6 +93,26 @@ export const testConnection = action({
   },
 });
 
+// ── Command menu (admin only) ───────────────────────────────────────────────
+
+const BALE_COMMANDS = [
+  { command: "start", description: "شروع کار با Genova" },
+  { command: "help", description: "نمایش راهنمای دستورات" },
+  { command: "profile", description: "مشاهده پروفایل" },
+  { command: "genova", description: "باز کردن مینی‌اپ Genova" },
+  { command: "unlink", description: "قطع اتصال بله" },
+];
+
+/** Publish the slash-command menu in Bale. */
+export const syncCommands = action({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdminAction(ctx);
+    const result = await setBaleCommands(ctx as unknown as BaleApiCtx, BALE_COMMANDS);
+    return { success: result.ok, error: result.ok ? undefined : result.error };
+  },
+});
+
 // ── Webhook management (admin only) ─────────────────────────────────────────
 
 /**
@@ -108,6 +129,9 @@ export const setWebhook = action({
 
     const webhookUrl = resolveWebhookUrl(args.customUrl);
     const result = await setBaleWebhook(ctx as unknown as BaleApiCtx, webhookUrl);
+    const commandResult = result.ok
+      ? await setBaleCommands(ctx as unknown as BaleApiCtx, BALE_COMMANDS)
+      : null;
 
     await ctx.runMutation(internal.baleBot._updateBotInfo, {
       webhookUrl: result.ok ? webhookUrl : undefined,
@@ -118,7 +142,8 @@ export const setWebhook = action({
     return {
       success: result.ok,
       webhookUrl,
-      error: result.ok ? undefined : result.error,
+      error: result.ok ? commandResult?.ok === false ? commandResult.error : undefined : result.error,
+      commandsSynced: commandResult?.ok ?? false,
     };
   },
 });
