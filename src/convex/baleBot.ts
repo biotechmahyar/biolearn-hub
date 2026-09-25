@@ -172,9 +172,8 @@ export const unlinkBale = mutation({
       baleLinkedAt: undefined,
     });
 
-    // Release only Bale's slot. The same account code may still be used for
-    // Telegram (and a later Bale reconnect), so disconnecting one messenger
-    // must not invalidate the other connection.
+    // Release Bale's slot on historical rows. New linking codes are
+    // single-use, so reconnecting always requires a fresh code.
     const codes = await ctx.db
       .query("telegramLinkingCodes")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -208,11 +207,12 @@ export const _completeLinkingByCode = internalMutation({
     const codeDoc = await ctx.db.get(args.codeId);
     if (!codeDoc) return { success: false as const, reason: "already_used" as const };
     if (Date.now() > codeDoc.expiresAt) return { success: false as const, reason: "expired" as const };
+    if (codeDoc.usedAt) return { success: false as const, reason: "already_used" as const };
 
-    // A linking code belongs to one Genova account and can be used once per
-    // messenger. This lets the same account connect both Telegram and Bale.
-    if (codeDoc.baleId && codeDoc.baleId !== args.baleId) {
-      return { success: false as const, reason: "already_used" as const };
+    const targetUser = await ctx.db.get(codeDoc.userId);
+    if (!targetUser) return { success: false as const, reason: "already_used" as const };
+    if (targetUser.baleId && targetUser.baleId !== args.baleId) {
+      return { success: false as const, reason: "different_account_linked" as const };
     }
 
     const existingUser = await ctx.db
@@ -224,14 +224,15 @@ export const _completeLinkingByCode = internalMutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.codeId, { baleId: args.baleId });
-    await ctx.db.patch(codeDoc.userId, {
+    // Consume the code and link the Bale account in one transaction.
+    await ctx.db.patch(args.codeId, { usedAt: now, baleId: args.baleId });
+    await ctx.db.patch(targetUser._id, {
       baleId: args.baleId,
       baleUsername: args.baleUsername,
       baleFirstName: args.baleFirstName,
       baleLinkedAt: now,
     });
-    return { success: true as const, userId: codeDoc.userId };
+    return { success: true as const, userId: targetUser._id };
   },
 });
 

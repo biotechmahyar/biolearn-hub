@@ -5,7 +5,10 @@ import {
 } from "./schema.js";
 import { eq } from "drizzle-orm";
 
-const MAIN_SITE_URL = process.env.MAIN_SITE_URL || "https://nibrc.ir";
+// Convex HTTP routes live on the deployment URL, not on the public SPA domain.
+// Keep this explicit so a missing production setting fails visibly instead of
+// requesting /sync/data from https://nibrc.ir (where it does not exist).
+const CONVEX_SITE_URL = (process.env.CONVEX_SITE_URL || "").replace(/\/+$/, "");
 const SYNC_API_KEY = process.env.SYNC_API_KEY || "";
 
 interface SyncResult {
@@ -16,13 +19,17 @@ interface SyncResult {
 
 // Helper: fetch JSON from Convex /sync/data endpoint
 async function fetchSyncData(): Promise<Record<string, any> | null> {
+  if (!CONVEX_SITE_URL) {
+    console.error("[SYNC] CONVEX_SITE_URL is not set. Cannot sync.");
+    return null;
+  }
   if (!SYNC_API_KEY) {
     console.error("[SYNC] SYNC_API_KEY is not set. Cannot sync.");
     return null;
   }
 
   try {
-    const res = await fetch(`${MAIN_SITE_URL}/sync/data`, {
+    const res = await fetch(`${CONVEX_SITE_URL}/sync/data`, {
       headers: {
         "Accept": "application/json",
         "X-Sync-Key": SYNC_API_KEY,
@@ -72,7 +79,7 @@ export async function syncFromMain(): Promise<SyncResult> {
   if (!data) {
     return {
       status: "error",
-      message: "Failed to fetch data from Convex. Check MAIN_SITE_URL and SYNC_API_KEY.",
+      message: "Failed to fetch data from Convex. Check CONVEX_SITE_URL and SYNC_API_KEY.",
       synced,
     };
   }

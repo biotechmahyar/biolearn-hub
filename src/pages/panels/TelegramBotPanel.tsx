@@ -421,6 +421,9 @@ export default function TelegramBotPanel() {
           </CardHeader>
               <CardContent>
                 <div className="space-y-3">
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-6 text-amber-700 dark:text-amber-300">
+                    پیش از راه‌اندازی Webhook، متغیر <code className="font-mono" dir="ltr">TELEGRAM_WEBHOOK_SECRET</code> را در بخش کلیدهای پروژه تنظیم کنید. سپس «راه‌اندازی خودکار» را بزنید تا همین Secret همراه Webhook در تلگرام ثبت شود.
+                  </div>
                   {botConfig?.webhookUrl ? (
                     <div className="flex items-center gap-2 rounded-lg bg-emerald-500/5 p-3">
                       <Globe className="size-4 shrink-0 text-emerald-500" />

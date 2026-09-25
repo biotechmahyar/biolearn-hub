@@ -10,12 +10,48 @@ async function fetchJson(url: string, init?: RequestInit): Promise<any> {
   return await resp.json();
 }
 
+/**
+ * Telegram administration actions are security-sensitive: they can replace the
+ * webhook, configure the Mini App menu, or change the bot command list. The UI
+ * RoleGate is not an authorization boundary, so every action rechecks the
+ * caller's real Convex role server-side.
+ */
+async function requireAdminAction(ctx: {
+  runQuery: (fn: any, args?: any) => Promise<any>;
+}): Promise<void> {
+  const userId = await getAuthUserId(ctx as never);
+  if (!userId) throw new Error("عدم دسترسی: ابتدا وارد شوید.");
+
+  const user = await ctx.runQuery(internal.telegramBot._findUserById, { userId });
+  if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
+    throw new Error("فقط مدیر سامانه و مدیر سایت به این بخش دسترسی دارند.");
+  }
+}
+
+function getTelegramWebhookSecret(): string {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  if (!secret) {
+    throw new Error("TELEGRAM_WEBHOOK_SECRET تنظیم نشده است.");
+  }
+  if (!/^[A-Za-z0-9_-]{1,256}$/.test(secret)) {
+    throw new Error("TELEGRAM_WEBHOOK_SECRET معتبر نیست؛ فقط از حروف انگلیسی، عدد، _ و - استفاده کنید.");
+  }
+  return secret;
+}
+
+function requireHttpsWebhookUrl(value: string): string {
+  const url = new URL(value);
+  if (url.protocol !== "https:") {
+    throw new Error("آدرس webhook باید با https شروع شود.");
+  }
+  return url.toString();
+}
+
 /** Test connection with saved token */
 export const testConnection = action({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("عدم دسترسی.");
+    await requireAdminAction(ctx);
 
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن بات ذخیره نشده است.");
@@ -63,8 +99,7 @@ export const testConnection = action({
 export const disconnectBot = action({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("عدم دسترسی.");
+    await requireAdminAction(ctx);
 
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
@@ -91,6 +126,7 @@ export const disconnectBot = action({
 export const getBotCommands = action({
   args: {},
   handler: async (ctx) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
@@ -117,6 +153,7 @@ export const setBotCommands = action({
     ),
   },
   handler: async (ctx, args) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
@@ -158,22 +195,29 @@ export const setBotCommands = action({
 export const setupWebhook = action({
   args: { customUrl: v.optional(v.string()) },
   handler: async (ctx, args) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
+    const secretToken = getTelegramWebhookSecret();
 
     // Use custom URL or auto-build from CONVEX_SITE_URL
     let webhookUrl = args.customUrl;
     if (!webhookUrl) {
       const siteUrl = process.env.CONVEX_SITE_URL;
       if (!siteUrl) throw new Error("CONVEX_SITE_URL تنظیم نشده است.");
-      webhookUrl = `${siteUrl}/telegram/webhook`;
+      webhookUrl = `${siteUrl.replace(/\/+$/, "")}/telegram/webhook`;
     }
+    webhookUrl = requireHttpsWebhookUrl(webhookUrl);
 
     try {
-      // Set webhook with Telegram
       const setData: any = await fetchJson(
-        `https://api.telegram.org/bot${tokenData.token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`,
-        { signal: AbortSignal.timeout(15000) },
+        `https://api.telegram.org/bot${tokenData.token}/setWebhook`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: webhookUrl, secret_token: secretToken }),
+          signal: AbortSignal.timeout(15000),
+        },
       );
 
       if (setData.ok) {
@@ -190,16 +234,24 @@ export const setupWebhook = action({
 export const setWebhook = action({
   args: { url: v.string() },
   handler: async (ctx, args) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
+    const secretToken = getTelegramWebhookSecret();
+    const webhookUrl = requireHttpsWebhookUrl(args.url);
 
     try {
       const data: any = await fetchJson(
-        `https://api.telegram.org/bot${tokenData.token}/setWebhook?url=${encodeURIComponent(args.url)}`,
-        { signal: AbortSignal.timeout(15000) },
+        `https://api.telegram.org/bot${tokenData.token}/setWebhook`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: webhookUrl, secret_token: secretToken }),
+          signal: AbortSignal.timeout(15000),
+        },
       );
       if (data.ok) {
-        await ctx.runMutation(internal.telegramBot._updateBotInfo, { webhookUrl: args.url });
+        await ctx.runMutation(internal.telegramBot._updateBotInfo, { webhookUrl });
       }
       return { success: data.ok as boolean, error: data.ok ? undefined : (data.description as string) };
     } catch (err: unknown) {
@@ -212,6 +264,7 @@ export const setWebhook = action({
 export const getWebhookInfo = action({
   args: {},
   handler: async (ctx) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
@@ -245,6 +298,7 @@ export const getWebhookInfo = action({
 export const removeWebhook = action({
   args: {},
   handler: async (ctx) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
@@ -265,6 +319,7 @@ export const removeWebhook = action({
 export const setMenuButton = action({
   args: {},
   handler: async (ctx) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 
@@ -298,6 +353,7 @@ export const setMenuButton = action({
 export const getMenuButton = action({
   args: {},
   handler: async (ctx) => {
+    await requireAdminAction(ctx);
     const tokenData = await ctx.runQuery(internal.telegramBot._getRawToken);
     if (!tokenData?.token) throw new Error("توکن یافت نشد.");
 

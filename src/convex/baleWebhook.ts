@@ -150,9 +150,10 @@ async function tryBaleLinkByCode(
     await send("⏰ کد اتصال منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
     return;
   }
-  // The same short-lived account code can be used once per messenger. Do not
-  // reject it because an older deployment may have marked usedAt while it was
-  // only linked to Telegram; this is what allows Telegram ↔ Bale linking.
+  if (codeDoc.usedAt) {
+    await send("⚠️ این کد قبلاً استفاده شده است. از سایت کد جدید دریافت کنید.");
+    return;
+  }
 
   const existing = await c.runQuery(internal.baleBot._findUserByBaleId, { baleId });
   if (existing && existing._id !== codeDoc.userId) {
@@ -177,6 +178,7 @@ async function tryBaleLinkByCode(
       already_used: "⚠️ این کد قبلاً استفاده شده است.",
       expired: "⏰ این کد منقضی شده است.",
       already_linked: "⚠️ این حساب Bale قبلاً به حساب دیگری متصل شده.",
+      different_account_linked: "⚠️ حساب Genova شما قبلاً به یک حساب بله دیگر متصل است.",
     };
     await send(reasons[result?.reason as string] || "❌ خطای نامشخص.");
   }
@@ -258,15 +260,16 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
       return jsonResponse({ ok: true, type });
     }
     if (data === "cmd_unlink" && cbChatId !== null) {
-      const fromId = normalizeNumericId(cq?.from?.id);
-      if (fromId !== null) {
-        const result = await (ctx as any).runMutation(internal.baleBot._unlinkBaleById, { baleId: fromId });
-        await sendBaleMessage(
-          ctx as unknown as BaleApiCtx,
-          cbChatId,
-          result?.success ? "✅ اتصال بله قطع شد." : "❌ اتصالی برای این حساب پیدا نشد.",
-        );
-      }
+      // Bale does not sign webhook requests, so an id supplied by this endpoint
+      // cannot be treated as authenticated. Never perform destructive account
+      // changes from an unverifiable webhook payload; the authenticated web app
+      // is the only safe place to unlink an account.
+      await sendBaleMessage(
+        ctx as unknown as BaleApiCtx,
+        cbChatId,
+        "🔐 برای حفظ امنیت حساب، قطع اتصال فقط از بخش حساب کاربری سایت انجام می‌شود.",
+        { reply_markup: { inline_keyboard: [[{ text: "باز کردن حساب کاربری", url: "https://nibrc.ir/dashboard" }]] } },
+      );
       return jsonResponse({ ok: true, type });
     }
     return jsonResponse({ ok: true, type });
@@ -313,24 +316,14 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
 
   const isUnlink = command === "unlink" || command === "disconnect";
   if (isUnlink) {
-    const baleId = normalizeNumericId(message.from?.id);
-    if (baleId === null) {
-      await sendBaleMessage(ctx as unknown as BaleApiCtx, chatId, "❌ شناسه حساب بله قابل خواندن نیست.");
-      return jsonResponse({ ok: true, type });
-    }
-    const result = await (ctx as any).runMutation(internal.baleBot._unlinkBaleById, {
-      baleId,
-    });
-    if (result?.success) {
-      await sendBaleMessage(
-        ctx as unknown as BaleApiCtx,
-        chatId,
-        "✅ اتصال بله قطع شد.\n\nبرای اتصال دوباره، از سایت کد جدید بگیرید و کد را در ربات ارسال کنید.",
-        { reply_markup: { inline_keyboard: [[{ text: "دریافت کد از سایت", url: "https://nibrc.ir/dashboard" }]] } },
-      );
-    } else {
-      await sendBaleMessage(ctx as unknown as BaleApiCtx, chatId, "❌ اتصالی برای این حساب پیدا نشد.");
-    }
+    // Do not trust message.from.id on a webhook that Bale does not sign.
+    // Unlinking is an authenticated web action, not a webhook command.
+    await sendBaleMessage(
+      ctx as unknown as BaleApiCtx,
+      chatId,
+      "🔐 برای حفظ امنیت حساب، قطع اتصال فقط از بخش حساب کاربری سایت انجام می‌شود.",
+      { reply_markup: { inline_keyboard: [[{ text: "باز کردن حساب کاربری", url: "https://nibrc.ir/dashboard" }]] } },
+    );
     return jsonResponse({ ok: true, type });
   }
 
@@ -431,8 +424,8 @@ export const handleBaleWebhook = httpAction(async (ctx, request) => {
         await sendBaleMessage(
           ctx as unknown as BaleApiCtx,
           chatId,
-          "✅ حساب بله شما متصل است.\n\nبرای قطع اتصال، دستور /unlink را بفرستید.",
-          { reply_markup: { inline_keyboard: [[{ text: "🔌 قطع اتصال", callback_data: "cmd_unlink" }]] } },
+          "✅ حساب بله شما متصل است.\n\nمدیریت اتصال از بخش حساب کاربری سایت انجام می‌شود.",
+          { reply_markup: { inline_keyboard: [[{ text: "مدیریت حساب", url: "https://nibrc.ir/dashboard" }]] } },
         );
       }
     }

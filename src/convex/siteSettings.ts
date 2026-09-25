@@ -109,11 +109,12 @@ export const isPaymentEnabled = query({
       .query("siteSettings")
       .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
       .first();
-    if (!row) return true; // default: enabled
+    // Fail closed: no verified payment provider is connected yet.
+    if (!row) return false;
     try {
-      return JSON.parse(row.value);
+      return JSON.parse(row.value) === true;
     } catch {
-      return true;
+      return false;
     }
   },
 });
@@ -125,6 +126,9 @@ export const togglePayment = mutation({
     const user = await getCurrentUser(ctx);
     if (!user || (user.role !== "admin" && user.role !== "site_admin")) {
       throw new Error("دسترسی مدیریتی لازم است.");
+    }
+    if (args.enabled) {
+      throw new Error("درگاه پرداخت واقعی هنوز پیکربندی نشده است؛ فعال‌سازی آن تا تأیید callback ممکن نیست.");
     }
 
     const existing = await ctx.db

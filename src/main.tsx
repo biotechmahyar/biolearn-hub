@@ -10,9 +10,9 @@ import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { TelegramAutoLinker } from "@/components/site/TelegramAutoLinker";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
-import { StrictMode, useEffect, lazy, Suspense } from "react";
+import { StrictMode, useEffect, lazy, Suspense, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router";
+import { BrowserRouter, MemoryRouter, Route, Routes, useLocation } from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
 
@@ -102,6 +102,8 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
 function RouteSyncer() {
   const location = useLocation();
+  const usesMemoryRouter = window.location.pathname === "/mini";
+
   useEffect(() => {
     window.parent.postMessage(
       { type: "iframe-route-change", path: location.pathname },
@@ -111,16 +113,29 @@ function RouteSyncer() {
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
-      if (event.data?.type === "navigate") {
-        if (event.data.direction === "back") window.history.back();
-        if (event.data.direction === "forward") window.history.forward();
-      }
+      if (event.data?.type !== "navigate") return;
+      // /mini uses an in-memory router so Telegram/Bale initData survives
+      // internal navigation. Native browser history is only valid elsewhere.
+      if (usesMemoryRouter) return;
+      if (event.data.direction === "back") window.history.back();
+      if (event.data.direction === "forward") window.history.forward();
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [usesMemoryRouter]);
 
   return null;
+}
+
+function AppRouter({ children }: { children: ReactNode }) {
+  // A direct /mini launch must not depend on host history. MemoryRouter keeps
+  // the WebView on the same document, preserving the messenger SDK/initData
+  // when the user moves between /mini, /auth and back.
+  if (window.location.pathname === "/mini") {
+    const initialEntry = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    return <MemoryRouter initialEntries={[initialEntry]}>{children}</MemoryRouter>;
+  }
+  return <BrowserRouter>{children}</BrowserRouter>;
 }
 
 
@@ -130,7 +145,7 @@ createRoot(document.getElementById("root")!).render(
     <InstrumentationProvider>
       <SettingsProvider>
       <ConvexAuthProvider client={convex}>
-        <BrowserRouter>
+        <AppRouter>
           <NotificationCenter />
           <SeedBootstrap />
           <TelegramAutoLinker />
@@ -372,7 +387,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
-        </BrowserRouter>
+        </AppRouter>
         <Toaster />
       </ConvexAuthProvider>
       </SettingsProvider>

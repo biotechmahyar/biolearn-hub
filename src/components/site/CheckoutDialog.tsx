@@ -66,7 +66,7 @@ export function CheckoutDialog({
     appliedCode ? { code: appliedCode } : "skip",
   );
   // Central payment gateway status (source of truth: siteSettings)
-  const paymentEnabled = useQuery(api.siteSettings.isPaymentEnabled) ?? true;
+  const paymentEnabled = useQuery(api.siteSettings.isPaymentEnabled) ?? false;
   const onlineDisabled = !paymentEnabled;
 
   const couponPercent =
@@ -232,7 +232,7 @@ export function CheckoutDialog({
               </div>
             )}
 
-            {payMethod === "online" && !onlineDisabled ? (
+            {(payMethod === "online" && !onlineDisabled) || isFree ? (
               <Button className="w-full" size="lg" onClick={handleSubmit} disabled={loading}>
                 {loading ? (<><Loader2 className="ml-2 size-4 animate-spin" /> در حال ثبت...</>) : isAuthenticated ? (isFree ? "ثبت‌نام رایگان" : `پرداخت ${formatPrice(total)}`) : "برای ادامه وارد شوید"}
               </Button>

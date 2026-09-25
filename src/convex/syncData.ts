@@ -10,7 +10,13 @@ import { api } from "./_generated/api";
 export const handleSyncData = httpAction(async (ctx, request) => {
   // Auth: verify sync key
   const syncKey = request.headers.get("X-Sync-Key");
-  const expectedKey = process.env.SYNC_API_KEY || "changeme-sync-secret-key";
+  const expectedKey = process.env.SYNC_API_KEY?.trim();
+  if (!expectedKey) {
+    return new Response(JSON.stringify({ error: "Sync is not configured" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (syncKey !== expectedKey) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -69,7 +75,13 @@ export const handleSyncData = httpAction(async (ctx, request) => {
  */
 export const handleSyncPush = httpAction(async (ctx, request) => {
   const syncKey = request.headers.get("X-Sync-Key");
-  const expectedKey = process.env.SYNC_API_KEY || "changeme-sync-secret-key";
+  const expectedKey = process.env.SYNC_API_KEY?.trim();
+  if (!expectedKey) {
+    return new Response(JSON.stringify({ error: "Sync is not configured" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (syncKey !== expectedKey) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,

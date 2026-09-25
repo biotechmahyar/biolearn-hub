@@ -5,7 +5,9 @@ import { getCurrentUser } from "./users";
 // fetch a doc by string id with loose typing (ids arrive from the client)
 const getDoc = async (ctx: any, id: string) => (await ctx.db.get(id)) as any;
 
-// ── Purchase / orders (MVP: simulated gateway, invoice recorded) ────────────
+// ── Free enrollment / orders ────────────────────────────────────────────────
+// Paid checkout requires a verified hosted-gateway callback. Until that
+// integration exists, this mutation deliberately grants only zero-cost items.
 export const purchase = mutation({
   args: {
     items: v.array(
@@ -19,16 +21,6 @@ export const purchase = mutation({
     if (!user) throw new Error("برای خرید ابتدا وارد حساب شوید.");
     if (args.items.length === 0) throw new Error("سبد خرید خالی است.");
 
-    // Central payment gateway enforcement (source of truth: siteSettings).
-    // Read now, but only enforce once we know the real subtotal below so
-    // free enrollments keep working while the gateway is disabled.
-    const paymentSetting = await ctx.db
-      .query("siteSettings")
-      .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
-      .first();
-    const paymentEnabled = paymentSetting
-      ? (() => { try { return JSON.parse(paymentSetting.value); } catch { return true; } })()
-      : true;
 
     const lineItems: { type: "course" | "product" | "workshop" | "ai_subscription"; refId: string; title: string; price: number }[] = [];
     for (const item of args.items) {
@@ -94,11 +86,6 @@ export const purchase = mutation({
 
     const subtotal = lineItems.reduce((acc, l) => acc + l.price, 0);
 
-    // Block only *paid* online purchases while the gateway is disabled;
-    // free items and offline flow remain available.
-    if (!paymentEnabled && subtotal > 0) {
-      throw new Error("پرداخت آنلاین موقتاً غیرفعال است — از پرداخت آفلاین استفاده کنید.");
-    }
 
     let discountAmount = 0;
     let couponCode: string | undefined;
@@ -122,7 +109,10 @@ export const purchase = mutation({
     }
 
     const total = Math.max(0, subtotal - discountAmount);
-    const invoiceNumber = `ZA-${Date.now().toString().slice(-8)}`;
+    if (total > 0) {
+      throw new Error("پرداخت آنلاین هنوز به درگاه واقعی متصل نشده است. از پرداخت آفلاین استفاده کنید.");
+    }
+    const invoiceNumber = `FREE-${Date.now().toString().slice(-8)}`;
 
     const orderId = await ctx.db.insert("orders", {
       userId: user._id,
@@ -131,7 +121,7 @@ export const purchase = mutation({
       discountAmount,
       total,
       couponCode,
-      status: "paid", // MVP: simulated payment — real gateway lands here in a future phase
+      status: "paid", // zero-cost enrollment; paid orders are rejected above
       invoiceNumber,
       createdAt: Date.now(),
     });

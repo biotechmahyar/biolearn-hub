@@ -17,6 +17,14 @@ async function sendMsg(token: string, chatId: number, text: string, replyMarkup?
   });
 }
 
+async function answerCallback(token: string, callbackQueryId: string): Promise<void> {
+  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackQueryId }),
+  });
+}
+
 function miniAppBtn(text: string, path: string) {
   // Inline web_app buttons work in-chat once the bot's menu button is set to
   // this URL (Bot API attaches the domain automatically via setChatMenuButton).
@@ -346,9 +354,10 @@ async function applyLinkingCode(
       await sendMsg(token, chatId, "⏰ لینک اتصال منقضی شده است.\n\nلطفاً از سایت کد جدید دریافت کنید.");
       return;
     }
-    // A code is intentionally reusable across the two messengers while it is
-    // valid: Telegram and Bale are separate links on the same Genova account.
-    // Legacy rows may have usedAt set, so it must not block a reconnect.
+    if (codeDoc.usedAt) {
+      await sendMsg(token, chatId, "⚠️ این لینک قبلاً استفاده شده است. از سایت کد جدید دریافت کنید.");
+      return;
+    }
     const existingUser = await ctx.runQuery(internal.telegramBot._findUserByTelegramId, { telegramId });
     if (existingUser && existingUser._id !== codeDoc.userId) {
       await sendMsg(token, chatId, "⚠️ این حساب Telegram قبلاً به حساب دیگری متصل شده است.\n\nبرای اتصال به حساب جدید، ابتدا اتصال قبلی را قطع کنید.");
@@ -368,6 +377,7 @@ async function applyLinkingCode(
         already_used: "⚠️ این لینک قبلاً استفاده شده است.",
         expired: "⏰ این لینک منقضی شده است.",
         already_linked: "⚠️ این حساب Telegram قبلاً به حساب دیگری متصل شده.",
+        different_account_linked: "⚠️ حساب Genova شما قبلاً به یک حساب Telegram دیگر متصل است.",
       };
       await sendMsg(token, chatId, reasons[result.reason] || "❌ خطای نامشخص.");
     }
@@ -694,8 +704,21 @@ async function handleReferral(ctx: any, token: string, chatId: number, telegramI
   });
 }
 
-async function handleCallbackQuery(ctx: any, token: string, chatId: number, telegramId: number, firstName: string, username: string | undefined, callbackData: string) {
-  const callbackQueryId = callbackData;
+async function handleCallbackQuery(
+  ctx: any,
+  token: string,
+  chatId: number,
+  telegramId: number,
+  firstName: string,
+  username: string | undefined,
+  callbackData: string,
+  callbackQueryId?: string,
+) {
+  // Telegram keeps an inline button spinning until answerCallbackQuery is
+  // called. Reply-keyboard emulation has no callback id and skips this call.
+  if (callbackQueryId) {
+    await answerCallback(token, callbackQueryId);
+  }
 
   // Route callback_data to the right handler
   switch (callbackData) {
@@ -763,6 +786,19 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
   }
 
   try {
+    // Telegram sends this exact header when a secret_token was supplied to
+    // setWebhook. Rejecting a missing/mismatched value prevents third parties
+    // from forging messages and callback queries.
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET?.trim();
+    if (!expectedSecret) {
+      console.error("Telegram webhook rejected: TELEGRAM_WEBHOOK_SECRET is not configured");
+      return new Response("Webhook is not configured", { status: 503 });
+    }
+    const receivedSecret = request.headers.get("x-telegram-bot-api-secret-token");
+    if (receivedSecret !== expectedSecret) {
+      return new Response("Unauthorized", { status: 401 });
+    }
+
     const body = await request.json();
 
     // Handle callback queries (inline button clicks)
@@ -773,15 +809,29 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
       const firstName = cq.from?.first_name || "کاربر";
       const username = cq.from?.username;
       const callbackData = cq.data;
+      const callbackQueryId = typeof cq.id === "string" || typeof cq.id === "number"
+        ? String(cq.id)
+        : undefined;
 
       if (!chatId || !telegramId || !callbackData) {
         return new Response("OK", { status: 200 });
       }
 
       const bots = await ctx.runQuery(internal.telegramBot.getBotConfigPublic);
-      if (!bots || !bots[0]?.token) return new Response("OK", { status: 200 });
+      if (!bots || !bots[0]?.token || bots[0].active === false) {
+        return new Response("OK", { status: 200 });
+      }
 
-      await handleCallbackQuery(ctx, bots[0].token, chatId, telegramId, firstName, username, callbackData);
+      await handleCallbackQuery(
+        ctx,
+        bots[0].token,
+        chatId,
+        telegramId,
+        firstName,
+        username,
+        callbackData,
+        callbackQueryId,
+      );
       return new Response("OK", { status: 200 });
     }
 
@@ -798,13 +848,15 @@ export const handleTelegramWebhook = httpAction(async (ctx, request) => {
     if (!chatId || !telegramId) return new Response("OK", { status: 200 });
 
     const bots = await ctx.runQuery(internal.telegramBot.getBotConfigPublic);
-    if (!bots || !bots[0]?.token) return new Response("OK", { status: 200 });
+    if (!bots || !bots[0]?.token || bots[0].active === false) {
+      return new Response("OK", { status: 200 });
+    }
 
     const token = bots[0].token;
     if (!token) return new Response("OK", { status: 200 });
 
     // Parse command
-    const cmdMatch = text.match(/^\/([a-zA-Z0-9_]+)(\s+.*)?$/);
+    const cmdMatch = text.match(/^\/([a-zA-Z0-9_]+)(?:@\S+)?(?:\s+|$)/);
     const cmd = cmdMatch ? cmdMatch[1].toLowerCase() : null;
 
     switch (cmd) {

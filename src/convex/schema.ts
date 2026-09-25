@@ -965,7 +965,7 @@ const schema = defineSchema(
       code: STR(),             // Random linking code
       createdAt: NUM(),
       expiresAt: NUM(),        // 10 min expiry
-      usedAt: OPT(NUM()), // null = unused (the code may link both messengers)
+      usedAt: OPT(NUM()), // null = unused; consumed by the first successful link
       telegramId: OPT(NUM()), // Set after Telegram linking
       baleId: OPT(NUM()), // Set after Bale linking
     }).index("by_code", ["code"]).index("by_user", ["userId"]),

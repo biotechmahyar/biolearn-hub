@@ -98,18 +98,19 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 async function hmacSha256(key: Uint8Array, message: string): Promise<Uint8Array> {
+  // Copy each view into an exact-size ArrayBuffer. TextEncoder may return a
+  // view backed by a larger pooled buffer; passing `.buffer` directly would
+  // HMAC unrelated trailing bytes and reject valid initData.
+  const keyBuffer = Uint8Array.from(key).buffer;
+  const messageBuffer = Uint8Array.from(new TextEncoder().encode(message)).buffer;
   const cryptoKey = await crypto.subtle.importKey(
     "raw",
-    key as unknown as ArrayBuffer,
+    keyBuffer,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
   );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    cryptoKey,
-    new TextEncoder().encode(message) as unknown as ArrayBuffer,
-  );
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageBuffer);
   return new Uint8Array(signature);
 }
 
@@ -200,14 +201,21 @@ export async function validateMiniAppInitData(
   }
 
   // 8. auth_date freshness (shared policy for every platform)
-  const authDate = parseInt(params.get("auth_date") ?? "0", 10);
+  const authDateRaw = params.get("auth_date");
+  const authDate = Number.parseInt(authDateRaw ?? "", 10);
+  if (!authDateRaw || !Number.isSafeInteger(authDate) || authDate <= 0) {
+    throw new Error("اطلاعات زمان ورود Mini App معتبر نیست.");
+  }
+
   const freshness =
     options?.authDateFreshnessSeconds ??
     DEFAULT_MINI_APP_AUTH_DATE_FRESHNESS_SECONDS;
 
-  if (freshness > 0 && Number.isFinite(authDate) && authDate > 0) {
-    const ageSeconds = Math.floor(Date.now() / 1000) - authDate;
-    if (ageSeconds > freshness) {
+  if (freshness > 0) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const ageSeconds = nowSeconds - authDate;
+    // Reject stale payloads and implausible clock-skewed/future timestamps.
+    if (ageSeconds > freshness || ageSeconds < -300) {
       throw new Error(
         "نشست Mini App منقضی شده است. مینی‌اپ را ببندید و دوباره باز کنید.",
       );
@@ -253,9 +261,11 @@ export const _getPlatformTokens = internalQuery({
       }
     };
 
+    const telegramEnv = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    const baleEnv = process.env.BALE_BOT_TOKEN?.trim();
     return {
-      telegram: decode(telegramStored) ?? process.env.TELEGRAM_BOT_TOKEN ?? null,
-      bale: process.env.BALE_BOT_TOKEN ?? decode(baleStored),
+      telegram: telegramEnv || decode(telegramStored) || null,
+      bale: baleEnv || decode(baleStored) || null,
     };
   },
 });

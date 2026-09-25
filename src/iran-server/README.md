@@ -38,8 +38,9 @@ npm run dev
 | Variable | Description | Default |
 |----------|-------------|---------|
 | DATABASE_URL | PostgreSQL connection string | `postgresql://localhost:5432/nibrc` |
-| MAIN_SITE_URL | Main NIBRC site for sync | `https://nibrc.ir` |
-| JWT_SECRET | Secret for JWT tokens | Dev default |
+| CONVEX_SITE_URL | Convex deployment URL used by `/sync/data` | Required |
+| SYNC_API_KEY | Shared key expected by Convex sync endpoint | Required |
+| JWT_SECRET | Secret for JWT tokens | Required in production |
 | PORT | Server port | `3000` |
 
 ## API Endpoints

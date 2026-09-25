@@ -340,6 +340,9 @@ export default function BaleBotPanel() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-6 text-amber-700 dark:text-amber-300">
+                API وب‌هوک بله امضای سروری ارائه نمی‌کند؛ به همین دلیل عملیات حساس مانند قطع اتصال فقط از حساب احراز هویت‌شده سایت انجام می‌شود.
+              </div>
               <div className={cn(
                 "flex items-center gap-2 rounded-xl border p-3 text-xs",
                 botConfig?.webhookUrl

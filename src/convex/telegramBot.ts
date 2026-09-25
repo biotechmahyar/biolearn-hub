@@ -52,6 +52,15 @@ export const getBotConfigPublic = internalQuery({
   args: {},
   handler: async (ctx) => {
     const bots = await ctx.db.query("telegramBot").collect();
+    const envToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    if (envToken) {
+      return [{
+        token: envToken,
+        startMessage: bots[0]?.startMessage,
+        active: bots[0]?.active ?? true,
+        botUsername: bots[0]?.botUsername ?? null,
+      }];
+    }
     return bots.map((b) => ({
       token: deobfuscateToken(b.tokenEncrypted),
       startMessage: b.startMessage,
@@ -103,10 +112,8 @@ export const getBotConfig = query({
 export const _getRawToken = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) return null;
-    const user = await ctx.db.get(userId);
-    if (!user || (user.role !== "admin" && user.role !== "site_admin")) return null;
+    const envToken = process.env.TELEGRAM_BOT_TOKEN?.trim();
+    if (envToken) return { token: envToken };
 
     const bots = await ctx.db.query("telegramBot").collect();
     const bot = bots[0];
@@ -253,19 +260,30 @@ export const generateLinkingCode = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("لطفاً وارد شوید.");
 
-    // Invalidate any previous unused codes for this user
+    // A code authorizes exactly one messenger link. Generating a replacement
+    // invalidates every older unused code, even if one platform field exists.
     const existing = await ctx.db
       .query("telegramLinkingCodes")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     for (const code of existing) {
-      if (!code.usedAt && !code.telegramId && !code.baleId) await ctx.db.delete(code._id);
+      if (!code.usedAt) await ctx.db.delete(code._id);
     }
 
-    // Generate a random 8-char code
+    // Use cryptographic randomness and check the indexed code before insert.
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
-    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const bytes = crypto.getRandomValues(new Uint8Array(8));
+      code = Array.from(bytes, (byte) => chars[byte % chars.length]).join("");
+      const duplicate = await ctx.db
+        .query("telegramLinkingCodes")
+        .withIndex("by_code", (q) => q.eq("code", code))
+        .first();
+      if (!duplicate) break;
+      code = "";
+    }
+    if (!code) throw new Error("تولید کد اتصال ناموفق بود. دوباره تلاش کنید.");
 
     const now = Date.now();
     await ctx.db.insert("telegramLinkingCodes", {
@@ -318,10 +336,8 @@ export const unlinkTelegram = mutation({
       telegramLinkedAt: undefined,
     });
 
-    // Keep the account's code usable for the other messenger, but release the
-    // Telegram slot so disconnect → generate a new code → reconnect works.
-    // Previously the stale telegramId stayed on the code and could make a
-    // later connection look like it belonged to another user.
+    // Release the Telegram slot on historical rows. New linking codes are
+    // single-use, so reconnecting always requires a fresh code.
     const codes = await ctx.db
       .query("telegramLinkingCodes")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -423,9 +439,7 @@ export const _completeLinking = internalMutation({
     const now = Date.now();
     if (now > codeDoc.expiresAt) return { success: false as const, reason: "expired" as const };
 
-    // The same account code can link Telegram and Bale independently.
-    // A code is single-use per messenger, not single-use for the whole account.
-    if (codeDoc.telegramId && codeDoc.telegramId !== args.telegramId) {
+    if (codeDoc.usedAt) {
       return { success: false as const, reason: "already_used" as const };
     }
 
@@ -438,20 +452,25 @@ export const _completeLinking = internalMutation({
       return { success: false as const, reason: "already_linked" as const };
     }
 
-    // Mark code as used
+    const targetUser = await ctx.db.get(codeDoc.userId);
+    if (!targetUser) return { success: false as const, reason: "already_used" as const };
+    if (targetUser.telegramId && targetUser.telegramId !== args.telegramId) {
+      return { success: false as const, reason: "different_account_linked" as const };
+    }
+
+    // Consume the code and link the Telegram account in one transaction.
     await ctx.db.patch(args.codeId, {
+      usedAt: now,
       telegramId: args.telegramId,
     });
-
-    // Link the Telegram account to the Genova user
-    await ctx.db.patch(codeDoc.userId, {
+    await ctx.db.patch(targetUser._id, {
       telegramId: args.telegramId,
       telegramUsername: args.telegramUsername,
       telegramFirstName: args.telegramFirstName,
       telegramLinkedAt: now,
     });
 
-    return { success: true as const, userId: codeDoc.userId };
+    return { success: true as const, userId: targetUser._id };
   },
 });
 

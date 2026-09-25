@@ -100,7 +100,6 @@ const BALE_COMMANDS = [
   { command: "help", description: "نمایش راهنمای دستورات" },
   { command: "profile", description: "مشاهده پروفایل" },
   { command: "genova", description: "باز کردن مینی‌اپ Genova" },
-  { command: "unlink", description: "قطع اتصال بله" },
 ];
 
 /** Publish the slash-command menu in Bale. */

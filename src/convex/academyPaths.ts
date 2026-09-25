@@ -636,18 +636,6 @@ export const purchasePath = mutation({
     const p = await ctx.db.get(args.pathId);
     if (!p || !p.published) throw new Error("مسیر یافت نشد.");
 
-    // Central payment gateway enforcement
-    const paymentSetting = await ctx.db
-      .query("siteSettings")
-      .withIndex("by_key", (q) => q.eq("key", "payment.enabled"))
-      .first();
-    const paymentEnabled = paymentSetting
-      ? (() => { try { return JSON.parse(paymentSetting.value); } catch { return true; } })()
-      : true;
-    if (!paymentEnabled && (p.price ?? 0) > 0) {
-      throw new Error("پرداخت آنلاین موقتاً غیرفعال است — بعداً تلاش کنید.");
-    }
-
     // Already owned?
     const existing = await ctx.db
       .query("pathAccess")
@@ -682,7 +670,10 @@ export const purchasePath = mutation({
     }
 
     const total = Math.max(0, price - discountAmount);
-    const invoiceNumber = `AP-${Date.now().toString().slice(-8)}`;
+    if (total > 0) {
+      throw new Error("پرداخت آنلاین هنوز به درگاه واقعی متصل نشده است. از پرداخت آفلاین استفاده کنید.");
+    }
+    const invoiceNumber = `FREE-${Date.now().toString().slice(-8)}`;
 
     const orderId = await ctx.db.insert("orders", {
       userId: user._id,

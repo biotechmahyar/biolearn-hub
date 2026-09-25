@@ -6,7 +6,11 @@ import { db, generateId, now } from "./db.js";
 import { users } from "./schema.js";
 import { eq } from "drizzle-orm";
 
-const JWT_SECRET = process.env.JWT_SECRET || "nibrc-iran-dev-secret-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET?.trim();
+if (!JWT_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("JWT_SECRET is required in production");
+}
+const JWT_SIGNING_SECRET = JWT_SECRET || "nibrc-iran-dev-secret-change-in-production";
 const JWT_EXPIRES = "7d";
 const REFRESH_EXPIRES = "30d";
 
@@ -18,18 +22,18 @@ export interface AuthPayload {
 
 // Generate access token
 export function signAccessToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+  return jwt.sign(payload, JWT_SIGNING_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
 // Generate refresh token
 export function signRefreshToken(payload: AuthPayload): string {
-  return jwt.sign({ ...payload, type: "refresh" }, JWT_SECRET, { expiresIn: REFRESH_EXPIRES });
+  return jwt.sign({ ...payload, type: "refresh" }, JWT_SIGNING_SECRET, { expiresIn: REFRESH_EXPIRES });
 }
 
 // Verify token
 export function verifyToken(token: string): AuthPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload & { type?: string };
+    const decoded = jwt.verify(token, JWT_SIGNING_SECRET) as AuthPayload & { type?: string };
     if (decoded.type === "refresh") return null; // refresh tokens not valid for auth
     return { userId: decoded.userId, email: decoded.email, role: decoded.role };
   } catch {
@@ -40,7 +44,7 @@ export function verifyToken(token: string): AuthPayload | null {
 // Verify refresh token
 export function verifyRefreshToken(token: string): AuthPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload & { type?: string };
+    const decoded = jwt.verify(token, JWT_SIGNING_SECRET) as AuthPayload & { type?: string };
     if (decoded.type !== "refresh") return null;
     return { userId: decoded.userId, email: decoded.email, role: decoded.role };
   } catch {
