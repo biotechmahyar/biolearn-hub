@@ -77,6 +77,7 @@ application.
 - Phase 6: bots, payments and runtime configuration — complete
 - Phase 7: operational export/import tooling, validation, recovery controls and emergency admin panel — complete
 - Phase 8: production/telemetry hardening, verified pre-import backup, retention and rollout references — complete
+- Phase 9: commerce, communication, files and one-time main-export migration — complete
 
 ## Operational artifact (Phase 7)
 
@@ -98,6 +99,12 @@ are then upserted in dependency order with their source IDs and source
 timestamps. The import history and audit event commit in the same transaction. Any SQL failure rolls back every write. Re-importing the
 same snapshot ID is a no-op. An older snapshot is rejected unless an explicit
 recovery flag is supplied.
+
+Commerce includes products/orders/store/wallet/payment/subscription records.
+Communication includes notifications/announcements/inbox/support/direct/mentor/comments.
+Files include manifest, SHA-256, MIME, size, original reference and local private
+payload path. A main-export migration never stores an unverified source path;
+missing payloads remain explicit diagnostics.
 
 Non-secret exports retain password hashes and session/token hashes but remove
 raw token values, signing keys, secret runtime settings, and bot/payment

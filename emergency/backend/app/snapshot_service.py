@@ -18,6 +18,7 @@ import tempfile
 import time
 from typing import Any, Mapping
 
+from .completion_tables import COMPLETION_SECTION_SPECS
 from .config import settings
 from .db import connect
 from .operations_service import BackupService
@@ -122,6 +123,9 @@ _TABLE_LISTS: dict[str, tuple[TableSpec, ...]] = {
         TableSpec("emergency_payment_transactions", "id", frozenset({"metadata_json"})),
         TableSpec("emergency_payment_status_history", "id", frozenset({"metadata_json"})),
     ),
+    "commerce": COMPLETION_SECTION_SPECS["commerce"],
+    "communication": COMPLETION_SECTION_SPECS["communication"],
+    "files": COMPLETION_SECTION_SPECS["files"],
     "audit": (TableSpec("emergency_audit_events", "id", frozenset({"metadata_json"})),),
 }
 
@@ -139,6 +143,9 @@ _SECTION_TABLES: dict[str, tuple[TableSpec, ...]] = {
     "platform_settings": _TABLE_LISTS["platform_settings"],
     "bots": _TABLE_LISTS["bots"],
     "payments": _TABLE_LISTS["payments"],
+    "commerce": _TABLE_LISTS["commerce"],
+    "communication": _TABLE_LISTS["communication"],
+    "files": _TABLE_LISTS["files"],
     "audit": _TABLE_LISTS["audit"],
 }
 
@@ -176,6 +183,34 @@ _RELATIONSHIPS: tuple[tuple[str, str, str, str], ...] = (
     ("emergency_payment_transactions", "gateway_id", "emergency_payment_gateways", "id"),
     ("emergency_payment_transactions", "user_id", "emergency_users", "id"),
     ("emergency_payment_status_history", "transaction_id", "emergency_payment_transactions", "id"),
+    ("emergency_commerce_products", "seller_id", "emergency_users", "id"),
+    ("emergency_commerce_orders", "user_id", "emergency_users", "id"),
+    ("emergency_commerce_marketplace_orders", "buyer_id", "emergency_users", "id"),
+    ("emergency_commerce_marketplace_orders", "seller_id", "emergency_users", "id"),
+    ("emergency_commerce_marketplace_orders", "product_id", "emergency_commerce_products", "id"),
+    ("emergency_commerce_reviews", "product_id", "emergency_commerce_products", "id"),
+    ("emergency_commerce_reviews", "user_id", "emergency_users", "id"),
+    ("emergency_commerce_wallets", "user_id", "emergency_users", "id"),
+    ("emergency_commerce_wallet_transactions", "user_id", "emergency_users", "id"),
+    ("emergency_commerce_payment_records", "user_id", "emergency_users", "id"),
+    ("emergency_commerce_subscriptions", "user_id", "emergency_users", "id"),
+    ("emergency_communication_notifications", "user_id", "emergency_users", "id"),
+    ("emergency_communication_announcements", "author_id", "emergency_users", "id"),
+    ("emergency_communication_inbox_messages", "user_id", "emergency_users", "id"),
+    ("emergency_communication_support_tickets", "student_id", "emergency_users", "id"),
+    ("emergency_communication_support_tickets", "teacher_id", "emergency_users", "id"),
+    ("emergency_communication_support_tickets", "course_id", "emergency_courses", "id"),
+    ("emergency_communication_support_messages", "ticket_id", "emergency_communication_support_tickets", "id"),
+    ("emergency_communication_support_messages", "sender_id", "emergency_users", "id"),
+    ("emergency_communication_direct_messages", "sender_id", "emergency_users", "id"),
+    ("emergency_communication_direct_messages", "receiver_id", "emergency_users", "id"),
+    ("emergency_communication_mentor_groups", "mentor_id", "emergency_users", "id"),
+    ("emergency_communication_mentor_group_members", "group_id", "emergency_communication_mentor_groups", "id"),
+    ("emergency_communication_mentor_group_members", "user_id", "emergency_users", "id"),
+    ("emergency_communication_mentor_questions", "student_id", "emergency_users", "id"),
+    ("emergency_communication_mentor_sessions", "mentor_id", "emergency_users", "id"),
+    ("emergency_communication_mentor_sessions", "student_id", "emergency_users", "id"),
+    ("emergency_communication_comments", "user_id", "emergency_users", "id"),
 )
 
 
@@ -329,7 +364,7 @@ class SnapshotService:
         artifact_name: str,
         *,
         include_secrets: bool = False,
-        source_version: str = "emergency-0.8.0",
+        source_version: str = "emergency-0.9.0",
     ) -> dict[str, Any]:
         destination = self._artifact_directory(artifact_name)
         if destination.exists():
@@ -341,7 +376,7 @@ class SnapshotService:
         sections: dict[str, Any] = {"manifest": {"artifact": MANIFEST_FILENAME}}
         excluded_dependent_sections: set[str] = set()
         for section in SNAPSHOT_SECTIONS:
-            if section in {"manifest", "commerce", "communication", "files"}:
+            if section == "manifest":
                 sections[section] = []
                 if section != "manifest":
                     diagnostics.append({
@@ -367,6 +402,11 @@ class SnapshotService:
                             )
                         if section == "auth_tokens":
                             record["token_value"] = None if not include_secrets else record.get("token_value")
+                        if section == "files" and not include_secrets:
+                            record["storage_id"] = None
+                            record["original_ref"] = None
+                            record["local_path"] = None
+                            record["status"] = "redacted"
                         if section == "auth_secrets" and not include_secrets:
                             diagnostics.append({
                                 "severity": "warning",

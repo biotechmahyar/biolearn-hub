@@ -14,6 +14,8 @@ FastAPI application for the independent Genova emergency runtime.
 - `app/snapshot_service.py` — artifact export, validation and transactional import
 - `app/operations_service.py` — readiness, privacy-safe telemetry, verified backups and retention
 - `app/security.py` — bounded process-local login abuse limiter and safe request IDs
+- `app/completion_tables.py` — shared phase-nine table metadata
+- `app/data_completion_service.py` — main-export mapping, transactional one-time merge, file transfer and completed-domain reads
 
 ## Phase 7 admin API
 
@@ -27,6 +29,12 @@ All endpoints require an emergency Bearer token whose role is one of `admin`, `s
 - `GET /api/admin/emergency/metrics`
 - `GET|POST /api/admin/backups`
 - `POST /api/admin/maintenance/prune`
+- `GET /api/admin/data-completion/summary`
+- `GET /api/admin/data-completion/products`
+- `GET /api/admin/data-completion/files`
+- `GET /api/admin/data-completion/migrations`
+- `GET /api/commerce/me/orders`
+- `GET /api/communication/me/notifications`
 
 The export API returns metadata and diagnostics only; it never returns artifact records or secret values. `artifactName` is a logical directory name and never an arbitrary filesystem path.
 
@@ -36,6 +44,9 @@ The export API returns metadata and diagnostics only; it never returns artifact 
 - `emergency_audit_events` tracks snapshot export/import operations
 - `emergency_request_metrics` stores minute-level route-template aggregates
 - `emergency_error_events` stores request IDs, exception types and short hashes only
+- commerce tables cover products/orders/store/wallet/payment/subscriptions
+- communication tables cover notifications/inbox/support/direct/mentor/comments
+- `emergency_file_manifest` and `emergency_migration_runs` make file transfer and replay auditable
 
 The import path validates relationships, creates and integrity-checks an online SQLite backup, then starts `BEGIN IMMEDIATE`. It performs source-ID upserts in dependency order, records the import and audit event, then commits once. Any SQL failure rolls back the full import.
 

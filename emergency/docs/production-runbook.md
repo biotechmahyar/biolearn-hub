@@ -26,7 +26,7 @@ Install it as `/etc/genova-emergency/emergency.env`, owned by root and mode
 
 - `GET /health/live` checks only that the process can answer.
 - `GET /health/ready` checks SQLite `quick_check`, free disk space, artifact
-  storage and backup storage. It returns `503` when not ready.
+  storage, backup storage and private file storage. It returns `503` when not ready.
 - `GET /api/admin/emergency/overview` shows readiness, table counts, artifact
   and backup state, plus local telemetry to an authenticated emergency admin.
 - `GET /api/admin/emergency/metrics` emits Prometheus text and requires the
@@ -71,7 +71,7 @@ recovery copy.
 ## Incident checks
 
 1. Check `/health/live`; if it fails, inspect the systemd unit and Uvicorn log.
-2. Check `/health/ready`; inspect SQLite, disk space and write permissions.
+2. Check `/health/ready`; inspect SQLite, disk space, file/artifact storage, backup storage and write permissions.
 3. Open `/admin/` and inspect readiness, telemetry and latest errors.
 4. Create a manual verified backup before risky changes.
 5. Export a non-secret snapshot for routine evidence.

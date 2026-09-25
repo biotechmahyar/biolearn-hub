@@ -25,6 +25,12 @@ from .auth_service import (
 )
 from .config import settings
 from .db import database_is_ready
+from .data_completion_service import (
+    CommerceService,
+    CommunicationService,
+    FileManifestService,
+    MainSiteMigrationService,
+)
 from .directory_service import DirectoryNotFound, DirectoryPermissionDenied, UserDirectoryService
 from .learning_service import LearningNotFound, LearningService, LearningValidationError
 from .runtime_service import RuntimeNotFound, RuntimeService
@@ -43,7 +49,7 @@ from .snapshot_service import (
 
 app = FastAPI(
     title="Genova Emergency Service",
-    version="0.8.0",
+    version="0.9.0",
     description="Independent fallback service for Genova.",
     docs_url="/docs" if settings.docs_enabled else None,
     redoc_url="/redoc" if settings.docs_enabled else None,
@@ -155,7 +161,7 @@ class AssessmentResponseRequest(BaseModel):
 class SnapshotExportRequest(BaseModel):
     artifactName: str
     includeSecrets: bool = False
-    sourceVersion: str = "emergency-0.8.0"
+    sourceVersion: str = "emergency-0.9.0"
 
 
 class SnapshotImportRequest(BaseModel):
@@ -185,7 +191,7 @@ async def health() -> HealthResponse:
     return HealthResponse(
         service="genova-emergency",
         status=overall_status,
-        version="0.8.0",
+        version="0.9.0",
         database=database_status,
         uptimeSeconds=max(0, int(time.time() - settings.service_start_time)),
     )
@@ -195,7 +201,7 @@ async def health() -> HealthResponse:
 async def liveness() -> dict[str, object]:
     return {
         "status": "alive",
-        "version": "0.8.0",
+        "version": "0.9.0",
         "uptimeSeconds": max(0, int(time.time() - settings.service_start_time)),
     }
 
@@ -213,6 +219,10 @@ bearer_scheme = HTTPBearer(auto_error=False)
 directory_service = UserDirectoryService()
 learning_service = LearningService()
 runtime_service = RuntimeService()
+commerce_service = CommerceService()
+communication_service = CommunicationService()
+file_manifest_service = FileManifestService()
+migration_status_service = MainSiteMigrationService()
 snapshot_service = SnapshotService()
 telemetry_service = TelemetryService()
 readiness_service = ReadinessService()
@@ -776,6 +786,11 @@ async def emergency_overview(
             "count": len(backups),
             "latest": backups[0] if backups else None,
         },
+        "dataCompletion": {
+            "commerce": commerce_service.summary(),
+            "communication": communication_service.summary(),
+            "migration": migration_status_service.status(),
+        },
         **snapshot_service.overview(),
     }
 
@@ -831,6 +846,62 @@ async def import_snapshot(
         raise HTTPException(status_code=400, detail=error.errors) from error
     except SnapshotError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.get("/api/commerce/me/orders", tags=["commerce"])
+async def my_commerce_orders(
+    limit: int = Query(default=100, ge=1, le=500),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    return commerce_service.list_orders(user_id=user.id, limit=limit)
+
+
+@app.get("/api/communication/me/notifications", tags=["communication"])
+async def my_notifications(
+    limit: int = Query(default=100, ge=1, le=500),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    user = _authenticated_user(credentials)
+    return communication_service.list_notifications(user_id=user.id, limit=limit)
+
+
+@app.get("/api/admin/data-completion/summary", tags=["data-completion"])
+async def data_completion_summary(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    return {
+        "commerce": commerce_service.summary(),
+        "communication": communication_service.summary(),
+        "migration": migration_status_service.status(),
+    }
+
+
+@app.get("/api/admin/data-completion/products", tags=["data-completion"])
+async def admin_commerce_products(
+    limit: int = Query(default=100, ge=1, le=500),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    _require_admin(credentials)
+    return commerce_service.list_products(limit=limit)
+
+
+@app.get("/api/admin/data-completion/files", tags=["data-completion"])
+async def admin_file_manifests(
+    limit: int = Query(default=200, ge=1, le=1000),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> list[dict[str, object]]:
+    _require_admin(credentials)
+    return file_manifest_service.list_files(limit=limit)
+
+
+@app.get("/api/admin/data-completion/migrations", tags=["data-completion"])
+async def admin_migration_runs(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    return migration_status_service.status()
 
 
 @app.get("/api/admin/emergency/metrics", tags=["emergency-admin"])

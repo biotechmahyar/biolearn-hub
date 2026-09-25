@@ -35,6 +35,13 @@ class Settings:
         "EMERGENCY_BACKUP_ROOT",
         "./data/backups",
     )
+    file_root: str = os.getenv(
+        "EMERGENCY_FILE_ROOT",
+        "./data/files",
+    )
+    max_file_bytes: int = field(
+        default_factory=lambda: _int_env("EMERGENCY_MAX_FILE_BYTES", 100 * 1024 * 1024)
+    )
     trusted_hosts: list[str] = field(
         default_factory=lambda: _csv(
             os.getenv("EMERGENCY_TRUSTED_HOSTS"),

@@ -7,6 +7,8 @@ A standalone, build-free RTL operations panel served by FastAPI at `/admin/`.
 - Bearer token stored only in browser `sessionStorage`
 - live/readiness health, local telemetry and verified backup controls
 - table and route-template inventory without sensitive request data
+- commerce, communication, file-transfer and latest migration status
+- imported file references redact URL query/fragment values
 - artifact export, listing, checksum/contract validation and transactional import
 - explicit warning before creating an artifact with raw recovery secrets
 - explicit checkbox required for older-snapshot rollback

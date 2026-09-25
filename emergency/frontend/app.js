@@ -150,6 +150,10 @@
     const telemetry = overview.telemetry || {};
     const backups = overview.backups || {};
     const readiness = overview.readiness || {};
+    const completion = overview.dataCompletion || {};
+    const commerce = completion.commerce || {};
+    const communication = completion.communication || {};
+    const migration = completion.migration || {};
     $("healthValue").textContent = readiness.status === "ready" ? "آماده و پایدار" : "نیازمند بررسی";
     $("readinessTag").textContent = String(readiness.status || "unknown").toUpperCase();
     $("readinessTag").style.color = readiness.status === "ready" ? "var(--mint)" : "var(--danger)";
@@ -157,13 +161,27 @@
     $("averageDuration").textContent = `${Number(telemetry.averageDurationMs || 0).toLocaleString("fa-IR")} ms`;
     $("maxDuration").textContent = `${Number(telemetry.maxDurationMs || 0).toLocaleString("fa-IR")} ms`;
     $("errorCount").textContent = Number((telemetry.recentErrors || []).length).toLocaleString("fa-IR");
+    $("commerceCount").textContent = Number(
+      (commerce.emergency_commerce_orders || 0) + (commerce.emergency_commerce_marketplace_orders || 0)
+    ).toLocaleString("fa-IR");
+    $("communicationCount").textContent = Number(
+      (communication.emergency_communication_notifications || 0) +
+      (communication.emergency_communication_inbox_messages || 0) +
+      (communication.emergency_communication_support_messages || 0) +
+      (communication.emergency_communication_direct_messages || 0)
+    ).toLocaleString("fa-IR");
+    $("fileAvailableCount").textContent = Number((migration.fileStatuses || {}).available || 0).toLocaleString("fa-IR");
+    $("migrationStatus").textContent = (migration.runs && migration.runs[0])
+      ? String(migration.runs[0].status || "unknown")
+      : "none";
     $("backupSummary").textContent = backups.latest
       ? `${backups.count} backup · آخرین: ${backups.latest.name}`
       : `${backups.count || 0} backup · هنوز backupی ساخته نشده`;
     $("telemetryOutput").textContent = JSON.stringify({
       privacy: telemetry.privacy,
       routes: telemetry.routes,
-      recentErrors: telemetry.recentErrors
+      recentErrors: telemetry.recentErrors,
+      dataCompletion: completion
     }, null, 2);
   }
 
@@ -321,7 +339,7 @@
     try {
       const result = await api("/api/admin/snapshots/export", {
         method: "POST",
-        body: JSON.stringify({ artifactName: name, includeSecrets, sourceVersion: "emergency-0.8.0" })
+        body: JSON.stringify({ artifactName: name, includeSecrets, sourceVersion: "emergency-0.9.0" })
       });
       message.style.color = "var(--mint)";
       message.textContent = "Artifact ساخته شد؛ secretها در پاسخ HTTP نمایش داده نشده‌اند.";

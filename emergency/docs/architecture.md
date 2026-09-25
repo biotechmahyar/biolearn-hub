@@ -11,7 +11,8 @@ The emergency system is a separate FastAPI + SQLite application rooted at `emerg
 3. **SQLite** — local durable state with foreign keys enabled on every connection.
 4. **Snapshot service** — versioned artifact export, validation, preflight, verified pre-import backup, transactional import, replay and audit.
 5. **Operations layer** — live/readiness probes, low-cardinality local telemetry, Prometheus output, retention and consistent SQLite backups.
-6. **Standalone admin UI** — static HTML/CSS/JS mounted at `/admin`, with no build pipeline.
+6. **One-time data completion** — local main-export mapper, relationship preflight, transaction/idempotency, file payload transfer and migration audit.
+7. **Standalone admin UI** — static HTML/CSS/JS mounted at `/admin`, with no build pipeline.
 
 ## Snapshot flow
 
@@ -32,7 +33,7 @@ Emergency SQLite
                     COMMIT / ROLLBACK
 ```
 
-The 18-section Snapshot v1 contract is materialized from every currently implemented table. Commerce, communication and files remain explicit empty placeholders until their persistence phases exist; they are not silently omitted.
+The 18-section Snapshot v1 contract is materialized from every implemented table. Commerce, communication and files are now fully represented by phase-nine tables and the main-export migration tool; the one-time tool is not part of emergency runtime startup.
 
 ## Security model
 
@@ -53,3 +54,4 @@ The 18-section Snapshot v1 contract is materialized from every currently impleme
 - Phase 1–6: complete
 - Phase 7: emergency admin panel and import/export tooling — complete
 - Phase 8: production/telemetry hardening, verified backup/retention and rollout references — complete
+- Phase 9: commerce, communication, files and one-time main-export migration — complete

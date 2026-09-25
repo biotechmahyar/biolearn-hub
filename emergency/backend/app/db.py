@@ -401,6 +401,334 @@ CREATE TABLE IF NOT EXISTS emergency_error_events (
     message_fingerprint TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS emergency_commerce_products (
+    id TEXT PRIMARY KEY,
+    seller_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    description TEXT,
+    category TEXT,
+    condition TEXT,
+    price_minor INTEGER NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'IRR',
+    stock INTEGER NOT NULL DEFAULT 0,
+    sold_count INTEGER NOT NULL DEFAULT 0,
+    rating REAL NOT NULL DEFAULT 0,
+    rating_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'draft',
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(seller_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_coupons (
+    id TEXT PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    discount_percent REAL NOT NULL DEFAULT 0,
+    max_uses INTEGER NOT NULL DEFAULT 0,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    minimum_amount_minor INTEGER NOT NULL DEFAULT 0,
+    maximum_discount_minor INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    expires_at INTEGER,
+    constraints_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_orders (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    items_json TEXT NOT NULL DEFAULT '[]',
+    subtotal_minor INTEGER NOT NULL DEFAULT 0,
+    discount_amount_minor INTEGER NOT NULL DEFAULT 0,
+    total_minor INTEGER NOT NULL DEFAULT 0,
+    coupon_code TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payment_method TEXT,
+    invoice_number TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_marketplace_orders (
+    id TEXT PRIMARY KEY,
+    buyer_id TEXT NOT NULL,
+    seller_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    unit_price_minor INTEGER NOT NULL DEFAULT 0,
+    commission_minor INTEGER NOT NULL DEFAULT 0,
+    total_minor INTEGER NOT NULL DEFAULT 0,
+    seller_earning_minor INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    delivery_json TEXT NOT NULL DEFAULT '{}',
+    payment_json TEXT NOT NULL DEFAULT '{}',
+    invoice_number TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(buyer_id) REFERENCES emergency_users(id),
+    FOREIGN KEY(seller_id) REFERENCES emergency_users(id),
+    FOREIGN KEY(product_id) REFERENCES emergency_commerce_products(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_reviews (
+    id TEXT PRIMARY KEY,
+    product_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    rating REAL NOT NULL DEFAULT 0,
+    body TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(product_id) REFERENCES emergency_commerce_products(id),
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_wallets (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    balance_minor INTEGER NOT NULL DEFAULT 0,
+    frozen_balance_minor INTEGER NOT NULL DEFAULT 0,
+    total_earned_minor INTEGER NOT NULL DEFAULT 0,
+    total_spent_minor INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_wallet_transactions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL DEFAULT 0,
+    body TEXT,
+    related_order_id TEXT,
+    related_product_id TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_payment_records (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    kind TEXT NOT NULL,
+    amount_minor INTEGER NOT NULL DEFAULT 0,
+    currency TEXT NOT NULL DEFAULT 'IRR',
+    status TEXT NOT NULL DEFAULT 'pending',
+    provider_reference TEXT,
+    paid_at INTEGER,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_commerce_subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    tier TEXT NOT NULL,
+    daily_limit INTEGER NOT NULL DEFAULT 0,
+    order_reference TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    started_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id TEXT,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    read_at INTEGER,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_announcements (
+    id TEXT PRIMARY KEY,
+    author_id TEXT,
+    author_name TEXT,
+    author_role TEXT,
+    target_type TEXT NOT NULL DEFAULT 'all',
+    target_id TEXT,
+    target_title TEXT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(author_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_inbox_messages (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    read_at INTEGER,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_support_tickets (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    student_name TEXT,
+    teacher_id TEXT NOT NULL,
+    course_id TEXT,
+    course_name TEXT,
+    subject TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    unread_by_student INTEGER NOT NULL DEFAULT 0,
+    unread_by_teacher INTEGER NOT NULL DEFAULT 0,
+    last_message_at INTEGER NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(student_id) REFERENCES emergency_users(id),
+    FOREIGN KEY(teacher_id) REFERENCES emergency_users(id),
+    FOREIGN KEY(course_id) REFERENCES emergency_courses(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_support_messages (
+    id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL,
+    sender_id TEXT NOT NULL,
+    sender_name TEXT,
+    sender_role TEXT,
+    body TEXT NOT NULL,
+    attachment_file_id TEXT,
+    read_at INTEGER,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(ticket_id) REFERENCES emergency_communication_support_tickets(id),
+    FOREIGN KEY(sender_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_direct_messages (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
+    body TEXT NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0,
+    read_at INTEGER,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(sender_id) REFERENCES emergency_users(id),
+    FOREIGN KEY(receiver_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_mentor_groups (
+    id TEXT PRIMARY KEY,
+    mentor_id TEXT NOT NULL,
+    mentor_name TEXT,
+    title TEXT NOT NULL,
+    description TEXT,
+    meeting_day TEXT,
+    meeting_time TEXT,
+    capacity INTEGER NOT NULL DEFAULT 0,
+    member_count INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(mentor_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_mentor_group_members (
+    id TEXT PRIMARY KEY,
+    group_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    user_name TEXT,
+    joined_at INTEGER NOT NULL,
+    FOREIGN KEY(group_id) REFERENCES emergency_communication_mentor_groups(id),
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_mentor_questions (
+    id TEXT PRIMARY KEY,
+    student_id TEXT NOT NULL,
+    student_name TEXT,
+    topic TEXT NOT NULL,
+    body TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    answer TEXT,
+    answered_by_name TEXT,
+    answered_at INTEGER,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(student_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_mentor_sessions (
+    id TEXT PRIMARY KEY,
+    mentor_id TEXT NOT NULL,
+    mentor_name TEXT,
+    student_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    session_date TEXT,
+    session_time TEXT,
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'scheduled',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(mentor_id) REFERENCES emergency_users(id),
+    FOREIGN KEY(student_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_communication_comments (
+    id TEXT PRIMARY KEY,
+    content_type TEXT NOT NULL,
+    content_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    user_name TEXT,
+    body TEXT NOT NULL,
+    approved INTEGER NOT NULL DEFAULT 0,
+    rejected INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES emergency_users(id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_file_manifest (
+    id TEXT PRIMARY KEY,
+    source_system TEXT NOT NULL,
+    storage_id TEXT,
+    name TEXT NOT NULL,
+    mime_type TEXT,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    sha256 TEXT,
+    original_ref TEXT,
+    local_path TEXT,
+    status TEXT NOT NULL DEFAULT 'missing',
+    is_sensitive INTEGER NOT NULL DEFAULT 1,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(source_system, storage_id)
+);
+
+CREATE TABLE IF NOT EXISTS emergency_migration_runs (
+    id TEXT PRIMARY KEY,
+    source_hash TEXT NOT NULL UNIQUE,
+    source_exported_at TEXT,
+    source_file_name TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    record_counts_json TEXT NOT NULL DEFAULT '{}',
+    diagnostics_json TEXT NOT NULL DEFAULT '[]',
+    backup_path TEXT,
+    started_at INTEGER NOT NULL,
+    completed_at INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS emergency_accounts_user_idx ON emergency_auth_accounts(user_id);
 CREATE INDEX IF NOT EXISTS emergency_sessions_token_idx ON emergency_auth_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS emergency_sessions_refresh_idx ON emergency_auth_sessions(refresh_token_hash);
@@ -426,6 +754,18 @@ CREATE INDEX IF NOT EXISTS emergency_snapshot_imports_created_idx ON emergency_s
 CREATE INDEX IF NOT EXISTS emergency_audit_occurred_idx ON emergency_audit_events(occurred_at);
 CREATE INDEX IF NOT EXISTS emergency_request_metrics_minute_idx ON emergency_request_metrics(minute);
 CREATE INDEX IF NOT EXISTS emergency_error_events_occurred_idx ON emergency_error_events(occurred_at);
+CREATE INDEX IF NOT EXISTS emergency_commerce_products_seller_idx ON emergency_commerce_products(seller_id);
+CREATE INDEX IF NOT EXISTS emergency_commerce_orders_user_idx ON emergency_commerce_orders(user_id);
+CREATE INDEX IF NOT EXISTS emergency_commerce_marketplace_product_idx ON emergency_commerce_marketplace_orders(product_id);
+CREATE INDEX IF NOT EXISTS emergency_commerce_wallet_user_idx ON emergency_commerce_wallet_transactions(user_id);
+CREATE INDEX IF NOT EXISTS emergency_communication_notifications_user_idx ON emergency_communication_notifications(user_id);
+CREATE INDEX IF NOT EXISTS emergency_communication_support_ticket_idx ON emergency_communication_support_tickets(id);
+CREATE INDEX IF NOT EXISTS emergency_communication_support_message_ticket_idx ON emergency_communication_support_messages(ticket_id);
+CREATE INDEX IF NOT EXISTS emergency_communication_direct_sender_idx ON emergency_communication_direct_messages(sender_id);
+CREATE INDEX IF NOT EXISTS emergency_communication_direct_receiver_idx ON emergency_communication_direct_messages(receiver_id);
+CREATE INDEX IF NOT EXISTS emergency_file_manifest_storage_idx ON emergency_file_manifest(storage_id);
+CREATE INDEX IF NOT EXISTS emergency_file_manifest_sha_idx ON emergency_file_manifest(sha256);
+CREATE INDEX IF NOT EXISTS emergency_migration_runs_started_idx ON emergency_migration_runs(started_at);
 """
 
 

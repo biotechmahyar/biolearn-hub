@@ -2,11 +2,11 @@
 
 نسخه اضطراری مستقل ژنوا؛ یک سرویس FastAPI + SQLite که در runtime هیچ وابستگی به Vite، React، Convex، Freebuff یا سایت اصلی ندارد.
 
-## وضعیت فعلی — Phase 8
+## وضعیت فعلی — Phase 9
 
-- گام‌های ۱ تا ۷: auth، دامنه‌های ژنوا، Snapshot v1، recovery tooling و پنل مستقل تکمیل شده‌اند.
-- گام ۸: readiness/live health، telemetry کم‌کاردینالی و privacy-safe، rate limiting، backup پیش از import، retention، deployment reference و runbook production تکمیل شده است.
-- استقرار واقعی، TLS و انتخاب collector خارجی همچنان عملیات deployment هستند و credential یا دسترسی سرور لازم دارند.
+- گام‌های ۱ تا ۸: auth، دامنه‌های پایه، Snapshot/recovery، پنل مستقل و production hardening تکمیل شده‌اند.
+- گام ۹: بخش‌های `commerce`، `communication` و `files` تکمیل و importer یک‌باره خروجی سایت اصلی اضافه شده است.
+- انتقال یک‌باره کاملاً محلی است: هیچ import یا runtime dependency نسبت به Vite/Convex/سایت اصلی وجود ندارد.
 
 ## اجرای مستقل
 
@@ -46,6 +46,29 @@ backup-name/
 
 تمام نام‌های artifact به نام directory بدون `/`، `..`، symlink و character set محدود نیاز دارند و هر فایل حداکثر 100 MiB است.
 
+## تکمیل داده‌ها — Phase 9
+
+داده‌های زیر از خروجی JSON سایت اصلی نگاشت و به‌صورت transaction/idempotent منتقل می‌شوند:
+
+- commerce: محصولات، سفارش‌ها، فروشگاه، coupon، wallet، تراکنش، پرداخت آفلاین/مدرس و subscription
+- communication: notification، announcement، inbox، support ticket/message، پیام مستقیم، mentor و comment
+- files: file manifest، hash، MIME، size و انتقال payload به file store خصوصی و content-addressed
+
+ابزار یک‌باره:
+
+```bash
+python3 emergency/scripts/snapshot.py migrate-main \
+  --input ./main-export.json \
+  --files-dir ./main-files \
+  --dry-run
+
+python3 emergency/scripts/snapshot.py migrate-main \
+  --input ./main-export.json \
+  --files-dir ./main-files
+```
+
+در صورت تفاوت IDها می‌توان `--id-map ./id-map.json` داد. replay همان export بدون write برمی‌گردد؛ `--force-replay` فقط برای اجرای کنترل‌شده مجدد است. guide کامل: `emergency/docs/main-site-migration.md`.
+
 ## Production hardening
 
 - health: `/health/live`, `/health/ready` و `/health`
@@ -66,6 +89,7 @@ python3 emergency/scripts/snapshot.py validate backup-2026-09-24
 python3 emergency/scripts/snapshot.py import backup-2026-09-24
 python3 emergency/scripts/snapshot.py backup
 python3 emergency/scripts/snapshot.py prune
+python3 emergency/scripts/snapshot.py migrate-main --input ./main-export.json --files-dir ./main-files --dry-run
 ```
 
 برای recovery کامل و کنترل‌شده:

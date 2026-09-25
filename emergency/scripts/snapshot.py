@@ -20,6 +20,10 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.config import settings  # noqa: E402
+from app.data_completion_service import (  # noqa: E402
+    MainSiteMigrationError,
+    MainSiteMigrationService,
+)
 from app.operations_service import (  # noqa: E402
     BackupService,
     TelemetryService,
@@ -43,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include raw signing keys, live tokens, and secret runtime configuration",
     )
-    export_parser.add_argument("--source-version", default="emergency-0.8.0")
+    export_parser.add_argument("--source-version", default="emergency-0.9.0")
 
     validate_parser = subparsers.add_parser("validate", help="Validate an artifact")
     validate_parser.add_argument("name")
@@ -63,6 +67,23 @@ def _parser() -> argparse.ArgumentParser:
     prune_parser.add_argument("--artifact-days", type=int, default=settings.artifact_retention_days)
     prune_parser.add_argument("--artifact-keep", type=int, default=settings.artifact_retention_keep)
     prune_parser.add_argument("--backup-days", type=int, default=settings.backup_retention_days)
+
+    migration_parser = subparsers.add_parser(
+        "migrate-main",
+        help="Validate or idempotently merge a one-time main-site JSON export",
+    )
+    migration_parser.add_argument("--input", required=True, help="Path to exportBackup JSON output")
+    migration_parser.add_argument(
+        "--files-dir",
+        help="Directory containing one-time file payloads named by storage ID, URL basename, or reference hash",
+    )
+    migration_parser.add_argument(
+        "--id-map",
+        help="Optional JSON object with keys such as users:<source-id> or courses:<source-id>",
+    )
+    migration_parser.add_argument("--dry-run", action="store_true")
+    migration_parser.add_argument("--force-replay", action="store_true")
+    migration_parser.add_argument("--public-media", action="store_true")
     return parser
 
 
@@ -87,6 +108,27 @@ def main() -> int:
             )
         elif arguments.command == "backup":
             result = BackupService().create(reason="manual")
+        elif arguments.command == "migrate-main":
+            id_map: dict[str, str] = {}
+            if arguments.id_map:
+                id_map_path = Path(arguments.id_map).expanduser().resolve()
+                if id_map_path.stat().st_size > 10 * 1024 * 1024:
+                    raise MainSiteMigrationError("id_map_too_large")
+                loaded_map = json.loads(id_map_path.read_text(encoding="utf-8"))
+                if not isinstance(loaded_map, dict) or not all(
+                    isinstance(key, str) and isinstance(value, str) for key, value in loaded_map.items()
+                ):
+                    raise MainSiteMigrationError("invalid_id_map")
+                id_map = loaded_map
+            result = MainSiteMigrationService(
+                id_map=id_map,
+                files_directory=arguments.files_dir,
+            ).run(
+                arguments.input,
+                dry_run=arguments.dry_run,
+                force_replay=arguments.force_replay,
+                public_media=arguments.public_media,
+            )
         else:
             result = {
                 "telemetry": TelemetryService().prune(
@@ -100,7 +142,7 @@ def main() -> int:
                     retention_days=arguments.backup_days
                 ),
             }
-    except SnapshotError as error:
+    except (SnapshotError, MainSiteMigrationError, OSError, ValueError) as error:
         errors = getattr(error, "errors", None)
         print(
             json.dumps(

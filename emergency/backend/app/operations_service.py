@@ -254,7 +254,8 @@ class ReadinessService:
             pass
         artifact = self._path_ready(settings.artifact_root)
         backup = self._path_ready(settings.backup_root)
-        ready = all((database_ready, disk_ready, artifact["ready"], backup["ready"]))
+        files = self._path_ready(settings.file_root)
+        ready = all((database_ready, disk_ready, artifact["ready"], backup["ready"], files["ready"]))
         return {
             "status": "ready" if ready else "not_ready",
             "checkedAt": _now(),
@@ -263,6 +264,7 @@ class ReadinessService:
                 "disk": {"ready": disk_ready, "freeBytes": free_bytes},
                 "artifactStorage": artifact,
                 "backupStorage": backup,
+                "fileStorage": files,
             },
         }
 
