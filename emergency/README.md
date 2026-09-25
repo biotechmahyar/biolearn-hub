@@ -2,11 +2,14 @@
 
 نسخه اضطراری مستقل ژنوا؛ یک سرویس FastAPI + SQLite که در runtime هیچ وابستگی به Vite، React، Convex، Freebuff یا سایت اصلی ندارد.
 
-## وضعیت فعلی — Phase 9
+## وضعیت فعلی — Phase 10 / Release 0.10.0
 
 - گام‌های ۱ تا ۸: auth، دامنه‌های پایه، Snapshot/recovery، پنل مستقل و production hardening تکمیل شده‌اند.
 - گام ۹: بخش‌های `commerce`، `communication` و `files` تکمیل و importer یک‌باره خروجی سایت اصلی اضافه شده است.
+- گام ۱۰: bootstrap مدیر، acceptance gate نهایی، backup verification، release manifest و بسته launch تکمیل شده است.
 - انتقال یک‌باره کاملاً محلی است: هیچ import یا runtime dependency نسبت به Vite/Convex/سایت اصلی وجود ندارد.
+- مرحله نهایی نسخه `0.10.0`: bootstrap مدیر، acceptance gate، backup verification، release manifest و راهنمای launch اضافه شد.
+- راهنمای کامل setup و راه‌اندازی: `emergency/docs/setup-and-launch.md`.
 
 ## اجرای مستقل
 
@@ -90,6 +93,7 @@ python3 emergency/scripts/snapshot.py import backup-2026-09-24
 python3 emergency/scripts/snapshot.py backup
 python3 emergency/scripts/snapshot.py prune
 python3 emergency/scripts/snapshot.py migrate-main --input ./main-export.json --files-dir ./main-files --dry-run
+python3 emergency/scripts/snapshot.py verify-backup <backup-name>.sqlite3
 ```
 
 برای recovery کامل و کنترل‌شده:
@@ -100,6 +104,17 @@ python3 emergency/scripts/snapshot.py import emergency-recovery
 ```
 
 گزینه `--include-secrets` signing key، token خام، secret runtime و configهای دارای کلید secret را داخل artifact قرار می‌دهد. چنین فایلی باید رمزگذاری و خارج از repository نگهداری شود. rollback عمدی به snapshot قدیمی‌تر نیازمند `--allow-older-recovery` است.
+
+## Final launch gate
+
+```bash
+python3 emergency/scripts/bootstrap_admin.py --username admin --email admin@example.com
+python3 emergency/scripts/acceptance.py
+python3 emergency/scripts/snapshot.py backup
+```
+
+Acceptance only uses a temporary database and removes it after success. The
+complete installation and launch guide is `emergency/docs/setup-and-launch.md`.
 
 ## بررسی
 

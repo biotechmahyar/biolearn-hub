@@ -47,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include raw signing keys, live tokens, and secret runtime configuration",
     )
-    export_parser.add_argument("--source-version", default="emergency-0.9.0")
+    export_parser.add_argument("--source-version", default="emergency-0.10.0")
 
     validate_parser = subparsers.add_parser("validate", help="Validate an artifact")
     validate_parser.add_argument("name")
@@ -60,7 +60,9 @@ def _parser() -> argparse.ArgumentParser:
         help="Explicitly allow an artifact older than the latest imported snapshot",
     )
 
-    subparsers.add_parser("backup", help="Create a verified online SQLite backup")
+    backup_parser = subparsers.add_parser("backup", help="Create a verified online SQLite backup")
+    verify_parser = subparsers.add_parser("verify-backup", help="Verify an existing SQLite backup")
+    verify_parser.add_argument("name")
 
     prune_parser = subparsers.add_parser("prune", help="Apply telemetry, artifact, and backup retention")
     prune_parser.add_argument("--telemetry-days", type=int, default=settings.telemetry_retention_days)
@@ -108,6 +110,8 @@ def main() -> int:
             )
         elif arguments.command == "backup":
             result = BackupService().create(reason="manual")
+        elif arguments.command == "verify-backup":
+            result = BackupService().verify(arguments.name)
         elif arguments.command == "migrate-main":
             id_map: dict[str, str] = {}
             if arguments.id_map:

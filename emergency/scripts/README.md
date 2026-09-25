@@ -1,6 +1,6 @@
 # Emergency snapshot scripts
 
-`snapshot.py` is a dependency-free CLI for the local artifact pipeline.
+`snapshot.py` is a dependency-free CLI for the local artifact pipeline. `bootstrap_admin.py` creates the first local admin interactively, and `acceptance.py` runs the final offline release gate.
 
 ## Commands
 
@@ -12,6 +12,9 @@ python3 emergency/scripts/snapshot.py import <artifact-name> [--allow-older-reco
 python3 emergency/scripts/snapshot.py backup
 python3 emergency/scripts/snapshot.py prune [--telemetry-days 30] [--artifact-days 30] [--artifact-keep 14] [--backup-days 30]
 python3 emergency/scripts/snapshot.py migrate-main --input ./main-export.json [--files-dir ./main-files] [--id-map ./id-map.json] [--dry-run] [--force-replay] [--public-media]
+python3 emergency/scripts/snapshot.py verify-backup <backup-name>.sqlite3
+python3 emergency/scripts/bootstrap_admin.py --username admin --email admin@example.com
+python3 emergency/scripts/acceptance.py
 ```
 
 Add `--include-secrets` to `export` only for a protected recovery artifact. This includes raw signing keys, live token values, secret runtime settings, and bot/payment configs containing secret-like keys.

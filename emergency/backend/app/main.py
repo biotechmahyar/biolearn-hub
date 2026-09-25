@@ -6,6 +6,7 @@ identity/session records without importing the main application at runtime.
 """
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from pathlib import Path
+import sqlite3
 import secrets
 import time
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,7 +50,7 @@ from .snapshot_service import (
 
 app = FastAPI(
     title="Genova Emergency Service",
-    version="0.9.0",
+    version="0.10.0",
     description="Independent fallback service for Genova.",
     docs_url="/docs" if settings.docs_enabled else None,
     redoc_url="/redoc" if settings.docs_enabled else None,
@@ -161,7 +162,7 @@ class AssessmentResponseRequest(BaseModel):
 class SnapshotExportRequest(BaseModel):
     artifactName: str
     includeSecrets: bool = False
-    sourceVersion: str = "emergency-0.9.0"
+    sourceVersion: str = "emergency-0.10.0"
 
 
 class SnapshotImportRequest(BaseModel):
@@ -191,7 +192,7 @@ async def health() -> HealthResponse:
     return HealthResponse(
         service="genova-emergency",
         status=overall_status,
-        version="0.9.0",
+        version="0.10.0",
         database=database_status,
         uptimeSeconds=max(0, int(time.time() - settings.service_start_time)),
     )
@@ -201,7 +202,7 @@ async def health() -> HealthResponse:
 async def liveness() -> dict[str, object]:
     return {
         "status": "alive",
-        "version": "0.9.0",
+        "version": "0.10.0",
         "uptimeSeconds": max(0, int(time.time() - settings.service_start_time)),
     }
 
@@ -922,6 +923,18 @@ async def list_backups(
     _require_admin(credentials)
     backups = backup_service.list()
     return {"count": len(backups), "backups": backups[:50]}
+
+
+@app.get("/api/admin/backups/{name}/verify", tags=["emergency-admin"])
+async def verify_backup(
+    name: str,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict[str, object]:
+    _require_admin(credentials)
+    try:
+        return backup_service.verify(name)
+    except (OSError, ValueError, sqlite3.Error) as error:
+        raise HTTPException(status_code=404, detail="backup_not_found") from error
 
 
 @app.post("/api/admin/backups", status_code=201, tags=["emergency-admin"])

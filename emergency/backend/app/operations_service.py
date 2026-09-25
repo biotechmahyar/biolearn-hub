@@ -328,6 +328,30 @@ class BackupService:
             })
         return sorted(result, key=lambda item: item["createdAt"], reverse=True)
 
+    def verify(self, name: str) -> dict[str, Any]:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.sqlite3", name):
+            raise ValueError("invalid_backup_name")
+        path = self.backup_root / name
+        if path.is_symlink() or not path.is_file() or path.parent.resolve() != self.backup_root:
+            raise ValueError("backup_not_found")
+        connection = sqlite3.connect(path)
+        try:
+            integrity = str(connection.execute("PRAGMA integrity_check").fetchone()[0])
+            tables = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+                ).fetchone()[0]
+            )
+        finally:
+            connection.close()
+        return {
+            "name": name,
+            "valid": integrity == "ok",
+            "integrity": integrity,
+            "tableCount": tables,
+            "sizeBytes": path.stat().st_size,
+        }
+
     def prune(self, *, retention_days: int) -> dict[str, Any]:
         bounded_days = min(max(int(retention_days), 1), 3650)
         cutoff = time.time() - bounded_days * 86400

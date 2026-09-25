@@ -364,7 +364,7 @@ class SnapshotService:
         artifact_name: str,
         *,
         include_secrets: bool = False,
-        source_version: str = "emergency-0.9.0",
+        source_version: str = "emergency-0.10.0",
     ) -> dict[str, Any]:
         destination = self._artifact_directory(artifact_name)
         if destination.exists():

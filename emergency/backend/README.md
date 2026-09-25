@@ -16,6 +16,7 @@ FastAPI application for the independent Genova emergency runtime.
 - `app/security.py` — bounded process-local login abuse limiter and safe request IDs
 - `app/completion_tables.py` — shared phase-nine table metadata
 - `app/data_completion_service.py` — main-export mapping, transactional one-time merge, file transfer and completed-domain reads
+- `app/bootstrap_service.py` — local first-admin creation and explicit rotation
 
 ## Phase 7 admin API
 
@@ -28,6 +29,7 @@ All endpoints require an emergency Bearer token whose role is one of `admin`, `s
 - `POST /api/admin/snapshots/{name}/import`
 - `GET /api/admin/emergency/metrics`
 - `GET|POST /api/admin/backups`
+- `GET /api/admin/backups/{name}/verify`
 - `POST /api/admin/maintenance/prune`
 - `GET /api/admin/data-completion/summary`
 - `GET /api/admin/data-completion/products`
@@ -49,6 +51,14 @@ The export API returns metadata and diagnostics only; it never returns artifact 
 - `emergency_file_manifest` and `emergency_migration_runs` make file transfer and replay auditable
 
 The import path validates relationships, creates and integrity-checks an online SQLite backup, then starts `BEGIN IMMEDIATE`. It performs source-ID upserts in dependency order, records the import and audit event, then commits once. Any SQL failure rolls back the full import.
+
+## Final launch checks
+
+Use `emergency/scripts/bootstrap_admin.py` to create the first admin without a
+default password. Run `emergency/scripts/acceptance.py` for a temporary,
+end-to-end service-level acceptance gate. The gate exercises bootstrap, auth,
+directory, learning, runtime, telemetry, readiness, main-export migration,
+Snapshot round-trip, backup creation and backup verification.
 
 ## Local development
 

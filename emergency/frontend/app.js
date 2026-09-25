@@ -339,7 +339,7 @@
     try {
       const result = await api("/api/admin/snapshots/export", {
         method: "POST",
-        body: JSON.stringify({ artifactName: name, includeSecrets, sourceVersion: "emergency-0.9.0" })
+        body: JSON.stringify({ artifactName: name, includeSecrets, sourceVersion: "emergency-0.10.0" })
       });
       message.style.color = "var(--mint)";
       message.textContent = "Artifact ساخته شد؛ secretها در پاسخ HTTP نمایش داده نشده‌اند.";
