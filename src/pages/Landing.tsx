@@ -302,46 +302,145 @@ export default function Landing() {
 
       {/* ── Learning ecosystem flow ─────────────────────────────────────── */}
       {isSectionVisible("ecosystem") && (
-      <section className="border-y border-border/60 bg-card/50 py-14">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <SectionHeading
-            kicker={ecosystem.kicker as string}
-            title={ecosystem.title as string}
-            description={ecosystem.description as string}
-          />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
-            {[
-              ["محتوای رایگان", BookOpenCheck],
-              ["آشنایی با برند", Sparkles],
-              ["عضویت", Users],
-              ["آزمون تعیین سطح", ClipboardList],
-              ["پیشنهاد مسیر", Target],
-              ["دوره و آزمون", GraduationCap],
-              ["پیشرفت و مسیر بعدی", TrendingUp],
-            ].map(([label, Icon], i) => (
-              <motion.div
-                key={label as string}
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
-                className="relative flex flex-col items-center gap-2 rounded-2xl border border-border/60 bg-background px-3 py-5 text-center"
-              >
-                <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  {(() => {
-                    const I = Icon as typeof Users;
-                    return <I className="size-5" />;
-                  })()}
-                </span>
-                <span className="text-xs font-semibold leading-4">{label as string}</span>
-                {i < 6 && (
-                  <ChevronLeft className="absolute -left-3 top-1/2 hidden size-4 -translate-y-1/2 text-muted-foreground/50 lg:block" />
-                )}
-              </motion.div>
-            ))}
+        <section className="relative overflow-hidden border-y border-border/60 bg-gradient-to-b from-card via-background to-primary/5 py-20 sm:py-24">
+          <div className="pointer-events-none absolute inset-0 bg-lab-grid opacity-70 [mask-image:radial-gradient(ellipse_at_center,black,transparent_78%)]" />
+          <div className="pointer-events-none absolute -right-24 top-12 size-72 rounded-full bg-primary/10 blur-3xl" />
+          <div className="pointer-events-none absolute -left-24 bottom-0 size-80 rounded-full bg-amber-400/10 blur-3xl" />
+
+          <div className="relative mx-auto max-w-7xl px-4 sm:px-6">
+            <SectionHeading
+              kicker={ecosystem.kicker as string}
+              title={ecosystem.title as string}
+              description={ecosystem.description as string}
+              actionLabel="شروع با آزمون تعیین سطح"
+              actionTo="/tests"
+              className="mb-10"
+            />
+
+            <div className="relative overflow-hidden rounded-[2rem] border border-border/80 bg-background/85 shadow-2xl shadow-primary/5 backdrop-blur-xl">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-card/60 px-5 py-4 sm:px-7">
+                <div className="flex items-center gap-3">
+                  <span className="flex size-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Dna className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-extrabold">نقشه زنده یادگیری ژنوا</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">از اولین محتوا تا مسیر بعدی، همه‌چیز در یک مسیر روشن</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="h-8 rounded-full border-primary/20 bg-background/70 px-3 text-[11px]">
+                  <span className="ml-2 size-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)]" />
+                  مسیر شخصی‌سازی‌شده
+                </Badge>
+              </div>
+
+              <div className="relative p-4 sm:p-7">
+                <div className="pointer-events-none absolute right-[8%] left-[8%] top-[1.4rem] hidden border-t border-dashed border-primary/30 xl:block" />
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
+                  {[
+                    {
+                      label: "محتوای رایگان",
+                      description: "با یک مطلب واقعی و کاربردی شروع کن؛ بدون نیاز به شناخت قبلی از برند.",
+                      evidence: "نمونه آموزشی",
+                      icon: BookOpenCheck,
+                    },
+                    {
+                      label: "آشنایی با برند",
+                      description: "روش یادگیری، جامعه علمی و مسیرهای تخصصی ژنوا را بشناس.",
+                      evidence: "شناخت Genova",
+                      icon: Sparkles,
+                    },
+                    {
+                      label: "عضویت",
+                      description: "پروفایل یادگیری‌ات را بساز تا آزمون‌ها و پیشنهادها مخصوص خودت باشند.",
+                      evidence: "پروفایل شخصی",
+                      icon: Users,
+                    },
+                    {
+                      label: "آزمون تعیین سطح",
+                      description: "دانش فعلی، نقاط قوت و شکاف‌های مهم تو به‌صورت دقیق شناسایی می‌شود.",
+                      evidence: "نقاط ضعف مشخص",
+                      icon: ClipboardList,
+                    },
+                    {
+                      label: "پیشنهاد مسیر",
+                      description: "Genova متناسب با هدف و سطح تو، ترتیب یادگیری را پیشنهاد می‌دهد.",
+                      evidence: "مسیر اختصاصی",
+                      icon: Target,
+                    },
+                    {
+                      label: "دوره و آزمون",
+                      description: "با دوره‌های هدفمند تمرین کن و با آزمون، تسلطت را بسنج.",
+                      evidence: "یادگیری فعال",
+                      icon: GraduationCap,
+                    },
+                    {
+                      label: "پیشرفت و مسیر بعدی",
+                      description: "رشدت را ببین، ضعف‌های باقی‌مانده را بشناس و قدم بعدی را انتخاب کن.",
+                      evidence: "رشد قابل اندازه‌گیری",
+                      icon: TrendingUp,
+                    },
+                  ].map((step, i) => (
+                    <motion.article
+                      key={step.label}
+                      initial={{ opacity: 0, y: 18 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, amount: 0.35 }}
+                      transition={{ delay: i * 0.07, duration: 0.4 }}
+                      className={cn(
+                        "group relative flex min-h-[218px] flex-col rounded-2xl border border-border/70 bg-card/85 p-4 text-right transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/5",
+                        (i === 3 || i === 4) && "border-primary/35 bg-primary/[0.055] shadow-md shadow-primary/5",
+                      )}
+                    >
+                      <div className="relative z-10 flex items-center justify-between">
+                        <span className={cn(
+                          "flex size-11 items-center justify-center rounded-2xl border border-primary/15 bg-background text-primary shadow-sm transition-transform group-hover:scale-105",
+                          (i === 3 || i === 4) && "border-transparent bg-primary text-primary-foreground",
+                        )}>
+                          <step.icon className="size-5" />
+                        </span>
+                        <span className="font-mono text-[11px] font-bold text-muted-foreground/60">
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                      </div>
+
+                      <h3 className="mt-4 text-[13px] font-extrabold leading-5">{step.label}</h3>
+                      <p className="mt-2 flex-1 text-[11px] leading-[1.85] text-muted-foreground">{step.description}</p>
+                      <div className={cn(
+                        "mt-4 rounded-xl border border-border/60 bg-background/80 px-2.5 py-2 text-center text-[9px] font-bold text-muted-foreground",
+                        (i === 3 || i === 4) && "border-primary/15 bg-background/70 text-primary",
+                      )}>
+                        {step.evidence}
+                      </div>
+
+                      {i < 6 && (
+                        <ChevronLeft className="absolute -left-[13px] top-5 z-20 hidden size-4 text-primary/45 xl:block" />
+                      )}
+                    </motion.article>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid border-t border-border/70 bg-gradient-to-l from-primary/[0.07] via-card/50 to-amber-400/[0.07] sm:grid-cols-3">
+                {[
+                  { icon: LineChart, title: "اولویت‌بندی هوشمند", text: "روی مهم‌ترین شکاف‌ها تمرکز می‌کنی، نه همه‌چیز." },
+                  { icon: Target, title: "هدف مشخص در هر مرحله", text: "می‌دانی الآن چه چیزی را باید یاد بگیری و چرا." },
+                  { icon: Award, title: "اثبات رشد", text: "هر آزمون و دوره، تصویر روشنی از پیشرفت تو می‌سازد." },
+                ].map((item, i) => (
+                  <div key={item.title} className={cn("flex gap-3 p-5 sm:p-6", i > 0 && "border-t border-border/60 sm:border-r sm:border-t-0")}>
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background text-primary shadow-sm ring-1 ring-border/70">
+                      <item.icon className="size-4" />
+                    </span>
+                    <div>
+                      <p className="text-xs font-extrabold">{item.title}</p>
+                      <p className="mt-1 text-[10px] leading-5 text-muted-foreground">{item.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
       )}
 
       {/* ── Categories ──────────────────────────────────────────────────── */}
