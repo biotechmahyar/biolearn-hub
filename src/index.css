@@ -503,11 +503,13 @@
   color: oklch(0.82 0.14 80);
 }
 
-/* ── Desk canvases (Content Studio, Mentor desk) ────────────────────────────
-   A desk is a focused workspace with its own palette so the dashboard and its
-   dialogs never fight each other. Light is the default; `.desk-dark` swaps the
-   same structure onto a deep neutral canvas. */
-.desk-scope {
+/* ── Desk canvases (Content Studio, Mentor desk, Instructor studio) ──────────
+   A desk is a focused workspace. In light mode it uses the violet "course
+   platform" palette of the reference designs; in dark mode it keeps the site's
+   own accent-aware dark palette (exactly what the admin dark switch uses), so
+   toggling the desk theme recolours the whole page instead of turning it flat
+   grey. */
+:root:not(.dark) .desk-scope {
   --radius: 1rem;
   --background: oklch(0.968 0.004 275);
   --foreground: oklch(0.22 0.02 275);
@@ -543,105 +545,86 @@
   color-scheme: light;
 }
 
-.desk-scope [data-slot="card"] {
+:root:not(.dark) .desk-scope [data-slot="card"] {
   border-color: var(--border);
   box-shadow:
     0 1px 2px oklch(0.22 0.02 275 / 0.04),
     0 8px 24px -16px oklch(0.22 0.02 275 / 0.16);
 }
 
-.desk-scope .admin-scroll {
+:root:not(.dark) .desk-scope .admin-scroll {
   scrollbar-color: oklch(0.82 0.01 275 / 0.7) transparent;
 }
-.desk-scope .admin-scroll::-webkit-scrollbar-thumb {
+:root:not(.dark) .desk-scope .admin-scroll::-webkit-scrollbar-thumb {
   background: oklch(0.82 0.01 275 / 0.6);
 }
-.desk-scope .admin-scroll::-webkit-scrollbar-thumb:hover {
+:root:not(.dark) .desk-scope .admin-scroll::-webkit-scrollbar-thumb:hover {
   background: oklch(0.72 0.02 275 / 0.8);
 }
 
-/* ── Desk canvases · dark mode ───────────────────────────────────────────── */
-.desk-scope.desk-dark {
-  --radius: 1rem;
-  --background: oklch(0.17 0.014 272);
-  --foreground: oklch(0.96 0.004 275);
-  --card: oklch(0.21 0.016 272);
-  --card-foreground: oklch(0.96 0.004 275);
-  --popover: oklch(0.21 0.016 272);
-  --popover-foreground: oklch(0.96 0.004 275);
-  --primary: oklch(0.72 0.16 274);
-  --primary-foreground: oklch(0.16 0.02 274);
-  --secondary: oklch(0.26 0.016 272);
-  --secondary-foreground: oklch(0.95 0.004 275);
-  --muted: oklch(0.26 0.016 272);
-  --muted-foreground: oklch(0.72 0.016 272);
-  --accent: oklch(0.3 0.018 272);
-  --accent-foreground: oklch(0.96 0.004 275);
-  --destructive: oklch(0.68 0.19 25);
-  --border: oklch(1 0 0 / 11%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.72 0.16 274);
-  --chart-1: oklch(0.72 0.16 274);
-  --chart-2: oklch(0.7 0.16 300);
-  --chart-3: oklch(0.78 0.15 85);
-  --chart-4: oklch(0.74 0.14 165);
-  --chart-5: oklch(0.7 0.19 20);
-  --sidebar: oklch(0.19 0.015 272);
-  --sidebar-foreground: oklch(0.96 0.004 275);
-  --sidebar-primary: oklch(0.72 0.16 274);
-  --sidebar-primary-foreground: oklch(0.16 0.02 274);
-  --sidebar-accent: oklch(0.3 0.03 274);
-  --sidebar-accent-foreground: oklch(0.93 0.03 274);
-  --sidebar-border: oklch(1 0 0 / 11%);
-  --sidebar-ring: oklch(0.72 0.16 274);
+/* ── Desk canvases · dark mode ───────────────────────────────────────────────
+   The tokens themselves come from the site-wide `.dark` palette (accent aware),
+   so only the pieces that the desks hardcode need a dark counterpart. */
+:root.dark .desk-scope {
   color-scheme: dark;
 }
 
-.desk-scope.desk-dark [data-slot="card"] {
+:root.dark .desk-scope [data-slot="card"] {
+  border-color: var(--border);
   box-shadow:
     0 1px 2px oklch(0 0 0 / 0.3),
     0 10px 30px -18px oklch(0 0 0 / 0.7);
 }
 
+:root.dark .desk-scope .admin-scroll {
+  scrollbar-color: oklch(0.45 0.01 275 / 0.8) transparent;
+}
+:root.dark .desk-scope .admin-scroll::-webkit-scrollbar-thumb {
+  background: oklch(0.45 0.01 275 / 0.8);
+}
+
 /* Soft tints used by desk status chips need a dark counterpart. */
-.desk-scope.desk-dark .bg-emerald-50 {
+:root.dark .desk-scope .bg-emerald-50 {
   background-color: oklch(0.28 0.06 155);
 }
-.desk-scope.desk-dark .bg-amber-50 {
+:root.dark .desk-scope .bg-amber-50 {
   background-color: oklch(0.3 0.06 80);
 }
-.desk-scope.desk-dark .bg-rose-50 {
+:root.dark .desk-scope .bg-rose-50 {
   background-color: oklch(0.28 0.07 20);
 }
-.desk-scope.desk-dark .bg-violet-50 {
+:root.dark .desk-scope .bg-violet-50 {
   background-color: oklch(0.28 0.06 300);
 }
-.desk-scope.desk-dark .bg-sky-50 {
+:root.dark .desk-scope .bg-sky-50 {
   background-color: oklch(0.28 0.06 250);
 }
-.desk-scope.desk-dark .text-emerald-600 {
+:root.dark .desk-scope .bg-indigo-50 {
+  background-color: oklch(0.28 0.06 264);
+}
+:root.dark .desk-scope .text-emerald-600 {
   color: oklch(0.82 0.16 155);
 }
-.desk-scope.desk-dark .text-amber-600 {
+:root.dark .desk-scope .text-amber-600 {
   color: oklch(0.82 0.14 80);
 }
-.desk-scope.desk-dark .text-rose-600 {
+:root.dark .desk-scope .text-rose-600 {
   color: oklch(0.78 0.16 20);
 }
-.desk-scope.desk-dark .text-violet-600 {
+:root.dark .desk-scope .text-violet-600 {
   color: oklch(0.78 0.15 300);
 }
-.desk-scope.desk-dark .text-rose-700 {
+:root.dark .desk-scope .text-rose-700 {
   color: oklch(0.8 0.15 20);
 }
-.desk-scope.desk-dark .text-emerald-700 {
+:root.dark .desk-scope .text-emerald-700 {
   color: oklch(0.84 0.15 155);
 }
-.desk-scope.desk-dark .text-amber-700 {
+:root.dark .desk-scope .text-amber-700 {
   color: oklch(0.84 0.14 80);
 }
-.desk-scope.desk-dark .desk-hero-gradient {
-  background-image: linear-gradient(to left, oklch(0.42 0.16 274), oklch(0.48 0.15 288), oklch(0.45 0.14 258));
+:root.dark .desk-scope .desk-hero-gradient {
+  background-image: linear-gradient(to left, oklch(0.4 0.16 274), oklch(0.46 0.15 288), oklch(0.44 0.14 258));
 }
 
 /* Cards inside the admin canvas: white, hairline border, soft lift. */

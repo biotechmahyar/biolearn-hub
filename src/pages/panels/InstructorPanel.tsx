@@ -16,9 +16,12 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { useInstructorBroadcast } from "@/hooks/use-live";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { formatFileSize, fileKindFromMime, uploadBlob } from "@/lib/upload";
-import { formatPriceNumber, formatCardNumber } from "@/lib/format";
-import { gregorianToJalali, toPersianDigits } from "@/lib/jalali";
+import { formatPriceNumber, formatCardNumber, faNum, formatJalaliDateString } from "@/lib/format";
+import { gregorianToJalali, toPersianDigits, todayISO } from "@/lib/jalali";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
+import DeskTopBar, { type DeskFeedItem } from "@/components/panels/DeskTopBar";
+import JalaliMonthCalendar from "@/components/panels/JalaliMonthCalendar";
+import { applyDeskTheme, useDeskTheme } from "@/lib/deskTheme";
 import { useAction, useMutation, useQuery } from "convex/react";
 import {
   BarChart3,
@@ -33,6 +36,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   CircleDot,
   ClipboardList,
   Clock,
@@ -76,8 +80,8 @@ import {
   Video,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,6 +103,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 // ── Tab & sidebar types ──────────────────────────────────────────────────────
 
@@ -288,8 +301,8 @@ function SidebarSectionButton({
         onClick={() => onSelect(child.id)}
         className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
           activeTab === child.id
-            ? "border border-cyan-400/30 bg-cyan-400/10 text-cyan-200"
-            : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            ? "border border-primary/30 bg-primary/10 text-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`}
       >
         <Icon className="size-4 shrink-0" />
@@ -309,8 +322,8 @@ function SidebarSectionButton({
         onClick={() => setOpen((s) => !s)}
         className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
           isActive
-            ? "text-cyan-200"
-            : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            ? "text-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`}
       >
         <Icon className="size-4 shrink-0" />
@@ -318,15 +331,15 @@ function SidebarSectionButton({
         <ChevronDown className={`size-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="mr-2 mt-0.5 space-y-0.5 border-r border-white/5 pr-2">
+        <div className="mr-2 mt-0.5 space-y-0.5 border-r border-border pr-2">
           {section.children.map((child) => (
             <button
               key={child.id}
               onClick={() => onSelect(child.id)}
               className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs transition-colors ${
                 activeTab === child.id
-                  ? "bg-cyan-400/10 text-cyan-200"
-                  : "text-slate-500 hover:bg-white/5 hover:text-slate-300"
+                  ? "bg-primary/10 text-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-muted-foreground"
               }`}
             >
               {child.icon && <child.icon className="size-3.5 shrink-0" />}
@@ -354,6 +367,9 @@ export default function InstructorPanel() {
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manageCourseId, setManageCourseId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const { theme } = useDeskTheme("instructor-studio");
+  useEffect(() => applyDeskTheme(theme, "instructor-studio"), [theme]);
 
   const allRooms = useQuery(api.collab.listRooms) ?? [];
   const online = useQuery(api.collab.listOnline) ?? [];
@@ -374,70 +390,169 @@ export default function InstructorPanel() {
     setMobileMenuOpen(false);
   };
 
+  const myMessages = useQuery(api.instructorTools.listMyMessages);
+
+  const messages = useMemo<DeskFeedItem[]>(
+    () =>
+      ((myMessages ?? []) as any[]).slice(0, 12).map((m) => ({
+        id: `msg-${m.partnerId}`,
+        title: m.partnerName || "گفت‌وگو",
+        body: m.lastMessage,
+        at: m.lastTime,
+        icon: <MessageSquare className="size-3.5" />,
+        onClick: () => setTab("comm-messages"),
+      })),
+    [myMessages],
+  );
+
+  const notifications = useMemo<DeskFeedItem[]>(() => {
+    const items: DeskFeedItem[] = [];
+    rooms
+      .filter((r: any) => r.status === "live")
+      .slice(0, 5)
+      .forEach((r: any) => {
+        items.push({
+          id: `live-${r._id}`,
+          title: `کلاس «${r.title}» هم‌اکنون زنده است`,
+          body: r.topic || undefined,
+          at: r.createdAt,
+          icon: <Video className="size-3.5" />,
+          onClick: () => {
+            setActiveRoom(r._id);
+            setTab("rooms-live");
+          },
+        });
+      });
+    rooms
+      .filter((r: any) => r.status === "scheduled" && r.scheduledDate)
+      .slice(0, 5)
+      .forEach((r: any) => {
+        items.push({
+          id: `sched-${r._id}`,
+          title: `کلاس زمان‌بندی‌شده: ${r.title}`,
+          body: r.scheduledDate,
+          at: r.createdAt,
+          icon: <Calendar className="size-3.5" />,
+          onClick: () => setTab("rooms-calendar"),
+        });
+      });
+    const pendingCount = Object.values(notifCounts ?? {}).reduce(
+      (sum, n) => sum + (Number(n) || 0),
+      0,
+    );
+    if (pendingCount > 0) {
+      items.unshift({
+        id: "pending-summary",
+        title: `${pendingCount} مورد در انتظار بررسی`,
+        body: "کلاس‌ها، تیکت‌های پشتیبانی یا پیام‌های خوانده‌نشده",
+        at: Date.now(),
+        icon: <BellRing className="size-3.5" />,
+        onClick: () => setTab("comm-support"),
+      });
+    }
+    return items.sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, 12);
+  }, [rooms, notifCounts]);
+
   return (
-    <div className="min-h-screen bg-[#071019] text-slate-200" dir="rtl">
-      {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-cyan-400/10 bg-[#071019]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <button className="lg:hidden text-slate-400" onClick={() => setMobileMenuOpen((s) => !s)}>
-              <Dna className="size-5 text-cyan-300" />
-            </button>
-            <span className="hidden lg:flex size-9 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
-              <Dna className="size-5 text-cyan-300" />
-            </span>
-            <div>
-              <h1 className="text-sm font-bold text-cyan-100">استودیوی مدرس</h1>
-              <p className="font-mono text-[10px] tracking-wide text-cyan-400/60">
-                instructor studio · live
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[11px] text-emerald-300 sm:flex">
-              <CircleDot className="size-3 animate-pulse" />
-              آنلاین
-            </span>
-            <Badge variant="outline" className="hidden border-cyan-400/20 font-mono text-[10px] text-cyan-300 md:inline-flex">
-              {user?.name ?? "مدرس"}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-slate-400"
-              onClick={() => navigate(user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/")}
-            >
-              <Home className="size-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[240px_1fr]">
-        {/* Sidebar — mobile toggle */}
-        {mobileMenuOpen && (
-          <aside className="lg:hidden rounded-xl border border-cyan-400/10 bg-[#0a1520] p-3">
-            <nav className="scrollbar-theme space-y-1">
-              {SIDEBAR.map((section) => (
-                <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} notifCounts={notifCounts} />
-              ))}
-            </nav>
-          </aside>
+    <div className="desk-scope flex min-h-screen bg-muted/40 text-foreground" dir="rtl">
+      {/* Side rail */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 right-0 z-40 flex w-[250px] shrink-0 flex-col border-l border-border bg-card transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0",
+          mobileMenuOpen ? "translate-x-0" : "translate-x-full",
         )}
+      >
+        <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Dna className="size-4" />
+          </span>
+          <span className="leading-tight">
+            <span className="block text-[15px] font-extrabold tracking-tight">استودیوی مدرس</span>
+            <span className="block text-[10px] text-muted-foreground">instructor studio</span>
+          </span>
+        </Link>
 
-        {/* Sidebar — desktop */}
-        <aside className="hidden lg:block lg:sticky lg:top-20 lg:self-start">
-          <nav className="scrollbar-theme space-y-1">
-            {SIDEBAR.map((section) => (
-              <SidebarSectionButton key={section.label} section={section} activeTab={tab} onSelect={handleTabSelect} notifCounts={notifCounts} />
-            ))}
-          </nav>
-        </aside>
+        <nav className="admin-scroll flex-1 space-y-0.5 overflow-y-auto px-4 pb-4">
+          {SIDEBAR.map((section) => (
+            <SidebarSectionButton
+              key={section.label}
+              section={section}
+              activeTab={tab}
+              onSelect={handleTabSelect}
+              notifCounts={notifCounts}
+            />
+          ))}
+        </nav>
 
-        {/* Main */}
-        <main className="scrollbar-theme min-w-0">
+        <div className="space-y-2 border-t border-border p-4">
+          <div className="rounded-2xl border border-border bg-muted/50 p-3">
+            <p className="text-[11px] font-bold">آکادمی ژنوا</p>
+            <p className="mt-1 text-[10px] leading-5 text-muted-foreground">
+              {rooms.length} کلاس · {online.length} دانشجوی آنلاین
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-full justify-start rounded-xl text-xs"
+            onClick={() =>
+              navigate(
+                user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/",
+              )
+            }
+          >
+            <Home className="ml-2 size-4" />
+            بازگشت به سایت
+          </Button>
+        </div>
+      </aside>
+
+      {mobileMenuOpen && (
+        <button
+          type="button"
+          aria-label="بستن منو"
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-30 bg-foreground/30 lg:hidden"
+        />
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <DeskTopBar
+          scope="instructor-studio"
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="جست‌وجوی کلاس، دانشجو یا پیام…"
+          notifications={notifications}
+          messages={messages}
+          userName={user?.name || user?.email || "مدرس"}
+          userRole={user?.role}
+          onToggleSidebar={() => setMobileMenuOpen((s) => !s)}
+          extraProfileLinks={[
+            {
+              label: "پنل مدیریت",
+              to: "/admin",
+              icon: <BarChart3 className="size-4" />,
+            },
+          ]}
+        />
+
+        <main className="admin-scroll min-w-0 flex-1 p-4 sm:p-6">
           {/* Dashboard */}
-          {tab === "dashboard" && <DashboardView rooms={rooms} online={online} user={user} />}
+          {tab === "dashboard" && (
+            <DashboardView
+              rooms={rooms}
+              online={online}
+              user={user}
+              onOpenRooms={(roomId) => {
+                setActiveRoom(roomId);
+                setTab("rooms-live");
+              }}
+              onGoTab={(next) => {
+                setActiveRoom(null);
+                setTab(next);
+              }}
+            />
+          )}
 
           {/* آموزش */}
           {tab === "courses-mine" && <CoursesMineView onManageCourse={(id) => { setManageCourseId(id); setTab("course-manage"); }} />}
@@ -503,50 +618,50 @@ function PaymentsView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">پرداختی‌ها</h2>
-        <p className="mt-1 text-sm text-slate-400">مشاهده وضعیت پرداخت دستمزد.</p>
+        <h2 className="text-xl font-bold text-foreground">پرداختی‌ها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">مشاهده وضعیت پرداخت دستمزد.</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="py-4 text-center">
-            <p className="text-3xl font-bold text-emerald-400">{totalPaid.toLocaleString("fa-IR")}</p>
-            <p className="mt-1 text-xs text-slate-400">پرداخت شده (تومان)</p>
+            <p className="text-3xl font-bold text-emerald-600">{totalPaid.toLocaleString("fa-IR")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">پرداخت شده (تومان)</p>
           </CardContent>
         </Card>
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="py-4 text-center">
-            <p className="text-3xl font-bold text-amber-400">{totalPending.toLocaleString("fa-IR")}</p>
-            <p className="mt-1 text-xs text-slate-400">در انتظار پرداخت (تومان)</p>
+            <p className="text-3xl font-bold text-amber-600">{totalPending.toLocaleString("fa-IR")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">در انتظار پرداخت (تومان)</p>
           </CardContent>
         </Card>
       </div>
 
       {payments.length === 0 ? (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <CreditCard className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">هنوز پرداختی ثبت نشده است.</p>
+            <CreditCard className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز پرداختی ثبت نشده است.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
           {payments.map((p: any) => (
-            <Card key={p._id} className="border-white/5 bg-white/[0.02]">
+            <Card key={p._id} className="border-border bg-background">
               <CardContent className="flex items-center justify-between py-3">
                 <div>
-                  <p className="text-sm font-medium text-white">{p.description}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-sm font-medium text-foreground">{p.description}</p>
+                  <p className="text-xs text-muted-foreground">
                     {new Date(p.createdAt).toLocaleDateString("fa-IR")}
                     {p.paidAt && ` · پرداخت: ${new Date(p.paidAt).toLocaleDateString("fa-IR")}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-white">{p.amount.toLocaleString("fa-IR")} تومان</span>
+                  <span className="text-sm font-bold text-foreground">{p.amount.toLocaleString("fa-IR")} تومان</span>
                   <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                    p.status === "paid" ? "bg-emerald-400/15 text-emerald-300"
-                    : p.status === "pending" ? "bg-amber-400/15 text-amber-300"
-                    : "bg-red-400/15 text-red-300"
+                    p.status === "paid" ? "bg-emerald-50/70 text-emerald-600"
+                    : p.status === "pending" ? "bg-amber-50 text-amber-600"
+                    : "bg-destructive/10 text-destructive"
                   }`}>
                     {p.status === "paid" ? "پرداخت شده" : p.status === "pending" ? "در انتظار" : "رد شده"}
                   </span>
@@ -568,68 +683,361 @@ function DashboardView({
   rooms,
   online,
   user,
+  onOpenRooms,
+  onGoTab,
 }: {
   rooms: RoomRow[];
   online: OnlineRow[];
   user: any;
+  onOpenRooms: (roomId: string) => void;
+  onGoTab: (tab: Tab) => void;
 }) {
   const courses = useQuery(api.profiles.listSuggestedCourses);
-  const liveRooms = rooms.filter((r) => r.status === "live");
+  const performance = useQuery(api.instructorTools.getStudentPerformance) ?? [];
+  const [focusDay, setFocusDay] = useState<string | null>(null);
 
-  const stats = [
-    { label: "کلاس‌های زنده", value: liveRooms.length, icon: Video, color: "text-red-400" },
-    { label: "دانشجویان آنلاین", value: online.length, icon: Users, color: "text-emerald-400" },
-    { label: "دوره‌های من", value: (courses?.mine ?? []).length, icon: BookOpen, color: "text-cyan-400" },
-    { label: "کل کلاس‌ها", value: rooms.length, icon: Calendar, color: "text-purple-400" },
-  ];
+  const liveRooms = rooms.filter((r: any) => r.status === "live");
+  const scheduledRooms = rooms.filter((r: any) => r.status === "scheduled");
+
+  const today = todayISO();
+  const weekday = new Date().toLocaleDateString("fa-IR", { weekday: "long" });
+
+  // Engagement = how much of the held classes each student attended.
+  const rows = useMemo(
+    () =>
+      [...performance]
+        .map((s: any) => ({
+          ...s,
+          score: s.totalRooms > 0 ? Math.round((s.attendance / s.totalRooms) * 100) : 0,
+        }))
+        .sort((a: any, b: any) => b.score - a.score),
+    [performance],
+  );
+  const avgScore = rows.length
+    ? Math.round(rows.reduce((sum: number, s: any) => sum + s.score, 0) / rows.length)
+    : 0;
+
+  const hoursChart = useMemo(() => {
+    const labels = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
+    const counts = labels.map(() => 0);
+    for (const r of rooms as any[]) {
+      const iso = (r.scheduledDate || new Date(r.createdAt).toISOString().slice(0, 10)).slice(0, 10);
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) continue;
+      counts[(d.getDay() + 1) % 7] += 1;
+    }
+    return labels.map((label, i) => ({ label, کلاس: counts[i] }));
+  }, [rooms]);
+
+  const roomDates = useMemo(
+    () =>
+      (rooms as any[])
+        .map((r) => (r.scheduledDate || new Date(r.createdAt).toISOString().slice(0, 10)).slice(0, 10))
+        .filter((d) => !Number.isNaN(new Date(d).getTime())),
+    [rooms],
+  );
+
+  const upcoming = useMemo(() => {
+    const list = [...(rooms as any[])].sort((a, b) => {
+      const ad = new Date(a.scheduledDate || a.createdAt).getTime();
+      const bd = new Date(b.scheduledDate || b.createdAt).getTime();
+      return ad - bd;
+    });
+    return focusDay ? list.filter((r) => r.scheduledDate?.slice(0, 10) === focusDay) : list.slice(0, 5);
+  }, [rooms, focusDay]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-white">داشبورد</h2>
-        <p className="mt-1 text-sm text-slate-400">خوش آمدید، {user?.name ?? "مدرس"} 👋</p>
+        <h2 className="text-xl font-extrabold tracking-tight">
+          خوش آمدید، {user?.name ?? "مدرس"} 👋
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {weekday}، {formatJalaliDateString(today)}
+        </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label} className="border-white/5 bg-white/[0.02]">
-            <CardContent className="flex items-center gap-4 py-4">
-              <div className={`rounded-lg bg-white/5 p-2.5 ${s.color}`}>
-                <s.icon className="size-5" />
+      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+        <div className="min-w-0 space-y-4">
+          {/* Banner */}
+          <div className="desk-hero-gradient relative overflow-hidden rounded-3xl bg-gradient-to-l from-indigo-600 via-violet-500 to-sky-500 p-6 text-foreground">
+            <div className="pointer-events-none absolute -left-8 -top-12 size-48 rounded-full bg-muted blur-3xl" />
+            <BookOpen className="pointer-events-none absolute bottom-4 left-8 size-24 text-white/10" />
+            <div className="relative max-w-lg">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-white/70">
+                آموزش زیست‌شناسی
+              </p>
+              <p className="mt-2 text-lg font-black leading-8 sm:text-xl">
+                میانگین حضور دانشجویان شما{" "}
+                <span className="text-2xl">{faNum(avgScore)}٪</span> است
+              </p>
+              <p className="mt-2 text-[12.5px] leading-6 text-white/80">
+                با برنامه‌ریزی کلاس‌های زنده و پیگیری تکالیف، رتبهٔ آموزشی خود را بالا ببرید.
+              </p>
+              <Button
+                size="sm"
+                className="mt-5 h-10 rounded-full bg-black/25 px-5 hover:bg-black/35"
+                onClick={() => onGoTab("rooms-live")}
+              >
+                مدیریت کلاس‌ها
+                <ChevronLeft className="mr-1.5 size-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Working hours */}
+          <Card className="gap-0 rounded-2xl border-border py-0">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h3 className="text-[15px] font-extrabold tracking-tight">ساعت‌های تدریس</h3>
+              <span className="text-[11px] text-muted-foreground">
+                {faNum(rooms.length)} کلاس در مجموع
+              </span>
+            </div>
+            <div className="p-5">
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={hoursChart} margin={{ top: 6, right: 6, left: 6, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="4 4" stroke="var(--border)" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke="var(--muted-foreground)"
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis hide />
+                    <Tooltip
+                      cursor={{ fill: "var(--muted)" }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "1px solid var(--border)",
+                        background: "var(--card)",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Bar
+                      dataKey="کلاس"
+                      name="کلاس"
+                      fill="var(--primary)"
+                      radius={[6, 6, 2, 2]}
+                      maxBarSize={16}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-white">{s.value}</p>
-                <p className="text-xs text-slate-400">{s.label}</p>
+              <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-lg font-extrabold">{faNum(rooms.length)}</p>
+                  <p className="text-[11px] text-muted-foreground">مجموع</p>
+                </div>
+                <div>
+                  <p className="text-lg font-extrabold text-emerald-600">{faNum(liveRooms.length)}</p>
+                  <p className="text-[11px] text-muted-foreground">برگزارشده</p>
+                </div>
+                <div>
+                  <p className="text-lg font-extrabold text-primary">{faNum(scheduledRooms.length)}</p>
+                  <p className="text-[11px] text-muted-foreground">پیش‌رو</p>
+                </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
-        ))}
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardHeader><CardTitle className="text-sm text-white">کلاس‌های فعال</CardTitle></CardHeader>
-          <CardContent>
-            {liveRooms.length === 0 ? (
-              <p className="text-sm text-slate-500">کلاس فعالی وجود ندارد.</p>
+          {/* Student activity table */}
+          <Card className="gap-0 overflow-hidden rounded-2xl border-border py-0">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h3 className="text-[15px] font-extrabold tracking-tight">عملکرد دانشجویان</h3>
+              <Button variant="ghost" size="sm" className="h-8 rounded-xl text-[11px]" onClick={() => onGoTab("students-performance")}>
+                همه
+              </Button>
+            </div>
+            {rows.length === 0 ? (
+              <div className="px-5 py-14 text-center">
+                <Users className="mx-auto size-7 text-muted-foreground/40" />
+                <p className="mt-3 text-[13px] text-muted-foreground">
+                  پس از برگزاری کلاس، عملکرد دانشجویان اینجا نمایش داده می‌شود.
+                </p>
+              </div>
             ) : (
-              <div className="space-y-2">
-                {liveRooms.slice(0, 5).map((r) => (
-                  <div key={r._id} className="flex items-center justify-between rounded-lg bg-white/[0.02] p-3">
-                    <span className="text-sm text-white">{r.title}</span>
-                    <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">LIVE</span>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-right text-[12.5px]">
+                  <thead>
+                    <tr className="border-b border-border text-[11px] text-muted-foreground">
+                      <th className="px-5 py-3 font-medium">دانشجو</th>
+                      <th className="px-5 py-3 font-medium">حضور</th>
+                      <th className="px-5 py-3 font-medium">پرسش‌ها</th>
+                      <th className="px-5 py-3 font-medium">پیام‌ها</th>
+                      <th className="px-5 py-3 font-medium">وضعیت</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.slice(0, 6).map((s: any) => (
+                      <tr key={s.studentId} className="border-b border-border/60 last:border-0 hover:bg-muted/40">
+                        <td className="px-5 py-3">
+                          <span className="flex items-center gap-2">
+                            <span className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                              {(s.name || "ن").slice(0, 1)}
+                            </span>
+                            <span className="font-semibold">{s.name || "دانشجو"}</span>
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-muted-foreground">
+                          {faNum(s.attendance)} از {faNum(s.totalRooms)}
+                        </td>
+                        <td className="px-5 py-3 text-muted-foreground">{faNum(s.questions)}</td>
+                        <td className="px-5 py-3 text-muted-foreground">{faNum(s.messages)}</td>
+                        <td className="px-5 py-3">
+                          <span
+                            className={cn(
+                              "rounded-full px-2.5 py-1 text-[10.5px] font-bold",
+                              s.score >= 70
+                                ? "bg-emerald-50 text-emerald-600"
+                                : s.score >= 30
+                                  ? "bg-amber-50 text-amber-600"
+                                  : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {s.score >= 70 ? "فعال" : s.score >= 30 ? "نیازمند توجه" : "کم‌فعالیت"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </CardContent>
-        </Card>
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardHeader><CardTitle className="text-sm text-white">آخرین فعالیت‌ها</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-sm text-slate-500">فعالیت‌های اخیر شما در اینجا نمایش داده خواهد شد.</p>
-          </CardContent>
-        </Card>
+          </Card>
+        </div>
+
+        {/* Right rail */}
+        <div className="space-y-4">
+          <Card className="gap-0 rounded-2xl border-border py-0">
+            <div className="flex items-center gap-3 p-5">
+              <span className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-xl font-extrabold text-primary">
+                {(user?.name ?? "م").slice(0, 1)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-extrabold">{user?.name ?? "مدرس"}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{user?.email ?? ""}</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 px-5 pb-5">
+              <div className="rounded-xl bg-muted/60 p-3 text-center">
+                <p className="text-[15px] font-extrabold">{faNum((courses?.mine ?? []).length)}</p>
+                <p className="text-[10.5px] text-muted-foreground">دوره‌ها</p>
+              </div>
+              <div className="rounded-xl bg-muted/60 p-3 text-center">
+                <p className="text-[15px] font-extrabold text-primary">{faNum(online.length)}</p>
+                <p className="text-[10.5px] text-muted-foreground">آنلاین</p>
+              </div>
+            </div>
+            <div className="px-5 pb-5">
+              <Button
+                className="w-full rounded-xl"
+                onClick={() => onGoTab("rooms-live")}
+              >
+                <Plus className="ml-1.5 size-4" />
+                کلاس جدید
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="gap-0 rounded-2xl border-border py-0">
+            <div className="px-5 pt-5">
+              <h3 className="text-[15px] font-extrabold tracking-tight">تقویم</h3>
+              <p className="mt-1 text-[10.5px] text-muted-foreground">
+                روی روزی که کلاس دارید بزنید تا کلاس‌های همان روز را ببینید.
+              </p>
+            </div>
+            <div className="p-5">
+              <JalaliMonthCalendar
+                selected={focusDay}
+                markers={roomDates}
+                onSelect={(iso) => setFocusDay((prev) => (prev === iso ? null : iso))}
+              />
+            </div>
+          </Card>
+
+          <Card className="gap-0 rounded-2xl border-border py-0">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h3 className="text-[15px] font-extrabold tracking-tight">کلاس‌های پیش‌رو</h3>
+              <Button variant="ghost" size="sm" className="h-8 rounded-xl text-[11px]" onClick={() => onGoTab("rooms-calendar")}>
+                همه
+              </Button>
+            </div>
+            <div className="space-y-2 p-4">
+              {upcoming.length === 0 && (
+                <p className="px-1 py-4 text-center text-[12px] text-muted-foreground">
+                  کلاسی برای نمایش وجود ندارد.
+                </p>
+              )}
+              {upcoming.map((r: any) => (
+                <button
+                  key={r._id}
+                  type="button"
+                  onClick={() => onOpenRooms(r._id)}
+                  className="flex w-full items-center gap-3 rounded-xl border border-border bg-muted/40 p-3 text-right transition-colors hover:bg-muted"
+                >
+                  <span className="flex size-11 shrink-0 flex-col items-center justify-center rounded-xl bg-card text-center">
+                    <span className="text-[13px] font-extrabold leading-4">
+                      {r.scheduledDate ? toPersianDigits(r.scheduledDate.slice(8, 10)) : toPersianDigits(new Date(r.createdAt).getDate())}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground">کلاس</span>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] font-bold">{r.title}</span>
+                    <span className="block truncate text-[10.5px] text-muted-foreground">
+                      {r.scheduledDate ? formatJalaliDateString(r.scheduledDate) : "بدون تاریخ"} ·{" "}
+                      {r.status === "live" ? "در حال برگزاری" : r.status === "scheduled" ? "زمان‌بندی‌شده" : "پایان‌یافته"}
+                    </span>
+                  </span>
+                  <Video className="size-4 shrink-0 text-primary" />
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {/* Group chats */}
+          <Card className="gap-0 rounded-2xl border-border py-0">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4">
+              <h3 className="text-[15px] font-extrabold tracking-tight">گفت‌وگوی کلاس‌ها</h3>
+              <Button variant="ghost" size="sm" className="h-8 rounded-xl text-[11px]" onClick={() => onGoTab("comm-messages")}>
+                مشاهدهٔ همه
+              </Button>
+            </div>
+            <div className="space-y-1 p-3">
+              {rooms.length === 0 && (
+                <p className="px-2 py-6 text-center text-[12px] text-muted-foreground">
+                  هنوز کلاسی ساخته نشده است.
+                </p>
+              )}
+              {(rooms as any[]).slice(0, 5).map((r) => (
+                <button
+                  key={r._id}
+                  type="button"
+                  onClick={() => onOpenRooms(r._id)}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-right transition-colors hover:bg-muted"
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <MessageSquare className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] font-bold">{r.title}</span>
+                    <span className="block truncate text-[10.5px] text-muted-foreground">
+                      {r.openQuestions > 0
+                        ? `${r.openQuestions} پرسش بی‌پاسخ`
+                        : `${r.messageCount ?? 0} پیام`}
+                    </span>
+                  </span>
+                  {r.openQuestions > 0 && (
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                      {toPersianDigits(r.openQuestions)}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -644,25 +1052,25 @@ function CoursesMineView({ onManageCourse }: { onManageCourse: (courseId: string
   const courses = myCourses;
 
   const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-    published: { label: "منتشر", cls: "bg-emerald-400/15 text-emerald-300" },
-    approved: { label: "تأیید شده", cls: "bg-cyan-400/15 text-cyan-300" },
-    pending: { label: "در بررسی", cls: "bg-amber-400/15 text-amber-300" },
-    draft: { label: "پیش‌نویس", cls: "bg-slate-400/15 text-slate-300" },
-    rejected: { label: "رد شده", cls: "bg-red-400/15 text-red-300" },
+    published: { label: "منتشر", cls: "bg-emerald-50/70 text-emerald-600" },
+    approved: { label: "تأیید شده", cls: "bg-primary/15 text-primary" },
+    pending: { label: "در بررسی", cls: "bg-amber-50 text-amber-600" },
+    draft: { label: "پیش‌نویس", cls: "bg-slate-400/15 text-muted-foreground" },
+    rejected: { label: "رد شده", cls: "bg-destructive/10 text-destructive" },
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">دوره‌های من</h2>
-        <p className="mt-1 text-sm text-slate-400">دوره‌هایی که ساخته‌اید یا تدریس می‌کنید.</p>
+        <h2 className="text-xl font-bold text-foreground">دوره‌های من</h2>
+        <p className="mt-1 text-sm text-muted-foreground">دوره‌هایی که ساخته‌اید یا تدریس می‌کنید.</p>
       </div>
       {courses.length === 0 ? (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <BookOpen className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">هنوز دوره‌ای نساخته‌اید.</p>
-            <p className="text-xs text-slate-500">از تب «طراحی دوره» دوره جدید بسازید.</p>
+            <BookOpen className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز دوره‌ای نساخته‌اید.</p>
+            <p className="text-xs text-muted-foreground">از تب «طراحی دوره» دوره جدید بسازید.</p>
           </CardContent>
         </Card>
       ) : (
@@ -670,27 +1078,27 @@ function CoursesMineView({ onManageCourse }: { onManageCourse: (courseId: string
           {courses.map((c: any) => {
             const badge = STATUS_BADGE[c.status] ?? STATUS_BADGE.draft;
             return (
-              <Card key={c._id} className="border-white/5 bg-white/[0.02]">
+              <Card key={c._id} className="border-border bg-background">
                 <CardContent className="space-y-3 py-4">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="break-words font-bold text-white text-sm">{c.title}</h3>
+                    <h3 className="break-words font-bold text-foreground text-sm">{c.title}</h3>
                     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badge.cls}`}>
                       {badge.label}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400">{c.categoryName ?? c.category ?? ""}</p>
-                  <p className="line-clamp-2 text-xs text-slate-500">{c.summary ?? ""}</p>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <p className="text-xs text-muted-foreground">{c.categoryName ?? c.category ?? ""}</p>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{c.summary ?? ""}</p>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                     <span>{c.syllabusCount ?? 0} جلسه</span>
                     <span>{c.studentsCount ?? 0} دانشجو</span>
                   </div>
                   {c.reviewNote && (
-                    <p className="text-[11px] text-red-400">علت رد: {c.reviewNote}</p>
+                    <p className="text-[11px] text-destructive">علت رد: {c.reviewNote}</p>
                   )}
                   <div className="flex gap-2 pt-1">
                     <Button
                       size="sm"
-                      className="flex-1 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
+                      className="flex-1 bg-primary/10 text-foreground hover:bg-primary/15"
                       onClick={() => onManageCourse(c._id)}
                     >
                       <Settings className="ml-1 size-3.5" />
@@ -812,12 +1220,12 @@ function ResourcesView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">منابع آموزشی</h2>
-          <p className="mt-1 text-sm text-slate-400">آپلود فایل یا لینک برای دوره‌ها.</p>
+          <h2 className="text-xl font-bold text-foreground">منابع آموزشی</h2>
+          <p className="mt-1 text-sm text-muted-foreground">آپلود فایل یا لینک برای دوره‌ها.</p>
         </div>
       </div>
 
-      <Card className="border-white/5 bg-white/[0.02]">
+      <Card className="border-border bg-background">
         <CardContent className="py-4 space-y-3">
           <div className="flex gap-2">
             <Button size="sm" variant={resourceMode === "course" ? "default" : "outline"} onClick={() => { setResourceMode("course"); setSelectedRoom(null); }} className="text-xs">دوره‌ها</Button>
@@ -825,7 +1233,7 @@ function ResourcesView() {
           </div>
           {resourceMode === "course" ? (
             <Select value={selectedCourse ?? ""} onValueChange={(v) => setSelectedCourse(v)}>
-              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+              <SelectTrigger className="border-border bg-muted text-foreground">
                 <SelectValue placeholder="دوره مورد نظر را انتخاب کنید" />
               </SelectTrigger>
               <SelectContent>
@@ -836,7 +1244,7 @@ function ResourcesView() {
             </Select>
           ) : (
             <Select value={selectedRoom ?? ""} onValueChange={(v) => setSelectedRoom(v)}>
-              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+              <SelectTrigger className="border-border bg-muted text-foreground">
                 <SelectValue placeholder="کلاس مورد نظر را انتخاب کنید" />
               </SelectTrigger>
               <SelectContent>
@@ -852,7 +1260,7 @@ function ResourcesView() {
       {activeId && (
         <>
           <div className="flex justify-end">
-            <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => setShowAdd(true)}>
+            <Button className="bg-primary/10 text-foreground hover:bg-primary/15" onClick={() => setShowAdd(true)}>
               <Plus className="ml-1.5 size-4" />افزودن منبع
             </Button>
           </div>
@@ -860,25 +1268,25 @@ function ResourcesView() {
           {displayResources.length > 0 ? (
             <div className="space-y-2">
               {displayResources.map((r: any) => (
-                <Card key={r._id} className="border-white/5 bg-white/[0.02]">
+                <Card key={r._id} className="border-border bg-background">
                   <CardContent className="flex items-center justify-between py-3 px-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex size-9 items-center justify-center rounded-lg bg-cyan-400/10">
-                        {r.resourceType === "link" ? <LinkIcon className="size-4 text-cyan-300" /> : <FileText className="size-4 text-cyan-300" />}
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+                        {r.resourceType === "link" ? <LinkIcon className="size-4 text-primary" /> : <FileText className="size-4 text-primary" />}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-white">{r.title}</p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-sm font-medium text-foreground">{r.title}</p>
+                        <p className="text-[11px] text-muted-foreground">
                           {r.resourceType === "link" ? "لینک خارجی" : `فایل · ${formatFileSize(r.fileSize)}`}
                           {r.isFree ? (
-                            <span className="mr-2 text-emerald-400">رایگان</span>
+                            <span className="mr-2 text-emerald-600">رایگان</span>
                           ) : (
-                            <span className="mr-2 text-amber-400">{formatPriceNumber(r.price ?? 0)} تومان + {formatPriceNumber(r.commission ?? 0)} کارمزد</span>
+                            <span className="mr-2 text-amber-600">{formatPriceNumber(r.price ?? 0)} تومان + {formatPriceNumber(r.commission ?? 0)} کارمزد</span>
                           )}
                         </p>
                       </div>
                     </div>
-                    <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => { if (confirm("حذف شود؟")) deleteResource({ id: r._id }); }}>
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => { if (confirm("حذف شود؟")) deleteResource({ id: r._id }); }}>
                       <Trash2 className="size-3.5" />
                     </Button>
                   </CardContent>
@@ -886,10 +1294,10 @@ function ResourcesView() {
               ))}
             </div>
           ) : (
-            <Card className="border-white/5 bg-white/[0.02]">
+            <Card className="border-border bg-background">
               <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-                <Layers className="size-8 text-slate-600" />
-                <p className="text-sm text-slate-400">هنوز منبعی اضافه نشده است.</p>
+                <Layers className="size-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">هنوز منبعی اضافه نشده است.</p>
               </CardContent>
             </Card>
           )}
@@ -913,9 +1321,9 @@ function ResourcesView() {
 
             {resourceType === "file" ? (
               <div>
-                <label className="text-xs text-slate-400 mb-1 block">انتخاب فایل</label>
-                <input type="file" onChange={handleFileUpload} disabled={uploading} className="block w-full text-sm text-slate-400 file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-400/10 file:px-4 file:py-2 file:text-xs file:text-cyan-200 hover:file:bg-cyan-400/20" />
-                {uploading && <p className="mt-1 text-xs text-cyan-300 animate-pulse">در حال آپلود...</p>}
+                <label className="text-xs text-muted-foreground mb-1 block">انتخاب فایل</label>
+                <input type="file" onChange={handleFileUpload} disabled={uploading} className="block w-full text-sm text-muted-foreground file:mr-4 file:rounded-lg file:border-0 file:bg-primary/10 file:px-4 file:py-2 file:text-xs file:text-foreground hover:file:bg-primary/15" />
+                {uploading && <p className="mt-1 text-xs text-primary animate-pulse">در حال آپلود...</p>}
               </div>
             ) : (
               <Input placeholder="لینک خارجی (URL)" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} />
@@ -929,11 +1337,11 @@ function ResourcesView() {
               {!isFree && (
                 <>
                   <Input type="number" placeholder="قیمت پایه (تومان)" value={price} onChange={(e) => setPrice(e.target.value)} />
-                  <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 p-3 text-xs space-y-1">
-                    <p className="text-amber-300 font-bold">قیمت با کارمزد سایت (۴٪):</p>
-                    <p className="text-slate-300">قیمت پایه: {formatPriceNumber(basePrice)} تومان</p>
-                    <p className="text-slate-300">کارمزد سایت (۴٪): {formatPriceNumber(commission)} تومان</p>
-                    <p className="text-white font-bold">قیمت نهایی برای خریدار: {formatPriceNumber(totalPrice)} تومان</p>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs space-y-1">
+                    <p className="text-amber-600 font-bold">قیمت با کارمزد سایت (۴٪):</p>
+                    <p className="text-muted-foreground">قیمت پایه: {formatPriceNumber(basePrice)} تومان</p>
+                    <p className="text-muted-foreground">کارمزد سایت (۴٪): {formatPriceNumber(commission)} تومان</p>
+                    <p className="text-foreground font-bold">قیمت نهایی برای خریدار: {formatPriceNumber(totalPrice)} تومان</p>
                   </div>
                 </>
               )}
@@ -1005,24 +1413,24 @@ function CalendarView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">تقویم کلاس‌ها</h2>
-        <p className="mt-1 text-sm text-slate-400">برنامه کلاس‌ها و زمان‌بندی برگزاری.</p>
+        <h2 className="text-xl font-bold text-foreground">تقویم کلاس‌ها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">برنامه کلاس‌ها و زمان‌بندی برگزاری.</p>
       </div>
 
       {live.length > 0 && (
-        <Card className="border-cyan-400/20 bg-[#0b1a2a]">
-          <CardHeader><CardTitle className="text-sm text-cyan-200">کلاس‌های در حال برگزاری</CardTitle></CardHeader>
+        <Card className="border-primary/30 bg-card text-card-foreground">
+          <CardHeader><CardTitle className="text-sm text-foreground">کلاس‌های در حال برگزاری</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {live.map((r) => (
-              <div key={r._id} className="flex items-center justify-between rounded-lg border border-cyan-400/10 bg-white/[0.02] p-3">
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-primary/30 bg-background p-3">
                 <div>
-                  <p className="text-sm font-medium text-white">{r.title}</p>
-                  <p className="text-xs text-slate-400">{r.topic}</p>
-                  <p className="mt-1 text-[11px] text-cyan-300/70">⏱ شروع: {formatTimestampToShamsi(r.createdAt)}</p>
+                  <p className="text-sm font-medium text-foreground">{r.title}</p>
+                  <p className="text-xs text-muted-foreground">{r.topic}</p>
+                  <p className="mt-1 text-[11px] text-primary/70">⏱ شروع: {formatTimestampToShamsi(r.createdAt)}</p>
                   {r.platformUrl && (
                     <button
                       onClick={() => window.open(r.platformUrl!, "_blank", "noopener,noreferrer")}
-                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-cyan-500/15 px-2.5 py-1 text-[11px] font-medium text-cyan-300 transition-colors hover:bg-cyan-500/25"
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary/15 px-2.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/25"
                     >
                       <LinkIcon className="size-3" />
                       برگزاری در پلتفرم خارجی ↗
@@ -1030,8 +1438,8 @@ function CalendarView() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold text-red-300">LIVE</span>
-                  <button onClick={() => handleEndLive(r._id)} className="rounded-md bg-amber-500/15 px-2 py-1 text-[10px] font-bold text-amber-300 hover:bg-amber-500/25">پایان کلاس</button>
+                  <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-[10px] font-bold text-destructive">LIVE</span>
+                  <button onClick={() => handleEndLive(r._id)} className="rounded-md bg-amber-50/70 px-2 py-1 text-[10px] font-bold text-amber-600 hover:bg-amber-100">پایان کلاس</button>
                 </div>
               </div>
             ))}
@@ -1040,24 +1448,24 @@ function CalendarView() {
       )}
 
       {past.length > 0 && (
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardHeader><CardTitle className="text-sm text-white">کلاس‌های گذشته</CardTitle></CardHeader>
+        <Card className="border-border bg-background">
+          <CardHeader><CardTitle className="text-sm text-foreground">کلاس‌های گذشته</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {past.map((r) => (
-              <div key={r._id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.01] p-3">
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-300">{r.title}</p>
-                  <p className="text-xs text-slate-500">{r.topic}</p>
-                  <p className="mt-1 text-[11px] text-slate-500">📅 {formatTimestampToShamsi(r.createdAt)}</p>
+                  <p className="text-sm font-medium text-muted-foreground">{r.title}</p>
+                  <p className="text-xs text-muted-foreground">{r.topic}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">📅 {formatTimestampToShamsi(r.createdAt)}</p>
                   {r.platformUrl && (
-                    <p className="mt-1 text-[11px] text-slate-500">
+                    <p className="mt-1 text-[11px] text-muted-foreground">
                       🔗 پلتفرم: <a href={r.platformUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-2 hover:underline">{r.platformUrl}</a>
                     </p>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-slate-400">پایان‌یافته</span>
-                  <button onClick={() => handleDeletePast(r._id)} className="rounded-md bg-red-500/15 px-2 py-1 text-[10px] font-bold text-red-300 hover:bg-red-500/25">حذف</button>
+                  <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-muted-foreground">پایان‌یافته</span>
+                  <button onClick={() => handleDeletePast(r._id)} className="rounded-md bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive hover:bg-destructive/15">حذف</button>
                 </div>
               </div>
             ))}
@@ -1066,14 +1474,14 @@ function CalendarView() {
       )}
 
       {scheduled.length > 0 && (
-        <Card className="border-blue-400/20 bg-[#0b1a2a]">
+        <Card className="border-blue-400/20 bg-card text-card-foreground">
           <CardHeader><CardTitle className="text-sm text-blue-200">کلاس‌های زمان‌بندی‌شده</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {scheduled.map((r) => (
-              <div key={r._id} className="flex items-center justify-between rounded-lg border border-blue-400/10 bg-white/[0.02] p-3">
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-blue-400/10 bg-background p-3">
                 <div>
-                  <p className="text-sm font-medium text-white">{r.title}</p>
-                  <p className="text-xs text-slate-400">{r.topic}</p>
+                  <p className="text-sm font-medium text-foreground">{r.title}</p>
+                  <p className="text-xs text-muted-foreground">{r.topic}</p>
                   {r.scheduledDate && (
                     <p className="mt-1 text-[11px] text-blue-300/70">📅 {formatJalaliFull(r.scheduledDate)}</p>
                   )}
@@ -1097,10 +1505,10 @@ function CalendarView() {
       )}
 
       {live.length === 0 && scheduled.length === 0 && past.length === 0 && (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Calendar className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">هنوز کلاسی ثبت نشده است.</p>
+            <Calendar className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز کلاسی ثبت نشده است.</p>
           </CardContent>
         </Card>
       )}
@@ -1124,33 +1532,33 @@ function WebinarView({ rooms }: { rooms: RoomRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">وبینار</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <h2 className="text-xl font-bold text-foreground">وبینار</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           کلاس‌هایی که در پلتفرم خارجی برگزار می‌شوند.
         </p>
       </div>
 
       {myWebinars.length === 0 && pastWebinars.length === 0 ? (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <ExternalLink className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">هنوز وبیناری ثبت نشده است.</p>
-            <p className="text-[11px] text-slate-500">کلاس‌هایی که لینک پلتفرم خارجی دارند اینجا نمایش داده می‌شوند.</p>
+            <ExternalLink className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز وبیناری ثبت نشده است.</p>
+            <p className="text-[11px] text-muted-foreground">کلاس‌هایی که لینک پلتفرم خارجی دارند اینجا نمایش داده می‌شوند.</p>
           </CardContent>
         </Card>
       ) : (
         <>
           {myWebinars.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-slate-300">وبینارهای فعال</h3>
+              <h3 className="text-sm font-bold text-muted-foreground">وبینارهای فعال</h3>
               {myWebinars.map((r) => (
-                <Card key={r._id} className="border-cyan-400/20 bg-[#0b1a2a]">
+                <Card key={r._id} className="border-primary/30 bg-card text-card-foreground">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           {r.status === "live" && (
-                            <span className="flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+                            <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                               <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
                               LIVE
                             </span>
@@ -1161,17 +1569,17 @@ function WebinarView({ rooms }: { rooms: RoomRow[] }) {
                             </span>
                           )}
                         </div>
-                        <h4 className="mt-2 text-sm font-bold text-white">{r.title}</h4>
-                        <p className="mt-1 text-xs text-slate-400">{r.topic}</p>
+                        <h4 className="mt-2 text-sm font-bold text-foreground">{r.title}</h4>
+                        <p className="mt-1 text-xs text-muted-foreground">{r.topic}</p>
                         {r.scheduledDate && (
-                          <p className="mt-1 text-[11px] text-slate-500">
+                          <p className="mt-1 text-[11px] text-muted-foreground">
                             📅 {r.scheduledDate}
                           </p>
                         )}
                       </div>
                       <Button
                         size="sm"
-                        className="gap-1.5 bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+                        className="gap-1.5 bg-primary/20 text-primary hover:bg-primary/30"
                         onClick={() => window.open(r.platformUrl!, "_blank", "noopener,noreferrer")}
                       >
                         <ExternalLink className="size-3.5" />
@@ -1186,16 +1594,16 @@ function WebinarView({ rooms }: { rooms: RoomRow[] }) {
 
           {pastWebinars.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-slate-300">وبینارهای گذشته</h3>
+              <h3 className="text-sm font-bold text-muted-foreground">وبینارهای گذشته</h3>
               {pastWebinars.map((r) => (
-                <Card key={r._id} className="border-white/5 bg-white/[0.02]">
+                <Card key={r._id} className="border-border bg-background">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="text-sm font-medium text-slate-300">{r.title}</h4>
-                        <p className="text-xs text-slate-500">{r.topic}</p>
+                        <h4 className="text-sm font-medium text-muted-foreground">{r.title}</h4>
+                        <p className="text-xs text-muted-foreground">{r.topic}</p>
                       </div>
-                      <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                      <span className="rounded-full bg-slate-500/15 px-2.5 py-1 text-[10px] font-bold text-muted-foreground">
                         پایان‌یافته
                       </span>
                     </div>
@@ -1240,43 +1648,43 @@ function AttendanceView({ rooms }: { rooms: RoomRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">حضور و غیاب</h2>
-        <p className="mt-1 text-sm text-slate-400">مدیریت حضور دانشجویان در کلاس‌های خود.</p>
+        <h2 className="text-xl font-bold text-foreground">حضور و غیاب</h2>
+        <p className="mt-1 text-sm text-muted-foreground">مدیریت حضور دانشجویان در کلاس‌های خود.</p>
       </div>
       {!selectedRoom ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {myRooms.length === 0 ? (
-            <Card className="border-white/5 bg-white/[0.02]">
+            <Card className="border-border bg-background">
               <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-                <CheckCircle2 className="size-8 text-slate-600" />
-                <p className="text-sm text-slate-400">کلاسی از شما وجود ندارد.</p>
+                <CheckCircle2 className="size-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">کلاسی از شما وجود ندارد.</p>
               </CardContent>
             </Card>
           ) : (
             myRooms.map((r) => (
-              <button key={r._id} onClick={() => setSelectedRoom(r._id)} className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-right hover:border-cyan-400/30">
-                <p className="font-bold text-white">{r.title}</p>
-                <p className="mt-1 text-xs text-slate-400">{r.messageCount} پیام · {r.status}</p>
+              <button key={r._id} onClick={() => setSelectedRoom(r._id)} className="rounded-xl border border-border bg-background p-4 text-right hover:border-primary/30">
+                <p className="font-bold text-foreground">{r.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{r.messageCount} پیام · {r.status}</p>
               </button>
             ))
           )}
         </div>
       ) : (
         <div className="space-y-3">
-          <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => setSelectedRoom(null)}>← بازگشت</Button>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSelectedRoom(null)}>← بازگشت</Button>
           {students.length === 0 ? (
-            <Card className="border-white/5 bg-white/[0.02]">
-              <CardContent className="py-8 text-center text-sm text-slate-400">دانشجویی در این کلاس پیام نداده است.</CardContent>
+            <Card className="border-border bg-background">
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">دانشجویی در این کلاس پیام نداده است.</CardContent>
             </Card>
           ) : (
             students.map((s: any) => {
               const att = attendance.find((a: any) => String(a.studentId) === String(s._id));
               return (
-                <div key={s._id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] p-3">
-                  <span className="text-sm text-white">{s.name}</span>
+                <div key={s._id} className="flex items-center justify-between rounded-lg border border-border bg-background p-3">
+                  <span className="text-sm text-foreground">{s.name}</span>
                   <div className="flex gap-2">
-                    <Button size="sm" className={`h-7 text-xs ${att?.present ? "bg-green-600" : "bg-white/10 text-slate-400"}`} onClick={() => handleMark(s._id, s.name, true)}>حضور</Button>
-                    <Button size="sm" className={`h-7 text-xs ${att && !att.present ? "bg-red-600" : "bg-white/10 text-slate-400"}`} onClick={() => handleMark(s._id, s.name, false)}>غیاب</Button>
+                    <Button size="sm" className={`h-7 text-xs ${att?.present ? "bg-green-600" : "bg-muted text-muted-foreground"}`} onClick={() => handleMark(s._id, s.name, true)}>حضور</Button>
+                    <Button size="sm" className={`h-7 text-xs ${att && !att.present ? "bg-red-600" : "bg-muted text-muted-foreground"}`} onClick={() => handleMark(s._id, s.name, false)}>غیاب</Button>
                   </div>
                 </div>
               );
@@ -1313,31 +1721,31 @@ function StudentsAllView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">دانشجویان من</h2>
-        <p className="mt-1 text-sm text-slate-400">{performance.length} دانشجو در کلاس‌های شما</p>
+        <h2 className="text-xl font-bold text-foreground">دانشجویان من</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{performance.length} دانشجو در کلاس‌های شما</p>
       </div>
       {performance.length === 0 ? (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Users className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">دانشجویی در کلاس‌های شما شرکت نکرده است.</p>
+            <Users className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">دانشجویی در کلاس‌های شما شرکت نکرده است.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {performance.map((s: any) => (
-            <Card key={s.studentId} className="border-white/5 bg-white/[0.02]">
+            <Card key={s.studentId} className="border-border bg-background">
               <CardContent className="space-y-3 py-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-bold text-cyan-300">
+                  <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                     {(s.name ?? "?")[0]}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white">{s.name}</p>
-                    <p className="text-xs text-slate-400">{s.questions} سؤال · {s.messages} پیام · {s.attendance}/{s.totalRooms} حضور</p>
+                    <p className="text-sm font-medium text-foreground">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">{s.questions} سؤال · {s.messages} پیام · {s.attendance}/{s.totalRooms} حضور</p>
                   </div>
                 </div>
-                <Button size="sm" variant="ghost" className="w-full h-7 text-xs text-cyan-300" onClick={() => setMsgTarget(s.studentId)}>
+                <Button size="sm" variant="ghost" className="w-full h-7 text-xs text-primary" onClick={() => setMsgTarget(s.studentId)}>
                   <Send className="ml-1 size-3" /> ارسال پیام
                 </Button>
               </CardContent>
@@ -1348,7 +1756,7 @@ function StudentsAllView() {
       <Dialog open={!!msgTarget} onOpenChange={(o) => { if (!o) { setMsgTarget(null); setMsgText(""); } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>ارسال پیام به دانشجو</DialogTitle></DialogHeader>
-          <Textarea placeholder="متن پیام…" value={msgText} onChange={(e) => setMsgText(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+          <Textarea placeholder="متن پیام…" value={msgText} onChange={(e) => setMsgText(e.target.value)} className="border-border bg-muted text-foreground" />
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="ghost" size="sm" onClick={() => { setMsgTarget(null); setMsgText(""); }}>انصراف</Button>
             <Button size="sm" onClick={handleSendMsg}><Send className="ml-1 size-4" /> ارسال</Button>
@@ -1367,13 +1775,13 @@ function StudentsPerformanceView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">عملکرد دانشجویان</h2>
-        <p className="mt-1 text-sm text-slate-400">بررسی عملکرد تحصیلی دانشجویان.</p>
+        <h2 className="text-xl font-bold text-foreground">عملکرد دانشجویان</h2>
+        <p className="mt-1 text-sm text-muted-foreground">بررسی عملکرد تحصیلی دانشجویان.</p>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
+      <Card className="border-border bg-background">
         <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <TrendingUp className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش عملکرد به‌زودی فعال خواهد شد.</p>
+          <TrendingUp className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">بخش عملکرد به‌زودی فعال خواهد شد.</p>
         </CardContent>
       </Card>
     </div>
@@ -1388,13 +1796,13 @@ function StudentsAttentionView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">دانشجویان نیازمند توجه</h2>
-        <p className="mt-1 text-sm text-slate-400">دانشجویانی که نیاز به توجه ویژه دارند.</p>
+        <h2 className="text-xl font-bold text-foreground">دانشجویان نیازمند توجه</h2>
+        <p className="mt-1 text-sm text-muted-foreground">دانشجویانی که نیاز به توجه ویژه دارند.</p>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
+      <Card className="border-border bg-background">
         <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <Target className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش نیازمند توجه به‌زودی فعال خواهد شد.</p>
+          <Target className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">بخش نیازمند توجه به‌زودی فعال خواهد شد.</p>
         </CardContent>
       </Card>
     </div>
@@ -1435,18 +1843,18 @@ function HomeworkView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">تکالیف</h2>
-          <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت تکالیف دانشجویان.</p>
+          <h2 className="text-xl font-bold text-foreground">تکالیف</h2>
+          <p className="mt-1 text-sm text-muted-foreground">ایجاد و مدیریت تکالیف دانشجویان.</p>
         </div>
-        <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => setShowCreate(true)}>
+        <Button className="bg-primary/10 text-foreground hover:bg-primary/15" onClick={() => setShowCreate(true)}>
           <Plus className="ml-1.5 size-4" />ساخت تکلیف جدید
         </Button>
       </div>
 
-      <Card className="border-white/5 bg-white/[0.02]">
+      <Card className="border-border bg-background">
         <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <FileText className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">تکالیف‌های ساخته‌شده در اینجا نمایش داده خواهند شد.</p>
+          <FileText className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">تکالیف‌های ساخته‌شده در اینجا نمایش داده خواهند شد.</p>
         </CardContent>
       </Card>
 
@@ -1469,14 +1877,14 @@ function HomeworkView() {
             {mode === "ai" ? (
               <>
                 <Textarea placeholder="موضوع و توضیح تکلیف (مثلاً: تکلیف درباره ساختار DNA و RNA)" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={3} />
-                <Button size="sm" onClick={handleAIGenerate} disabled={generating} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+                <Button size="sm" onClick={handleAIGenerate} disabled={generating} className="bg-primary/10 text-primary hover:bg-primary/15">
                   {generating ? <Loader2 className="ml-1 size-3.5 animate-spin" /> : <Bot className="ml-1 size-3.5" />}
                   تولید تکلیف با هوش مصنوعی
                 </Button>
                 {generatedText && (
-                  <div className="rounded-lg border border-purple-400/20 bg-purple-400/5 p-3">
-                    <p className="text-xs font-bold text-purple-200 mb-2">پیش‌نمایش تکلیف تولیدشده:</p>
-                    <Textarea value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} rows={8} className="border-purple-400/20 bg-transparent text-xs text-slate-300" />
+                  <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <p className="text-xs font-bold text-primary mb-2">پیش‌نمایش تکلیف تولیدشده:</p>
+                    <Textarea value={generatedText} onChange={(e) => setGeneratedText(e.target.value)} rows={8} className="border-primary/30 bg-transparent text-xs text-muted-foreground" />
                   </div>
                 )}
               </>
@@ -1584,10 +1992,10 @@ function ExamsView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">آزمون‌ها</h2>
-          <p className="mt-1 text-sm text-slate-400">ایجاد و مدیریت آزمون‌ها.</p>
+          <h2 className="text-xl font-bold text-foreground">آزمون‌ها</h2>
+          <p className="mt-1 text-sm text-muted-foreground">ایجاد و مدیریت آزمون‌ها.</p>
         </div>
-        <Button className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={() => setShowCreate(true)}>
+        <Button className="bg-primary/10 text-foreground hover:bg-primary/15" onClick={() => setShowCreate(true)}>
           <Plus className="ml-1.5 size-4" />ساخت آزمون جدید
         </Button>
       </div>
@@ -1596,20 +2004,20 @@ function ExamsView() {
       {exams.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {exams.map((e: any) => (
-            <Card key={e._id} className={`border-white/5 ${e.published ? "bg-cyan-400/5" : "bg-white/[0.02]"}`}>
+            <Card key={e._id} className={`border-border ${e.published ? "bg-primary/5" : "bg-background"}`}>
               <CardContent className="space-y-3 py-4">
                 <div className="flex items-start justify-between">
-                  <h3 className="font-bold text-white text-sm">{e.title}</h3>
-                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${e.published ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-slate-400/30 bg-slate-400/10 text-slate-400"}`}>
+                  <h3 className="font-bold text-foreground text-sm">{e.title}</h3>
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${e.published ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-slate-400/30 bg-slate-400/10 text-muted-foreground"}`}>
                     {e.published ? "منتشر" : "پیش‌نویس"}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">{e.questionCount} سؤال · {e.durationMinutes} دقیقه</p>
+                <p className="text-xs text-muted-foreground">{e.questionCount} سؤال · {e.durationMinutes} دقیقه</p>
                 <div className="flex gap-1.5">
-                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-cyan-300 hover:text-cyan-200" onClick={() => togglePublish({ id: e._id, published: !e.published })}>
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-primary hover:text-foreground" onClick={() => togglePublish({ id: e._id, published: !e.published })}>
                     {e.published ? "پیش‌نویس" : "انتشار"}
                   </Button>
-                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-red-400 hover:text-red-300" onClick={() => { if (confirm("حذف شود؟")) deleteExam({ id: e._id }); }}>
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px] text-destructive hover:text-destructive" onClick={() => { if (confirm("حذف شود؟")) deleteExam({ id: e._id }); }}>
                     <Trash2 className="size-3" />
                   </Button>
                 </div>
@@ -1618,10 +2026,10 @@ function ExamsView() {
           ))}
         </div>
       ) : (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Clock className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">هنوز آزمونی ساخته نشده است.</p>
+            <Clock className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز آزمونی ساخته نشده است.</p>
           </CardContent>
         </Card>
       )}
@@ -1668,20 +2076,20 @@ function ExamsView() {
                   </Select>
                 </div>
                 <Textarea placeholder="موضوع یا توضیح سؤالات مورد نیاز (مثلاً: سؤالات میکروبیولوژی درباره باکتری‌های گرم مثبت)" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} rows={3} />
-                <Button size="sm" onClick={handleAIGenerate} disabled={generating} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+                <Button size="sm" onClick={handleAIGenerate} disabled={generating} className="bg-primary/10 text-primary hover:bg-primary/15">
                   {generating ? <Loader2 className="ml-1 size-3.5 animate-spin" /> : <Bot className="ml-1 size-3.5" />}
                   تولید سؤال با هوش مصنوعی
                 </Button>
                 {generated.length > 0 && (
-                  <div className="space-y-2 rounded-lg border border-purple-400/20 bg-purple-400/5 p-3">
-                    <p className="text-xs font-bold text-purple-200">{generated.length} سؤال تولید شد — پیش‌نمایش:</p>
+                  <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                    <p className="text-xs font-bold text-primary">{generated.length} سؤال تولید شد — پیش‌نمایش:</p>
                     {generated.slice(0, 3).map((q, i) => (
-                      <div key={i} className="text-xs text-slate-300">
+                      <div key={i} className="text-xs text-muted-foreground">
                         <p className="font-medium">{i + 1}. {q.text}</p>
-                        <p className="text-slate-500 mt-0.5">پاسخ صحیح: {q.options[q.correctIndex]}</p>
+                        <p className="text-muted-foreground mt-0.5">پاسخ صحیح: {q.options[q.correctIndex]}</p>
                       </div>
                     ))}
-                    {generated.length > 3 && <p className="text-[10px] text-slate-500">و {generated.length - 3} سؤال دیگر…</p>}
+                    {generated.length > 3 && <p className="text-[10px] text-muted-foreground">و {generated.length - 3} سؤال دیگر…</p>}
                   </div>
                 )}
               </>
@@ -1708,13 +2116,13 @@ function GradesView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">نمرات</h2>
-        <p className="mt-1 text-sm text-slate-400">مشاهده و مدیریت نمرات دانشجویان.</p>
+        <h2 className="text-xl font-bold text-foreground">نمرات</h2>
+        <p className="mt-1 text-sm text-muted-foreground">مشاهده و مدیریت نمرات دانشجویان.</p>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
+      <Card className="border-border bg-background">
         <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-          <Star className="size-8 text-slate-600" />
-          <p className="text-sm text-slate-400">بخش نمرات به‌زودی فعال خواهد شد.</p>
+          <Star className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">بخش نمرات به‌زودی فعال خواهد شد.</p>
         </CardContent>
       </Card>
     </div>
@@ -1753,16 +2161,16 @@ function QAView({ rooms }: { rooms: RoomRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">پرسش و پاسخ</h2>
-        <p className="mt-1 text-sm text-slate-400">انتخاب کلاس برای مشاهده سؤالات دانشجویان.</p>
+        <h2 className="text-xl font-bold text-foreground">پرسش و پاسخ</h2>
+        <p className="mt-1 text-sm text-muted-foreground">انتخاب کلاس برای مشاهده سؤالات دانشجویان.</p>
       </div>
       {!selectedRoom ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {liveRooms.length === 0 ? (
-            <Card className="border-white/5 bg-white/[0.02]">
+            <Card className="border-border bg-background">
               <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-                <HelpCircle className="size-8 text-slate-600" />
-                <p className="text-sm text-slate-400">کلاس فعالی وجود ندارد.</p>
+                <HelpCircle className="size-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">کلاس فعالی وجود ندارد.</p>
               </CardContent>
             </Card>
           ) : (
@@ -1770,36 +2178,36 @@ function QAView({ rooms }: { rooms: RoomRow[] }) {
               <button
                 key={r._id}
                 onClick={() => setSelectedRoom(r._id)}
-                className="rounded-xl border border-cyan-400/15 bg-[#0b1a2a] p-4 text-right transition-all hover:border-cyan-400/40 hover:bg-[#0e2033]"
+                className="rounded-xl border border-primary/30 bg-card text-card-foreground p-4 text-right transition-all hover:border-primary/40 hover:bg-card"
               >
-                <h3 className="font-bold text-white">{r.title}</h3>
-                <p className="mt-1 text-xs text-slate-400">{r.openQuestions} سؤال بی‌پاسخ</p>
+                <h3 className="font-bold text-foreground">{r.title}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">{r.openQuestions} سؤال بی‌پاسخ</p>
               </button>
             ))
           )}
         </div>
       ) : (
         <div className="space-y-3">
-          <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => setSelectedRoom(null)}>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSelectedRoom(null)}>
             ← بازگشت به لیست کلاس‌ها
           </Button>
           {questions.length === 0 ? (
-            <Card className="border-white/5 bg-white/[0.02]">
+            <Card className="border-border bg-background">
               <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-                <HelpCircle className="size-8 text-slate-600" />
-                <p className="text-sm text-slate-400">سؤالی در این کلاس ثبت نشده است.</p>
+                <HelpCircle className="size-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">سؤالی در این کلاس ثبت نشده است.</p>
               </CardContent>
             </Card>
           ) : (
             questions.map((q: any) => (
-              <Card key={q._id} className={`border-white/5 ${q.answer ? "bg-white/[0.01]" : "bg-amber-400/5"}`}>
+              <Card key={q._id} className={`border-border ${q.answer ? "bg-background" : "bg-amber-50/70"}`}>
                 <CardContent className="space-y-3 py-4">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-white">{q.text}</p>
+                    <p className="text-sm text-foreground">{q.text}</p>
                     {q.answer ? (
                       <span className="shrink-0 rounded-full bg-green-400/15 px-2 py-0.5 text-[10px] font-bold text-green-300">پاسخ داده شد</span>
                     ) : (
-                      <span className="shrink-0 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">بی‌پاسخ</span>
+                      <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">بی‌پاسخ</span>
                     )}
                   </div>
                   {q.answer && <p className="rounded-lg bg-green-400/5 p-2 text-xs text-green-200">{q.answer}</p>}
@@ -1809,7 +2217,7 @@ function QAView({ rooms }: { rooms: RoomRow[] }) {
                         placeholder="پاسخ…"
                         value={answers[q._id] ?? ""}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [q._id]: e.target.value }))}
-                        className="border-white/10 bg-white/5 text-sm text-slate-100"
+                        className="border-border bg-muted text-sm text-foreground"
                         onKeyDown={(e) => e.key === "Enter" && handleAnswer(q._id)}
                       />
                       <Button size="sm" className="shrink-0" onClick={() => handleAnswer(q._id)}>
@@ -1859,40 +2267,40 @@ function MessagesView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">پیام‌ها</h2>
-        <p className="mt-1 text-sm text-slate-400">ارتباط مستقیم با دانشجویان.</p>
+        <h2 className="text-xl font-bold text-foreground">پیام‌ها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">ارتباط مستقیم با دانشجویان.</p>
       </div>
       {!selectedPartner ? (
         conversations.length === 0 ? (
-          <Card className="border-white/5 bg-white/[0.02]">
+          <Card className="border-border bg-background">
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <MessageSquare className="size-8 text-slate-600" />
-              <p className="text-sm text-slate-400">پیامی وجود ندارد.</p>
+              <MessageSquare className="size-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">پیامی وجود ندارد.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-2">
             {conversations.map((c: any) => (
-              <button key={c.partnerId} onClick={() => setSelectedPartner(c.partnerId)} className="flex w-full items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] p-3 text-right hover:border-cyan-400/30">
-                <div className="flex size-10 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-bold text-cyan-300">{(c.partnerName ?? "?")[0]}</div>
+              <button key={c.partnerId} onClick={() => setSelectedPartner(c.partnerId)} className="flex w-full items-center gap-3 rounded-lg border border-border bg-background p-3 text-right hover:border-primary/30">
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{(c.partnerName ?? "?")[0]}</div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-white">{c.partnerName}</p>
-                  <p className="truncate text-xs text-slate-400">{c.lastMessage}</p>
+                  <p className="text-sm font-medium text-foreground">{c.partnerName}</p>
+                  <p className="truncate text-xs text-muted-foreground">{c.lastMessage}</p>
                 </div>
-                {c.unread > 0 && <span className="size-2 rounded-full bg-cyan-400" />}
+                {c.unread > 0 && <span className="size-2 rounded-full bg-primary" />}
               </button>
             ))}
           </div>
         )
       ) : (
         <div className="space-y-3">
-          <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => setSelectedPartner(null)}>← بازگشت</Button>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setSelectedPartner(null)}>← بازگشت</Button>
           <div className="max-h-96 space-y-2 overflow-y-auto">
             {messages.map((m: any) => {
               const isMine = String(m.senderId) !== selectedPartner;
               return (
                 <div key={m._id} className={`flex ${isMine ? "justify-start" : "justify-end"}`}>
-                  <div className={`max-w-[75%] rounded-xl px-4 py-2 text-sm ${isMine ? "bg-cyan-400/10 text-cyan-100" : "bg-white/10 text-white"}`}>
+                  <div className={`max-w-[75%] rounded-xl px-4 py-2 text-sm ${isMine ? "bg-primary/10 text-foreground" : "bg-muted text-foreground"}`}>
                     {m.text}
                   </div>
                 </div>
@@ -1900,7 +2308,7 @@ function MessagesView() {
             })}
           </div>
           <div className="flex gap-2">
-            <Input placeholder="پیام…" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" onKeyDown={(e) => e.key === "Enter" && handleSend()} />
+            <Input placeholder="پیام…" value={newMsg} onChange={(e) => setNewMsg(e.target.value)} className="border-border bg-muted text-foreground" onKeyDown={(e) => e.key === "Enter" && handleSend()} />
             <Button size="sm" onClick={handleSend}><Send className="size-4" /></Button>
           </div>
         </div>
@@ -1925,32 +2333,32 @@ function AnalyticsView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">تحلیل و آمار</h2>
-        <p className="mt-1 text-sm text-slate-400">آمار فعالیت کلاس‌ها و دانشجویان.</p>
+        <h2 className="text-xl font-bold text-foreground">تحلیل و آمار</h2>
+        <p className="mt-1 text-sm text-muted-foreground">آمار فعالیت کلاس‌ها و دانشجویان.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: "کل کلاس‌ها", value: myRooms.length, color: "text-cyan-400" },
-          { label: "کلاس‌های فعال", value: liveRooms.length, color: "text-red-400" },
-          { label: "دانشجویان", value: performance.length, color: "text-emerald-400" },
-          { label: "کل پیام‌ها", value: totalMessages, color: "text-amber-400" },
+          { label: "کل کلاس‌ها", value: myRooms.length, color: "text-primary" },
+          { label: "کلاس‌های فعال", value: liveRooms.length, color: "text-destructive" },
+          { label: "دانشجویان", value: performance.length, color: "text-emerald-600" },
+          { label: "کل پیام‌ها", value: totalMessages, color: "text-amber-600" },
         ].map((s) => (
-          <Card key={s.label} className="border-white/5 bg-white/[0.02]">
+          <Card key={s.label} className="border-border bg-background">
             <CardContent className="py-4 text-center">
               <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
-              <p className="mt-1 text-xs text-slate-400">{s.label}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
             </CardContent>
           </Card>
         ))}
       </div>
       {performance.length > 0 && (
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardHeader><CardTitle className="text-sm text-white">فعال‌ترین دانشجویان</CardTitle></CardHeader>
+        <Card className="border-border bg-background">
+          <CardHeader><CardTitle className="text-sm text-foreground">فعال‌ترین دانشجویان</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {performance.sort((a: any, b: any) => (b.questions + b.messages) - (a.questions + a.messages)).slice(0, 5).map((s: any) => (
-              <div key={s.studentId} className="flex items-center justify-between rounded-lg bg-white/[0.02] p-3">
-                <span className="text-sm text-white">{s.name}</span>
-                <span className="text-xs text-slate-400">{s.questions + s.messages} فعالیت</span>
+              <div key={s.studentId} className="flex items-center justify-between rounded-lg bg-background p-3">
+                <span className="text-sm text-foreground">{s.name}</span>
+                <span className="text-xs text-muted-foreground">{s.questions + s.messages} فعالیت</span>
               </div>
             ))}
           </CardContent>
@@ -1973,21 +2381,21 @@ function ReportsView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">گزارش‌ها</h2>
-        <p className="mt-1 text-sm text-slate-400">گزارش عملکرد کلاس‌ها و دانشجویان.</p>
+        <h2 className="text-xl font-bold text-foreground">گزارش‌ها</h2>
+        <p className="mt-1 text-sm text-muted-foreground">گزارش عملکرد کلاس‌ها و دانشجویان.</p>
       </div>
-      <Card className="border-white/5 bg-white/[0.02]">
-        <CardHeader><CardTitle className="text-sm text-white">خلاصه کلاس‌ها</CardTitle></CardHeader>
+      <Card className="border-border bg-background">
+        <CardHeader><CardTitle className="text-sm text-foreground">خلاصه کلاس‌ها</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           {myRooms.length === 0 ? (
-            <p className="text-sm text-slate-400">کلاسی ثبت نشده است.</p>
+            <p className="text-sm text-muted-foreground">کلاسی ثبت نشده است.</p>
           ) : myRooms.map((r) => (
-            <div key={r._id} className="flex items-center justify-between rounded-lg bg-white/[0.02] p-3">
+            <div key={r._id} className="flex items-center justify-between rounded-lg bg-background p-3">
               <div>
-                <p className="text-sm font-medium text-white">{r.title}</p>
-                <p className="text-xs text-slate-400">{r.topic}</p>
+                <p className="text-sm font-medium text-foreground">{r.title}</p>
+                <p className="text-xs text-muted-foreground">{r.topic}</p>
               </div>
-              <span className="text-xs text-slate-400">{r.messageCount} پیام</span>
+              <span className="text-xs text-muted-foreground">{r.messageCount} پیام</span>
             </div>
           ))}
         </CardContent>
@@ -2064,14 +2472,14 @@ function AIAssistantView() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-white">دستیار هوشمند</h2>
-        <p className="mt-1 text-sm text-slate-400">چت مستقیم با هوش مصنوعی برای تولید محتوا و پاسخ به سؤالات.</p>
+        <h2 className="text-xl font-bold text-foreground">دستیار هوشمند</h2>
+        <p className="mt-1 text-sm text-muted-foreground">چت مستقیم با هوش مصنوعی برای تولید محتوا و پاسخ به سؤالات.</p>
       </div>
 
       <div className="flex gap-3" style={{ height: "calc(100vh - 260px)", minHeight: "400px" }}>
         {/* Sidebar — conversations */}
-        <div className="hidden w-52 shrink-0 flex-col gap-2 rounded-xl border border-white/5 bg-[#0b1220] p-3 md:flex">
-          <Button size="sm" className="w-full bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={handleNewChat}>
+        <div className="hidden w-52 shrink-0 flex-col gap-2 rounded-xl border border-border bg-card p-3 md:flex">
+          <Button size="sm" className="w-full bg-primary/10 text-foreground hover:bg-primary/15" onClick={handleNewChat}>
             <Plus className="ml-1 size-3.5" />چت جدید
           </Button>
           <div className="mt-2 flex-1 space-y-1 overflow-y-auto">
@@ -2079,29 +2487,29 @@ function AIAssistantView() {
               <button
                 key={c._id}
                 onClick={() => { setSelectedConvo(c._id); }}
-                className={`flex w-full items-center justify-between gap-1 rounded-lg px-2.5 py-2 text-right text-xs transition-colors ${selectedConvo === c._id ? "bg-cyan-400/10 text-cyan-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+                className={`flex w-full items-center justify-between gap-1 rounded-lg px-2.5 py-2 text-right text-xs transition-colors ${selectedConvo === c._id ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
               >
                 <span className="truncate">{c.title}</span>
                 <button
-                  className="shrink-0 text-red-400/50 hover:text-red-400"
+                  className="shrink-0 text-destructive/50 hover:text-destructive"
                   onClick={(e) => { e.stopPropagation(); if (confirm("حذف شود؟")) deleteConvo({ conversationId: c._id }); }}
                 >
                   <X className="size-3" />
                 </button>
               </button>
             ))}
-            {conversations.length === 0 && <p className="py-8 text-center text-[11px] text-slate-600">چتی وجود ندارد</p>}
+            {conversations.length === 0 && <p className="py-8 text-center text-[11px] text-muted-foreground">چتی وجود ندارد</p>}
           </div>
         </div>
 
         {/* Main chat area */}
-        <div className="flex flex-1 flex-col rounded-xl border border-white/5 bg-[#0b1220]">
+        <div className="flex flex-1 flex-col rounded-xl border border-border bg-card">
           {/* Mobile conversation picker */}
           {!selectedConvo && (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center md:hidden">
-              <Bot className="size-10 text-cyan-400/60" />
-              <p className="text-sm text-slate-400">یک چت جدید بسازید یا چت قبلی را انتخاب کنید.</p>
-              <Button size="sm" className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={handleNewChat}>
+              <Bot className="size-10 text-primary/60" />
+              <p className="text-sm text-muted-foreground">یک چت جدید بسازید یا چت قبلی را انتخاب کنید.</p>
+              <Button size="sm" className="bg-primary/10 text-foreground hover:bg-primary/15" onClick={handleNewChat}>
                 <Plus className="ml-1 size-3.5" />چت جدید
               </Button>
             </div>
@@ -2113,11 +2521,11 @@ function AIAssistantView() {
               <div className="flex-1 space-y-3 overflow-y-auto p-4">
                 {(messages ?? []).map((m: any) => (
                   <div key={m._id} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
-                    <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${m.role === "user" ? "bg-white/5 text-slate-200" : "bg-cyan-400/10 text-cyan-100"}`}>
+                    <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm ${m.role === "user" ? "bg-muted text-foreground" : "bg-primary/10 text-foreground"}`}>
                       <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
                       {m.role === "assistant" && (
                         <div className="mt-2 flex gap-1">
-                          <button className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-white" onClick={() => { navigator.clipboard.writeText(m.content); toast.success("کپی شد"); }}>
+                          <button className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground" onClick={() => { navigator.clipboard.writeText(m.content); toast.success("کپی شد"); }}>
                             کپی
                           </button>
                         </div>
@@ -2127,7 +2535,7 @@ function AIAssistantView() {
                 ))}
                 {isSending && (
                   <div className="flex justify-end">
-                    <div className="rounded-xl bg-cyan-400/10 px-4 py-2.5 text-sm text-cyan-200">
+                    <div className="rounded-xl bg-primary/10 px-4 py-2.5 text-sm text-foreground">
                       <span className="animate-pulse">در حال پاسخ‌گویی…</span>
                     </div>
                   </div>
@@ -2137,9 +2545,9 @@ function AIAssistantView() {
 
               {/* Model picker — same models as the main AI chat */}
               {activeModels.length > 0 && (
-                <div className="border-t border-white/5 px-4 pt-2">
+                <div className="border-t border-border px-4 pt-2">
                   <div className="flex items-center gap-1.5 flex-wrap pb-1">
-                    <span className="text-[10px] text-slate-400">مدل:</span>
+                    <span className="text-[10px] text-muted-foreground">مدل:</span>
                     {activeModels.map((m: any) => (
                       <button
                         key={m._id}
@@ -2147,15 +2555,15 @@ function AIAssistantView() {
                         title={selectedModelId === m._id ? "برای بازگشت به مدل پیشفرض دوباره کلیک کنید" : undefined}
                         className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
                           selectedModelId === m._id
-                            ? "bg-cyan-400/25 text-cyan-100 ring-1 ring-cyan-400/40"
-                            : "bg-white/5 text-slate-400 hover:text-white"
+                            ? "bg-primary/25 text-foreground ring-1 ring-cyan-400/40"
+                            : "bg-muted text-muted-foreground hover:text-foreground"
                         }`}
                       >
                         {m.name}
                         {m.isFree && <span className="mr-1 text-[9px] opacity-70">رایگان</span>}
                       </button>
                     ))}
-                    <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
                       {selectedModelId ? "فعال" : "مدل پیشفرض فعال"}
                     </span>
                   </div>
@@ -2163,18 +2571,18 @@ function AIAssistantView() {
               )}
 
               {/* Input */}
-              <div className="border-t border-white/5 p-3">
+              <div className="border-t border-border p-3">
                 <div className="flex gap-2">
                   <Input
                     ref={null}
                     placeholder="پیام خود را بنویسید…"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    className="border-white/10 bg-white/5 text-sm text-slate-100"
+                    className="border-border bg-muted text-sm text-foreground"
                     onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
                     disabled={isSending}
                   />
-                  <Button size="sm" onClick={handleSend} disabled={isSending || !input.trim()} className="shrink-0 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20">
+                  <Button size="sm" onClick={handleSend} disabled={isSending || !input.trim()} className="shrink-0 bg-primary/10 text-foreground hover:bg-primary/15">
                     <Send className="size-4" />
                   </Button>
                 </div>
@@ -2267,8 +2675,8 @@ function RoomsView({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">کلاس‌های زنده</h2>
-          <p className="mt-1 text-sm text-slate-400">
+          <h2 className="text-xl font-bold text-foreground">کلاس‌های زنده</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             {liveFiltered.length} کلاس{hideOthers ? " خودم" : ""} در حال برگزاری
           </p>
         </div>
@@ -2276,20 +2684,20 @@ function RoomsView({
           <Button
             variant="ghost"
             size="sm"
-            className={`h-8 rounded-lg text-xs ${hideOthers ? "text-slate-400" : "text-cyan-300"}`}
+            className={`h-8 rounded-lg text-xs ${hideOthers ? "text-muted-foreground" : "text-primary"}`}
             onClick={() => setHideOthers((s) => !s)}
           >
             {hideOthers ? "نمایش همه" : "فقط خودم"}
           </Button>
           <Button
-            className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
+            className="border-primary/30 bg-primary/10 text-foreground hover:bg-primary/15"
             onClick={() => { setShowCreate(false); setShowRequest((s) => !s); }}
           >
             <Send className="size-4" />
             درخواست کلاس
           </Button>
           <Button
-            className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20"
+            className="border-primary/30 bg-primary/10 text-foreground hover:bg-primary/15"
             onClick={() => { setShowRequest(false); setShowCreate((s) => !s); }}
           >
             <Plus className="size-4" />
@@ -2300,14 +2708,14 @@ function RoomsView({
 
       {/* ── Create form (direct) ── */}
       {showCreate && (
-        <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+        <Card className="border-primary/30 bg-card text-card-foreground">
           <CardHeader>
-            <CardTitle className="text-sm text-cyan-200">ایجاد کلاس زنده</CardTitle>
+            <CardTitle className="text-sm text-foreground">ایجاد کلاس زنده</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+            <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+            <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>انصراف</Button>
               <Button size="sm" onClick={handleCreate}>
@@ -2320,18 +2728,18 @@ function RoomsView({
 
       {/* ── Request form (to admin) ── */}
       {showRequest && (
-        <Card className="border-amber-400/20 bg-amber-400/5">
+        <Card className="border-amber-200 bg-amber-50/70">
           <CardHeader>
-            <CardTitle className="text-sm text-amber-200">درخواست تشکیل کلاس</CardTitle>
-            <p className="text-xs text-amber-300/60 mt-1">درخواست شما برای مدیر سایت ارسال می‌شود.</p>
+            <CardTitle className="text-sm text-amber-600">درخواست تشکیل کلاس</CardTitle>
+            <p className="text-xs text-amber-600/60 mt-1">درخواست شما برای مدیر سایت ارسال می‌شود.</p>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-            <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+            <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+            <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+            <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
             <JalaliDatePicker value={immediate ? "" : proposedDate} onChange={setProposedDate} placeholder="تاریخ پیشنهادی" className="w-full" />
-            <label className="flex items-center gap-2 text-sm text-amber-200 cursor-pointer">
-              <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} className="size-4 rounded border-amber-400/30 bg-amber-400/10 accent-amber-400" />
+            <label className="flex items-center gap-2 text-sm text-amber-600 cursor-pointer">
+              <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} className="size-4 rounded border-amber-200 bg-amber-50 accent-amber-400" />
               <span>فوری — بدون زمان مشخص ارسال شود</span>
             </label>
             <div className="flex justify-end gap-2">
@@ -2345,10 +2753,10 @@ function RoomsView({
       )}
 
       {liveFiltered.length === 0 && !showCreate && !showRequest && (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Video className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">
+            <Video className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
               {hideOthers ? "کلاس فعالی از شما وجود ندارد." : "کلاسی در حال برگزاری نیست."}
             </p>
           </CardContent>
@@ -2363,16 +2771,16 @@ function RoomsView({
 
       {/* Pending requests */}
       {myPending.length > 0 && (
-        <Card className="border-amber-400/15 bg-amber-400/5">
-          <CardHeader><CardTitle className="text-sm text-amber-200">درخواست‌های در انتظار</CardTitle></CardHeader>
+        <Card className="border-amber-200 bg-amber-50/70">
+          <CardHeader><CardTitle className="text-sm text-amber-600">درخواست‌های در انتظار</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {myPending.map((r: any) => (
-              <div key={r._id} className="flex items-center justify-between rounded-lg border border-amber-400/10 bg-white/[0.02] p-3">
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-amber-400/10 bg-background p-3">
                 <div>
-                  <p className="text-sm font-medium text-white">{r.title}</p>
-                  <p className="text-xs text-slate-400">تاریخ پیشنهادی: {r.proposedDate ? formatJalaliFull(r.proposedDate) : "—"}</p>
+                  <p className="text-sm font-medium text-foreground">{r.title}</p>
+                  <p className="text-xs text-muted-foreground">تاریخ پیشنهادی: {r.proposedDate ? formatJalaliFull(r.proposedDate) : "—"}</p>
                 </div>
-                <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-[10px] font-bold text-amber-300">در انتظار</span>
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-600">در انتظار</span>
               </div>
             ))}
           </CardContent>
@@ -2381,7 +2789,7 @@ function RoomsView({
 
       {past.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
             کلاس‌های گذشته ({past.length})
           </p>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -2441,46 +2849,46 @@ function RoomCard({
         onClick={() => onOpen(room._id)}
         className={`group min-w-0 rounded-xl border p-4 text-right transition-all ${
           isPast
-            ? "border-white/5 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]"
-            : "border-cyan-400/15 bg-[#0b1a2a] hover:border-cyan-400/40 hover:bg-[#0e2033]"
+            ? "border-border bg-background hover:border-border hover:bg-background"
+            : "border-primary/30 bg-card text-card-foreground hover:border-primary/40 hover:bg-card"
         }`}
       >
         <div className="flex items-center justify-between gap-2">
           {isLive ? (
-            <span className="flex items-center gap-1.5 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+            <span className="flex items-center gap-1.5 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
               <CircleDot className="size-2.5 animate-pulse" />
               LIVE
             </span>
           ) : (
-            <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+            <span className="rounded-full bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
               پایان‌یافته
             </span>
           )}
-          <span className="font-mono text-[10px] text-slate-500">
+          <span className="font-mono text-[10px] text-muted-foreground">
             {room.messageCount} پیام
           </span>
         </div>
-        <h3 className="mt-3 break-words font-bold text-white group-hover:text-cyan-200">{room.title}</h3>
-        <p className="mt-1 break-words text-xs text-slate-400">{room.topic}</p>
+        <h3 className="mt-3 break-words font-bold text-foreground group-hover:text-foreground">{room.title}</h3>
+        <p className="mt-1 break-words text-xs text-muted-foreground">{room.topic}</p>
 
         {showCountdown && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-500/10 px-3 py-2">
-            <Clock className="size-3.5 text-red-400 animate-pulse" />
-            <span className="font-mono text-xs font-bold text-red-300">
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
+            <Clock className="size-3.5 text-destructive animate-pulse" />
+            <span className="font-mono text-xs font-bold text-destructive">
               {toPersianDigits(remainingMin)}:{toPersianDigits(String(remainingSec).padStart(2, "0"))}
             </span>
-            <span className="text-[10px] text-red-300/70">تا پایان</span>
+            <span className="text-[10px] text-destructive/70">تا پایان</span>
           </div>
         )}
 
-        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+        <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span className="flex min-w-0 items-center gap-1.5">
-            <BookUser className="size-3.5 shrink-0 text-cyan-300/70" />
+            <BookUser className="size-3.5 shrink-0 text-primary/70" />
             <span className="truncate">{room.instructorName}</span>
           </span>
           {isLive && (
             <span className="flex shrink-0 items-center gap-1.5">
-              <HelpCircle className="size-3.5 text-amber-300" />
+              <HelpCircle className="size-3.5 text-amber-600" />
               {room.openQuestions} سؤال
             </span>
           )}
@@ -2491,7 +2899,7 @@ function RoomCard({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10"
+              className="h-7 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={(e) => { e.stopPropagation(); setShowCancelConfirm(true); }}
             >
               لغو کلاس
@@ -2503,7 +2911,7 @@ function RoomCard({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10"
+              className="h-7 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={(e) => { e.stopPropagation(); setShowCancelConfirm(true); }}
             >
               حذف کلاس گذشته
@@ -2695,23 +3103,23 @@ function RoomView({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-400">
+          <Button variant="ghost" size="sm" onClick={onClose} className="text-muted-foreground">
             <X className="size-4" />
           </Button>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-white">{room?.title ?? detail?.title}</h2>
+              <h2 className="text-lg font-bold text-foreground">{room?.title ?? detail?.title}</h2>
               {isLive && (
-                <span className="flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+                <span className="flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
                   <CircleDot className="size-2.5 animate-pulse" />
                   LIVE
                 </span>
               )}
               {isLive && <ClassTimer startMs={detail?.createdAt} running />}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground">
               {room?.topic ?? detail?.topic} ·{" "}
-              <span className="text-cyan-300/70">مدرس: {room?.instructorName ?? detail?.instructorName}</span>
+              <span className="text-primary/70">مدرس: {room?.instructorName ?? detail?.instructorName}</span>
             </p>
           </div>
         </div>
@@ -2719,7 +3127,7 @@ function RoomView({
           <Button
             variant="outline"
             size="sm"
-            className="border-red-400/30 text-red-300 hover:bg-red-400/10"
+            className="border-destructive/30 text-destructive hover:bg-destructive/10"
             onClick={handleEnd}
           >
             <DoorOpen className="size-4" />
@@ -2729,7 +3137,7 @@ function RoomView({
       </div>
 
       {/* Sub-tabs: live / board / chat */}
-      <div className="flex gap-1 overflow-x-auto rounded-lg border border-white/5 bg-white/[0.02] p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border border-border bg-background p-1">
         {(
           [
             { id: "live", label: "پخش زنده", icon: Video },
@@ -2742,8 +3150,8 @@ function RoomView({
             onClick={() => setSubTab(t.id)}
             className={`flex shrink-0 items-center gap-1.5 rounded-md px-3.5 py-2 text-xs font-bold transition-colors ${
               subTab === t.id
-                ? "bg-cyan-400/15 text-cyan-200"
-                : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                ? "bg-primary/15 text-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
             }`}
           >
             <t.icon className="size-4" />
@@ -2767,18 +3175,18 @@ function RoomView({
         />
         {/* Voice request management for instructor */}
         {isLive && voiceRequests && (
-          <Card className="border-emerald-400/20 bg-[#0b1a2a] mt-3">
+          <Card className="border-emerald-200 bg-card text-card-foreground mt-3">
             <CardContent className="space-y-3 py-4">
               <div className="flex items-center gap-2">
-                <Mic className="size-4 text-emerald-400" />
-                <p className="text-sm font-bold text-emerald-200">مدیریت صدا</p>
+                <Mic className="size-4 text-emerald-600" />
+                <p className="text-sm font-bold text-emerald-700">مدیریت صدا</p>
                 {(voiceRequests.speakers?.length ?? 0) > 0 && (
-                  <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                  <span className="rounded-full bg-emerald-50/70 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
                     {(voiceRequests.speakers?.length ?? 0)} فعال
                   </span>
                 )}
                 {(voiceRequests.requests?.length ?? 0) > 0 && (
-                  <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-600">
                     {(voiceRequests.requests?.length ?? 0)} درخواست
                   </span>
                 )}
@@ -2786,12 +3194,12 @@ function RoomView({
               {/* Pending requests */}
               {(voiceRequests.requests?.length ?? 0) > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">درخواست‌های صحبت</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">درخواست‌های صحبت</p>
                   {voiceRequests.requests!.map((req) => (
-                    <div key={req.userId} className="flex items-center justify-between gap-2 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2">
-                      <span className="text-xs font-bold text-slate-200">{req.name}</span>
+                    <div key={req.userId} className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                      <span className="text-xs font-bold text-foreground">{req.name}</span>
                       <div className="flex gap-1.5">
-                        <Button size="sm" className="h-7 text-[10px] bg-emerald-500 hover:bg-emerald-400" onClick={async () => {
+                        <Button size="sm" className="h-7 text-[10px] bg-emerald-500 hover:bg-emerald-500" onClick={async () => {
                           try {
                             await approveSpeaker({ roomId: roomId as any, userId: req.userId as any });
                             toast.success(req.name + ' فعال شد');
@@ -2799,7 +3207,7 @@ function RoomView({
                         }}>
                           <CheckCircle2 className="ml-1 size-3" /> تأیید
                         </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={async () => {
+                        <Button size="sm" variant="ghost" className="h-7 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10" onClick={async () => {
                           try {
                             // Lower the request hand
                             await answerQuestion({ messageId: req.requestId as any, answer: 'denied' });
@@ -2816,14 +3224,14 @@ function RoomView({
               {/* Active speakers */}
               {(voiceRequests.speakers?.length ?? 0) > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">گویندگان فعال</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">گویندگان فعال</p>
                   {voiceRequests.speakers!.map((sp: { userId: string; name: string }) => (
-                    <div key={sp.userId} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
-                        <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
+                    <div key={sp.userId} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                        <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
                         {sp.name}
                       </span>
-                      <Button size="sm" variant="ghost" className="h-7 text-[10px] text-red-400 hover:text-red-300" onClick={async () => {
+                      <Button size="sm" variant="ghost" className="h-7 text-[10px] text-destructive hover:text-destructive" onClick={async () => {
                         try {
                           await removeSpeaker({ roomId: roomId as any, userId: sp.userId as any });
                           toast.info('گوینده غیرفعال شد');
@@ -2836,7 +3244,7 @@ function RoomView({
                 </div>
               )}
               {(voiceRequests.requests?.length ?? 0) === 0 && (voiceRequests.speakers?.length ?? 0) === 0 && (
-                <p className="text-xs text-slate-500">دانشجویان می‌توانند درخواست صحبت بدهند.</p>
+                <p className="text-xs text-muted-foreground">دانشجویان می‌توانند درخواست صحبت بدهند.</p>
               )}
             </CardContent>
           </Card>
@@ -2862,10 +3270,10 @@ function RoomView({
       {subTab === "chat" && (
         <>
       {/* Chat stream */}
-      <Card className="border-white/5 bg-[#0b1a2a]">
+      <Card className="border-border bg-card text-card-foreground">
         <CardContent className="max-h-[52vh] space-y-3 overflow-y-auto py-4">
           {messages.length === 0 && (
-            <p className="py-10 text-center text-sm text-slate-500">
+            <p className="py-10 text-center text-sm text-muted-foreground">
               هنوز پیامی نیست. از دانشجویان بخواهید سؤال بپرسند.
             </p>
           )}
@@ -2878,35 +3286,35 @@ function RoomView({
                 className={`rounded-lg border p-3 ${
                   isQuestion
                     ? answered
-                      ? "border-emerald-400/20 bg-emerald-400/5"
-                      : "border-amber-400/25 bg-amber-400/5"
-                    : "border-white/5 bg-white/[0.03]"
+                      ? "border-emerald-200 bg-emerald-50/60"
+                      : "border-amber-200 bg-amber-50/70"
+                    : "border-border bg-background"
                 }`}
               >
                 <div className="flex items-center gap-2">
                   {isQuestion ? (
-                    <HelpCircle className="size-4 text-amber-300" />
+                    <HelpCircle className="size-4 text-amber-600" />
                   ) : (
-                    <MessageSquare className="size-4 text-cyan-300" />
+                    <MessageSquare className="size-4 text-primary" />
                   )}
-                  <span className="text-xs font-bold text-slate-200">{m.name}</span>
-                  <span className="font-mono text-[10px] text-slate-500">
+                  <span className="text-xs font-bold text-foreground">{m.name}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">
                     {m.role === "instructor" ? "مدرس" : "دانشجو"}
                   </span>
-                  <span className="mr-auto font-mono text-[10px] text-slate-600">
+                  <span className="mr-auto font-mono text-[10px] text-muted-foreground">
                     {new Date(m.createdAt).toLocaleTimeString("fa-IR", {
                       hour: "2-digit",
                       minute: "2-digit",
                     })}
                   </span>
                 </div>
-                <p className="mt-1.5 text-sm text-slate-300">{m.text}</p>
+                <p className="mt-1.5 text-sm text-muted-foreground">{m.text}</p>
 
                 {m.attachmentType === "image" && m.attachmentUrl && (
                   <img
                     src={m.attachmentUrl}
                     alt={m.attachmentName ?? "تصویر"}
-                    className="mt-2 max-h-64 rounded-lg border border-white/10"
+                    className="mt-2 max-h-64 rounded-lg border border-border"
                   />
                 )}
                 {m.attachmentType === "voice" && m.attachmentUrl && (
@@ -2921,12 +3329,12 @@ function RoomView({
                     href={m.attachmentUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="mt-2 flex max-w-sm items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 hover:bg-white/10"
+                    className="mt-2 flex max-w-sm items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
                   >
-                    <FileText className="size-4 shrink-0 text-cyan-300" />
+                    <FileText className="size-4 shrink-0 text-primary" />
                     <span className="truncate">{m.attachmentName}</span>
                     {m.attachmentSize ? (
-                      <span className="mr-auto shrink-0 font-mono text-[10px] text-slate-500">
+                      <span className="mr-auto shrink-0 font-mono text-[10px] text-muted-foreground">
                         {formatFileSize(m.attachmentSize)}
                       </span>
                     ) : null}
@@ -2941,7 +3349,7 @@ function RoomView({
                       onChange={(e) =>
                         setAnswers((a) => ({ ...a, [m._id]: e.target.value }))
                       }
-                      className="h-8 border-amber-400/20 bg-white/5 text-sm text-slate-100 placeholder:text-slate-500"
+                      className="h-8 border-amber-200 bg-muted text-sm text-foreground placeholder:text-muted-foreground"
                     />
                     <Button
                       size="sm"
@@ -2954,12 +3362,12 @@ function RoomView({
                   </div>
                 )}
                 {isQuestion && answered && (
-                  <div className="mt-2 rounded-md border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
-                    <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
+                  <div className="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
                       <CheckCircle2 className="size-3.5" />
                       پاسخ مدرس
                     </p>
-                    <p className="mt-1 text-sm text-emerald-100/90">{m.answer}</p>
+                    <p className="mt-1 text-sm text-emerald-700/90">{m.answer}</p>
                   </div>
                 )}
               </div>
@@ -2970,12 +3378,12 @@ function RoomView({
 
       {/* Voice preview — after recording stops */}
       {voiceRecorder.previewBlob && voiceRecorder.state === "IDLE" && (
-        <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+        <Card className="border-primary/30 bg-card text-card-foreground">
           <CardContent className="flex items-center gap-3 py-3">
-            <Play className="size-5 shrink-0 text-cyan-300" />
+            <Play className="size-5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-cyan-200">پیش‌گوشی پیام صوتی</p>
-              <p className="text-[10px] text-slate-400">{formatRecDuration(voiceRecorder.previewDuration)}</p>
+              <p className="text-xs font-bold text-foreground">پیش‌گوشی پیام صوتی</p>
+              <p className="text-[10px] text-muted-foreground">{formatRecDuration(voiceRecorder.previewDuration)}</p>
             </div>
             {voiceRecorder.previewUrl && (
               <audio controls src={voiceRecorder.previewUrl} className="h-8 max-w-[180px]" />
@@ -2985,7 +3393,7 @@ function RoomView({
                 {uploading ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
                 ارسال
               </Button>
-              <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300" onClick={() => voiceRecorder.discard()}>
+              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => voiceRecorder.discard()}>
                 <Trash2 className="size-3" />
               </Button>
             </div>
@@ -2995,25 +3403,25 @@ function RoomView({
 
       {/* Composer */}
       {isLive && (
-        <Card className="border-white/5 bg-[#0b1a2a]">
+        <Card className="border-border bg-card text-card-foreground">
           <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
             {voiceRecorder.state === "RECORDING" && (
-              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1 text-[11px] font-bold text-red-300">
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1 text-[11px] font-bold text-destructive">
                 <span className="size-2 animate-pulse rounded-full bg-red-500" />
                 در حال ضبط {formatRecDuration(voiceRecorder.seconds)}
               </span>
             )}
             {voiceRecorder.state === "UPLOADING" && (
-              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-cyan-500/15 px-3 py-1 text-[11px] font-bold text-cyan-300">
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/15 px-3 py-1 text-[11px] font-bold text-primary">
                 <Loader2 className="size-3 animate-spin" />
                 در حال ارسال…
               </span>
             )}
-            <div className="flex shrink-0 gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+            <div className="flex shrink-0 gap-1 rounded-lg border border-border bg-muted p-1">
               <button
                 onClick={() => setAsQuestion(true)}
                 className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
-                  asQuestion ? "bg-amber-400/20 text-amber-200" : "text-slate-400"
+                  asQuestion ? "bg-amber-100 text-amber-600" : "text-muted-foreground"
                 }`}
               >
                 سؤال
@@ -3021,7 +3429,7 @@ function RoomView({
               <button
                 onClick={() => setAsQuestion(false)}
                 className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
-                  !asQuestion ? "bg-cyan-400/20 text-cyan-200" : "text-slate-400"
+                  !asQuestion ? "bg-primary/15 text-foreground" : "text-muted-foreground"
                 }`}
               >
                 پیام
@@ -3036,7 +3444,7 @@ function RoomView({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              className="flex-1 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+              className="flex-1 border-border bg-muted text-foreground placeholder:text-muted-foreground"
             />
             <div className="flex shrink-0 items-center gap-1">
               <input
@@ -3050,7 +3458,7 @@ function RoomView({
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 title="پیوست فایل / تصویر"
-                className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 disabled:opacity-50"
+                className="flex size-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
               >
                 {uploading ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -3063,10 +3471,10 @@ function RoomView({
                 title={voiceRecorder.state === "RECORDING" ? "پایان ضبط" : "ضبط پیام صوتی"}
                 className={`flex size-8 items-center justify-center rounded-lg border transition-colors ${
                   voiceRecorder.state === "RECORDING"
-                    ? "border-red-400/40 bg-red-400/15 text-red-300"
+                    ? "border-destructive/40 bg-destructive/10 text-destructive"
                     : voiceRecorder.state === "STOPPING"
-                      ? "border-amber-400/40 bg-amber-400/15 text-amber-300"
-                      : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10"
+                      ? "border-amber-200 bg-amber-50 text-amber-600"
+                      : "border-border bg-muted text-muted-foreground hover:bg-muted"
                 }`}
               >
                 {voiceRecorder.state === "RECORDING" ? <Square className="size-3.5" /> : <Mic className="size-4" />}
@@ -3093,20 +3501,20 @@ function RoomStudentList({ roomId }: { roomId: string }) {
   const students = participants.filter((p) => p.role === "user" || p.role === "member");
 
   return (
-    <Card className="border-white/5 bg-white/[0.02]">
+    <Card className="border-border bg-background">
       <CardContent className="py-3">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-bold text-slate-300">دانشجویان حاضر ({students.length})</p>
+          <p className="text-xs font-bold text-muted-foreground">دانشجویان حاضر ({students.length})</p>
         </div>
         {students.length === 0 ? (
-          <p className="text-[11px] text-slate-500">هنوز دانشجویی وارد کلاس نشده است.</p>
+          <p className="text-[11px] text-muted-foreground">هنوز دانشجویی وارد کلاس نشده است.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {students.map((s) => (
-              <div key={s.userId} className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
-                <span className={`size-1.5 rounded-full ${s.isRecent ? "bg-emerald-400" : "bg-amber-400"}`} />
-                <span className="text-[11px] text-slate-300">{s.name}</span>
-                <Mic className="size-3 text-slate-500" />
+              <div key={s.userId} className="flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1">
+                <span className={`size-1.5 rounded-full ${s.isRecent ? "bg-emerald-500" : "bg-amber-500"}`} />
+                <span className="text-[11px] text-muted-foreground">{s.name}</span>
+                <Mic className="size-3 text-muted-foreground" />
               </div>
             ))}
           </div>
@@ -3148,15 +3556,15 @@ function LiveSection({
   const [annoColor, setAnnoColor] = useState("#ef4444");
 
   return (
-    <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+    <Card className="border-primary/30 bg-card text-card-foreground">
       <CardContent className="space-y-3 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="flex items-center gap-2 text-sm font-bold text-cyan-200">
+            <p className="flex items-center gap-2 text-sm font-bold text-foreground">
               <Video className="size-4" />
               پخش زنده برای دانشجویان
             </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
               {broadcast.status === "live"
                 ? screenShare
                   ? "در حال اشتراک صفحه — روی تصویر بکشید تا نکات مهم را مشخص کنید."
@@ -3169,7 +3577,7 @@ function LiveSection({
               <Button
                 size="sm"
                 variant="outline"
-                className="border-red-400/30 text-red-300 hover:bg-red-400/10"
+                className="border-destructive/30 text-destructive hover:bg-destructive/10"
                 onClick={() => void broadcast.stop()}
               >
                 <Square className="size-3.5" />
@@ -3192,7 +3600,7 @@ function LiveSection({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-cyan-400/30 text-cyan-200 hover:bg-cyan-400/10"
+                  className="border-primary/30 text-foreground hover:bg-primary/10"
                   onClick={() => void broadcast.start(true)}
                   disabled={broadcast.status === "starting"}
                 >
@@ -3202,7 +3610,7 @@ function LiveSection({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="border-cyan-400/30 text-cyan-200 hover:bg-cyan-400/10"
+                  className="border-primary/30 text-foreground hover:bg-primary/10"
                   onClick={() => {
                     setScreenShare(true);
                     void broadcast.start(true, "screen");
@@ -3217,7 +3625,7 @@ function LiveSection({
           </div>
         </div>
         {broadcast.error && (
-          <p className="rounded-md border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs text-red-300">
+          <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {broadcast.error}
           </p>
         )}
@@ -3231,7 +3639,7 @@ function LiveSection({
               autoPlay
               playsInline
               muted
-              className="aspect-video w-full rounded-lg border border-cyan-400/20 bg-black"
+              className="aspect-video w-full rounded-lg border border-primary/30 bg-black"
             />
             {screenShare && isLive && (
               <>
@@ -3248,12 +3656,12 @@ function LiveSection({
                   minHeight={0}
                   borderClass=""
                 />
-                <div className="absolute bottom-2 left-1/2 flex max-w-[94%] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full border border-white/10 bg-black/75 px-2 py-1.5 backdrop-blur">
+                <div className="absolute bottom-2 left-1/2 flex max-w-[94%] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-full border border-border bg-black/75 px-2 py-1.5 backdrop-blur">
                   <button
                     onClick={() => setAnnoTool("pen")}
                     title="قلم"
                     className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
-                      annoTool === "pen" ? "bg-white/20 text-white" : "text-slate-300 hover:bg-white/10"
+                      annoTool === "pen" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     <Brush className="size-3.5" />
@@ -3262,7 +3670,7 @@ function LiveSection({
                     onClick={() => setAnnoTool("highlighter")}
                     title="هایلایت"
                     className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
-                      annoTool === "highlighter" ? "bg-white/20 text-yellow-300" : "text-slate-300 hover:bg-white/10"
+                      annoTool === "highlighter" ? "bg-muted text-yellow-300" : "text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     <Highlighter className="size-3.5" />
@@ -3271,28 +3679,28 @@ function LiveSection({
                     onClick={() => setAnnoTool("eraser")}
                     title="پاک‌کن"
                     className={`flex size-7 shrink-0 items-center justify-center rounded-full transition-colors ${
-                      annoTool === "eraser" ? "bg-white/20 text-white" : "text-slate-300 hover:bg-white/10"
+                      annoTool === "eraser" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     <Eraser className="size-3.5" />
                   </button>
-                  <span className="mx-1 h-4 w-px shrink-0 bg-white/15" />
+                  <span className="mx-1 h-4 w-px shrink-0 bg-muted" />
                   {ANNO_COLORS.map((c) => (
                     <button
                       key={c}
                       onClick={() => setAnnoColor(c)}
                       title={c}
                       className={`size-5 shrink-0 rounded-full border transition-transform ${
-                        annoColor === c ? "scale-110 border-white" : "border-white/25 hover:scale-105"
+                        annoColor === c ? "scale-110 border-white" : "border-border hover:scale-105"
                       }`}
                       style={{ background: c }}
                     />
                   ))}
-                  <span className="mx-1 h-4 w-px shrink-0 bg-white/15" />
+                  <span className="mx-1 h-4 w-px shrink-0 bg-muted" />
                   <button
                     onClick={() => void clearStrokes({ roomId: roomId as any, layer: "screen" })}
                     title="پاک کردن همهٔ علامت‌ها"
-                    className="flex size-7 shrink-0 items-center justify-center rounded-full text-red-300 transition-colors hover:bg-red-400/15"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-full text-destructive transition-colors hover:bg-destructive/10"
                   >
                     <Trash2 className="size-3.5" />
                   </button>
@@ -3335,25 +3743,25 @@ function BoardSection({
   const [penColor, setPenColor] = useState("#ffffff");
 
   return (
-    <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+    <Card className="border-primary/30 bg-card text-card-foreground">
       <CardContent className="space-y-3 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="flex items-center gap-2 text-sm font-bold text-cyan-200">
+            <p className="flex items-center gap-2 text-sm font-bold text-foreground">
               <Presentation className="size-4" />
               تختهٔ کلاس
             </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
               رنگ زمینه و نوشته را عوض کنید و آزادانه بکشید — دانشجویان همین لحظه می‌بینند.
             </p>
           </div>
           {isLive && (
-            <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-1">
               <button
                 onClick={() => setPenTool("pen")}
                 title="قلم"
                 className={`flex size-8 items-center justify-center rounded-md transition-colors ${
-                  penTool === "pen" ? "bg-cyan-400/20 text-cyan-200" : "text-slate-400 hover:bg-white/10"
+                  penTool === "pen" ? "bg-primary/15 text-foreground" : "text-muted-foreground hover:bg-muted"
                 }`}
               >
                 <Brush className="size-4" />
@@ -3362,7 +3770,7 @@ function BoardSection({
                 onClick={() => setPenTool("highlighter")}
                 title="هایلایت"
                 className={`flex size-8 items-center justify-center rounded-md transition-colors ${
-                  penTool === "highlighter" ? "bg-yellow-400/20 text-yellow-300" : "text-slate-400 hover:bg-white/10"
+                  penTool === "highlighter" ? "bg-yellow-400/20 text-yellow-300" : "text-muted-foreground hover:bg-muted"
                 }`}
               >
                 <Highlighter className="size-4" />
@@ -3371,16 +3779,16 @@ function BoardSection({
                 onClick={() => setPenTool("eraser")}
                 title="پاک‌کن"
                 className={`flex size-8 items-center justify-center rounded-md transition-colors ${
-                  penTool === "eraser" ? "bg-white/15 text-white" : "text-slate-400 hover:bg-white/10"
+                  penTool === "eraser" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
                 }`}
               >
                 <Eraser className="size-4" />
               </button>
-              <span className="mx-1 h-4 w-px bg-white/10" />
+              <span className="mx-1 h-4 w-px bg-muted" />
               <button
                 onClick={() => void clearStrokes({ roomId: roomId as any, layer: "board" })}
                 title="پاک کردن تخته"
-                className="flex size-8 items-center justify-center rounded-md text-red-300 transition-colors hover:bg-red-400/15"
+                className="flex size-8 items-center justify-center rounded-md text-destructive transition-colors hover:bg-destructive/10"
               >
                 <Trash2 className="size-4" />
               </button>
@@ -3391,28 +3799,28 @@ function BoardSection({
         {isLive && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400">زمینه:</span>
+              <span className="text-[11px] font-bold text-muted-foreground">زمینه:</span>
               {BOARD_BGS.map((b) => (
                 <button
                   key={b.value}
                   title={b.label}
                   onClick={() => void setBoardBg({ roomId: roomId as any, bg: b.value })}
                   className={`size-6 rounded-full border transition-transform hover:scale-110 ${
-                    boardBg === b.value ? "border-cyan-300 ring-2 ring-cyan-400/40" : "border-white/20"
+                    boardBg === b.value ? "border-primary/40 ring-2 ring-cyan-400/40" : "border-border"
                   }`}
                   style={{ background: b.value }}
                 />
               ))}
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400">رنگ قلم:</span>
+              <span className="text-[11px] font-bold text-muted-foreground">رنگ قلم:</span>
               {PEN_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => setPenColor(c)}
                   title={c}
                   className={`size-6 rounded-full border transition-transform hover:scale-110 ${
-                    penColor === c ? "scale-110 border-cyan-300 ring-2 ring-cyan-400/40" : "border-white/20"
+                    penColor === c ? "scale-110 border-primary/40 ring-2 ring-cyan-400/40" : "border-border"
                   }`}
                   style={{ background: c }}
                 />
@@ -3431,7 +3839,7 @@ function BoardSection({
           onDraw={(s) => void addStroke({ roomId: roomId as any, layer: "board", ...s })}
           className="min-h-[320px]"
         />
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-muted-foreground">
           {isLive
             ? "تخته به‌صورت زنده برای همهٔ دانشجویان داخل کلاس نمایش داده می‌شود."
             : "کلاس پایان یافته — تخته به‌صورت فقط‌خواندنی نمایش داده می‌شود."}
@@ -3447,32 +3855,32 @@ function OnlineView({ online }: { online: OnlineRow[] }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">دانشجویان آنلاین</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <h2 className="text-xl font-bold text-foreground">دانشجویان آنلاین</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           {students.length} نفر همین حالا در پلتفرم فعال‌اند (بروزرسانی هر ۶۰ ثانیه).
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {students.map((s) => (
-          <Card key={s.userId} className="border-white/5 bg-[#0b1a2a]">
+          <Card key={s.userId} className="border-border bg-card text-card-foreground">
             <CardContent className="flex items-center gap-3 py-4">
-              <span className="relative flex size-10 items-center justify-center rounded-full bg-cyan-400/10 font-bold text-cyan-200">
+              <span className="relative flex size-10 items-center justify-center rounded-full bg-primary/10 font-bold text-foreground">
                 {(s.name ?? "؟").slice(0, 1)}
-                <span className="absolute -bottom-0.5 -left-0.5 size-3 rounded-full border-2 border-[#0b1a2a] bg-emerald-400" />
+                <span className="absolute -bottom-0.5 -left-0.5 size-3 rounded-full border-2 border-[#0b1a2a] bg-emerald-500" />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-slate-200">{s.name}</p>
-                <p className="text-[11px] text-slate-500">{s.location ?? "در حال گشت‌وگذار"}</p>
+                <p className="truncate text-sm font-bold text-foreground">{s.name}</p>
+                <p className="text-[11px] text-muted-foreground">{s.location ?? "در حال گشت‌وگذار"}</p>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
       {students.length === 0 && (
-        <Card className="border-white/5 bg-white/[0.02]">
+        <Card className="border-border bg-background">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Users className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-400">الان کسی آنلاین نیست.</p>
+            <Users className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">الان کسی آنلاین نیست.</p>
           </CardContent>
         </Card>
       )}
@@ -3482,11 +3890,11 @@ function OnlineView({ online }: { online: OnlineRow[] }) {
 
 // ── Course studio: design a course, send it to the site admin ──────────────
 const STUDIO_STATUS: Record<string, { label: string; cls: string }> = {
-  published: { label: "منتشرشده", cls: "border-emerald-400/20 bg-emerald-400/10 text-emerald-300" },
-  approved: { label: "تأیید شده", cls: "border-cyan-400/20 bg-cyan-400/10 text-cyan-300" },
-  pending: { label: "در انتظار تأیید", cls: "border-amber-400/20 bg-amber-400/10 text-amber-300" },
-  draft: { label: "پیش‌نویس", cls: "border-slate-400/20 bg-slate-400/10 text-slate-300" },
-  rejected: { label: "رد شده", cls: "border-red-400/20 bg-red-400/10 text-red-300" },
+  published: { label: "منتشرشده", cls: "border-emerald-200 bg-emerald-50 text-emerald-600" },
+  approved: { label: "تأیید شده", cls: "border-primary/30 bg-primary/10 text-primary" },
+  pending: { label: "در انتظار تأیید", cls: "border-amber-200 bg-amber-50 text-amber-600" },
+  draft: { label: "پیش‌نویس", cls: "border-slate-400/20 bg-slate-400/10 text-muted-foreground" },
+  rejected: { label: "رد شده", cls: "border-destructive/30 bg-destructive/10 text-destructive" },
 };
 
 function CourseStudioView() {
@@ -3655,17 +4063,17 @@ function CourseStudioView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">طراحی دوره</h2>
-          <p className="mt-1 text-sm text-slate-400">
+          <h2 className="text-xl font-bold text-foreground">طراحی دوره</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             دوره را طراحی کنید و برای تأیید به مدیر سایت بفرستید؛ پس از تأیید، در سایت منتشر می‌شود.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20" onClick={() => { setAiDialog(true); setAiSkill(""); setAiGenerating(false); setAiResult(null); }}>
+          <Button className="bg-primary/10 text-primary hover:bg-primary/15" onClick={() => { setAiDialog(true); setAiSkill(""); setAiGenerating(false); setAiResult(null); }}>
             <Bot className="ml-1.5 size-4" />
             ساخت با هوش مصنوعی
           </Button>
-          <Button className="border-cyan-400/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20" onClick={openCreate}>
+          <Button className="border-primary/30 bg-primary/10 text-foreground hover:bg-primary/15" onClick={openCreate}>
             <Plus className="size-4" />
             دورهٔ جدید
           </Button>
@@ -3677,23 +4085,23 @@ function CourseStudioView() {
           const st = STUDIO_STATUS[c.status] ?? STUDIO_STATUS.draft;
           const editable = c.status === "draft" || c.status === "rejected";
           return (
-            <Card key={c._id} className="border-white/5 bg-[#0b1a2a]">
+            <Card key={c._id} className="border-border bg-card text-card-foreground">
               <CardContent className="space-y-3 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="min-w-0 break-words font-bold text-white">{c.title}</h3>
+                      <h3 className="min-w-0 break-words font-bold text-foreground">{c.title}</h3>
                       <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${st.cls}`}>
                         {st.label}
                       </span>
                     </div>
-                    <p className="mt-1 break-words text-xs text-slate-400">
+                    <p className="mt-1 break-words text-xs text-muted-foreground">
                       {c.categoryName ?? "—"} · {c.studentsCount ?? 0} دانشجو · {c.syllabusCount ?? 0} جلسه
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {editable && (
-                      <Button variant="outline" size="sm" className="border-white/10 bg-white/5 text-slate-200 hover:bg-white/10" onClick={() => openEdit(c)}>
+                      <Button variant="outline" size="sm" className="border-border bg-muted text-foreground hover:bg-muted" onClick={() => openEdit(c)}>
                         ویرایش
                       </Button>
                     )}
@@ -3701,7 +4109,7 @@ function CourseStudioView() {
                       <Button
                         size="sm"
                         disabled={submittingId === c._id}
-                        className="bg-cyan-500 text-white hover:bg-cyan-400"
+                        className="bg-primary text-foreground hover:bg-primary"
                         onClick={() => handleSubmit(c._id)}
                       >
                         {submittingId === c._id ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
@@ -3712,7 +4120,7 @@ function CourseStudioView() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-slate-500 hover:text-red-400"
+                        className="text-muted-foreground hover:text-destructive"
                         onClick={() => remove({ courseId: c._id })}
                         title="حذف دوره"
                       >
@@ -3721,9 +4129,9 @@ function CourseStudioView() {
                     )}
                   </div>
                 </div>
-                {c.summary && <p className="break-words text-sm text-slate-300">{c.summary}</p>}
+                {c.summary && <p className="break-words text-sm text-muted-foreground">{c.summary}</p>}
                 {c.reviewNote && (
-                  <p className="rounded-lg border border-red-400/20 bg-red-400/5 px-3 py-2 text-xs text-red-300">
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                     دلیل بازگشت از مدیر سایت: {c.reviewNote}
                   </p>
                 )}
@@ -3732,10 +4140,10 @@ function CourseStudioView() {
           );
         })}
         {courses.length === 0 && (
-          <Card className="border-white/5 bg-white/[0.02]">
+          <Card className="border-border bg-background">
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <BookOpen className="size-8 text-slate-600" />
-              <p className="text-sm text-slate-400">
+              <BookOpen className="size-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
                 هنوز دوره‌ای طراحی نکرده‌اید. با «دورهٔ جدید» شروع کنید — پیش‌نویس فقط برای شما قابل مشاهده است.
               </p>
             </CardContent>
@@ -3745,24 +4153,24 @@ function CourseStudioView() {
 
       {/* AI skill input — inline card */}
       {aiDialog && (
-        <Card className="border-purple-400/20 bg-purple-400/5">
+        <Card className="border-primary/30 bg-primary/5">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm text-purple-200">
-              <Bot className="size-5 text-purple-400" />ساخت دوره با هوش مصنوعی
+            <CardTitle className="flex items-center gap-2 text-sm text-primary">
+              <Bot className="size-5 text-primary" />ساخت دوره با هوش مصنوعی
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-slate-400">موضوع یا مهارتی که می‌خواهید تدریس کنید را توضیح دهید. هوش مصنوعی عنوان، توضیحات، سرفصل‌ها و قیمت‌ها را به صورت خودکار تولید می‌کند.</p>
+            <p className="text-sm text-muted-foreground">موضوع یا مهارتی که می‌خواهید تدریس کنید را توضیح دهید. هوش مصنوعی عنوان، توضیحات، سرفصل‌ها و قیمت‌ها را به صورت خودکار تولید می‌کند.</p>
             <Textarea
               placeholder="مثلاً: میکروبیولوژی پیشرفته — تکنیک‌های کشت و شناسایی باکتری‌ها"
               value={aiSkill}
               onChange={(e) => setAiSkill(e.target.value)}
               rows={4}
-              className="border-purple-400/20 bg-white/5 text-slate-100"
+              className="border-primary/30 bg-muted text-foreground"
             />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => setAiDialog(false)}>انصراف</Button>
-              <Button size="sm" onClick={handleAIGenerate} disabled={aiGenerating || !aiSkill.trim()} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+              <Button size="sm" onClick={handleAIGenerate} disabled={aiGenerating || !aiSkill.trim()} className="bg-primary/10 text-primary hover:bg-primary/15">
                 {aiGenerating ? <Loader2 className="ml-1 size-3.5 animate-spin" /> : <Bot className="ml-1 size-3.5" />}
                 {aiGenerating ? "در حال تولید..." : "تولید دوره"}
               </Button>
@@ -3773,50 +4181,50 @@ function CourseStudioView() {
 
       {/* AI result preview — inline card */}
       {aiResult && (
-        <Card className="border-purple-400/20 bg-purple-400/5">
+        <Card className="border-primary/30 bg-primary/5">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm text-purple-200">
-              <Bot className="size-5 text-purple-400" />پیش‌نمایش دوره تولیدشده
+            <CardTitle className="flex items-center gap-2 text-sm text-primary">
+              <Bot className="size-5 text-primary" />پیش‌نمایش دوره تولیدشده
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-2">
-              <div className="rounded-lg border border-purple-400/20 bg-purple-400/5 p-4 space-y-3">
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-3">
                 <div>
-                  <p className="text-[10px] font-bold text-purple-300 uppercase">عنوان</p>
-                  <p className="text-sm font-bold text-white">{aiResult.title}</p>
+                  <p className="text-[10px] font-bold text-primary uppercase">عنوان</p>
+                  <p className="text-sm font-bold text-foreground">{aiResult.title}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-purple-300 uppercase">خلاصه</p>
-                  <p className="text-xs text-slate-300">{aiResult.summary}</p>
+                  <p className="text-[10px] font-bold text-primary uppercase">خلاصه</p>
+                  <p className="text-xs text-muted-foreground">{aiResult.summary}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold text-purple-300 uppercase">سرفصل‌ها</p>
+                  <p className="text-[10px] font-bold text-primary uppercase">سرفصل‌ها</p>
                   {(aiResult.syllabus ?? []).map((s: any, i: number) => (
-                    <p key={i} className="text-xs text-slate-300">• {s.title} ({s.durationMin} دقیقه){s.free ? " — رایگان" : ""}</p>
+                    <p key={i} className="text-xs text-muted-foreground">• {s.title} ({s.durationMin} دقیقه){s.free ? " — رایگان" : ""}</p>
                   ))}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded bg-white/5 p-2">
-                    <p className="text-[10px] text-slate-500">اقتصادی</p>
-                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgEconomy ?? 0)} تومان</p>
+                  <div className="rounded bg-muted p-2">
+                    <p className="text-[10px] text-muted-foreground">اقتصادی</p>
+                    <p className="text-xs font-bold text-foreground">{formatPriceNumber(aiResult.pkgEconomy ?? 0)} تومان</p>
                   </div>
-                  <div className="rounded bg-white/5 p-2">
-                    <p className="text-[10px] text-slate-500">پایه</p>
-                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgBasic ?? 0)} تومان</p>
+                  <div className="rounded bg-muted p-2">
+                    <p className="text-[10px] text-muted-foreground">پایه</p>
+                    <p className="text-xs font-bold text-foreground">{formatPriceNumber(aiResult.pkgBasic ?? 0)} تومان</p>
                   </div>
-                  <div className="rounded bg-white/5 p-2">
-                    <p className="text-[10px] text-slate-500">پلاس</p>
-                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgPlus ?? 0)} تومان</p>
+                  <div className="rounded bg-muted p-2">
+                    <p className="text-[10px] text-muted-foreground">پلاس</p>
+                    <p className="text-xs font-bold text-foreground">{formatPriceNumber(aiResult.pkgPlus ?? 0)} تومان</p>
                   </div>
-                  <div className="rounded bg-white/5 p-2">
-                    <p className="text-[10px] text-slate-500">پرمیوم</p>
-                    <p className="text-xs font-bold text-white">{formatPriceNumber(aiResult.pkgPremium ?? 0)} تومان</p>
+                  <div className="rounded bg-muted p-2">
+                    <p className="text-[10px] text-muted-foreground">پرمیوم</p>
+                    <p className="text-xs font-bold text-foreground">{formatPriceNumber(aiResult.pkgPremium ?? 0)} تومان</p>
                   </div>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setAiResult(null)}>انصراف</Button>
-                <Button size="sm" onClick={handleAIApply} className="bg-purple-500/10 text-purple-200 hover:bg-purple-500/20">
+                <Button size="sm" onClick={handleAIApply} className="bg-primary/10 text-primary hover:bg-primary/15">
                   <Bot className="ml-1 size-3.5" />اعمال و ویرایش
                 </Button>
               </div>
@@ -3833,31 +4241,31 @@ function CourseStudioView() {
             </DialogDescription>
           </DialogHeader>
           {/* Section tabs */}
-          <div className="flex gap-1 rounded-lg bg-white/5 p-1">
+          <div className="flex gap-1 rounded-lg bg-muted p-1">
             {([
               { key: "basic" as const, label: "اطلاعات پایه" },
               { key: "detail" as const, label: "جزئیات دوره" },
               { key: "packages" as const, label: "پکیج‌ها و قیمت" },
               ...(dialog?.mode === "edit" ? [{ key: "content" as const, label: "محتوای جلسات" }] : []),
             ]).map((s) => (
-              <button key={s.key} onClick={() => setActiveSection(s.key)} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${activeSection === s.key ? "bg-cyan-500 text-white" : "text-slate-400 hover:text-white"}`}>{s.label}</button>
+              <button key={s.key} onClick={() => setActiveSection(s.key)} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${activeSection === s.key ? "bg-primary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{s.label}</button>
             ))}
           </div>
           <div className="space-y-3">
             {activeSection === "basic" && (
               <>
-                <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                <Input placeholder="عنوان دوره" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-400">دستهٔ دوره</label>
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">دستهٔ دوره</label>
                   <CategoryField value={form.categoryId || undefined} onValueChange={(v) => setForm({ ...form, categoryId: v })} />
                 </div>
-                <Input placeholder="خلاصهٔ دوره" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-                <Textarea placeholder="توضیحات کامل دوره…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                <Input placeholder="خلاصهٔ دوره" value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+                <Textarea placeholder="توضیحات کامل دوره…" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Input placeholder="قیمت (تومان)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-                  <Input placeholder="مدت دوره" value={form.durationText} onChange={(e) => setForm({ ...form, durationText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                  <Input placeholder="قیمت (تومان)" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+                  <Input placeholder="مدت دوره" value={form.durationText} onChange={(e) => setForm({ ...form, durationText: e.target.value })} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
                   <Select value={form.mode} onValueChange={(v) => setForm({ ...form, mode: v })}>
-                    <SelectTrigger className="border-white/10 bg-white/5 text-slate-100"><SelectValue placeholder="نوع دوره" /></SelectTrigger>
+                    <SelectTrigger className="border-border bg-muted text-foreground"><SelectValue placeholder="نوع دوره" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="recorded">ویدئویی</SelectItem>
                       <SelectItem value="live">زنده</SelectItem>
@@ -3870,29 +4278,29 @@ function CourseStudioView() {
             {activeSection === "detail" && (
               <>
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-400">مناسب چه کسانی است؟ (هر خط یک آیتم)</label>
-                  <Textarea placeholder="دانشجویان میکروبیولوژی سال آخر\nعلاقه‌مندان به ژنتیک مولکولی" rows={3} value={form.audienceText} onChange={(e) => setForm({ ...form, audienceText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">مناسب چه کسانی است؟ (هر خط یک آیتم)</label>
+                  <Textarea placeholder="دانشجویان میکروبیولوژی سال آخر\nعلاقه‌مندان به ژنتیک مولکولی" rows={3} value={form.audienceText} onChange={(e) => setForm({ ...form, audienceText: e.target.value })} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-400">پیش‌نیازها (هر خط یک آیتم)</label>
-                  <Textarea placeholder="زیست‌شناسی پایه\nآشنایی با شیمی آلی" rows={3} value={form.prerequisitesText} onChange={(e) => setForm({ ...form, prerequisitesText: e.target.value })} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">پیش‌نیازها (هر خط یک آیتم)</label>
+                  <Textarea placeholder="زیست‌شناسی پایه\nآشنایی با شیمی آلی" rows={3} value={form.prerequisitesText} onChange={(e) => setForm({ ...form, prerequisitesText: e.target.value })} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-400">سرفصل‌ها (هر خط: عنوان | دقیقه | رایگان/پولی)</label>
-                  <Textarea placeholder="مقدمه و معرفی | 30 | رایگان\nسلول و اجزای آن | 60 | پولی\nتکثیر DNA | 45 | پولی" rows={5} value={form.syllabusItems} onChange={(e) => setForm({ ...form, syllabusItems: e.target.value })} className="border-white/10 bg-white/5 font-mono text-xs text-slate-100 placeholder:text-slate-500" />
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">سرفصل‌ها (هر خط: عنوان | دقیقه | رایگان/پولی)</label>
+                  <Textarea placeholder="مقدمه و معرفی | 30 | رایگان\nسلول و اجزای آن | 60 | پولی\nتکثیر DNA | 45 | پولی" rows={5} value={form.syllabusItems} onChange={(e) => setForm({ ...form, syllabusItems: e.target.value })} className="border-border bg-muted font-mono text-xs text-foreground placeholder:text-muted-foreground" />
                 </div>
               </>
             )}
             {activeSection === "packages" && (
               <>
-                <p className="text-xs text-slate-400">قیمت هر پکیج و امکانات آن را تنظیم کنید. پکیج‌هایی که قیمت ندارند در سایت نمایش داده نمی‌شوند.</p>
+                <p className="text-xs text-muted-foreground">قیمت هر پکیج و امکانات آن را تنظیم کنید. پکیج‌هایی که قیمت ندارند در سایت نمایش داده نمی‌شوند.</p>
                 {(["economy", "basic", "plus", "premium"] as const).map((tier) => (
-                  <div key={tier} className="rounded-lg border border-white/10 bg-white/[0.03] p-3 space-y-2">
+                  <div key={tier} className="rounded-lg border border-border bg-background p-3 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-cyan-300">پکیج {TIER_LABELS[tier]}</span>
+                      <span className="text-xs font-bold text-primary">پکیج {TIER_LABELS[tier]}</span>
                     </div>
-                    <Input placeholder={`قیمت ${TIER_LABELS[tier]} (تومان)`} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}`]: e.target.value } as any)} className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-                    <Textarea placeholder={`امکانات ${TIER_LABELS[tier]} (هر خط یک آیتم)`} rows={2} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features`]: e.target.value } as any)} className="border-white/10 bg-white/5 text-xs text-slate-100 placeholder:text-slate-500" />
+                    <Input placeholder={`قیمت ${TIER_LABELS[tier]} (تومان)`} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}`]: e.target.value } as any)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+                    <Textarea placeholder={`امکانات ${TIER_LABELS[tier]} (هر خط یک آیتم)`} rows={2} value={form[`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features` as keyof CourseForm] as string} onChange={(e) => setForm({ ...form, [`pkg${tier.charAt(0).toUpperCase() + tier.slice(1)}Features`]: e.target.value } as any)} className="border-border bg-muted text-xs text-foreground placeholder:text-muted-foreground" />
                   </div>
                 ))}
               </>
@@ -3903,8 +4311,8 @@ function CourseStudioView() {
                 syllabus={dialog.course.syllabus ?? []}
               />
             )}
-            {err && <p className="text-sm text-red-400">{err}</p>}
-            <Button onClick={handleSave} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
+            {err && <p className="text-sm text-destructive">{err}</p>}
+            <Button onClick={handleSave} disabled={busy} className="bg-primary text-foreground hover:bg-primary">
               {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Save className="ml-1.5 size-4" />}
               {dialog?.mode === "edit" ? "ذخیرهٔ تغییرات" : "ذخیره به‌عنوان پیش‌نویس"}
             </Button>
@@ -3947,21 +4355,21 @@ function BankAccountSection() {
   };
 
   return (
-    <Card className="border-white/5 bg-white/[0.02]">
+    <Card className="border-border bg-background">
       <CardHeader>
-        <CardTitle className="text-sm text-white">اطلاعات حساب بانکی</CardTitle>
-        <p className="text-xs text-slate-400">برای دریافت دستمزد، اطلاعات حساب بانکی خود را وارد کنید.</p>
+        <CardTitle className="text-sm text-foreground">اطلاعات حساب بانکی</CardTitle>
+        <p className="text-xs text-muted-foreground">برای دریافت دستمزد، اطلاعات حساب بانکی خود را وارد کنید.</p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input placeholder="نام بانک" value={bankName} onChange={(e) => setBankName(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
-          <Input placeholder="شماره حساب" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="border-white/10 bg-white/5 text-slate-100 font-mono" />
+          <Input placeholder="نام بانک" value={bankName} onChange={(e) => setBankName(e.target.value)} className="border-border bg-muted text-foreground" />
+          <Input placeholder="شماره حساب" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="border-border bg-muted text-foreground font-mono" />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input dir="ltr" inputMode="numeric" placeholder="1234 5678 9012 3456" value={formatCardNumber(cardNumber)} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))} className="border-white/10 bg-white/5 text-left font-mono tracking-wider" />
-          <Input placeholder="شماره شبا (IR...)" value={sheba} onChange={(e) => setSheba(e.target.value)} className="border-white/10 bg-white/5 text-slate-100" />
+          <Input dir="ltr" inputMode="numeric" placeholder="1234 5678 9012 3456" value={formatCardNumber(cardNumber)} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))} className="border-border bg-muted text-left font-mono tracking-wider" />
+          <Input placeholder="شماره شبا (IR...)" value={sheba} onChange={(e) => setSheba(e.target.value)} className="border-border bg-muted text-foreground" />
         </div>
-        <Button size="sm" onClick={handleSave} className="bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20">
+        <Button size="sm" onClick={handleSave} className="bg-primary/10 text-foreground hover:bg-primary/15">
           {saved ? "✓ ذخیره شد" : "ذخیره اطلاعات بانکی"}
         </Button>
       </CardContent>
@@ -3986,8 +4394,8 @@ function ProfileView() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">پروفایل من</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <h2 className="text-xl font-bold text-foreground">پروفایل من</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           نام، عکس و سوابق علمی‌تان را ثبت کنید؛ تغییرات شما برای مدیر سایت ارسال می‌شود و بعد از تأیید، روی سایت نمایش داده می‌شود.
         </p>
       </div>
@@ -4003,31 +4411,31 @@ function ProfileView() {
       {/* Suggested courses */}
       <div className="space-y-3">
         <div>
-          <h3 className="font-bold text-white">دوره‌های پیشنهادی مدرس</h3>
-          <p className="mt-1 text-sm text-slate-400">
+          <h3 className="font-bold text-foreground">دوره‌های پیشنهادی مدرس</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
             دوره‌هایی از مدرسان دیگر که به دانشجویان پیشنهاد می‌دهید — روی پروفایل شما نمایش داده می‌شود.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {(suggested?.mine ?? []).map((c) => (
-            <Card key={c._id} className="border-emerald-400/20 bg-[#0b1a2a]">
+            <Card key={c._id} className="border-emerald-200 bg-card text-card-foreground">
               <CardContent className="space-y-2 py-4">
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="min-w-0 break-words text-sm font-bold text-white">{c.title}</h4>
+                  <h4 className="min-w-0 break-words text-sm font-bold text-foreground">{c.title}</h4>
                   <button
                     onClick={() => void toggle({ courseId: c._id }).catch((e) => toast.error(e instanceof Error ? e.message : "خطا"))}
-                    className="shrink-0 text-emerald-300 hover:text-emerald-200"
+                    className="shrink-0 text-emerald-600 hover:text-emerald-700"
                     title="حذف از پیشنهادها"
                   >
                     <BookmarkCheck className="size-4" />
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-500">{c.instructorName ?? "—"} · {c.category ?? ""}</p>
+                <p className="text-[11px] text-muted-foreground">{c.instructorName ?? "—"} · {c.category ?? ""}</p>
               </CardContent>
             </Card>
           ))}
           {(suggested?.mine ?? []).length === 0 && (
-            <p className="text-sm text-slate-500">هنوز دوره‌ای پیشنهاد نداده‌اید.</p>
+            <p className="text-sm text-muted-foreground">هنوز دوره‌ای پیشنهاد نداده‌اید.</p>
           )}
         </div>
       </div>
@@ -4035,8 +4443,8 @@ function ProfileView() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold text-white">افزودن دوره از مدرسان دیگر</h3>
-            <p className="mt-1 text-sm text-slate-400">
+            <h3 className="font-bold text-foreground">افزودن دوره از مدرسان دیگر</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               همهٔ دوره‌های منتشرشدهٔ مدرسان تیم — با «افزودن به پیشنهادها» در پروفایل شما نمایش داده می‌شود.
             </p>
           </div>
@@ -4044,21 +4452,21 @@ function ProfileView() {
             placeholder="جستجوی دوره…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="max-w-56 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+            className="max-w-56 border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((c) => (
-            <Card key={c._id} className="border-white/5 bg-[#0b1a2a]">
+            <Card key={c._id} className="border-border bg-card text-card-foreground">
               <CardContent className="space-y-2 py-4">
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="min-w-0 break-words text-sm font-bold text-white">{c.title}</h4>
+                  <h4 className="min-w-0 break-words text-sm font-bold text-foreground">{c.title}</h4>
                   <button
                     onClick={() => void toggle({ courseId: c._id }).catch((e) => toast.error(e instanceof Error ? e.message : "خطا"))}
                     className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-bold transition-colors ${
                       c.suggested
-                        ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-                        : "border-cyan-400/30 bg-cyan-400/10 text-cyan-300 hover:bg-cyan-400/20"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+                        : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
                     }`}
                     title={c.suggested ? "حذف از پیشنهادها" : "افزودن به پیشنهادها"}
                   >
@@ -4069,15 +4477,15 @@ function ProfileView() {
                     )}
                   </button>
                 </div>
-                <p className="line-clamp-2 break-words text-xs text-slate-400">{c.summary}</p>
-                <p className="text-[11px] text-slate-500">
+                <p className="line-clamp-2 break-words text-xs text-muted-foreground">{c.summary}</p>
+                <p className="text-[11px] text-muted-foreground">
                   {c.instructorName ?? "—"} · {c.category ?? ""} · {c.studentsCount ?? 0} دانشجو
                 </p>
               </CardContent>
             </Card>
           ))}
           {filtered.length === 0 && (
-            <p className="text-sm text-slate-500">دوره‌ای یافت نشد.</p>
+            <p className="text-sm text-muted-foreground">دوره‌ای یافت نشد.</p>
           )}
         </div>
       </div>
@@ -4130,13 +4538,13 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white">اطلاعیه برای دانشجویان</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <h2 className="text-xl font-bold text-foreground">اطلاعیه برای دانشجویان</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           اطلاعیه‌ای عمومی برای همه بفرستید یا فقط به دانشجویان یکی از دوره‌های خودتان — مثلاً «کلاس آنلاین جمع‌بندی امشب ساعت ۲۰».
         </p>
       </div>
 
-      <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+      <Card className="border-primary/30 bg-card text-card-foreground">
         <CardContent className="space-y-3 py-4">
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -4144,8 +4552,8 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
               onClick={() => setMode("all")}
               className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
                 mode === "all"
-                  ? "bg-cyan-500 text-white"
-                  : "bg-white/5 text-slate-400 hover:bg-white/10"
+                  ? "bg-primary text-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted"
               }`}
             >
               🌐 عمومی (همه کاربران)
@@ -4155,8 +4563,8 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
               onClick={() => setMode("course")}
               className={`rounded-full px-4 py-1.5 text-sm font-bold transition-colors ${
                 mode === "course"
-                  ? "bg-cyan-500 text-white"
-                  : "bg-white/5 text-slate-400 hover:bg-white/10"
+                  ? "bg-primary text-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-muted"
               }`}
             >
               📚 دانشجویان یک دوره
@@ -4165,7 +4573,7 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
 
           {mode === "course" && (
             <Select value={courseId} onValueChange={setCourseId}>
-              <SelectTrigger className="border-white/10 bg-white/5 text-slate-100">
+              <SelectTrigger className="border-border bg-muted text-foreground">
                 <SelectValue placeholder="دوره را انتخاب کنید…" />
               </SelectTrigger>
               <SelectContent>
@@ -4176,7 +4584,7 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
             </Select>
           )}
           {mode === "course" && mine.length === 0 && (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-muted-foreground">
               دوره‌ای با نام شما ثبت نشده. از پنل مدیریت، پروفایل مدرسی‌تان را به دوره وصل کنید.
             </p>
           )}
@@ -4184,17 +4592,17 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
             placeholder="عنوان اطلاعیه (مثلاً: کلاس آنلاین جمع‌بندی امشب)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+            className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
           <Textarea
             placeholder="متن اطلاعیه…"
             rows={3}
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            className="border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500"
+            className="border-border bg-muted text-foreground placeholder:text-muted-foreground"
           />
-          {err && <p className="text-sm text-red-400">{err}</p>}
-          <Button onClick={handleCreate} disabled={busy} className="bg-cyan-500 text-white hover:bg-cyan-400">
+          {err && <p className="text-sm text-destructive">{err}</p>}
+          <Button onClick={handleCreate} disabled={busy} className="bg-primary text-foreground hover:bg-primary">
             {busy ? <Loader2 className="ml-1.5 size-4 animate-spin" /> : <Send className="ml-1.5 size-4" />}
             ارسال اطلاعیه
           </Button>
@@ -4202,35 +4610,35 @@ function AnnouncementsView({ instructorName }: { instructorName: string | null }
       </Card>
 
       <div className="space-y-3">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">اطلاعیه‌های قبلی</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">اطلاعیه‌های قبلی</p>
         {myAnns.map((a) => (
-          <Card key={a._id} className="border-white/5 bg-white/[0.02]">
+          <Card key={a._id} className="border-border bg-background">
             <CardContent className="flex items-start gap-3 py-3.5">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-cyan-400/10">
-                <BellRing className="size-4 text-cyan-300" />
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <BellRing className="size-4 text-primary" />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-bold text-slate-100">{a.title}</p>
+                  <p className="text-sm font-bold text-foreground">{a.title}</p>
                   <button
                     onClick={() => remove({ id: a._id })}
-                    className="text-slate-600 transition-colors hover:text-red-400"
+                    className="text-muted-foreground transition-colors hover:text-destructive"
                     title="حذف"
                   >
                     <Trash2 className="size-4" />
                   </button>
                 </div>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {a.targetType === "all" ? "همه" : `برای: ${a.targetTitle ?? "—"}`} ·{" "}
                   {new Date(a.createdAt).toLocaleDateString("fa-IR")}
                 </p>
-                {a.body && <p className="mt-1.5 text-sm text-slate-300">{a.body}</p>}
+                {a.body && <p className="mt-1.5 text-sm text-muted-foreground">{a.body}</p>}
               </div>
             </CardContent>
           </Card>
         ))}
         {myAnns.length === 0 && (
-          <p className="py-8 text-center text-sm text-slate-500">هنوز اطلاعیه‌ای نفرستاده‌اید.</p>
+          <p className="py-8 text-center text-sm text-muted-foreground">هنوز اطلاعیه‌ای نفرستاده‌اید.</p>
         )}
       </div>
     </div>
@@ -4314,11 +4722,11 @@ function InstructorSupportView() {
 
   const statusCls = (s: string) => {
     switch (s) {
-      case "open": case "waiting_for_teacher": return "bg-amber-400/15 text-amber-300";
+      case "open": case "waiting_for_teacher": return "bg-amber-50 text-amber-600";
       case "waiting_for_student": return "bg-blue-400/15 text-blue-300";
-      case "resolved": return "bg-emerald-400/15 text-emerald-300";
-      case "closed": return "bg-white/5 text-slate-500";
-      default: return "bg-white/5 text-slate-500";
+      case "resolved": return "bg-emerald-50/70 text-emerald-600";
+      case "closed": return "bg-muted text-muted-foreground";
+      default: return "bg-muted text-muted-foreground";
     }
   };
 
@@ -4326,8 +4734,8 @@ function InstructorSupportView() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">🎧 پشتیبانی دانشجویان</h2>
-          <p className="mt-1 text-sm text-slate-400">
+          <h2 className="text-xl font-bold text-foreground">🎧 پشتیبانی دانشجویان</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             {totalUnread > 0 ? `${totalUnread} پیام خوانده‌نشده` : "همه پیام‌ها خوانده شده"}
           </p>
         </div>
@@ -4335,33 +4743,33 @@ function InstructorSupportView() {
 
       {!openId ? (
         tickets === undefined ? (
-          <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-cyan-400" /></div>
+          <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-primary" /></div>
         ) : (tickets as any[]).length === 0 ? (
-          <Card className="border-white/5 bg-[#0b1a2a]">
+          <Card className="border-border bg-card text-card-foreground">
             <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-              <LifeBuoy className="size-8 text-slate-500" />
-              <p className="text-sm text-slate-400">هنوز درخواست پشتیبانی ندارید.</p>
+              <LifeBuoy className="size-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">هنوز درخواست پشتیبانی ندارید.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-2">
             {(tickets as any[]).map((t: any) => (
               <button key={t._id} type="button" className="w-full text-right" onClick={() => setOpenId(t._id)}>
-                <Card className="border-white/5 bg-[#0b1a2a] transition-colors hover:border-cyan-400/20">
+                <Card className="border-border bg-card text-card-foreground transition-colors hover:border-primary/30">
                   <CardContent className="flex items-center gap-3 p-4">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                       <LifeBuoy className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-white">{t.studentName}</p>
-                      <p className="truncate text-xs text-slate-400">{t.subject}</p>
-                      <p className="text-[10px] text-slate-500">
+                      <p className="truncate text-sm font-bold text-foreground">{t.studentName}</p>
+                      <p className="truncate text-xs text-muted-foreground">{t.subject}</p>
+                      <p className="text-[10px] text-muted-foreground">
                         {t.courseName ?? "عمومی"} · {formatDateTime(t.lastMessageAt ?? t.createdAt)}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {t.unreadByTeacher > 0 && (
-                        <span className="flex size-5 items-center justify-center rounded-full bg-cyan-400 text-[10px] font-bold text-black">
+                        <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-black">
                           {t.unreadByTeacher}
                         </span>
                       )}
@@ -4376,20 +4784,20 @@ function InstructorSupportView() {
           </div>
         )
       ) : openTicket ? (
-        <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+        <Card className="border-primary/30 bg-card text-card-foreground">
           <CardContent className="p-0">
-            <div className="flex items-center gap-3 border-b border-white/10 p-4">
-              <Button variant="ghost" size="sm" onClick={() => setOpenId(null)} className="text-slate-400">
+            <div className="flex items-center gap-3 border-b border-border p-4">
+              <Button variant="ghost" size="sm" onClick={() => setOpenId(null)} className="text-muted-foreground">
                 <ChevronDown className="size-4 rotate-90" />
               </Button>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-white">{openTicket.studentName}</p>
-                <p className="text-xs text-slate-400">{openTicket.subject}</p>
+                <p className="text-sm font-bold text-foreground">{openTicket.studentName}</p>
+                <p className="text-xs text-muted-foreground">{openTicket.subject}</p>
               </div>
               <select
                 value={openTicket.status}
                 onChange={(e) => void updateStatus({ ticketId: openId as any, status: e.target.value as any })}
-                className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-slate-200"
+                className="rounded-lg border border-border bg-muted px-2 py-1 text-xs text-foreground"
               >
                 <option value="waiting_for_student">در انتظار دانشجو</option>
                 <option value="waiting_for_teacher">در انتظار پاسخ</option>
@@ -4402,11 +4810,11 @@ function InstructorSupportView() {
                 const isMine = m.senderId === user?._id;
                 return (
                   <div key={m._id} className={cn("flex", isMine ? "justify-end" : "justify-start")}>
-                    <div className={cn("max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6", isMine ? "bg-cyan-400/10" : "bg-white/5")}>
-                      <p className="text-[11px] font-bold text-slate-400">
+                    <div className={cn("max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6", isMine ? "bg-primary/10" : "bg-muted")}>
+                      <p className="text-[11px] font-bold text-muted-foreground">
                         {m.senderName} · {m.senderRole === "instructor" ? "استاد" : "دانشجو"} · {formatDateTime(m.createdAt)}
                       </p>
-                      <p className="mt-1 whitespace-pre-wrap text-slate-200">{m.message}</p>
+                      <p className="mt-1 whitespace-pre-wrap text-foreground">{m.message}</p>
                     </div>
                   </div>
                 );
@@ -4414,13 +4822,13 @@ function InstructorSupportView() {
               <div ref={chatEndRef} />
             </div>
             {openTicket.status !== "closed" && openTicket.status !== "resolved" && (
-              <div className="flex items-center gap-2 border-t border-white/10 p-3">
+              <div className="flex items-center gap-2 border-t border-border p-3">
                 <input ref={fileInputRef} type="file" hidden onChange={handleFileReply} />
-                <button onClick={() => fileInputRef.current?.click()} className="flex size-8 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10" title="فایل پیوست">
+                <button onClick={() => fileInputRef.current?.click()} className="flex size-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground transition-colors hover:bg-muted" title="فایل پیوست">
                   <Paperclip className="size-4" />
                 </button>
-                <Input value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleReply()} placeholder="پاسخ شما..." className="flex-1 border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500" />
-                <Button size="sm" onClick={handleReply} disabled={!reply.trim() || replying} className="bg-cyan-500 text-white hover:bg-cyan-400">
+                <Input value={reply} onChange={(e) => setReply(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleReply()} placeholder="پاسخ شما..." className="flex-1 border-border bg-muted text-foreground placeholder:text-muted-foreground" />
+                <Button size="sm" onClick={handleReply} disabled={!reply.trim() || replying} className="bg-primary text-foreground hover:bg-primary">
                   {replying ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 </Button>
               </div>
@@ -4489,49 +4897,49 @@ function AcademyPathView() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold text-white">🗺️ مسیر آکادمی</h2>
-        <p className="mt-1 text-sm text-slate-400">
+        <h2 className="text-xl font-bold text-foreground">🗺️ مسیر آکادمی</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           مسیرهای آموزشی منصوب به شما و پیشنهادات ارسالی.
         </p>
-        <Button size="sm" variant="outline" className="mt-3 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10" onClick={() => setAiDialogOpen(true)}>
+        <Button size="sm" variant="outline" className="mt-3 border-cyan-500/30 text-primary hover:bg-primary/10" onClick={() => setAiDialogOpen(true)}>
           🤖 پیشنهاد مسیر آموزشی با هوش مصنوعی
         </Button>
       </div>
 
       {/* Assigned Paths */}
       {paths === undefined ? (
-        <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-cyan-400" /></div>
+        <div className="flex justify-center py-12"><Loader2 className="size-6 animate-spin text-primary" /></div>
       ) : paths.length === 0 ? null : (
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-slate-300">مسیرهای منصوب</h3>
+          <h3 className="text-sm font-bold text-muted-foreground">مسیرهای منصوب</h3>
           {paths.map((p: any) => (
-            <Card key={p._id} className="border-white/10 bg-[#0b1a2a]">
+            <Card key={p._id} className="border-border bg-card text-card-foreground">
               <CardContent className="p-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Route className="size-5 text-cyan-300" />
-                  <p className="text-base font-bold text-white">{p.title}</p>
-                  <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-bold text-cyan-300">
+                  <Route className="size-5 text-primary" />
+                  <p className="text-base font-bold text-foreground">{p.title}</p>
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
                     {p.level === "beginner" ? "مبتدی" : p.level === "intermediate" ? "متوسط" : p.level === "advanced" ? "پیشرفته" : "ترکیبی"}
                   </span>
-                  <span className="text-xs text-slate-500">{p.items.length} کارگاه</span>
+                  <span className="text-xs text-muted-foreground">{p.items.length} کارگاه</span>
                 </div>
-                {p.description && <p className="mt-1.5 text-xs text-slate-400">{p.description}</p>}
+                {p.description && <p className="mt-1.5 text-xs text-muted-foreground">{p.description}</p>}
                 <div className="mt-4 space-y-2">
                   {p.items.map((item: any, idx: number) => (
-                    <div key={item.workshopId} className="flex items-center gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5">
-                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-[11px] font-bold text-cyan-300">
+                    <div key={item.workshopId} className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2.5">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
                         {idx + 1}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-slate-100">{item.title}</p>
-                        <p className="text-[10px] text-slate-500">
+                        <p className="truncate text-xs font-bold text-foreground">{item.title}</p>
+                        <p className="text-[10px] text-muted-foreground">
                           {item.date ? new Date(item.date).toLocaleDateString("fa-IR") : "بدون تاریخ"}
                           {item.time ? ` — ${item.time}` : ""}
                         </p>
                         {item.platformUrl && (
                           <button
                             onClick={() => window.open(item.platformUrl!, "_blank", "noopener,noreferrer")}
-                            className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-cyan-300 hover:text-cyan-200"
+                            className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary hover:text-foreground"
                           >
                             <ExternalLink className="size-2.5" />
                             برگزاری در پلتفرم خارجی ↗
@@ -4550,27 +4958,27 @@ function AcademyPathView() {
       {/* My Suggestions */}
       {mySuggestions && mySuggestions.length > 0 && (
         <div className="space-y-4">
-          <h3 className="text-sm font-bold text-slate-300">پیشنهادات ارسالی من</h3>
+          <h3 className="text-sm font-bold text-muted-foreground">پیشنهادات ارسالی من</h3>
           {mySuggestions.map((s: any) => (
-            <Card key={s._id} className="border-white/10 bg-[#0b1a2a]">
+            <Card key={s._id} className="border-border bg-card text-card-foreground">
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold text-white">{s.title}</p>
+                      <p className="text-sm font-bold text-foreground">{s.title}</p>
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                        s.status === "approved" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" :
-                        s.status === "rejected" ? "border-red-400/30 bg-red-400/10 text-red-300" :
-                        "border-amber-400/30 bg-amber-400/10 text-amber-300"
+                        s.status === "approved" ? "border-emerald-200 bg-emerald-50 text-emerald-600" :
+                        s.status === "rejected" ? "border-destructive/30 bg-destructive/10 text-destructive" :
+                        "border-amber-200 bg-amber-50 text-amber-600"
                       }`}>
                         {s.status === "approved" ? "تأیید شده" : s.status === "rejected" ? "رد شده" : "در انتظار"}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[10px] text-slate-500">{new Date(s.createdAt).toLocaleDateString("fa-IR")}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">{new Date(s.createdAt).toLocaleDateString("fa-IR")}</p>
                     {s.steps?.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {s.steps.map((step: any, i: number) => (
-                          <p key={i} className="text-[11px] text-slate-400">{i + 1}. {step.title}</p>
+                          <p key={i} className="text-[11px] text-muted-foreground">{i + 1}. {step.title}</p>
                         ))}
                       </div>
                     )}
@@ -4583,10 +4991,10 @@ function AcademyPathView() {
       )}
 
       {(!paths || paths.length === 0) && (!mySuggestions || mySuggestions.length === 0) && (
-        <Card className="border-white/5 bg-[#0b1a2a]">
+        <Card className="border-border bg-card text-card-foreground">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Route className="size-8 text-slate-500" />
-            <p className="text-sm text-slate-400">هنوز مسیری به شما اختصاص داده نشده است.</p>
+            <Route className="size-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">هنوز مسیری به شما اختصاص داده نشده است.</p>
           </CardContent>
         </Card>
       )}
@@ -4594,20 +5002,20 @@ function AcademyPathView() {
       {/* AI Path Dialog */}
       {aiDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="mx-4 w-full max-w-lg rounded-2xl border border-white/10 bg-[#0b1a2a] p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white">🤖 پیشنهاد مسیر آموزشی</h3>
-            <p className="mt-1 text-xs text-slate-400">موضوع را وارد کنید تا هوش مصنوعی یک مسیر آموزشی پیشنهاد دهد.</p>
+          <div className="mx-4 w-full max-w-lg rounded-2xl border border-border bg-card text-card-foreground p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-foreground">🤖 پیشنهاد مسیر آموزشی</h3>
+            <p className="mt-1 text-xs text-muted-foreground">موضوع را وارد کنید تا هوش مصنوعی یک مسیر آموزشی پیشنهاد دهد.</p>
             <input
               type="text"
               value={aiTopic}
               onChange={(e) => setAiTopic(e.target.value)}
               placeholder="مثلاً: میکروبیولوژی عمومی"
-              className="mt-4 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-500"
+              className="mt-4 w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
             />
             <select
               value={aiLevel}
               onChange={(e) => setAiLevel(e.target.value)}
-              className="mt-3 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              className="mt-3 w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground"
             >
               <option value="مبتدی">مبتدی</option>
               <option value="متوسط">متوسط</option>
@@ -4615,14 +5023,14 @@ function AcademyPathView() {
               <option value="ترکیبی">ترکیبی</option>
             </select>
             {aiResult && (
-              <div className="mt-4 rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-4">
-                <p className="text-sm font-bold text-cyan-300">{aiResult.title}</p>
-                {aiResult.description && <p className="mt-1 text-xs text-slate-400">{aiResult.description}</p>}
+              <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <p className="text-sm font-bold text-primary">{aiResult.title}</p>
+                {aiResult.description && <p className="mt-1 text-xs text-muted-foreground">{aiResult.description}</p>}
                 {aiResult.steps?.length > 0 && (
                   <div className="mt-3 space-y-1.5">
                     {aiResult.steps.map((step: any, i: number) => (
-                      <div key={i} className="flex items-start gap-2 text-xs text-slate-300">
-                        <span className="text-cyan-400">{i + 1}.</span>
+                      <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                        <span className="text-primary">{i + 1}.</span>
                         <span>{step.title}</span>
                       </div>
                     ))}
@@ -4631,15 +5039,15 @@ function AcademyPathView() {
               </div>
             )}
             <div className="mt-4 flex gap-2">
-              <Button size="sm" className="bg-cyan-500 text-white hover:bg-cyan-400" disabled={!aiTopic.trim() || aiGenerating} onClick={handleAIGenerate}>
+              <Button size="sm" className="bg-primary text-foreground hover:bg-primary" disabled={!aiTopic.trim() || aiGenerating} onClick={handleAIGenerate}>
                 {aiGenerating ? "در حال تولید..." : "تولید مسیر"}
               </Button>
               {aiResult && (
-                <Button size="sm" variant="outline" className="border-emerald-500/30 text-emerald-300" onClick={submitAIPathForReview} disabled={submittingSuggestion}>
+                <Button size="sm" variant="outline" className="border-emerald-200 text-emerald-600" onClick={submitAIPathForReview} disabled={submittingSuggestion}>
                   {submittingSuggestion ? "در حال ارسال..." : "ارسال برای مدیران"}
                 </Button>
               )}
-              <Button size="sm" variant="ghost" className="text-slate-400" onClick={() => { setAiDialogOpen(false); setAiResult(null); setAiTopic(""); }}>
+              <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => { setAiDialogOpen(false); setAiResult(null); setAiTopic(""); }}>
                 بستن
               </Button>
             </div>

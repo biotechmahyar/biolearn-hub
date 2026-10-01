@@ -213,6 +213,8 @@ export default function DeskTopBar({
   title,
 }: DeskTopBarProps) {
   const [read, setRead] = useState<ReadState>(() => loadReadState(scope));
+  const [mailOpen, setMailOpen] = useState(false);
+  const [bellOpen, setBellOpen] = useState(false);
   const { theme, setTheme } = useDeskTheme(scope);
 
   const markAll = useCallback(() => {
@@ -263,7 +265,7 @@ export default function DeskTopBar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
-        <Popover>
+        <Popover open={mailOpen} onOpenChange={setMailOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="icon" className="relative size-9 rounded-xl" title="پیام‌ها">
               <Mail className="size-4" />
@@ -281,14 +283,14 @@ export default function DeskTopBar({
               items={messages}
               read={read}
               onMarkAll={markAll}
-              onOpen={() => undefined}
+              onOpen={() => setMailOpen(false)}
               emptyLabel="پیامی ندارید"
               emptyHint="اعلان‌های مدیریت سایت اینجا نمایش داده می‌شود."
             />
           </PopoverContent>
         </Popover>
 
-        <Popover>
+        <Popover open={bellOpen} onOpenChange={setBellOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
@@ -309,7 +311,7 @@ export default function DeskTopBar({
               items={notifications}
               read={read}
               onMarkAll={markAll}
-              onOpen={() => undefined}
+              onOpen={() => setBellOpen(false)}
               emptyLabel="اعلانی ندارید"
               emptyHint="تغییرات کارهای شما اینجا اعلام می‌شود."
             />

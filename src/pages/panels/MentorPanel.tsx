@@ -48,9 +48,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import DeskTopBar, { type DeskFeedItem } from "@/components/panels/DeskTopBar";
+import JalaliMonthCalendar from "@/components/panels/JalaliMonthCalendar";
+import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { applyDeskTheme, useDeskTheme } from "@/lib/deskTheme";
 import { cn } from "@/lib/utils";
-import { faNum } from "@/lib/format";
+import { faNum, formatJalaliDateString } from "@/lib/format";
 
 type SessionRow = (typeof api.mentor.listSessions)["_returnType"][number];
 type QuestionRow = (typeof api.mentor.listMentorQuestions)["_returnType"][number];
@@ -194,6 +196,16 @@ function parseSessionDate(date?: string | null) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** Every date a mentor sees is Jalali, like the rest of the site. */
+function fmtDate(date?: string | null) {
+  if (!date) return "بدون تاریخ";
+  try {
+    return formatJalaliDateString(date);
+  } catch {
+    return date;
+  }
+}
+
 const STATUS_STYLE: Record<
   string,
   { chip: string; bar: string; label: string }
@@ -228,6 +240,8 @@ export default function MentorPanel() {
   const [query, setQuery] = useState("");
   const [planOpen, setPlanOpen] = useState(false);
   const [planStudent, setPlanStudent] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [focusDate, setFocusDate] = useState<string | null>(null);
 
   const { theme } = useDeskTheme("mentor-desk");
   useEffect(() => applyDeskTheme(theme, "mentor-desk"), [theme]);
@@ -391,7 +405,7 @@ export default function MentorPanel() {
             <p className="mt-1 text-[10px] leading-5 text-muted-foreground">
               منتورینگ دانشجویان زیست‌شناسی
             </p>
-            <Button variant="outline" size="sm" className="mt-3 h-8 w-full rounded-xl text-[11px]">
+            <Button variant="outline" size="sm" className="mt-3 h-8 w-full rounded-xl text-[11px]" onClick={() => setHelpOpen(true)}>
               <LifeBuoy className="ml-1.5 size-3.5" />
               راهنما
             </Button>
@@ -439,6 +453,8 @@ export default function MentorPanel() {
                 groups={groups}
                 students={students}
                 query={query}
+                focusDate={focusDate}
+                onFocusDateChange={setFocusDate}
                 onPlan={(studentId) => {
                   setPlanStudent(studentId ?? "");
                   setPlanOpen(true);
@@ -513,7 +529,7 @@ export default function MentorPanel() {
                   <div className="space-y-2">
                     <p className="text-[13px] font-bold">{nextSession.title}</p>
                     <p className="text-[11px] text-muted-foreground">
-                      {nextSession.studentName} · {nextSession.date || "بدون تاریخ"}{" "}
+                      {nextSession.studentName} · {fmtDate(nextSession.date)}{" "}
                       {nextSession.time}
                     </p>
                     <Badge className={cn("border text-[10px]", STATUS_STYLE.scheduled.chip)}>
@@ -536,6 +552,25 @@ export default function MentorPanel() {
                   <Plus className="ml-1.5 size-4" />
                   برنامه‌ریزی جلسه
                 </Button>
+              </div>
+            </Card>
+
+            <Card className="gap-0 rounded-2xl border-border py-0">
+              <div className="px-5 pt-5">
+                <h3 className="text-[15px] font-extrabold tracking-tight">تقویم</h3>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  انتخاب یک روز، تایم‌لاین را روی همان روز متمرکز می‌کند.
+                </p>
+              </div>
+              <div className="p-5">
+                <JalaliMonthCalendar
+                  selected={focusDate}
+                  markers={sessions.map((s) => s.date).filter((d): d is string => !!d)}
+                  onSelect={(iso) => {
+                    setFocusDate(iso);
+                    setTab("pairs");
+                  }}
+                />
               </div>
             </Card>
 
@@ -576,6 +611,8 @@ export default function MentorPanel() {
         </div>
       </div>
 
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
+
       <PlanSessionDialog
         open={planOpen}
         onOpenChange={setPlanOpen}
@@ -601,12 +638,16 @@ function PairsView({
   groups,
   students,
   query,
+  focusDate,
+  onFocusDateChange,
   onPlan,
 }: {
   sessions: SessionRow[];
   groups: GroupRow[];
   students: StudentRow[];
   query: string;
+  focusDate: string | null;
+  onFocusDateChange: (iso: string | null) => void;
   onPlan: (studentId?: string) => void;
 }) {
   const [range, setRange] = useState<RangeKey>("week");
@@ -615,7 +656,11 @@ function PairsView({
   const [mentorFilter, setMentorFilter] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const anchor = useMemo(() => shiftAnchor(new Date(), range, offset), [range, offset]);
+  const base = useMemo(
+    () => (focusDate ? new Date(focusDate) : new Date()),
+    [focusDate],
+  );
+  const anchor = useMemo(() => shiftAnchor(base, range, offset), [base, range, offset]);
   const columns = useMemo(() => buildColumns(range, anchor), [anchor, range]);
 
   const q = query.trim().toLowerCase();
@@ -660,12 +705,16 @@ function PairsView({
 
   const rangeTitle =
     range === "day"
-      ? anchor.toLocaleDateString("fa-IR", { dateStyle: "full" })
+      ? formatJalaliDateString(
+          `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}-${String(anchor.getDate()).padStart(2, "0")}`,
+        )
       : range === "week"
-        ? `هفتهٔ ${anchor.toLocaleDateString("fa-IR", { day: "2-digit", month: "long" })}`
+        ? `هفتهٔ ${formatJalaliDateString(
+            `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}-${String(anchor.getDate()).padStart(2, "0")}`,
+          )}`
         : range === "month"
-          ? anchor.toLocaleDateString("fa-IR", { month: "long", year: "numeric" })
-          : `سال ${jalaali.toJalaali(anchor).jy}`;
+          ? `${JALALI_MONTHS[jalaali.toJalaali(anchor).jm - 1]} ${faNum(jalaali.toJalaali(anchor).jy)}`
+          : `سال ${faNum(jalaali.toJalaali(anchor).jy)}`;
 
   return (
     <div className="space-y-4">
@@ -741,7 +790,10 @@ function PairsView({
               variant="outline"
               size="icon"
               className="size-8 rounded-lg"
-              onClick={() => setOffset(0)}
+              onClick={() => {
+                setOffset(0);
+                onFocusDateChange(null);
+              }}
               title="امروز"
             >
               <CalendarClock className="size-3.5" />
@@ -915,7 +967,7 @@ function PairsView({
                                 {s.title || "جلسهٔ مشاوره"}
                               </p>
                               <p className="opacity-80">
-                                {[s.date, s.time].filter(Boolean).join(" · ")}
+                                {[fmtDate(s.date), s.time].filter(Boolean).join(" · ")}
                               </p>
                             </div>
                           );
@@ -1015,11 +1067,9 @@ function DashboardView({
                 <CalendarClock className="size-5" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[13.5px] font-bold">{nextSession.title}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {nextSession.studentName} · {nextSession.date || "بدون تاریخ"} ·{" "}
-                  {nextSession.time}
-                </p>
+                <p className="text-[13.5px] font-bold">{nextSession.title}</p><p className="text-[11px] text-muted-foreground">
+                    {nextSession.studentName} · {fmtDate(nextSession.date)} · {nextSession.time}
+                  </p>
               </div>
               <Badge className={cn("border text-[10px]", STATUS_STYLE.scheduled.chip)}>
                 زمان‌بندی‌شده
@@ -1260,7 +1310,7 @@ function SessionsView({ onPlan }: { onPlan: () => void }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-[13.5px] font-bold">{s.title}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {s.studentName} · {s.date || "بدون تاریخ"} · {s.time}
+                    {s.studentName} · {fmtDate(s.date)} · {s.time}
                   </p>
                   {s.notes && (
                     <p className="mt-1 text-[11px] text-muted-foreground/80">{s.notes}</p>
@@ -1503,6 +1553,70 @@ function StudentsView({
   );
 }
 
+// ── Help dialog ────────────────────────────────────────────────────────────
+function HelpDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const items = [
+    {
+      icon: HeartHandshake,
+      title: "جفت‌های منتورینگ",
+      body: "تایم‌لاین جلسات هر دانشجو را نشان می‌دهد. با دکمه‌های روز/هفته/ماه/سال بازه را عوض کنید و با تقویم کنار صفحه روی یک روز دقیق بروید.",
+    },
+    {
+      icon: CalendarClock,
+      title: "جلسات ۱:۱",
+      body: "با دکمهٔ «+» یا «برنامه‌ریزی جلسه» یک جلسه بسازید؛ تاریخ‌ها شمسی هستند و دانشجو اعلان دریافت می‌کند.",
+    },
+    {
+      icon: MessageCircleQuestion,
+      title: "پرسش و پاسخ",
+      body: "پاسخ شما مستقیم برای دانشجو ارسال می‌شود و وضعیت سؤال به «پاسخ‌داده‌شده» تغییر می‌کند.",
+    },
+    {
+      icon: Users,
+      title: "گروه‌های منتورینگ",
+      body: "حلقه‌های مطالعه با ظرفیت و روز جلسه بسازید تا دانشجویان بتوانند به آن‌ها بپیوندند.",
+    },
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-right">راهنمای میز منتور</DialogTitle>
+          <DialogDescription className="text-right">
+            همهٔ بخش‌های میز منتور و کاری که هرکدام انجام می‌دهند.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {items.map((item) => (
+            <div key={item.title} className="flex gap-3 rounded-xl border border-border bg-muted/40 p-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <item.icon className="size-4" />
+              </span>
+              <div>
+                <p className="text-[12.5px] font-bold">{item.title}</p>
+                <p className="mt-1 text-[11.5px] leading-5 text-muted-foreground">{item.body}</p>
+              </div>
+            </div>
+          ))}
+          <Button asChild variant="outline" className="w-full rounded-xl">
+            <Link to="/rules">
+              <LifeBuoy className="ml-1.5 size-4" />
+              قوانین و مقررات ژنوا
+            </Link>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Plan session dialog ────────────────────────────────────────────────────
 function PlanSessionDialog({
   open,
@@ -1579,7 +1693,7 @@ function PlanSessionDialog({
             onChange={(e) => setTitle(e.target.value)}
           />
           <div className="grid gap-3 sm:grid-cols-2">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <JalaliDatePicker value={date} onChange={setDate} />
             <Input
               placeholder="ساعت (۱۷:۰۰)"
               value={time}
