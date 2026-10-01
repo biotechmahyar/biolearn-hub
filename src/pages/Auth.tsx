@@ -271,18 +271,18 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         )}
       </AnimatePresence>
       {/* Brand panel */}
-      <div className="relative hidden overflow-hidden bg-[#06121a] p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        {/* Animated DNA behind the copy */}
+      <div className="relative hidden overflow-hidden bg-[#020c14] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        {/* Particle DNA behind the copy */}
         <motion.div
-          className="pointer-events-none absolute inset-0 opacity-70"
-          initial={{ opacity: 0, scale: 1.08 }}
-          animate={{ opacity: 0.7, scale: 1 }}
-          transition={{ duration: 2.2, ease: "easeOut" }}
+          className="pointer-events-none absolute inset-0"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 2.4, ease: "easeOut" }}
         >
           <DnaHelix className="h-full w-full" />
         </motion.div>
-        <div className="absolute inset-0 bg-gradient-to-br from-[#06121a]/70 via-[#06121a]/40 to-[#04100f]/85" />
-        <div className="absolute inset-0 bg-lab-grid opacity-[0.07]" />
+        <div className="absolute inset-0 bg-gradient-to-l from-[#020c14]/85 via-transparent to-[#020c14]/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#020c14]/70 via-transparent to-[#020c14]/80" />
         <div className="absolute -bottom-24 -left-24 size-96 rounded-full bg-emerald-500/10 blur-3xl" />
         <Link to="/" className="relative flex items-center gap-3">
           <BrandMark className="" />

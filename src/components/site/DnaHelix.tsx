@@ -1,133 +1,219 @@
-import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 
 /**
- * Slowly rotating DNA double helix, drawn as SVG.
+ * Particle DNA helix for the auth brand panel.
  *
- * One sine period is drawn as a group and repeated; the whole group is then
- * translated by exactly one period on a linear loop, so the motion is seamless
- * and reads as a gentle, endless rotation rather than a looping GIF.
+ * The reference look is a helix built out of thousands of tiny glowing dots
+ * rather than solid strokes, so this is drawn on a canvas: every particle is
+ * placed on one of the two sine strands (with a little band jitter so the
+ * strand reads as a ribbon), rides upward at a constant speed, and twinkles.
+ * Constant upward travel is what reads as a slow, endless rotation of the
+ * helix — no visible loop point.
  */
-const PERIOD = 260; // px of one full turn
-const AMPLITUDE = 52; // px of horizontal swing
-const CX = 110; // centre line
-const REPEATS = 4; // periods drawn to cover the viewport height
-const STEP = 12; // sampling resolution of the strand curve
 
-function point(y: number, phase: number) {
-  return CX + AMPLITUDE * Math.sin(((y / PERIOD) * Math.PI * 2) + phase);
+type Particle = {
+  band: 0 | 1;
+  /** normalised start position along the visible strand */
+  s0: number;
+  jx: number;
+  jy: number;
+  r: number;
+  tw: number;
+  twSpeed: number;
+  bright: boolean;
+};
+
+const PERIOD = 430; // px of one full turn
+const PARTICLES = 900;
+const RUNG_STEP = 30;
+
+// Deterministic pseudo-random so the helix does not reshuffle on re-render.
+function rand(i: number, salt: number) {
+  const x = Math.sin(i * 127.1 + salt * 311.7) * 43758.5453;
+  return x - Math.floor(x);
 }
 
-function strandPath(phase: number) {
-  const pts: string[] = [];
-  for (let y = 0; y <= PERIOD + STEP; y += STEP) {
-    pts.push(`${point(y, phase).toFixed(2)},${y}`);
-  }
-  return `M ${pts.join(" L ")}`;
+function makeDotSprite(color: string, soft: string) {
+  const c = document.createElement("canvas");
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext("2d")!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, color);
+  grad.addColorStop(0.25, color);
+  grad.addColorStop(0.55, soft);
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  return c;
 }
 
 export default function DnaHelix({ className }: { className?: string }) {
-  // Two anti-phase strands.
-  const pathA = useMemo(() => strandPath(0), []);
-  const pathB = useMemo(() => strandPath(Math.PI), []);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Base pairs (the "rungs"): spacing is even, the gap between the strands is
-  // what makes the twist visible.
-  const rungs = useMemo(() => {
-    const out: { y: number; x1: number; x2: number }[] = [];
-    for (let y = 0; y <= PERIOD; y += 22) {
-      out.push({ y, x1: point(y, 0), x2: point(y, Math.PI) });
-    }
-    return out;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    const spriteCool = makeDotSprite("rgba(186,242,255,0.95)", "rgba(56,189,248,0.35)");
+    const spriteBright = makeDotSprite("rgba(240,253,255,1)", "rgba(125,211,252,0.45)");
+
+    let w = 0;
+    let h = 0;
+    let amp = 140;
+    let cx = 0;
+    let particles: Particle[] = [];
+    let bokeh: { x: number; y: number; r: number; a: number; d: number }[] = [];
+
+    const build = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      w = rect.width;
+      h = rect.height;
+      canvas.width = Math.max(1, Math.round(w * dpr));
+      canvas.height = Math.max(1, Math.round(h * dpr));
+      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      cx = w / 2;
+      amp = Math.min(Math.max(w * 0.3, 90), 200);
+
+      particles = Array.from({ length: PARTICLES }, (_, i) => {
+        const bright = rand(i, 7) > 0.84;
+        return {
+          band: rand(i, 1) > 0.5 ? 1 : 0,
+          s0: rand(i, 2),
+          jx: (rand(i, 3) - 0.5) * 20,
+          jy: (rand(i, 4) - 0.5) * 12,
+          r: (bright ? 1.5 : 0.7) + rand(i, 5) * (bright ? 2.1 : 1.5),
+          tw: rand(i, 6) * Math.PI * 2,
+          twSpeed: 0.5 + rand(i, 8) * 1.5,
+          bright,
+        };
+      });
+
+      bokeh = Array.from({ length: 16 }, (_, i) => ({
+        x: rand(i, 21) * w,
+        y: rand(i, 22) * h,
+        r: 22 + rand(i, 23) * 46,
+        a: 0.03 + rand(i, 24) * 0.05,
+        d: 4 + rand(i, 25) * 9,
+      }));
+    };
+
+    build();
+
+    const ro = new ResizeObserver(build);
+    ro.observe(canvas);
+
+    let raf = 0;
+    let last = performance.now();
+    let scroll = 0;
+    const SPEED = 18; // px/s — a full turn takes ~24s, calm and continuous
+
+    const strandX = (y: number, band: 0 | 1) => {
+      const a = (y / PERIOD) * Math.PI * 2;
+      return cx + (band === 0 ? 1 : -1) * amp * Math.sin(a);
+    };
+
+    const drawSprite = (sprite: HTMLCanvasElement, x: number, y: number, r: number, alpha: number) => {
+      const s = r * 4.2;
+      ctx!.globalAlpha = alpha;
+      ctx!.drawImage(sprite, x - s / 2, y - s / 2, s, s);
+    };
+
+    const frame = (now: number) => {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      if (!reduceMotion) scroll += dt * SPEED;
+      const t = now / 1000;
+
+      ctx!.clearRect(0, 0, w, h);
+
+      // soft out-of-focus depth
+      ctx!.globalAlpha = 1;
+      for (const b of bokeh) {
+        if (!reduceMotion) {
+          b.y -= b.d * dt;
+          if (b.y < -b.r) {
+            b.y = h + b.r;
+            b.x = rand(Math.floor(t), 31) * w;
+          }
+        }
+        const g = ctx!.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+        g.addColorStop(0, `rgba(94,234,212,${b.a})`);
+        g.addColorStop(1, "rgba(94,234,212,0)");
+        ctx!.fillStyle = g;
+        ctx!.beginPath();
+        ctx!.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx!.fill();
+      }
+
+      const span = h + PERIOD * 2;
+
+      // base pairs — dotted connectors between the two strands
+      const offset = scroll % RUNG_STEP;
+      for (let y = -offset; y < h + RUNG_STEP; y += RUNG_STEP) {
+        const x1 = strandX(y, 0);
+        const x2 = strandX(y, 1);
+        const spread = Math.abs(x1 - x2) / (amp * 2);
+        const alpha = (0.1 + spread * 0.4) * (0.7 + 0.3 * Math.sin(t + y * 0.01));
+        const steps = 7;
+        for (let s = 1; s < steps; s++) {
+          const px = x1 + ((x2 - x1) * s) / steps;
+          const py = y + (rand(Math.round(y), s) - 0.5) * 3;
+          drawSprite(spriteCool, px, py, 0.75, alpha * (1 - s / steps) + alpha * 0.25);
+        }
+        // a faint binary digit drifting with the helix
+        if (Math.round(y / RUNG_STEP) % 7 === 0) {
+          const mx = (x1 + x2) / 2 + (rand(Math.round(y), 41) - 0.5) * 40;
+          ctx!.globalAlpha = 0.16;
+          ctx!.fillStyle = "#7dd3fc";
+          ctx!.font = "10px ui-monospace, monospace";
+          ctx!.textAlign = "center";
+          ctx!.fillText(rand(Math.round(y), 42) > 0.5 ? "0" : "1", mx, y + 3.5);
+        }
+      }
+
+      // the two strands
+      for (const p of particles) {
+        const y = ((p.s0 * span + scroll) % span) - PERIOD;
+        if (y < -30 || y > h + 30) continue;
+        const x = strandX(y, p.band) + p.jx + Math.sin(t * 0.6 + p.tw) * 1.5;
+        const py = y + p.jy;
+        // fade in/out at the top and bottom edges so nothing pops
+        const edge = Math.min(1, (py + 30) / 90, (h - py + 30) / 90);
+        const twinkle = 0.55 + 0.45 * Math.sin(t * p.twSpeed + p.tw);
+        const alpha = Math.max(0, edge * twinkle * (p.bright ? 0.95 : 0.62));
+        drawSprite(p.bright ? spriteBright : spriteCool, x, py, p.r, alpha);
+      }
+
+      ctx!.globalAlpha = 1;
+      raf = requestAnimationFrame(frame);
+    };
+
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
   }, []);
 
   return (
-    <div className={className} aria-hidden="true">
-      <svg
-        viewBox={`0 0 220 ${PERIOD * REPEATS}`}
-        preserveAspectRatio="xMidYMid slice"
-        className="h-full w-full"
-      >
-        <defs>
-          <linearGradient id="dnaA" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5eead4" />
-            <stop offset="50%" stopColor="#2dd4bf" />
-            <stop offset="100%" stopColor="#0d9488" />
-          </linearGradient>
-          <linearGradient id="dnaB" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#a7f3d0" />
-            <stop offset="50%" stopColor="#34d399" />
-            <stop offset="100%" stopColor="#059669" />
-          </linearGradient>
-          <filter id="dnaGlow" x="-40%" y="-10%" width="180%" height="120%">
-            <feGaussianBlur stdDeviation="3.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-
-        {/* The looped group: identical copies so the -PERIOD translation loops. */}
-        <motion.g
-          animate={{ y: [0, -PERIOD] }}
-          transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
-          filter="url(#dnaGlow)"
-        >
-          {Array.from({ length: REPEATS + 1 }, (_, i) => (
-            <g key={i} transform={`translate(0 ${i * PERIOD})`}>
-              {/* base pairs */}
-              {rungs.map((r, j) => {
-                const spread = Math.abs(r.x1 - r.x2) / (AMPLITUDE * 2);
-                return (
-                  <line
-                    key={j}
-                    x1={r.x1}
-                    y1={r.y}
-                    x2={r.x2}
-                    y2={r.y}
-                    stroke="#99f6e4"
-                    strokeWidth={1.6}
-                    strokeLinecap="round"
-                    opacity={0.15 + spread * 0.5}
-                  />
-                );
-              })}
-              <path d={pathA} fill="none" stroke="url(#dnaA)" strokeWidth={5} strokeLinecap="round" />
-              <path d={pathB} fill="none" stroke="url(#dnaB)" strokeWidth={5} strokeLinecap="round" />
-              {/* nodes riding on the strands */}
-              {rungs.map((r, j) =>
-                j % 2 === 0 ? (
-                  <g key={`n${j}`}>
-                    <circle cx={r.x1} cy={r.y} r={3.4} fill="#ccfbf1" opacity={0.85} />
-                    <circle cx={r.x2} cy={r.y} r={3.4} fill="#d1fae5" opacity={0.85} />
-                  </g>
-                ) : null,
-              )}
-            </g>
-          ))}
-        </motion.g>
-
-        {/* Drifting particles for depth */}
-        {[
-          { x: 34, y: 120, d: 26, delay: 0 },
-          { x: 186, y: 240, d: 32, delay: 3 },
-          { x: 70, y: 400, d: 22, delay: 6 },
-          { x: 160, y: 520, d: 30, delay: 1.5 },
-          { x: 48, y: 660, d: 24, delay: 8 },
-          { x: 178, y: 760, d: 28, delay: 4.5 },
-        ].map((p, i) => (
-          <motion.circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r={1.8}
-            fill="#ccfbf1"
-            animate={{ y: [p.y, p.y - 90], opacity: [0, 0.7, 0] }}
-            transition={{ duration: p.d, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
-          />
-        ))}
-      </svg>
+    <div
+      className={className}
+      aria-hidden="true"
+      style={{
+        background:
+          "radial-gradient(60% 45% at 50% 40%, rgba(14,116,144,0.20) 0%, rgba(2,12,20,0) 70%), radial-gradient(45% 35% at 55% 75%, rgba(30,64,110,0.22) 0%, rgba(2,12,20,0) 70%)",
+      }}
+    >
+      <canvas ref={canvasRef} className="h-full w-full" />
     </div>
   );
 }
