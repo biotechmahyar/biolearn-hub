@@ -1437,6 +1437,22 @@ const schema = defineSchema(
       ),
       languages: ARR(OBJ({ name: STR(), level: OPT(STR()) })),
       links: ARR(OBJ({ label: STR(), url: STR() })),
+      // Design settings for the resume document (canvas + properties panel).
+      style: OPT(
+        OBJ({
+          font: OPT(STR()),
+          accent: OPT(STR()),
+          scale: OPT(NUM()),
+          density: OPT(STR()),
+          columns: OPT(NUM()),
+          width: OPT(STR()),
+          radius: OPT(NUM()),
+          shadow: OPT(STR()),
+          outline: OPT(BOOL()),
+          headingStyle: OPT(STR()),
+          align: OPT(STR()),
+        }),
+      ),
       isVisible: BOOL(),
       updatedAt: NUM(),
       createdAt: NUM(),
