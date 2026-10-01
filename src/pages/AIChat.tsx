@@ -1,44 +1,123 @@
-import { useState, useRef, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
-import { useApiQuery, useApiMutation } from "@/hooks/useApiQuery";
+import { useApiQuery } from "@/hooks/useApiQuery";
 import { api as iranApi } from "@/lib/apiClient";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Send,
-  Plus,
-  Trash2,
-  MessageSquare,
-  Loader2,
-  Bot,
-  User,
-  AlertTriangle,
-  Zap,
-  Home,
-  X,
-  Check,
-} from "lucide-react";
-import { BrandMark } from "@/components/site/BrandLogo";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertTriangle,
+  BarChart3,
+  Bot,
+  Check,
+  ChevronDown,
+  Copy,
+  Download,
+  FileText,
+  FolderOpen,
+  Globe,
+  History,
+  Library,
+  Lightbulb,
+  Link2,
+  Loader2,
+  LogOut,
+  MessageSquare,
+  Mic,
+  MoreHorizontal,
+  Paperclip,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  User,
+  Wand2,
+  X,
+  Zap,
+} from "lucide-react";
+import { AssistantOrb } from "@/components/site/AssistantOrb";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { faNum } from "@/lib/format";
+
+const SAVED_PROMPTS = [
+  "یک چرخهٔ زیستی را با مثال گیاهی توضیح بده و نمودار مراحلش را بنویس.",
+  "تفاوت میتوز و میوز را در یک جدول مقایسه کن.",
+  "برای شروع کار آزمایشگاه میکروبیولوژی چه وسایلی لازم دارم؟",
+  "یک خلاصهٔ ساختاری از DNA و نقش آن در وراثت بنویس.",
+  "سوالات پرتکرار آزمون زیست‌شناسی کنکور را با پاسخ کوتاه فهرست کن.",
+];
+
+const STARTERS = [
+  {
+    icon: BarChart3,
+    title: "جمع‌بندی داده",
+    body: "یک متن یا جزوه را به ۵ نکتهٔ کلیدی تبدیل کن.",
+  },
+  {
+    icon: Wand2,
+    title: "ایده‌پردازی خلاق",
+    body: "برای یک پروژهٔ کلاسی زیست‌شناسی ایده بساز.",
+  },
+  {
+    icon: FileText,
+    title: "بررسی واقعیت",
+    body: "ادعای علمی را بسنج و منابع را فهرست کن.",
+  },
+];
+
+type Range = "today" | "week" | "older";
+
+const RANGE_LABEL: Record<Range, string> = {
+  today: "امروز",
+  week: "هفت روز اخیر",
+  older: "قدیمی‌تر",
+};
+
+function rangeOf(ts: number, now: number): Range {
+  const day = 24 * 60 * 60 * 1000;
+  const diff = now - (ts || now);
+  if (diff < day) return "today";
+  if (diff < 7 * day) return "week";
+  return "older";
+}
 
 export default function AIChat() {
-  const { isIran } = useMode();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isIran, setMode } = useMode();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const navigate = useNavigate();
   const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<any>(null);
+  const [historyFilter, setHistoryFilter] = useState<"all" | Range>("all");
+  const [query, setQuery] = useState("");
+  const [searchFocusTick, setSearchFocusTick] = useState(0);
+  const [deepResearch, setDeepResearch] = useState(false);
+  // Single timestamp used to bucket the history list (stable across renders).
+  const [clock] = useState(() => Date.now());
 
   // Delete mode state
   const [deleteMode, setDeleteMode] = useState(false);
@@ -49,6 +128,31 @@ export default function AIChat() {
       navigate("/auth?returnTo=/ai-chat");
     }
   }, [isAuthenticated, authLoading, navigate]);
+
+  // Opens the sidebar and focuses its search box (⌘K / Ctrl+K or the "کاوش" item)
+  const focusSearch = useCallback(() => {
+    setCollapsed(false);
+    setSidebarOpen(true);
+    setSearchFocusTick((t) => t + 1);
+  }, []);
+
+  useEffect(() => {
+    if (searchFocusTick === 0) return;
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 60);
+    return () => window.clearTimeout(timer);
+  }, [searchFocusTick]);
+
+  // ⌘K / Ctrl+K focuses the sidebar search
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        focusSearch();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusSearch]);
 
   // Convex queries (global mode)
   const conversationsConvex = useQuery(api.aiChat.listMyConversations, isAuthenticated ? {} : "skip");
@@ -77,7 +181,6 @@ export default function AIChat() {
     }
   }, [activeModels, selectedModelId]);
 
-  // Reflect the conversation's saved model in the picker when switching chats
   const selectedConvoDoc = conversations?.find((c: any) => c._id === selectedConvo);
   useEffect(() => {
     if (selectedConvoDoc) {
@@ -86,10 +189,6 @@ export default function AIChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConvo]);
 
-  // Clicking the active model again switches back to the default model
-  // (conversation with no explicit modelId = the admin-configured default).
-  // If a conversation is open, the switch is persisted on it immediately —
-  // so the NEXT message really uses the selected model.
   const setConvoModelMut = useMutation(api.aiChat.setConversationModel);
   const handleModelSelect = (modelId: string) => {
     setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
@@ -103,27 +202,79 @@ export default function AIChat() {
   const createConvoConvex = useMutation(api.aiChat.createConversation);
   const sendMessageConvex = useMutation(api.aiChat.sendMessage);
   const deleteConvoConvex = useMutation(api.aiChat.deleteConversation);
-  // Iran mutations
-  const { mutate: createConvoIran } = useApiMutation("/api/ai/conversations", "POST");
-  const { mutate: sendMessageIran } = useApiMutation("/api/ai/chat", "POST");
-  const { mutate: deleteConvoIran } = useApiMutation("/api/ai/conversations", "DELETE");
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const activeModel = useMemo(
+    () => (activeModels ?? []).find((m: any) => m._id === selectedModelId) ?? null,
+    [activeModels, selectedModelId],
+  );
+
+  const filteredConversations = useMemo(() => {
+    const list = [...((conversations ?? []) as any[])].sort(
+      (a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0),
+    );
+    const q = query.trim().toLowerCase();
+    return list.filter((c) => {
+      if (historyFilter !== "all" && rangeOf(c.createdAt ?? clock, clock) !== historyFilter) return false;
+      if (!q) return true;
+      return (c.title ?? "").toLowerCase().includes(q);
+    });
+  }, [conversations, historyFilter, query, clock]);
+
+  const groupedConversations = useMemo(() => {
+    const groups: { label: string; items: any[] }[] = [
+      { label: RANGE_LABEL.today, items: [] },
+      { label: RANGE_LABEL.week, items: [] },
+      { label: RANGE_LABEL.older, items: [] },
+    ];
+    filteredConversations.forEach((c) => {
+      const bucket = groups.find((g) => g.label === RANGE_LABEL[rangeOf(c.createdAt ?? clock, clock)]);
+      bucket?.items.push(c);
+    });
+    return groups.filter((g) => g.items.length > 0);
+  }, [filteredConversations, clock]);
+
+  const createConversation = async (title: string) => {
+    if (isIran) {
+      const res = await iranApi.post("/api/ai/conversations", {
+        title,
+        modelId: selectedModelId ?? undefined,
+      });
+      return (res.data as any)?.id as string;
+    }
+    return (await createConvoConvex({ title, modelId: selectedModelId ?? undefined })) as string;
+  };
+
+  const sendToConversation = async (conversationId: string, content: string) => {
+    if (isIran) {
+      await iranApi.post("/api/ai/chat", { conversationId, content });
+    } else {
+      await sendMessageConvex({ conversationId: conversationId as any, content });
+    }
+  };
+
+  const startChatWith = async (prompt: string) => {
+    try {
+      const newId = await createConversation(prompt.slice(0, 40));
+      setSelectedConvo(newId);
+      setSidebarOpen(false);
+      setInput("");
+      await sendToConversation(newId, deepResearch ? `${prompt}\n\nبا جزئیات و مثال توضیح بده.` : prompt);
+    } catch (e) {
+      console.error("Quick chat failed:", e);
+      toast.error("ارسال پیام ناموفق بود");
+    }
+  };
+
   const handleNewChat = async () => {
     try {
-      if (isIran) {
-        const res = await iranApi.post("/api/ai/conversations", { title: "چت جدید", modelId: selectedModelId ?? undefined });
-        if (res.ok && res.data) {
-          setSelectedConvo((res.data as any).id);
-        }
-      } else {
-        const id = await createConvoConvex({ title: "چت جدید", modelId: selectedModelId ?? undefined });
-        setSelectedConvo(id as string);
-      }
+      const id = await createConversation("چت جدید");
+      setSelectedConvo(id);
       setSidebarOpen(false);
+      setInput("");
       inputRef.current?.focus();
     } catch (e) {
       console.error("Failed to create conversation:", e);
@@ -132,15 +283,11 @@ export default function AIChat() {
 
   const handleSend = async () => {
     if (!input.trim() || !selectedConvo || isSending) return;
-    const content = input.trim();
+    const content = deepResearch ? `${input.trim()}\n\nبا جزئیات و مثال توضیح بده.` : input.trim();
     setInput("");
     setIsSending(true);
     try {
-      if (isIran) {
-        await iranApi.post("/api/ai/chat", { conversationId: selectedConvo, content });
-      } else {
-        await sendMessageConvex({ conversationId: selectedConvo as any, content });
-      }
+      await sendToConversation(selectedConvo, content);
     } catch (e: any) {
       console.error("Send failed:", e);
     } finally {
@@ -149,7 +296,6 @@ export default function AIChat() {
     }
   };
 
-  // Toggle a conversation in the selection set
   const toggleSelect = (id: string) => {
     setSelectedForDelete((prev) => {
       const next = new Set(prev);
@@ -159,7 +305,6 @@ export default function AIChat() {
     });
   };
 
-  // Confirm and delete selected conversations
   const confirmDelete = async () => {
     if (selectedForDelete.size === 0) return;
     if (!confirm(`${selectedForDelete.size} چت حذف شود؟`)) return;
@@ -179,13 +324,87 @@ export default function AIChat() {
     setDeleteMode(false);
   };
 
-  // Exit delete mode
   const exitDeleteMode = () => {
     setDeleteMode(false);
     setSelectedForDelete(new Set());
   };
 
-  // Loading state
+  const transcript = useMemo(
+    () =>
+      ((messages ?? []) as any[])
+        .map((m) => `${m.role === "user" ? "شما" : "ژنوا"}: ${m.content}`)
+        .join("\n\n"),
+    [messages],
+  );
+
+  const copyTranscript = async () => {
+    if (!transcript) {
+      toast.error("پیامی برای کپی وجود ندارد");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(transcript);
+      toast.success("متن گفتگو کپی شد");
+    } catch {
+      toast.error("کپی ممکن نشد");
+    }
+  };
+
+  const exportTranscript = () => {
+    if (!transcript) {
+      toast.error("پیامی برای خروجی گرفتن وجود ندارد");
+      return;
+    }
+    const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${selectedConvoDoc?.title || "genova-chat"}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("فایل گفتگو دانلود شد");
+  };
+
+  const attachFile = async (file: File) => {
+    try {
+      const text = await file.text();
+      const excerpt = text.slice(0, 1200);
+      if (!excerpt.trim()) {
+        toast.error("محتوای متنی این فایل خوانده نشد");
+        return;
+      }
+      setInput((prev) =>
+        `${prev}${prev ? "\n\n" : ""}محتوای فایل «${file.name}»:\n${excerpt}`,
+      );
+      inputRef.current?.focus();
+      toast.success("محتوای فایل به پیام اضافه شد");
+    } catch {
+      toast.error("خواندن فایل ممکن نشد");
+    }
+  };
+
+  const startVoiceInput = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error("مرورگر شما از ورودی صوتی پشتیبانی نمی‌کند");
+      return;
+    }
+    const rec = new SpeechRecognition();
+    rec.lang = "fa-IR";
+    rec.interimResults = false;
+    rec.onresult = (e: any) => {
+      const said: string = e.results?.[0]?.[0]?.transcript ?? "";
+      if (said) {
+        setInput((prev) => (prev ? `${prev} ${said}` : said));
+        inputRef.current?.focus();
+      }
+    };
+    rec.onerror = () => toast.error("تشخیص صدا انجام نشد");
+    rec.start();
+    toast.info("در حال شنیدن… دوباره صحبت نکنید");
+  };
+
   if (authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -206,133 +425,368 @@ export default function AIChat() {
 
   const lastMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
   const isWaitingForAI = !!lastMessage && lastMessage.role === "user";
+  const firstName = (user?.name || "دوست عزیز").split(" ")[0];
+  const userName = user?.name || user?.email || "کاربر ژنوا";
+
+  const navItem = (
+    Icon: typeof History,
+    label: string,
+    onClick: () => void,
+    active?: boolean,
+  ) => (
+    <button
+      key={label}
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      {label}
+    </button>
+  );
+
+  const composer = (
+    <div className="rounded-3xl border border-border bg-card p-3 shadow-sm transition-colors focus-within:border-primary/40">
+      <Textarea
+        ref={inputRef}
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (selectedConvo) handleSend();
+            else if (input.trim()) void startChatWith(input.trim());
+          }
+        }}
+        placeholder={
+          hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
+        }
+        disabled={isSending || hasReachedLimit}
+        rows={3}
+        className="resize-none border-0 bg-transparent p-2 text-[14px] leading-7 shadow-none focus-visible:ring-0"
+      />
+      <div className="flex flex-wrap items-center gap-2 px-1 pt-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setDeepResearch((v) => !v)}
+          className={cn(
+            "h-9 rounded-full px-3.5 text-[12.5px]",
+            deepResearch && "border-primary bg-primary/10 text-primary",
+          )}
+        >
+          <Sparkles className="ml-1.5 size-3.5" />
+          پژوهش عمیق
+        </Button>
+
+        <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+          <Paperclip className="size-3.5" />
+          پیوست فایل
+          <input
+            type="file"
+            className="hidden"
+            accept=".txt,.md,.csv,.json,text/*"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void attachFile(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 rounded-full px-3 text-[12.5px] text-muted-foreground hover:text-foreground"
+            >
+              <Lightbulb className="ml-1.5 size-3.5" />
+              پرامپت‌های آماده
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80">
+            <p className="mb-2 text-[11px] font-bold text-muted-foreground">
+              پرامپت‌های ذخیره‌شدهٔ ژنوا
+            </p>
+            <div className="space-y-1">
+              {SAVED_PROMPTS.map((p) => (
+<button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    setInput(p);
+                    inputRef.current?.focus();
+                  }}
+                  className="block w-full rounded-lg px-2.5 py-2 text-right text-[12px] leading-5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <div className="mr-auto flex items-center gap-1.5">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-9 rounded-full" title="تنظیمات مدل">
+                <Wand2 className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64">
+              <p className="mb-2 text-[11px] font-bold text-muted-foreground">مدل فعال</p>
+              <div className="space-y-1">
+                {((activeModels ?? []) as any[]).length === 0 && (
+                  <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                    مدلی برای این حساب فعال نشده است.
+                  </p>
+                )}
+                {((activeModels ?? []) as any[]).map((m: any) => (
+                  <button
+                    key={m._id}
+                    type="button"
+                    onClick={() => handleModelSelect(m._id)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12.5px] transition-colors",
+                      selectedModelId === m._id
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {m.name}
+                    {m.isFree && <span className="text-[10px]">رایگان</span>}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-9 rounded-full"
+            title={isIran ? "حالت ایران" : "حالت جهانی"}
+            onClick={() => setMode(isIran ? "global" : "iran")}
+          >
+            <Globe className="size-4" />
+          </Button>
+
+          <Button
+            type="button"
+            size="icon"
+            className="size-10 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90"
+            title="ورودی صوتی"
+            onClick={startVoiceInput}
+            disabled={isSending || hasReachedLimit}
+          >
+            {isSending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Mic className="size-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <div
+    <div className="flex h-screen bg-background" dir="rtl">
+      {/* ── Sidebar ─────────────────────────────────────────── */}
+      <aside
         className={cn(
-          "flex w-72 flex-col border-l border-border bg-card transition-all duration-300",
+          "flex shrink-0 flex-col border-l border-border bg-card transition-[width,transform] duration-300",
+          collapsed ? "lg:w-0 lg:overflow-hidden lg:border-l-0" : "w-[300px]",
           sidebarOpen
-            ? "translate-x-0"
-            : "translate-x-full fixed inset-y-0 right-0 z-50 lg:relative lg:translate-x-0"
+            ? "fixed inset-y-0 right-0 z-50 w-[300px] shadow-2xl translate-x-0"
+            : "fixed inset-y-0 right-0 z-50 w-[300px] translate-x-full lg:relative lg:z-auto lg:translate-x-0 lg:shadow-none",
         )}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-border p-3">
-          <span className="text-sm font-bold">
-            {deleteMode ? `${selectedForDelete.size} انتخاب شده` : "سابقه چت‌ها"}
+        <div className="flex items-center gap-2.5 px-4 py-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Sparkles className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1 leading-tight">
+            <span className="block truncate text-[14px] font-extrabold">چت ژنوا</span>
+            <span className="block truncate text-[10px] text-muted-foreground">
+              دستیار هوشمند زیست‌شناسی
+            </span>
           </span>
           <button
+            type="button"
+            onClick={() => {
+              setCollapsed(true);
+              setSidebarOpen(false);
+            }}
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="جمع کردن منو"
+          >
+            <Link2 className="size-4 rotate-180" />
+          </button>
+          <button
+            type="button"
             onClick={() => setSidebarOpen(false)}
-            className="rounded-lg p-1.5 hover:bg-accent lg:hidden"
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+            title="بستن"
           >
             <X className="size-4" />
           </button>
         </div>
 
-        {/* New Chat Button (hidden in delete mode) */}
-        {!deleteMode && (
-          <div className="p-3">
+        <div className="px-4">
+          {deleteMode ? (
+            <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-2">
+              <p className="px-1 pb-2 text-[11.5px] font-bold text-destructive">
+                {faNum(selectedForDelete.size)} گفتگو انتخاب شد
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-9 flex-1 rounded-xl text-[12px]"
+                  disabled={selectedForDelete.size === 0}
+                  onClick={confirmDelete}
+                >
+                  <Trash2 className="ml-1.5 size-3.5" />
+                  حذف
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 flex-1 rounded-xl text-[12px]"
+                  onClick={exitDeleteMode}
+                >
+                  لغو
+                </Button>
+              </div>
+            </div>
+          ) : (
             <Button
               onClick={handleNewChat}
-              variant="outline"
-              className="w-full gap-2"
+              className="h-11 w-full justify-center rounded-2xl bg-foreground text-background hover:bg-foreground/90"
             >
-              <Plus className="size-4" />
-              چت جدید
+              <Plus className="ml-1.5 size-4" />
+              گفتگوی جدید
             </Button>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Conversation List */}
-        <ScrollArea className="flex-1 px-2">
-          <div className="space-y-1 py-1">
+        <div className="px-4 pt-3">
+          <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2 focus-within:border-primary/50">
+            <Search className="size-4 shrink-0 text-muted-foreground" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="جست‌وجوی گفتگوها"
+              className="w-full bg-transparent text-[12.5px] outline-none placeholder:text-muted-foreground"
+            />
+            <kbd className="hidden shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground sm:block">
+              ⌘K
+            </kbd>
+          </div>
+        </div>
+
+        <nav className="space-y-0.5 px-4 pt-3">
+          {navItem(Search, "کاوش", focusSearch)}
+          {navItem(
+            Library,
+            "پرامپت‌های آماده",
+            () => setInput(SAVED_PROMPTS[0]),
+            false,
+          )}
+          {navItem(FolderOpen, "همهٔ گفتگوها", () => setHistoryFilter("all"), historyFilter === "all")}
+          {navItem(History, "تاریخچه", () => setHistoryFilter("today"), historyFilter === "today")}
+        </nav>
+
+        <ScrollArea className="mt-3 min-h-0 flex-1 px-4">
+          <div className="space-y-4 pb-3">
             {conversations === undefined && (
               <div className="flex justify-center py-6">
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
               </div>
             )}
-            {conversations?.map((c) => {
-              const isSelected = selectedForDelete.has(c._id);
-              return (
-                <button
-                  key={c._id}
-                  onClick={() => {
-                    if (deleteMode) {
-                      toggleSelect(c._id);
-                    } else {
-                      setSelectedConvo(c._id);
-                      setSidebarOpen(false);
-                    }
-                  }}
-                  className={cn(
-                    "group flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-right text-sm transition-colors",
-                    deleteMode
-                      ? isSelected
-                        ? "bg-destructive/15 text-destructive ring-1 ring-destructive/30"
-                        : "text-muted-foreground hover:bg-accent/50"
-                      : selectedConvo === c._id
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                  )}
-                >
-                  {deleteMode ? (
-                    <div
-                      className={cn(
-                        "flex size-5 shrink-0 items-center justify-center rounded border transition-colors",
-                        isSelected
-                          ? "border-destructive bg-destructive text-white"
-                          : "border-border bg-background"
-                      )}
-                    >
-                      {isSelected && <Check className="size-3" />}
-                    </div>
-                  ) : (
-                    <MessageSquare className="size-4 shrink-0" />
-                  )}
-                  <span className="flex-1 truncate">{c.title}</span>
-                </button>
-              );
-            })}
-            {conversations?.length === 0 && (
-              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                هنوز چتی ندارید
+            {groupedConversations.length === 0 && conversations !== undefined && (
+              <p className="px-2 py-8 text-center text-[12px] text-muted-foreground">
+                {query ? "گفتگویی با این عنوان پیدا نشد." : "هنوز گفتگویی ندارید."}
               </p>
             )}
+            {groupedConversations.map((group) => (
+              <div key={group.label}>
+                <p className="px-2 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                  {group.label}
+                </p>
+                <div className="space-y-0.5">
+                  {group.items.map((c) => {
+                    const isSelected = selectedForDelete.has(c._id);
+                    return (
+                      <button
+                        key={c._id}
+                        type="button"
+                        onClick={() => {
+                          if (deleteMode) {
+                            toggleSelect(c._id);
+                          } else {
+                            setSelectedConvo(c._id);
+                            setSidebarOpen(false);
+                          }
+                        }}
+                        className={cn(
+                          "group flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-right text-[12.5px] transition-colors",
+                          deleteMode
+                            ? isSelected
+                              ? "bg-destructive/10 text-destructive"
+                              : "text-muted-foreground hover:bg-muted"
+                            : selectedConvo === c._id
+                              ? "bg-primary/10 font-semibold text-primary"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        {deleteMode ? (
+                          <span
+                            className={cn(
+                              "flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                              isSelected
+                                ? "border-destructive bg-destructive text-white"
+                                : "border-border bg-background",
+                            )}
+                          >
+                            {isSelected && <Check className="size-3" />}
+                          </span>
+                        ) : (
+                          <MessageSquare className="size-4 shrink-0 opacity-70" />
+                        )}
+                        <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </ScrollArea>
 
-        {/* Delete mode bar OR Usage bar */}
-        {deleteMode ? (
-          <div className="flex gap-2 border-t border-border p-3">
-            <Button
-              variant="destructive"
-              size="sm"
-              className="flex-1 gap-1.5"
-              disabled={selectedForDelete.size === 0}
-              onClick={confirmDelete}
-            >
-              <Trash2 className="size-3.5" />
-              حذف ({selectedForDelete.size})
-            </Button>
-            <Button variant="outline" size="sm" className="flex-1" onClick={exitDeleteMode}>
-              لغو
-            </Button>
-          </div>
-        ) : (
-          usage && (
-            <div className="border-t border-border p-3">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <div className="space-y-2 border-t border-border p-4">
+          {usage && (
+            <div className="rounded-2xl border border-border bg-muted/40 p-3">
+              <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <Zap className="size-3 text-amber-500" />
                   پیام‌های امروز
                 </span>
                 <span className="font-mono">
-                  {messagesSent}/{dailyLimit}
+                  {faNum(messagesSent)}/{faNum(dailyLimit)}
                 </span>
               </div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
@@ -340,170 +794,202 @@ export default function AIChat() {
                       ? "bg-destructive"
                       : remaining <= 1
                         ? "bg-amber-500"
-                        : "bg-primary"
+                        : "bg-primary",
                   )}
                   style={{
                     width: `${Math.min(100, (messagesSent / Math.max(dailyLimit, 1)) * 100)}%`,
                   }}
                 />
               </div>
-              {/* Delete history button */}
-              {conversations && conversations.length > 0 && (
+              {conversations && conversations.length > 0 && !deleteMode && (
                 <button
+                  type="button"
                   onClick={() => setDeleteMode(true)}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                 >
                   <Trash2 className="size-3" />
                   حذف سوابق
                 </button>
               )}
             </div>
-          )
-        )}
-      </div>
+          )}
 
-      {/* Mobile overlay */}
+          <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-background p-2.5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary">
+              {userName.slice(0, 1).toUpperCase()}
+            </span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-[12.5px] font-semibold">{userName}</span>
+              <span className="block truncate text-[10px] text-muted-foreground">
+                {user?.email ?? "کاربر ژنوا"}
+              </span>
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-lg"
+              title="بازگشت به سایت"
+              onClick={() => navigate("/")}
+            >
+              <LogOut className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </aside>
+
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-foreground/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col">
-        {/* Top Bar */}
-        <header className="flex h-14 items-center gap-3 border-b border-border px-4">
-          <button
-            onClick={() => navigate("/")}
-            className="rounded-lg p-2 hover:bg-accent"
-            title="بازگشت به خانه"
+      {/* ── Main ────────────────────────────────────────────── */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-3 sm:px-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-9 rounded-xl"
+            onClick={() => {
+              if (collapsed) setCollapsed(false);
+              else setSidebarOpen((v) => !v);
+            }}
+            title="منوی گفتگوها"
           >
-            <Home className="size-5" />
-          </button>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="rounded-lg p-2 hover:bg-accent lg:hidden"
-          >
-            <MessageSquare className="size-5" />
-          </button>
-          <BrandMark className="hidden sm:flex" />
-          <span className="text-sm font-bold text-foreground">چت هوشمند</span>
+            {collapsed ? <MessageSquare className="size-4" /> : <Link2 className="size-4 rotate-180" />}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-10 gap-2 rounded-2xl px-3">
+                <Sparkles className="size-4 text-primary" />
+                <span className="max-w-[140px] truncate">
+                  {activeModel?.name ?? "مدل پیش‌فرض"}
+                </span>
+                <ChevronDown className="size-3.5 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuItem onClick={() => setSelectedModelId(null)}>
+                مدل پیش‌فرض سایت
+              </DropdownMenuItem>
+              {((activeModels ?? []) as any[]).map((m: any) => (
+                <DropdownMenuItem key={m._id} onClick={() => handleModelSelect(m._id)}>
+                  {m.name}
+                  {m.isFree && (
+                    <span className="mr-auto text-[10px] text-muted-foreground">رایگان</span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <div className="flex-1" />
+
           {usage && (
-            <div className="flex items-center gap-1.5 rounded-full bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
+            <div className="hidden items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1.5 text-[11.5px] text-muted-foreground md:flex">
               <Zap className="size-3 text-amber-500" />
-              {remaining} پیام باقی‌مانده
-              {sub ? (
-                <span className="ml-1 text-[10px] font-bold text-amber-500">⭐ {sub.label}</span>
-              ) : (usage?.role === "user" || usage?.role === "member") ? (
-                <button onClick={() => navigate("/pricing")} className="ml-1 text-[10px] font-bold text-primary hover:underline">ارتقا ←</button>
-              ) : null}
+              {faNum(Math.max(remaining, 0))} پیام باقی‌مانده
             </div>
           )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-9 rounded-xl" title="بیشتر">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={copyTranscript}>
+                <Copy className="size-4" />
+                کپی متن گفتگو
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportTranscript}>
+                <Download className="size-4" />
+                خروجی فایل متنی
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate("/ai-chat")}>
+                <Sparkles className="size-4" />
+                صفحهٔ هوش مصنوعی ژنوا
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button
+            variant="outline"
+            className="hidden h-10 gap-2 rounded-2xl sm:flex"
+            onClick={copyTranscript}
+            disabled={!transcript}
+          >
+            <Copy className="size-4" />
+            کپی گفتگو
+          </Button>
+
+          <Button
+            className="h-10 rounded-2xl bg-foreground text-background hover:bg-foreground/90"
+            onClick={() => navigate("/pricing")}
+            disabled={!!sub}
+          >
+            {sub ? sub.label : "ارتقای اشتراک"}
+          </Button>
         </header>
 
-        {/* Messages */}
-        <ScrollArea className="flex-1">
-          <div className="mx-auto max-w-3xl px-4 py-6">
+        {/* Messages / hero */}
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
             {!selectedConvo ? (
-              /* Empty state */
-              <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center">
-                <div className="flex size-20 items-center justify-center rounded-2xl bg-primary/10">
-                  <Bot className="size-10 text-primary" />
-                </div>
+              <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center">
+                <AssistantOrb thinking={false} />
+
                 <div>
-                  <h2 className="text-2xl font-bold">چت هوشمند Genova</h2>
-                  <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                    از هوش مصنوعی درباره علوم زیستی، میکروبیولوژی، بیوتکنولوژی
-                    و موضوعات مرتبط سؤال بپرسید.
+                  <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
+                    سلام، {firstName}
+                  </h2>
+                  <p className="mt-3 text-xl font-bold text-foreground sm:text-2xl">
+                    چطور می‌توانم کمکت کنم؟
+                  </p>
+                  <p className="mx-auto mt-3 max-w-lg text-[13px] leading-7 text-muted-foreground">
+                    دربارهٔ زیست‌شناسی، ژنتیک، میکروبیولوژی و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها
+                    همراه با توضیح مرحله‌به‌مرحله و منابع پیشنهادی ارائه می‌شود.
                   </p>
                 </div>
-                {(activeModels ?? []).length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap justify-center">
-                    <span className="text-xs text-muted-foreground">مدل:</span>
-                    {(activeModels ?? []).map((m: any) => (
-                      <button
-                        key={m._id}
-                        onClick={() => handleModelSelect(m._id)}
-                        title={selectedModelId === m._id ? "برای بازگشت به مدل پیشفرض دوباره کلیک کنید" : undefined}
-                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                          selectedModelId === m._id
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {m.name}
-                        {m.isFree && <span className="mr-1 text-[10px] opacity-70">رایگان</span>}
-                      </button>
-                    ))}
-                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                      {selectedModelId ? "فعال" : "مدل پیشفرض فعال"}
-                    </span>
-                  </div>
-                )}
-                <Button onClick={handleNewChat} size="lg" className="gap-2">
-                  <Plus className="size-4" />
-                  شروع چت جدید
-                </Button>
-                <div className="grid max-w-lg grid-cols-2 gap-2 text-sm">
-                  {[
-                    "توضیح فتوسنتز",
-                    "تفاوت DNA و RNA",
-                    "سلول‌های بنیادی",
-                    "روش‌های رنگ‌آمیزی گرم",
-                  ].map((q) => (
+
+                <div className="w-full max-w-2xl">{composer}</div>
+
+                <div className="grid w-full max-w-4xl gap-3 sm:grid-cols-3">
+                  {STARTERS.map((s) => (
                     <button
-                      key={q}
-                      onClick={async () => {
-                        try {
-                        let newId: string;
-                        if (isIran) {
-                          const res = await iranApi.post("/api/ai/conversations", { title: q, modelId: selectedModelId ?? undefined });
-                          newId = (res.data as any)?.id;
-                        } else {
-                          newId = await createConvoConvex({ title: q, modelId: selectedModelId ?? undefined }) as string;
-                        }
-                        setSelectedConvo(newId);
-                        setSidebarOpen(false);
-                        setTimeout(async () => {
-                          try {
-                            if (isIran) {
-                              await iranApi.post("/api/ai/chat", { conversationId: newId, content: q });
-                            } else {
-                              await sendMessageConvex({ conversationId: newId as any, content: q });
-                            }
-                            } catch (e) {
-                              console.error("Auto-send failed:", e);
-                            }
-                          }, 500);
-                        } catch (e) {
-                          console.error("Quick chat failed:", e);
-                        }
-                      }}
-                      className="rounded-xl border border-border bg-card p-3 text-right text-xs text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground"
+                      key={s.title}
+                      type="button"
+                      onClick={() => void startChatWith(s.body)}
+                      className="rounded-2xl border border-border bg-card p-4 text-right transition-colors hover:border-primary/40 hover:shadow-sm"
                     >
-                      {q}
+                      <s.icon className="size-5 text-foreground" />
+                      <p className="mt-3 text-[13.5px] font-extrabold">{s.title}</p>
+                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
+                        {s.body}
+                      </p>
                     </button>
                   ))}
                 </div>
               </div>
             ) : (
-              /* Messages list */
-              <div className="space-y-6">
+              <div className="space-y-6 py-2">
                 {messages === undefined && (
                   <div className="flex justify-center py-12">
                     <Loader2 className="size-5 animate-spin text-muted-foreground" />
                   </div>
                 )}
-                {messages?.map((m) => (
+                {messages?.map((m: any) => (
                   <motion.div
                     key={m._id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={cn(
                       "flex gap-3",
-                      m.role === "user" ? "flex-row-reverse" : ""
+                      m.role === "user" ? "flex-row-reverse" : "",
                     )}
                   >
                     <div
@@ -511,7 +997,7 @@ export default function AIChat() {
                         "flex size-8 shrink-0 items-center justify-center rounded-full",
                         m.role === "user"
                           ? "bg-primary/10 text-primary"
-                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                          : "bg-primary/10 text-primary",
                       )}
                     >
                       {m.role === "user" ? (
@@ -522,27 +1008,28 @@ export default function AIChat() {
                     </div>
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-7",
+                        "max-w-[80%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-[13.5px] leading-7",
                         m.role === "user"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
+                          ? "rounded-ee-md bg-primary text-primary-foreground"
+                          : "rounded-es-md border border-border bg-card text-foreground",
                       )}
                     >
-                      <p className="whitespace-pre-wrap">{m.content}</p>
+                      {m.content}
                     </div>
                   </motion.div>
                 ))}
                 {(isSending || isWaitingForAI) && (
                   <div className="flex gap-3">
-                    <div className="flex size-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
                       <Bot className="size-4" />
                     </div>
-                    <div className="flex items-center gap-2 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 rounded-3xl border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
                       <span className="flex gap-1">
-                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:0ms]" />
-                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:150ms]" />
-                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:300ms]" />
+                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
+                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
+                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:300ms]" />
                       </span>
+                      در حال نوشتن پاسخ…
                     </div>
                   </div>
                 )}
@@ -552,69 +1039,31 @@ export default function AIChat() {
           </div>
         </ScrollArea>
 
-        {/* Input Area */}
+        {/* Composer (docked when a conversation is open) */}
         {selectedConvo && (
-          <div className="border-t border-border bg-card p-4">
-            <div className="mx-auto max-w-3xl">
-              {(activeModels ?? []).length > 0 && (
-                <div className="mb-2 flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground">مدل:</span>
-                  {(activeModels ?? []).map((m: any) => (
-                    <button
-                      key={m._id}
-                      onClick={() => handleModelSelect(m._id)}
-                      title={selectedModelId === m._id ? "برای بازگشت به مدل پیشفرض دوباره کلیک کنید" : undefined}
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                        selectedModelId === m._id
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {m.name}
-                    </button>
-                  ))}
-                </div>
-              )}
+          <div className="shrink-0 border-t border-border bg-card/60 p-3 backdrop-blur sm:p-4">
+            <div className="mx-auto w-full max-w-4xl">
               {hasReachedLimit && (
-                <div className="mb-3 flex items-center gap-2 rounded-xl bg-amber-500/10 px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400">
+                <div className="mb-3 flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-[13px] text-amber-600">
                   <AlertTriangle className="size-4" />
                   محدودیت روزانه تمام شده. فردا دوباره شارژ می‌شود.
                 </div>
               )}
-              <div className="flex items-center gap-2">
-                <Input
-                  ref={inputRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder={
-                    hasReachedLimit
-                      ? "محدودیت روزانه تمام شده..."
-                      : "پیام خود را بنویسید..."
-                  }
-                  disabled={isSending || hasReachedLimit}
-                  className="flex-1"
-                />
-                <Button
-                  size="icon"
-                  onClick={handleSend}
-                  disabled={!input.trim() || isSending || hasReachedLimit}
-                >
-                  {isSending ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
-                </Button>
-              </div>
+              {composer}
             </div>
           </div>
         )}
+
+        <footer className="shrink-0 px-4 pb-3 text-center text-[11.5px] text-muted-foreground">
+          برای بینش‌های بیشتر به جامعهٔ ژنوا بپیوندید —{" "}
+          <button
+            type="button"
+            onClick={() => navigate("/about")}
+            className="font-semibold text-primary hover:underline"
+          >
+            دربارهٔ ژنوا
+          </button>
+        </footer>
       </div>
     </div>
   );
