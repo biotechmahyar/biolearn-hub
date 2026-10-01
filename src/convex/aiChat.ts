@@ -442,6 +442,16 @@ export const deleteMessage = mutation({
 
 // ── Internal mutation to save AI messages (called from actions) ──────────────
 
+// ── Internal helpers ────────────────────────────────────────────────────────
+/** Role lookup used by server-side actions that must authorise the caller. */
+export const _getRoleByUserId = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    return user?.role ?? null;
+  },
+});
+
 export const saveAIMessage = internalMutation({
   args: {
     conversationId: v.id("aiConversations"),

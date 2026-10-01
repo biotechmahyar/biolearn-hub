@@ -3901,13 +3901,59 @@ function AdminInstructors() {
 // ── Comments moderation ──────────────────────────────────────────────────────
 function AdminComments() {
   const pending = useQuery(api.comments.listPending);
+  const stats = useQuery(api.comments.getCommentStats);
   const approve = useMutation(api.comments.approveComment);
   const reject = useMutation(api.comments.rejectComment);
   const remove = useMutation(api.comments.deleteComment);
+  const wipe = useMutation(api.comments.wipeAllComments);
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wiping, setWiping] = useState(false);
+
+  const runWipe = async () => {
+    setWiping(true);
+    try {
+      const res = await wipe({ confirm: true });
+      toast.success(`${faNum(res.deleted)} دیدگاه حذف شد.`);
+      setWipeOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در پاک‌سازی");
+    } finally {
+      setWiping(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
-      <SectionHeader title="دیدگاه‌ها" subtitle="تأیید یا رد دیدگاه‌های کاربران" count={pending?.length} />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <SectionHeader
+          title="دیدگاه‌ها"
+          subtitle="تأیید یا رد دیدگاه‌های کاربران"
+          count={pending?.length}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 rounded-xl border-destructive/30 text-xs text-destructive hover:bg-destructive/10"
+          onClick={() => setWipeOpen(true)}
+        >
+          <Trash2 className="ml-1.5 size-3.5" />
+          ریست کامل دیدگاه‌ها{stats ? ` (${faNum(stats.total)})` : ""}
+        </Button>
+      </div>
+
+      {stats && (
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          <span className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-muted-foreground">
+            کل دیدگاه‌ها: <span className="font-semibold text-foreground">{faNum(stats.total)}</span>
+          </span>
+          <span className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-muted-foreground">
+            تأییدشده: <span className="font-semibold text-foreground">{faNum(stats.approved)}</span>
+          </span>
+          <span className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-muted-foreground">
+            در انتظار: <span className="font-semibold text-foreground">{faNum(stats.pending)}</span>
+          </span>
+        </div>
+      )}
       {pending === undefined ? (
         <Card className="border-border/70 shadow-sm"><CardContent className="flex justify-center py-10"><Loader2 className="size-5 animate-spin text-muted-foreground" /></CardContent></Card>
       ) : pending.length === 0 ? (
@@ -3947,6 +3993,31 @@ function AdminComments() {
           ))}
         </div>
       )}
+
+      <Dialog open={wipeOpen} onOpenChange={setWipeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>ریست کامل دیدگاه‌ها</DialogTitle>
+            <DialogDescription>
+              همهٔ دیدگاه‌ها — تأییدشده و در انتظار — برای همیشه حذف می‌شوند و بازگردانی ممکن نیست.
+              {stats ? ` در حال حاضر ${faNum(stats.total)} دیدگاه ثبت شده است.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => setWipeOpen(false)} disabled={wiping}>
+              انصراف
+            </Button>
+            <Button
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void runWipe()}
+              disabled={wiping}
+            >
+              {wiping ? <Loader2 className="ml-2 size-4 animate-spin" /> : <Trash2 className="ml-2 size-4" />}
+              حذف همه
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

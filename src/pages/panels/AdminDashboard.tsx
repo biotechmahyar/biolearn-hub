@@ -39,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import AdminAssistantWidget from "@/pages/panels/AdminAssistantWidget";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -47,12 +48,13 @@ import { cn } from "@/lib/utils";
 import { faNum, formatPriceNumber } from "@/lib/format";
 
 // ── Widget registry (drives the "افزودن ویجت" panel) ────────────────────────
-type WidgetKey = "kpis" | "revenue" | "weekday" | "repeat" | "topCourses";
+type WidgetKey = "kpis" | "revenue" | "weekday" | "repeat" | "topCourses" | "assistant";
 
 const WIDGETS: { key: WidgetKey; title: string; description: string; tag: string }[] = [
   { key: "kpis", title: "شاخص‌های کلیدی", description: "کارت‌های درآمد، سفارش، کاربر جدید و تیکت باز.", tag: "#KeyMetrics" },
   { key: "revenue", title: "روند درآمد", description: "نمودار درآمد روزانه با مقایسه با دورهٔ قبل.", tag: "#Revenue" },
   { key: "weekday", title: "پرفعال‌ترین روزها", description: "تعداد سفارش‌ها به تفکیک روز هفته.", tag: "#Activity" },
+  { key: "assistant", title: "دستیار هوشمند", description: "گفتگو با هوش مصنوعی بر پایهٔ آمار زندهٔ سایت.", tag: "#AI" },
   { key: "repeat", title: "نرخ خرید مجدد", description: "سهم اعضایی که بیش از یک بار خریده‌اند.", tag: "#Retention" },
   { key: "topCourses", title: "پرفروش‌ترین دوره‌ها", description: "جدول دوره‌های برتر با فروش و امتیاز.", tag: "#Courses" },
 ];
@@ -463,6 +465,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate?: (section: 
           </WidgetCard>
         )}
 
+        <div className={cn("space-y-4", !show("revenue") && "xl:col-span-3")}>
         {show("weekday") && (
           <WidgetCard
             title="پرفعال‌ترین روز هفته"
@@ -510,6 +513,9 @@ export default function AdminDashboard({ onNavigate }: { onNavigate?: (section: 
             )}
           </WidgetCard>
         )}
+
+        {show("assistant") && <AdminAssistantWidget days={days} />}
+        </div>
       </div>
 
       {/* Repeat rate + top courses */}
@@ -627,9 +633,11 @@ export default function AdminDashboard({ onNavigate }: { onNavigate?: (section: 
                     ? AreaChartIcon
                     : w.key === "weekday"
                       ? BarChart3
-                      : w.key === "repeat"
-                        ? Repeat
-                        : Sparkles;
+                      : w.key === "assistant"
+                        ? Sparkles
+                        : w.key === "repeat"
+                          ? Repeat
+                          : Award;
               return (
                 <div
                   key={w.key}

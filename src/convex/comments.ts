@@ -94,3 +94,31 @@ export const deleteComment = mutation({
     return { ok: true };
   },
 });
+
+// ── Admin: wipe every comment ────────────────────────────────────────────────
+// Removes BOTH approved and pending comments, so the public pages go empty
+// too. Irreversible, hence the explicit confirmation flag from the client.
+export const wipeAllComments = mutation({
+  args: { confirm: v.boolean() },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی ادمین لازم است.");
+    if (!args.confirm) throw new Error("برای پاک‌سازی باید تأیید ارسال شود.");
+    const comments = await ctx.db.query("comments").collect();
+    for (const c of comments) await ctx.db.delete(c._id);
+    return { deleted: comments.length };
+  },
+});
+
+// ── Admin: comment counters ─────────────────────────────────────────────────
+export const getCommentStats = query({
+  args: {},
+  handler: async (ctx) => {
+    if (!(await isAnyAdmin(ctx))) return { total: 0, pending: 0, approved: 0 };
+    const comments = await ctx.db.query("comments").collect();
+    return {
+      total: comments.length,
+      pending: comments.filter((c) => !c.approved).length,
+      approved: comments.filter((c) => c.approved).length,
+    };
+  },
+});

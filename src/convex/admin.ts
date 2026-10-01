@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 
 // ── Role-check helpers ──────────────────────────────────────────────────────
@@ -226,6 +226,63 @@ export const getAdminDashboard = query({
       weekday,
       topCourses,
     };
+  },
+});
+
+// ── Assistant context (internal) ────────────────────────────────────────────
+// Compact, text-only snapshot of the platform numbers. The admin dashboard AI
+// widget feeds this to the model so its answers are grounded in real data
+// instead of generic guesses. It is internal-only: the browser never reads it.
+export const _getAssistantContext = internalQuery({
+  args: { days: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) return null;
+    const DAY = 86_400_000;
+    const TZ = 3.5 * 3600 * 1000;
+    const days = Math.min(90, Math.max(7, Math.round(args.days ?? 30)));
+    const now = Date.now();
+    const rangeStart = Math.floor((now + TZ) / DAY) * DAY - TZ - (days - 1) * DAY;
+
+    const [users, courses, orders, articles, questions, tickets, enrollments] = await Promise.all([
+      ctx.db.query("users").collect(),
+      ctx.db.query("courses").collect(),
+      ctx.db.query("orders").collect(),
+      ctx.db.query("articles").collect(),
+      ctx.db.query("questions").collect(),
+      ctx.db.query("tickets").collect(),
+      ctx.db.query("enrollments").collect(),
+    ]);
+
+    const paid = orders.filter((o: any) => o.status === "paid");
+    const revenue = paid.reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+    const openTickets = tickets.filter((t: any) => t.status === "open");
+    const soldByCourse = new Map<string, number>();
+    for (const o of paid) {
+      for (const item of o.items ?? []) {
+        if (item.type === "course") soldByCourse.set(item.refId, (soldByCourse.get(item.refId) ?? 0) + 1);
+      }
+    }
+    const topCourses = courses
+      .map((c: any) => ({ title: c.title, sold: soldByCourse.get(c._id) ?? 0, rating: c.rating ?? 0 }))
+      .sort((a, b) => b.sold - a.sold)
+      .slice(0, 5);
+
+    const roleCounts = new Map<string, number>();
+    for (const u of users) {
+      const r = (u.role as string) || "user";
+      roleCounts.set(r, (roleCounts.get(r) ?? 0) + 1);
+    }
+
+    const money = (n: number) => `${n.toLocaleString("en-US")} تومان`;
+    return [
+      `بازهٔ گزارش: ${days} روز اخیر (تا ${new Date(now + TZ).toISOString().slice(0, 10)}).`,
+      `فروش: ${paid.length} سفارش پرداخت‌شده به مبلغ ${money(revenue)}؛ میانگین هر سفارش ${money(paid.length ? Math.round(revenue / paid.length) : 0)}.`,
+      `کاربران: ${users.length} عضو (${users.filter((u: any) => u._creationTime >= rangeStart).length} عضو جدید در این بازه).`,
+      `نقش‌ها: ${[...roleCounts.entries()].map(([r, n]) => `${r}=${n}`).join("، ")}.`,
+      `محتوا: ${courses.length} دوره، ${articles.length} مقاله، ${questions.length} سؤال؛ ${enrollments.length} ثبت‌نام.`,
+      `پشتیبانی: ${openTickets.length} تیکت باز.`,
+      `پرفروش‌ترین دوره‌ها: ${topCourses.map((c) => `${c.title} (${c.sold} فروش، امتیاز ${c.rating})`).join("، ") || "—"}.`,
+    ].join("\n");
   },
 });
 

@@ -2,6 +2,7 @@
 
 import { action } from "./_generated/server";
 import { v } from "convex/values";
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 
 // ── AI Provider call ────────────────────────────────────────────────────────
@@ -26,6 +27,83 @@ function openaiBase(url: string): string {
  * Call the configured AI provider and save the response to the conversation.
  * This action runs server-side (Node.js) so the API key never reaches the browser.
  */
+// ── Shared provider call ────────────────────────────────────────────────────
+type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
+
+type ProviderConfig = {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  provider: string;
+  temperature?: number;
+  maxTokensPerRequest?: number;
+};
+
+/**
+ * Single place that talks to the configured provider. Supports the three
+ * families the admin can configure: OpenAI-compatible, Anthropic and Google.
+ * Throws with the provider's own message so callers can surface it.
+ */
+async function requestCompletion(config: ProviderConfig, turns: ChatTurn[]): Promise<string> {
+  const { apiKey, baseUrl, model, provider, temperature, maxTokensPerRequest } = config;
+  const system = turns.find((t) => t.role === "system")?.content ?? "";
+  const rest = turns.filter((t) => t.role !== "system");
+
+  if (provider === "anthropic") {
+    const resp = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokensPerRequest,
+        temperature,
+        messages: rest,
+        system,
+      }),
+    });
+    const data = (await resp.json()) as any;
+    if (data.error) throw new Error(data.error.message ?? "Anthropic API error");
+    return data.content?.[0]?.text ?? "پاسخی دریافت نشد.";
+  }
+
+  if (provider === "google") {
+    const contents = rest.map((t) => ({
+      role: t.role === "assistant" ? "model" : "user",
+      parts: [{ text: t.content }],
+    }));
+    const resp = await fetch(`${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents,
+        generationConfig: { temperature, maxOutputTokens: maxTokensPerRequest },
+      }),
+    });
+    const data = (await resp.json()) as any;
+    if (data.error) throw new Error(data.error.message ?? "Google AI error");
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "پاسخی دریافت نشد.";
+  }
+
+  // OpenAI-compatible API (openai, gapgpt, custom, local gateways)
+  const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: turns,
+      temperature,
+      max_tokens: maxTokensPerRequest,
+    }),
+  });
+  const data = (await resp.json()) as any;
+  if (data.error) throw new Error(data.error.message ?? "API error");
+  return data.choices?.[0]?.message?.content ?? "پاسخی دریافت نشد.";
+}
+
 export const callAI = action({
   args: {
     conversationId: v.id("aiConversations"),
@@ -52,8 +130,8 @@ export const callAI = action({
       conversationId: args.conversationId,
     });
 
-    const chatMessages = [
-      { role: "system" as const, content: rawConfig.systemPrompt || "شما یک دستیار تخصصی علوم زیستی هستید." },
+    const chatMessages: ChatTurn[] = [
+      { role: "system", content: rawConfig.systemPrompt || "شما یک دستیار تخصصی علوم زیستی هستید." },
       ...messages.map((m: any) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
@@ -61,78 +139,10 @@ export const callAI = action({
     ];
 
     try {
-      let responseText = "";
-
-      if (provider === "anthropic") {
-        const resp = await fetch(`${baseUrl}/v1/messages`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: maxTokensPerRequest,
-            temperature,
-            messages: chatMessages.filter((m) => m.role !== "system"),
-            system: chatMessages.find((m) => m.role === "system")?.content ?? "",
-          }),
-        });
-        const data = await resp.json() as any;
-        if (data.error) {
-          throw new Error(data.error.message ?? "Anthropic API error");
-        }
-        responseText = data.content?.[0]?.text ?? "پاسخی دریافت نشد.";
-      } else if (provider === "google") {
-        const contents = chatMessages
-          .filter((m) => m.role !== "system")
-          .map((m) => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.content }],
-          }));
-        const resp = await fetch(
-          `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents,
-              generationConfig: {
-                temperature,
-                maxOutputTokens: maxTokensPerRequest,
-              },
-            }),
-          }
-        );
-        const data = await resp.json() as any;
-        if (data.error) {
-          throw new Error(data.error.message ?? "Google AI error");
-        }
-        responseText =
-          data.candidates?.[0]?.content?.parts?.[0]?.text ?? "پاسخی دریافت نشد.";
-      } else {
-        // OpenAI-compatible API (openai, gapgpt, custom)
-        const resp = await fetch(`${openaiBase(baseUrl)}/v1/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            messages: chatMessages,
-            temperature,
-            max_tokens: maxTokensPerRequest,
-          }),
-        });
-        const data = await resp.json() as any;
-        if (data.error) {
-          throw new Error(data.error.message ?? "API error");
-        }
-        responseText =
-          data.choices?.[0]?.message?.content ?? "پاسخی دریافت نشد.";
-      }
+      const responseText = await requestCompletion(
+        { apiKey, baseUrl, model, provider, temperature, maxTokensPerRequest },
+        chatMessages,
+      );
 
       // Save the AI response
       await ctx.runMutation(internal.aiChat.saveAIMessage, {
@@ -147,6 +157,86 @@ export const callAI = action({
         conversationId: args.conversationId,
         content: `خطا در اتصال به هوش مصنوعی: ${msg}`,
       });
+    }
+  },
+});
+
+
+
+// ── Admin dashboard assistant ───────────────────────────────────────────────
+/**
+ * Stateless ask endpoint for the dashboard "AI Assistant" widget.
+ *
+ * Unlike `callAI` this writes nothing to the database: the widget keeps the
+ * short conversation in component state. The action injects a live snapshot of
+ * the platform numbers (revenue, members, tickets, best sellers) as grounding
+ * context so answers are about THIS platform rather than generic advice.
+ */
+export const adminAssistantAsk = action({
+  args: {
+    messages: v.array(
+      v.object({
+        role: v.union(v.literal("user"), v.literal("assistant")),
+        content: v.string(),
+      }),
+    ),
+    days: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx as never);
+    if (!userId) throw new Error("عدم دسترسی: ابتدا وارد شوید.");
+
+    const role: string | null = await ctx.runQuery(internal.aiChat._getRoleByUserId, { userId });
+    if (role !== "admin" && role !== "site_admin") {
+      throw new Error("فقط مدیر سامانه و مدیر سایت به دستیار پنل دسترسی دارند.");
+    }
+
+    // Keep the payload small: only the recent turns reach the provider.
+    const history = args.messages.slice(-12);
+    if (history.length === 0) throw new Error("پیامی ارسال نشده است.");
+
+    const snapshot = await ctx.runQuery(internal.admin._getAssistantContext, {
+      days: args.days ?? 30,
+    });
+
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, {});
+    if (!rawConfig?.apiKey) {
+      return {
+        text: "هنوز سرویس هوش مصنوعی پیکربندی نشده است. از بخش «مدیریت هوش مصنوعی» کلید API و مدل را ثبت کنید تا دستیار فعال شود.",
+        grounded: false,
+      };
+    }
+
+    const system = [
+      rawConfig.systemPrompt ||
+        "شما دستیار تحلیلگر پنل مدیریت پلتفرم آموزشی Genova هستید.",
+      "",
+      "فقط بر اساس داده‌های زیر پاسخ بده. اگر پاسخ در داده‌ها نبود، صریح بگو که در دادهٔ فعلی موجود نیست و حدس نزن.",
+      "پاسخ‌ها کوتاه، دقیق و به فارسی روان باشد. در صورت نیاز از فهرست کوتاه و عدد استفاده کن.",
+      "",
+      "── وضعیت فعلی پلتفرم ──",
+      snapshot ?? "داده‌ای در دسترس نیست.",
+    ].join("\n");
+
+    try {
+      const text = await requestCompletion(
+        {
+          apiKey: rawConfig.apiKey,
+          baseUrl: rawConfig.baseUrl,
+          model: rawConfig.model,
+          provider: rawConfig.provider,
+          temperature: rawConfig.temperature ?? 0.4,
+          maxTokensPerRequest: rawConfig.maxTokensPerRequest ?? 800,
+        },
+        [
+          { role: "system", content: system },
+          ...history.map((m) => ({ role: m.role, content: m.content })),
+        ],
+      );
+      return { text, grounded: true };
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "خطای ناشناخته";
+      return { text: `خطا در ارتباط با سرویس هوش مصنوعی: ${msg}`, grounded: false };
     }
   },
 });
