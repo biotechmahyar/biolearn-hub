@@ -189,6 +189,25 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
 
   return (
     <div className="rounded-3xl border border-border bg-card p-3 shadow-sm transition-colors focus-within:border-primary/40">
+      {/* Saved prompts sit above the input so the box itself stays compact. */}
+      <div className="admin-scroll flex items-center gap-1.5 overflow-x-auto px-1 pb-1.5">
+        <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+          <Lightbulb className="size-3.5" />
+          پرامپت‌های آماده
+        </span>
+        {SAVED_PROMPTS.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setText(p)}
+            title={p}
+            className="shrink-0 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+          >
+            {p.length > 34 ? `${p.slice(0, 34)}…` : p}
+          </button>
+        ))}
+      </div>
+
       <Textarea
         ref={areaRef}
         autoFocus={autoFocus}
@@ -202,7 +221,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
         }}
         placeholder={placeholder}
         disabled={disabled}
-        rows={3}
+        rows={2}
         className="resize-none border-0 bg-transparent p-2 text-[14px] leading-7 shadow-none focus-visible:ring-0"
       />
 
@@ -230,7 +249,70 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
+      <div className="flex items-center gap-1.5 px-1 pt-1">
+        {/* Send / mic / model stay pinned to the far right of the composer. */}
+        <Button
+          type="button"
+          size="icon"
+          onClick={submit}
+          disabled={!canSend}
+          className="size-10 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-colors hover:bg-emerald-600 disabled:opacity-40"
+          title="ارسال"
+        >
+          {isSending ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Send className="size-4" />
+          )}
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-9 rounded-full"
+          title="ورودی صوتی"
+          onClick={startVoiceInput}
+        >
+          <Mic className="size-4" />
+        </Button>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-9 rounded-full" title="انتخاب مدل">
+              <Wand2 className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-64">
+            <p className="mb-2 text-[11px] font-bold text-muted-foreground">مدل فعال</p>
+            <div className="space-y-1">
+              {models.length === 0 && (
+                <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                  مدلی برای این حساب فعال نشده است.
+                </p>
+              )}
+              {models.map((m) => (
+                <button
+                  key={m._id}
+                  type="button"
+                  onClick={() => onSelectModel(m._id)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12.5px] transition-colors",
+                    selectedModelId === m._id
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  {m.name}
+                  {m.isFree && <span className="text-[10px]">رایگان</span>}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <div className="flex-1" />
+
         <Button
           type="button"
           variant="outline"
@@ -263,99 +345,6 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
             }}
           />
         </label>
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9 rounded-full px-3 text-[12.5px] text-muted-foreground hover:text-foreground"
-            >
-              <Lightbulb className="ml-1.5 size-3.5" />
-              پرامپت‌های آماده
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-80">
-            <p className="mb-2 text-[11px] font-bold text-muted-foreground">
-              پرامپت‌های ذخیره‌شدهٔ ژنوا
-            </p>
-            <div className="space-y-1">
-              {SAVED_PROMPTS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setText(p)}
-                  className="block w-full rounded-lg px-2.5 py-2 text-right text-[12px] leading-5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <div className="mr-auto flex items-center gap-1.5">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-9 rounded-full" title="انتخاب مدل">
-                <Wand2 className="size-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64">
-              <p className="mb-2 text-[11px] font-bold text-muted-foreground">مدل فعال</p>
-              <div className="space-y-1">
-                {models.length === 0 && (
-                  <p className="px-2 py-3 text-[12px] text-muted-foreground">
-                    مدلی برای این حساب فعال نشده است.
-                  </p>
-                )}
-                {models.map((m) => (
-                  <button
-                    key={m._id}
-                    type="button"
-                    onClick={() => onSelectModel(m._id)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12.5px] transition-colors",
-                      selectedModelId === m._id
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    {m.name}
-                    {m.isFree && <span className="text-[10px]">رایگان</span>}
-                  </button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-9 rounded-full"
-            title="ورودی صوتی"
-            onClick={startVoiceInput}
-          >
-            <Mic className="size-4" />
-          </Button>
-
-          <Button
-            type="button"
-            size="icon"
-            onClick={submit}
-            disabled={!canSend}
-            className="size-10 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-colors hover:bg-emerald-600 disabled:opacity-40"
-            title="ارسال"
-          >
-            {isSending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Send className="size-4" />
-            )}
-          </Button>
-        </div>
       </div>
     </div>
   );
