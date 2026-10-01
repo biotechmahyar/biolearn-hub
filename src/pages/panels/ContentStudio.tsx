@@ -1,15 +1,15 @@
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
-import { useMode } from "@/hooks/useMode";
+
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import ContentStudioLayout, { type StatusFilter } from "@/pages/panels/ContentStudioLayout";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { applyStudioTheme } from "@/lib/studioTheme";
 import {
   Dialog,
   DialogContent,
@@ -19,11 +19,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus,
-  Trash2,
-  Edit3,
-  FileText,
-  Rocket,
-  Eye,
   Bold,
   Italic,
   Underline,
@@ -63,11 +58,6 @@ import {
   Info,
   Lightbulb,
   Calculator,
-  Search,
-  ArrowRight,
-  Home,
-  User,
-  Filter,
 } from "lucide-react";
 
 function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: string; exec: () => void }) {
@@ -75,7 +65,7 @@ function ToolbarBtn({ icon, title, exec }: { icon: React.ReactNode; title: strin
     <button
       type="button"
       title={title}
-      className="rounded px-1.5 py-1 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+      className="rounded px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       onMouseDown={(e) => {
         e.preventDefault();
         exec();
@@ -170,14 +160,14 @@ function Editor({
   );
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02]">
+    <div className="rounded-lg border border-border bg-background">
       {/* Row 1: Appearance toolbar */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-white/10 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1.5">
         {/* RTL/LTR toggle */}
         <button
           type="button"
           title={dir === "rtl" ? "RTL (راست به چپ)" : "LTR (چپ به راست)"}
-          className="rounded px-2 py-1 text-[10px] font-bold text-cyan-300 transition-colors hover:bg-white/10"
+          className="rounded px-2 py-1 text-[10px] font-bold text-primary transition-colors hover:bg-muted"
           onMouseDown={(e) => {
             e.preventDefault();
             const next = dir === "rtl" ? "ltr" : "rtl";
@@ -187,12 +177,12 @@ function Editor({
         >
           <Languages className="h-3.5 w-3.5" />
         </button>
-        <span className="mx-0.5 h-4 w-px bg-white/10" />
+        <span className="mx-0.5 h-4 w-px bg-muted" />
 
         {/* Font Family */}
         <select
           title="فونت"
-          className="h-7 cursor-pointer rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 focus:outline-none"
+          className="h-7 cursor-pointer rounded border border-border bg-card text-card-foreground px-1.5 text-[11px] text-muted-foreground focus:outline-none"
           onMouseDown={(e) => e.stopPropagation()}
           onChange={(e) => {
             const val = e.target.value;
@@ -215,7 +205,7 @@ function Editor({
         {/* Font Size */}
         <select
           title="اندازه فونت"
-          className="h-7 w-14 cursor-pointer rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 focus:outline-none"
+          className="h-7 w-14 cursor-pointer rounded border border-border bg-card text-card-foreground px-1.5 text-[11px] text-muted-foreground focus:outline-none"
           onMouseDown={(e) => e.stopPropagation()}
           onChange={(e) => {
             execAndNotify("fontSize", e.target.value);
@@ -228,12 +218,12 @@ function Editor({
             </option>
           ))}
         </select>
-        <span className="mx-0.5 h-4 w-px bg-white/10" />
+        <span className="mx-0.5 h-4 w-px bg-muted" />
 
         {/* Text Color */}
         <label
           title="رنگ متن"
-          className="flex h-7 cursor-pointer items-center gap-1 rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 hover:bg-white/5"
+          className="flex h-7 cursor-pointer items-center gap-1 rounded border border-border bg-card text-card-foreground px-1.5 text-[11px] text-muted-foreground hover:bg-muted"
         >
           <Type className="h-3 w-3" />
           <input
@@ -251,7 +241,7 @@ function Editor({
         {/* Highlight Color */}
         <label
           title="هایلایت"
-          className="flex h-7 cursor-pointer items-center gap-1 rounded border border-white/10 bg-[#0c1a28] px-1.5 text-[11px] text-slate-300 hover:bg-white/5"
+          className="flex h-7 cursor-pointer items-center gap-1 rounded border border-border bg-card text-card-foreground px-1.5 text-[11px] text-muted-foreground hover:bg-muted"
         >
           <Highlighter className="h-3 w-3" />
           <input
@@ -268,13 +258,13 @@ function Editor({
       </div>
 
       {/* Row 2: Formatting toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 px-2 py-1">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1">
         {/* Inline formatting */}
         <ToolbarBtn icon={<Bold className="h-3.5 w-3.5" />} title="Bold" exec={() => exec("bold")} />
         <ToolbarBtn icon={<Italic className="h-3.5 w-3.5" />} title="Italic" exec={() => exec("italic")} />
         <ToolbarBtn icon={<Underline className="h-3.5 w-3.5" />} title="Underline" exec={() => exec("underline")} />
         <ToolbarBtn icon={<Strikethrough className="h-3.5 w-3.5" />} title="Strikethrough" exec={() => exec("strikeThrough")} />
-        <span className="mx-1 h-4 w-px bg-white/10" />
+        <span className="mx-1 h-4 w-px bg-muted" />
         {/* Headings */}
         <ToolbarBtn icon={<Heading1 className="h-3.5 w-3.5" />} title="H1" exec={() => exec("formatBlock", "<h1>")} />
         <ToolbarBtn icon={<Heading2 className="h-3.5 w-3.5" />} title="H2" exec={() => exec("formatBlock", "<h2>")} />
@@ -283,15 +273,15 @@ function Editor({
         <ToolbarBtn icon={<Heading5 className="h-3.5 w-3.5" />} title="H5" exec={() => exec("formatBlock", "<h5>")} />
         <ToolbarBtn icon={<Heading6 className="h-3.5 w-3.5" />} title="H6" exec={() => exec("formatBlock", "<h6>")} />
         <ToolbarBtn icon={<span className="text-[10px] font-bold">P</span>} title="Paragraph" exec={() => exec("formatBlock", "<p>")} />
-        <span className="mx-1 h-4 w-px bg-white/10" />
+        <span className="mx-1 h-4 w-px bg-muted" />
         {/* Lists */}
         <ToolbarBtn icon={<List className="h-3.5 w-3.5" />} title="Bullet List" exec={() => exec("insertUnorderedList")} />
         <ToolbarBtn icon={<ListOrdered className="h-3.5 w-3.5" />} title="Numbered List" exec={() => exec("insertOrderedList")} />
-        <span className="mx-1 h-4 w-px bg-white/10" />
+        <span className="mx-1 h-4 w-px bg-muted" />
         {/* Block formatting */}
         <ToolbarBtn icon={<Quote className="h-3.5 w-3.5" />} title="Quote" exec={() => exec("formatBlock", "<blockquote>")} />
         <ToolbarBtn icon={<Code className="h-3.5 w-3.5" />} title="Code Block" exec={() => exec("formatBlock", "<pre>")} />
-        <span className="mx-1 h-4 w-px bg-white/10" />
+        <span className="mx-1 h-4 w-px bg-muted" />
         {/* Image */}
         <ToolbarBtn
           icon={<Image className="h-3.5 w-3.5" />}
@@ -377,7 +367,7 @@ function Editor({
           title="Insert Table"
           exec={() => { if (onTable) onTable() }}
         />
-        <span className="mx-1 h-4 w-px bg-white/10" />
+        <span className="mx-1 h-4 w-px bg-muted" />
         {/* Scientific Elements */}
         <ToolbarBtn
           icon={<FlaskConical className="h-3.5 w-3.5" />}
@@ -416,7 +406,7 @@ function Editor({
         />
         {/* AI Assistant */}
         <ToolbarBtn
-          icon={<span className="text-[10px] font-bold text-cyan-300">AI</span>}
+          icon={<span className="text-[10px] font-bold text-primary">AI</span>}
           title="AI Writing Assistant"
           exec={() => { if (onAIAssistant) onAIAssistant() }}
         />
@@ -425,17 +415,17 @@ function Editor({
         <ToolbarBtn icon={<AlignCenter className="h-3.5 w-3.5" />} title="Align Center" exec={() => exec("justifyCenter")} />
         <ToolbarBtn icon={<AlignLeft className="h-3.5 w-3.5" />} title="Align Left" exec={() => exec("justifyLeft")} />
         <ToolbarBtn icon={<AlignJustify className="h-3.5 w-3.5" />} title="Justify" exec={() => exec("justifyFull")} />
-        <span className="mx-1 h-4 w-px bg-white/10" />
+        <span className="mx-1 h-4 w-px bg-muted" />
         {/* Undo / Redo / Clear */}
         <ToolbarBtn icon={<Undo className="h-3.5 w-3.5" />} title="Undo" exec={() => exec("undo")} />
         <ToolbarBtn icon={<Redo className="h-3.5 w-3.5" />} title="Redo" exec={() => exec("redo")} />
         <ToolbarBtn icon={<RemoveFormatting className="h-3.5 w-3.5" />} title="Clear Formatting" exec={() => exec("removeFormat")} />
       </div>
       {/* Row 3: Table operations */}
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-white/10 px-2 py-1">
-        <span className="text-[10px] font-bold text-slate-500">جدول:</span>
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-border px-2 py-1">
+        <span className="text-[10px] font-bold text-muted-foreground">جدول:</span>
         <button type="button" title="افزودن ردیف"
-          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+          className="rounded px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           onMouseDown={(e) => {
             e.preventDefault();
             if (!ref.current) return;
@@ -459,7 +449,7 @@ function Editor({
           <Plus className="h-3 w-3" /> ردیف
         </button>
         <button type="button" title="حذف ردیف"
-          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-300"
+          className="rounded px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
           onMouseDown={(e) => {
             e.preventDefault();
             if (!ref.current) return;
@@ -475,9 +465,9 @@ function Editor({
           }}>
           <Minus className="h-3 w-3" /> ردیف
         </button>
-        <span className="mx-0.5 h-4 w-px bg-white/10" />
+        <span className="mx-0.5 h-4 w-px bg-muted" />
         <button type="button" title="افزودن ستون"
-          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+          className="rounded px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           onMouseDown={(e) => {
             e.preventDefault();
             if (!ref.current) return;
@@ -504,7 +494,7 @@ function Editor({
           <Plus className="h-3 w-3" /> ستون
         </button>
         <button type="button" title="حذف ستون"
-          className="rounded px-1.5 py-1 text-[10px] text-slate-400 transition-colors hover:bg-red-500/20 hover:text-red-300"
+          className="rounded px-1.5 py-1 text-[10px] text-muted-foreground transition-colors hover:bg-destructive/15 hover:text-destructive"
           onMouseDown={(e) => {
             e.preventDefault();
             if (!ref.current) return;
@@ -535,7 +525,7 @@ function Editor({
           contentEditable
           dir={dir}
           suppressContentEditableWarning
-        className="min-h-[250px] px-4 py-3 text-sm leading-7 text-slate-200 focus:outline-none prose prose-invert max-w-none"
+        className="min-h-[250px] px-4 py-3 text-sm leading-7 text-foreground focus:outline-none prose prose-invert max-w-none"
         onInput={() => {
           if (!ref.current) return;
           const html = ref.current.innerHTML;
@@ -631,18 +621,18 @@ function ImagePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[80vh] overflow-y-auto border-white/10 bg-[#0c1a28] sm:max-w-lg">
+      <DialogContent className="max-h-[80vh] overflow-y-auto border-border bg-card text-card-foreground sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-right text-cyan-100">تصویر</DialogTitle>
+          <DialogTitle className="text-right text-foreground">تصویر</DialogTitle>
         </DialogHeader>
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-white/10">
+        <div className="flex gap-1 border-b border-border">
           {(["url", "upload", "library"] as const).map((t) => (
             <button
               key={t}
               className={`px-3 py-1.5 text-xs transition-colors ${
-                tab === t ? "border-b-2 border-cyan-400 text-cyan-300" : "text-slate-400 hover:text-white"
+                tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
               onClick={() => setTab(t)}
             >
@@ -654,20 +644,20 @@ function ImagePickerDialog({
         {/* Alt + Align (always visible) */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="mb-1 block text-[10px] font-bold text-slate-400">Alt Text</label>
+            <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Alt Text</label>
             <Input
               value={alt}
               onChange={(e) => setAlt(e.target.value)}
               placeholder="متن جایگزین"
-              className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+              className="h-8 border-border bg-muted text-xs text-foreground"
             />
           </div>
           <div>
-            <label className="mb-1 block text-[10px] font-bold text-slate-400">تراز</label>
+            <label className="mb-1 block text-[10px] font-bold text-muted-foreground">تراز</label>
             <select
               value={align}
               onChange={(e) => setAlign(e.target.value)}
-              className="h-8 w-full cursor-pointer rounded border border-white/10 bg-[#0c1a28] px-2 text-xs text-slate-300 focus:outline-none"
+              className="h-8 w-full cursor-pointer rounded border border-border bg-card text-card-foreground px-2 text-xs text-muted-foreground focus:outline-none"
             >
               <option value="center">وسط</option>
               <option value="left">چپ</option>
@@ -681,21 +671,21 @@ function ImagePickerDialog({
         {tab === "url" && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس تصویر</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">آدرس تصویر</label>
               <Input
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/image.jpg"
-                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                className="h-8 border-border bg-muted text-xs text-foreground"
                 onKeyDown={(e) => { if (e.key === "Enter") handleInsertUrl() }}
               />
             </div>
             {url && (
-              <div className="rounded border border-white/10 p-2">
+              <div className="rounded border border-border p-2">
                 <img src={url} alt={alt} className="max-h-40 w-full rounded object-contain" />
               </div>
             )}
-            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertUrl}>
+            <Button size="sm" className="w-full bg-primary/15 text-primary hover:bg-primary/25" onClick={handleInsertUrl}>
               <ExternalLink className="ml-1 h-3.5 w-3.5" /> درج تصویر
             </Button>
           </div>
@@ -709,11 +699,11 @@ function ImagePickerDialog({
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
-              className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-white/10 py-8 text-slate-400 transition-colors hover:border-cyan-400/30 hover:text-cyan-300"
+              className="flex w-full flex-col items-center gap-2 rounded-lg border-2 border-dashed border-border py-8 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
             >
               <Upload className="h-8 w-8" />
               <span className="text-xs">{uploading ? "در حال بارگذاری..." : "کلیک کنید یا تصویر را بکشید"}</span>
-              <span className="text-[10px] text-slate-500">JPG, PNG, GIF, WebP — حداکثر 5MB</span>
+              <span className="text-[10px] text-muted-foreground">JPG, PNG, GIF, WebP — حداکثر 5MB</span>
             </button>
           </div>
         )}
@@ -726,7 +716,7 @@ function ImagePickerDialog({
                 {mediaItems.map((m) => (
                   <div
                     key={m._id}
-                    className="group relative cursor-pointer rounded border border-white/10 transition-colors hover:border-cyan-400/30"
+                    className="group relative cursor-pointer rounded border border-border transition-colors hover:border-primary/40"
                     onClick={() => {
                       onInsert({ src: m.url, alt: m.alt || m.name, align })
                       onOpenChange(false)
@@ -738,7 +728,7 @@ function ImagePickerDialog({
                     </div>
                     <button
                       type="button"
-                      className="absolute right-1 top-1 hidden rounded bg-red-500/80 p-0.5 group-hover:block"
+                      className="absolute right-1 top-1 hidden rounded bg-destructive p-0.5 group-hover:block"
                       onClick={async (e) => {
                         e.stopPropagation()
                         if (!window.confirm("حذف تصویر؟")) return
@@ -751,7 +741,7 @@ function ImagePickerDialog({
                 ))}
               </div>
             ) : (
-              <p className="py-8 text-center text-xs text-slate-500">هنوز تصویری بارگذاری نشده</p>
+              <p className="py-8 text-center text-xs text-muted-foreground">هنوز تصویری بارگذاری نشده</p>
             )}
           </div>
         )}
@@ -816,31 +806,31 @@ function LinkDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-white/10 bg-[#0c1a28] sm:max-w-md">
+      <DialogContent className="border-border bg-card text-card-foreground sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-right text-cyan-100">
+          <DialogTitle className="text-right text-foreground">
             {isEditing ? "ویرایش لینک" : "افزودن لینک"}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس لینک</label>
+            <label className="mb-1 block text-[10px] font-bold text-muted-foreground">آدرس لینک</label>
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://example.com"
-              className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+              className="h-8 border-border bg-muted text-xs text-foreground"
               dir="ltr"
               onKeyDown={(e) => { if (e.key === "Enter") handleInsert() }}
             />
           </div>
           <div>
-            <label className="mb-1 block text-[10px] font-bold text-slate-400">متن نمایشی</label>
+            <label className="mb-1 block text-[10px] font-bold text-muted-foreground">متن نمایشی</label>
             <Input
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="متن لینک"
-              className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+              className="h-8 border-border bg-muted text-xs text-foreground"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -849,9 +839,9 @@ function LinkDialog({
               id="newTab"
               checked={newTab}
               onChange={(e) => setNewTab(e.target.checked)}
-              className="h-4 w-4 rounded border-white/10 bg-white/5"
+              className="h-4 w-4 rounded border-border bg-muted"
             />
-            <label htmlFor="newTab" className="text-xs text-slate-400">باز شدن در تب جدید</label>
+            <label htmlFor="newTab" className="text-xs text-muted-foreground">باز شدن در تب جدید</label>
           </div>
         </div>
         <DialogFooter className="gap-2">
@@ -859,7 +849,7 @@ function LinkDialog({
             <Button
               variant="ghost"
               size="sm"
-              className="text-red-400 hover:text-red-300"
+              className="text-destructive hover:text-destructive"
               onClick={() => { onRemove(); onOpenChange(false) }}
             >
               <Unlink className="ml-1 h-3.5 w-3.5" /> حذف لینک
@@ -869,13 +859,13 @@ function LinkDialog({
             variant="ghost"
             size="sm"
             onClick={() => onOpenChange(false)}
-            className="text-slate-400"
+            className="text-muted-foreground"
           >
             انصراف
           </Button>
           <Button
             size="sm"
-            className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+            className="bg-primary/15 text-primary hover:bg-primary/25"
             onClick={handleInsert}
           >
             {isEditing ? "بروزرسانی" : "افزودن"}
@@ -995,17 +985,17 @@ function EmbedDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto border-white/10 bg-[#0c1a28] sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] overflow-y-auto border-border bg-card text-card-foreground sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-right text-cyan-100">جاسازی محتوا</DialogTitle>
+          <DialogTitle className="text-right text-foreground">جاسازی محتوا</DialogTitle>
         </DialogHeader>
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-white/10">
+        <div className="flex gap-1 border-b border-border">
           {(["video", "pdf", "iframe"] as const).map((t) => (
             <button
               key={t}
               className={`px-3 py-1.5 text-xs transition-colors ${
-                tab === t ? "border-b-2 border-cyan-400 text-cyan-300" : "text-slate-400 hover:text-white"
+                tab === t ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
               onClick={() => setTab(t)}
             >
@@ -1017,19 +1007,19 @@ function EmbedDialog({
         {tab === "video" && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس ویدئو</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">آدرس ویدئو</label>
               <Input
                 value={videoUrl}
                 onChange={(e) => setVideoUrl(e.target.value)}
                 placeholder="YouTube, آپارات, Vimeo یا هر آدرس دیگر..."
-                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                className="h-8 border-border bg-muted text-xs text-foreground"
                 dir="ltr"
                 onKeyDown={(e) => { if (e.key === "Enter") handleInsertVideo() }}
               />
               {platform && (
                 <div className="mt-1.5 flex items-center gap-1.5 text-[10px]">
                   <span>{platform.icon}</span>
-                  <span className={platform.embedUrl ? "text-emerald-400" : "text-amber-400"}>
+                  <span className={platform.embedUrl ? "text-emerald-600" : "text-amber-400"}>
                     {platform.embedUrl ? `${platform.name} — شناسایی شد ✓` : `ناشناخته — از iframe استفاده کنید`}
                   </span>
                 </div>
@@ -1037,7 +1027,7 @@ function EmbedDialog({
             </div>
             {/* Preview */}
             {platform?.embedUrl && (
-              <div className="overflow-hidden rounded-lg border border-white/10">
+              <div className="overflow-hidden rounded-lg border border-border">
                 <iframe
                   src={platform.embedUrl}
                   className="aspect-video w-full"
@@ -1047,7 +1037,7 @@ function EmbedDialog({
                 />
               </div>
             )}
-            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertVideo}>
+            <Button size="sm" className="w-full bg-primary/15 text-primary hover:bg-primary/25" onClick={handleInsertVideo}>
               <Video className="ml-1 h-3.5 w-3.5" /> جاسازی ویدئو
             </Button>
           </div>
@@ -1056,25 +1046,25 @@ function EmbedDialog({
         {tab === "pdf" && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس فایل PDF</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">آدرس فایل PDF</label>
               <Input
                 value={pdfUrl}
                 onChange={(e) => setPdfUrl(e.target.value)}
                 placeholder="https://example.com/document.pdf"
-                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                className="h-8 border-border bg-muted text-xs text-foreground"
                 dir="ltr"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">عنوان (اختیاری)</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">عنوان (اختیاری)</label>
               <Input
                 value={pdfTitle}
                 onChange={(e) => setPdfTitle(e.target.value)}
                 placeholder="نام سند"
-                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                className="h-8 border-border bg-muted text-xs text-foreground"
               />
             </div>
-            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertPDF}>
+            <Button size="sm" className="w-full bg-primary/15 text-primary hover:bg-primary/25" onClick={handleInsertPDF}>
               <ExternalLink className="ml-1 h-3.5 w-3.5" /> جاسازی PDF
             </Button>
           </div>
@@ -1083,32 +1073,32 @@ function EmbedDialog({
         {tab === "iframe" && (
           <div className="space-y-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">آدرس iframe</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">آدرس iframe</label>
               <Input
                 value={iframeUrl}
                 onChange={(e) => setIframeUrl(e.target.value)}
                 placeholder="https://example.com/embed..."
-                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                className="h-8 border-border bg-muted text-xs text-foreground"
                 dir="ltr"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">عنوان (اختیاری)</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">عنوان (اختیاری)</label>
               <Input
                 value={iframeTitle}
                 onChange={(e) => setIframeTitle(e.target.value)}
                 placeholder="نام محتوا"
-                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                className="h-8 border-border bg-muted text-xs text-foreground"
               />
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">ارتفاع (px)</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">ارتفاع (px)</label>
               <Input
                 type="number"
                 value={iframeHeight}
                 onChange={(e) => setIframeHeight(e.target.value)}
                 placeholder="500"
-                className="h-8 border-white/10 bg-white/5 text-xs text-slate-200"
+                className="h-8 border-border bg-muted text-xs text-foreground"
                 min="200"
                 dir="ltr"
               />
@@ -1118,7 +1108,7 @@ function EmbedDialog({
               try {
                 new URL(iframeUrl.trim());
                 return (
-                  <div className="overflow-hidden rounded-lg border border-white/10">
+                  <div className="overflow-hidden rounded-lg border border-border">
                     <iframe
                       src={iframeUrl.trim()}
                       className="w-full border-0"
@@ -1132,7 +1122,7 @@ function EmbedDialog({
                 return null;
               }
             })()}
-            <Button size="sm" className="w-full bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={handleInsertIframe}>
+            <Button size="sm" className="w-full bg-primary/15 text-primary hover:bg-primary/25" onClick={handleInsertIframe}>
               <ExternalLink className="ml-1 h-3.5 w-3.5" /> جاسازی iframe
             </Button>
           </div>
@@ -1177,35 +1167,35 @@ function TableDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-white/10 bg-[#0c1a28] sm:max-w-sm">
+      <DialogContent className="border-border bg-card text-card-foreground sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle className="text-right text-cyan-100">درج جدول</DialogTitle>
+          <DialogTitle className="text-right text-foreground">درج جدول</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">تعداد ردیف</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">تعداد ردیف</label>
               <div className="flex items-center gap-2">
-                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setRows((r) => Math.max(1, r - 1))}><Minus className="h-3 w-3" /></button>
-                <span className="w-8 text-center text-sm text-white">{rows}</span>
-                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setRows((r) => Math.min(20, r + 1))}><Plus className="h-3 w-3" /></button>
+                <button type="button" className="rounded bg-muted p-1 text-muted-foreground hover:bg-muted" onClick={() => setRows((r) => Math.max(1, r - 1))}><Minus className="h-3 w-3" /></button>
+                <span className="w-8 text-center text-sm text-foreground">{rows}</span>
+                <button type="button" className="rounded bg-muted p-1 text-muted-foreground hover:bg-muted" onClick={() => setRows((r) => Math.min(20, r + 1))}><Plus className="h-3 w-3" /></button>
               </div>
             </div>
             <div>
-              <label className="mb-1 block text-[10px] font-bold text-slate-400">تعداد ستون</label>
+              <label className="mb-1 block text-[10px] font-bold text-muted-foreground">تعداد ستون</label>
               <div className="flex items-center gap-2">
-                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setCols((c) => Math.max(1, c - 1))}><Minus className="h-3 w-3" /></button>
-                <span className="w-8 text-center text-sm text-white">{cols}</span>
-                <button type="button" className="rounded bg-white/5 p-1 text-slate-400 hover:bg-white/10" onClick={() => setCols((c) => Math.min(10, c + 1))}><Plus className="h-3 w-3" /></button>
+                <button type="button" className="rounded bg-muted p-1 text-muted-foreground hover:bg-muted" onClick={() => setCols((c) => Math.max(1, c - 1))}><Minus className="h-3 w-3" /></button>
+                <span className="w-8 text-center text-sm text-foreground">{cols}</span>
+                <button type="button" className="rounded bg-muted p-1 text-muted-foreground hover:bg-muted" onClick={() => setCols((c) => Math.min(10, c + 1))}><Plus className="h-3 w-3" /></button>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <input type="checkbox" id="tableHeader" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} className="h-4 w-4 rounded border-white/10 bg-white/5" />
-            <label htmlFor="tableHeader" className="text-xs text-slate-400">سطر هدر (Header)</label>
+            <input type="checkbox" id="tableHeader" checked={hasHeader} onChange={(e) => setHasHeader(e.target.checked)} className="h-4 w-4 rounded border-border bg-muted" />
+            <label htmlFor="tableHeader" className="text-xs text-muted-foreground">سطر هدر (Header)</label>
           </div>
           {/* Preview */}
-          <div className="overflow-x-auto rounded border border-white/10 p-2">
+          <div className="overflow-x-auto rounded border border-border p-2">
             <table className="w-full text-[10px]" style={{ borderCollapse: "collapse" }}>
               {hasHeader && (
                 <tr>{Array.from({ length: cols }).map((_, i) => (
@@ -1221,8 +1211,8 @@ function TableDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-slate-400">انصراف</Button>
-          <Button size="sm" className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={() => { onInsert(buildTable()); onOpenChange(false) }}>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} className="text-muted-foreground">انصراف</Button>
+          <Button size="sm" className="bg-primary/15 text-primary hover:bg-primary/25" onClick={() => { onInsert(buildTable()); onOpenChange(false) }}>
             <Table className="ml-1 h-3.5 w-3.5" /> درج جدول
           </Button>
         </DialogFooter>
@@ -1274,7 +1264,9 @@ export default function ContentStudio() {
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const [aiGenDialog, setAiGenDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [myArticlesOnly, setMyArticlesOnly] = useState(false);
+  useEffect(() => applyStudioTheme(), []);
   const filteredArticles = useMemo(() => {
     if (!articles) return [];
     let list = articles;
@@ -1282,12 +1274,14 @@ export default function ContentStudio() {
       const q = searchQuery.toLowerCase();
       list = list.filter((a: any) => (a.title || "").toLowerCase().includes(q) || (a.category || "").toLowerCase().includes(q) || (a.authorName || "").toLowerCase().includes(q) || (a.excerpt || "").toLowerCase().includes(q));
     }
+    if (statusFilter === "draft") list = list.filter((a: any) => !a.published);
+    if (statusFilter === "published") list = list.filter((a: any) => a.published);
     if (myArticlesOnly && user) {
       const name = (user.name || "").toLowerCase();
       list = list.filter((a: any) => (a.authorName || "").toLowerCase().includes(name));
     }
     return list;
-  }, [articles, searchQuery, myArticlesOnly, user]);
+  }, [articles, searchQuery, myArticlesOnly, user, statusFilter]);
   const [aiGenPrompt, setAiGenPrompt] = useState("");
   const [aiGenLoading, setAiGenLoading] = useState(false);
   const [aiGenResult, setAiGenResult] = useState("");
@@ -1486,175 +1480,55 @@ export default function ContentStudio() {
     !["admin", "site_admin", "content_manager"].includes(user.role ?? "")
   ) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#070b1a]">
-        <p className="text-sm text-slate-400">دسترسی غیرمجاز</p>
+      <div className="flex min-h-screen items-center justify-center bg-muted/40">
+        <p className="text-sm text-muted-foreground">دسترسی غیرمجاز</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#070b1a] p-4 md:p-6" dir="rtl">
-      <div className="mx-auto max-w-5xl space-y-6">
-        {/* Header */}
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <button onClick={() => navigate("/")} className="rounded-lg border border-white/10 p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" title="Home">
-                <Home className="h-4 w-4" />
-              </button>
-              {(user?.role === "admin" || user?.role === "site_admin") && (
-                <button onClick={() => navigate("/admin")} className="rounded-lg border border-white/10 p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" title="بازگشت به پنل مدیریت">
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              )}
-              <h1 className="text-xl font-bold text-white">Content Studio</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30" onClick={openCreate}>
-                <Plus className="ml-1 h-4 w-4" /> New Article
-              </Button>
-              <Button size="sm" variant="outline" className="border-purple-400/30 text-purple-300 hover:bg-purple-500/10" onClick={() => setAiGenDialog(true)}>
-                <span className="ml-1 text-xs font-bold">AI</span> Generate
-              </Button>
-            </div>
-          </div>
-          {/* User name + Search + Filter */}
-          <div className="flex flex-wrap items-center gap-3">
-            {user && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
-                <User className="h-3.5 w-3.5 text-cyan-400" />
-                <span className="text-[11px] font-medium text-slate-300">{user.name || user.email}</span>
-                <Badge variant="outline" className="text-[9px] text-slate-500">{user.role}</Badge>
-              </div>
-            )}
-            <div className="flex flex-1 items-center gap-2">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
-                <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search articles..." className="h-8 w-full rounded-lg border border-white/10 bg-white/5 pl-8 pr-3 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none" />
-              </div>
-              <button onClick={() => setMyArticlesOnly(!myArticlesOnly)} className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10px] transition-colors ${myArticlesOnly ? "border-cyan-400/30 bg-cyan-500/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/10"}`}>
-                <Filter className="h-3 w-3" /> My Articles
-              </button>
-            </div>
-          </div>
-        </div>
-        {/* Articles Grid */}
-        {filteredArticles && filteredArticles.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredArticles.map((article) => (
-              <Card
-                key={article._id}
-                className="border-white/5 bg-white/[0.02] transition-colors hover:bg-white/[0.04]"
-              >
-                <CardContent className="space-y-3 p-4">
-                  <div className="flex items-start justify-between">
-                    <FileText className="h-5 w-5 text-slate-500" />
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] ${
-                        article.published
-                          ? "border-emerald-400/30 text-emerald-400"
-                          : "border-amber-400/30 text-amber-400"
-                      }`}
-                    >
-                      {article.published ? "منتشر" : "پیش‌نویس"}
-                    </Badge>
-                  </div>
-                  {article.featuredImage && (() => { try { new URL(article.featuredImage); return <img src={article.featuredImage} alt="" className="mt-1 h-24 w-full rounded-lg object-cover" />; } catch { return null; } })()}
-                  <h3 className="text-sm font-bold text-white">
-                    {article.title}
-                  </h3>
-                  <p className="line-clamp-2 text-xs text-slate-400">
-                    {article.excerpt || "بدون خلاصه"}
-                  </p>
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500">
-                    <span>{article.category}</span>
-                    <span>·</span>
-                    <span>{article.authorName}</span>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 flex-1 text-xs text-slate-400 hover:text-white"
-                      onClick={() => openEdit(article)}
-                    >
-                      <Edit3 className="ml-1 h-3 w-3" /> ویرایش
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-slate-400 hover:text-cyan-400"
-                      onClick={() => openEdit(article)}
-                      title="تصویر جلد"
-                    >
-                      <Image className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className={`h-7 text-xs ${
-                        article.published
-                          ? "text-amber-400 hover:text-amber-300"
-                          : "text-emerald-400 hover:text-emerald-300"
-                      }`}
-                      onClick={async () => {
-                        try {
-                          await togglePublish({
-                            collection: "articles",
-                            id: article._id,
-                            published: !article.published,
-                          });
-                          toast.success(
-                            article.published
-                              ? "از انتشار خارج شد"
-                              : "مقاله منتشر شد",
-                          );
-                        } catch (e: any) {
-                          toast.error(e.message || "خطا");
-                        }
-                      }}
-                    >
-                      {article.published ? (
-                        <Eye className="h-3 w-3" />
-                      ) : (
-                        <Rocket className="h-3 w-3" />
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs text-red-400 hover:text-red-300"
-                      onClick={async () => {
-                        if (!window.confirm("آیا از حذف این مقاله مطمئن هستید؟")) return;
-                        try {
-                          await deleteArticle({ id: article._id });
-                          toast.success("مقاله حذف شد");
-                        } catch (e: any) {
-                          toast.error(e.message || "خطا در حذف");
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-white/5 py-20">
-            <FileText className="h-12 w-12 text-slate-600" />
-            <p className="text-sm text-slate-500">هنوز مقاله‌ای وجود ندارد</p>
-            <Button
-              size="sm"
-              className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
-              onClick={openCreate}
-            >
-              <Plus className="ml-1 h-4 w-4" /> مقاله جدید
-            </Button>
-          </div>
-        )}
+    <>
+      <ContentStudioLayout
+        articles={filteredArticles as any}
+        allArticles={articles as any}
+        userName={user?.name || user?.email || "مدیر محتوا"}
+        userRole={user?.role}
+        searchQuery={searchQuery}
+        onSearch={setSearchQuery}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
+        myArticlesOnly={myArticlesOnly}
+        onMyArticlesOnly={setMyArticlesOnly}
+        onCreate={openCreate}
+        onOpenAi={() => setAiGenDialog(true)}
+        onEdit={(a: any) => openEdit(a)}
+        onTogglePublish={async (a: any) => {
+          try {
+            await togglePublish({
+              collection: "articles",
+              id: a._id,
+              published: !a.published,
+            });
+            toast.success(a.published ? "از انتشار خارج شد" : "مقاله منتشر شد");
+          } catch (e: any) {
+            toast.error(e.message || "خطا");
+          }
+        }}
+        onDelete={async (a: any) => {
+          if (!window.confirm("آیا از حذف این مقاله مطمئن هستید؟")) return;
+          try {
+            await deleteArticle({ id: a._id });
+            toast.success("مقاله حذف شد");
+          } catch (e: any) {
+            toast.error(e.message || "خطا در حذف");
+          }
+        }}
+        onGoAdmin={() =>
+          navigate(
+            user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/",
+          )
+        }
+      />
 
         {/* Create / Edit Dialog */}
         <Dialog
@@ -1663,15 +1537,15 @@ export default function ContentStudio() {
             if (!o) setDialog(null);
           }}
         >
-          <DialogContent className="max-h-[85vh] overflow-y-auto border-white/10 bg-[#0c1a28] sm:max-w-2xl">
+          <DialogContent className="max-h-[85vh] overflow-y-auto border-border bg-card text-card-foreground sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-right text-cyan-100">
+              <DialogTitle className="text-right text-foreground">
                 {dialog?.mode === "edit" ? "ویرایش مقاله" : "مقاله جدید"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-400">
+                <label className="mb-1 block text-xs font-bold text-muted-foreground">
                   عنوان
                 </label>
                 <Input
@@ -1680,12 +1554,12 @@ export default function ContentStudio() {
                     setForm((f) => ({ ...f, title: e.target.value }))
                   }
                   placeholder="عنوان مقاله"
-                  className="border-white/10 bg-white/5 text-slate-200"
+                  className="border-border bg-muted text-foreground"
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-400">
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">
                     دسته‌بندی
                   </label>
                   <Input
@@ -1693,11 +1567,11 @@ export default function ContentStudio() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, category: e.target.value }))
                     }
-                    className="border-white/10 bg-white/5 text-slate-200"
+                    className="border-border bg-muted text-foreground"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-400">
+                  <label className="mb-1 block text-xs font-bold text-muted-foreground">
                     نویسنده
                   </label>
                   <Input
@@ -1706,12 +1580,12 @@ export default function ContentStudio() {
                       setForm((f) => ({ ...f, authorName: e.target.value }))
                     }
                     placeholder="نام نویسنده"
-                    className="border-white/10 bg-white/5 text-slate-200"
+                    className="border-border bg-muted text-foreground"
                   />
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-400">
+                <label className="mb-1 block text-xs font-bold text-muted-foreground">
                   خلاصه
                 </label>
                 <input
@@ -1720,11 +1594,11 @@ export default function ContentStudio() {
                     setForm((f) => ({ ...f, excerpt: e.target.value }))
                   }
                   placeholder="خلاصه مقاله..."
-                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
+                  className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-400">
+                <label className="mb-1 block text-xs font-bold text-muted-foreground">
                   محتوا
                 </label>
                 <Editor
@@ -1752,59 +1626,59 @@ export default function ContentStudio() {
             </div>
 
               {/* SEO Panel */}
-              <div className="space-y-3 rounded-lg border border-white/10 p-4">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-cyan-300">
+              <div className="space-y-3 rounded-lg border border-border p-4">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-primary">
                   SEO & Meta
                 </h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">SEO Title</label>
-                    <Input value={form.seoTitle} onChange={(e) => setForm((f) => ({ ...f, seoTitle: e.target.value }))} placeholder="Title tag for search engines" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
-                    <span className={`text-[10px] ${form.seoTitle.length > 60 ? "text-amber-400" : form.seoTitle.length > 0 ? "text-emerald-400" : "text-slate-500"}`}>{form.seoTitle.length}/60</span>
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">SEO Title</label>
+                    <Input value={form.seoTitle} onChange={(e) => setForm((f) => ({ ...f, seoTitle: e.target.value }))} placeholder="Title tag for search engines" className="h-8 border-border bg-muted text-xs text-foreground" />
+                    <span className={`text-[10px] ${form.seoTitle.length > 60 ? "text-amber-400" : form.seoTitle.length > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>{form.seoTitle.length}/60</span>
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Meta Description</label>
-                    <textarea value={form.seoDescription} onChange={(e) => setForm((f) => ({ ...f, seoDescription: e.target.value }))} placeholder="Meta description for search results" rows={2} className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none" />
-                    <span className={`text-[10px] ${form.seoDescription.length > 160 ? "text-amber-400" : form.seoDescription.length > 0 ? "text-emerald-400" : "text-slate-500"}`}>{form.seoDescription.length}/160</span>
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Meta Description</label>
+                    <textarea value={form.seoDescription} onChange={(e) => setForm((f) => ({ ...f, seoDescription: e.target.value }))} placeholder="Meta description for search results" rows={2} className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none" />
+                    <span className={`text-[10px] ${form.seoDescription.length > 160 ? "text-amber-400" : form.seoDescription.length > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>{form.seoDescription.length}/160</span>
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">URL Slug</label>
-                    <Input value={form.seoTitle ? form.seoTitle.toLowerCase().replace(/[^a-z0-9u0600-u06FF\s-]/g, "").replace(/\s+/g, "-") : ""} readOnly className="h-8 border-white/10 bg-white/5 text-xs text-slate-500" dir="ltr" />
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">URL Slug</label>
+                    <Input value={form.seoTitle ? form.seoTitle.toLowerCase().replace(/[^a-z0-9u0600-u06FF\s-]/g, "").replace(/\s+/g, "-") : ""} readOnly className="h-8 border-border bg-muted text-xs text-muted-foreground" dir="ltr" />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Focus Keyword</label>
-                    <Input value={(form.seoKeywords.split(",")[0] || "").trim()} onChange={(e) => { const kw = form.seoKeywords.split(",").map((k) => k.trim()); kw[0] = e.target.value; setForm((f) => ({ ...f, seoKeywords: kw.join(", ") })); }} placeholder="Main keyword" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Focus Keyword</label>
+                    <Input value={(form.seoKeywords.split(",")[0] || "").trim()} onChange={(e) => { const kw = form.seoKeywords.split(",").map((k) => k.trim()); kw[0] = e.target.value; setForm((f) => ({ ...f, seoKeywords: kw.join(", ") })); }} placeholder="Main keyword" className="h-8 border-border bg-muted text-xs text-foreground" />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Secondary Keywords</label>
-                    <Input value={form.seoKeywords.split(",").slice(1).join(", ")} onChange={(e) => { const focus = (form.seoKeywords.split(",")[0] || "").trim(); const rest = e.target.value; setForm((f) => ({ ...f, seoKeywords: [focus, rest].filter(Boolean).join(", ") })); }} placeholder="keyword1, keyword2, ..." className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Secondary Keywords</label>
+                    <Input value={form.seoKeywords.split(",").slice(1).join(", ")} onChange={(e) => { const focus = (form.seoKeywords.split(",")[0] || "").trim(); const rest = e.target.value; setForm((f) => ({ ...f, seoKeywords: [focus, rest].filter(Boolean).join(", ") })); }} placeholder="keyword1, keyword2, ..." className="h-8 border-border bg-muted text-xs text-foreground" />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Canonical URL</label>
-                    <Input value={form.seoCanonical} onChange={(e) => setForm((f) => ({ ...f, seoCanonical: e.target.value }))} placeholder="https://genova.team/articles/..." className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" dir="ltr" />
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Canonical URL</label>
+                    <Input value={form.seoCanonical} onChange={(e) => setForm((f) => ({ ...f, seoCanonical: e.target.value }))} placeholder="https://genova.team/articles/..." className="h-8 border-border bg-muted text-xs text-foreground" dir="ltr" />
                   </div>
                 </div>
                 {/* Open Graph */}
-                <div className="border-t border-white/5 pt-3">
-                  <h4 className="mb-2 text-[10px] font-bold text-slate-500">Open Graph (Social)</h4>
+                <div className="border-t border-border pt-3">
+                  <h4 className="mb-2 text-[10px] font-bold text-muted-foreground">Open Graph (Social)</h4>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-[10px] font-bold text-slate-400">OG Title</label>
-                      <Input value={form.ogTitle} onChange={(e) => setForm((f) => ({ ...f, ogTitle: e.target.value }))} placeholder="Title for social media" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                      <label className="mb-1 block text-[10px] font-bold text-muted-foreground">OG Title</label>
+                      <Input value={form.ogTitle} onChange={(e) => setForm((f) => ({ ...f, ogTitle: e.target.value }))} placeholder="Title for social media" className="h-8 border-border bg-muted text-xs text-foreground" />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-[10px] font-bold text-slate-400">OG Description</label>
-                      <Input value={form.ogDescription} onChange={(e) => setForm((f) => ({ ...f, ogDescription: e.target.value }))} placeholder="Description for social media" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                      <label className="mb-1 block text-[10px] font-bold text-muted-foreground">OG Description</label>
+                      <Input value={form.ogDescription} onChange={(e) => setForm((f) => ({ ...f, ogDescription: e.target.value }))} placeholder="Description for social media" className="h-8 border-border bg-muted text-xs text-foreground" />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-[10px] font-bold text-cyan-400">🖼️ Cover Image URL</label>
-                      <Input value={form.featuredImage} onChange={(e) => setForm((f) => ({ ...f, featuredImage: e.target.value }))} placeholder="https://example.com/cover.jpg" className="h-8 border-cyan-400/20 bg-white/5 text-xs text-slate-200" dir="ltr" />
-                      {form.featuredImage && (() => { try { new URL(form.featuredImage); return <img src={form.featuredImage} alt="Cover Preview" className="mt-2 max-h-32 rounded-lg border border-cyan-400/20 object-cover" />; } catch { return null; } })()}
+                      <label className="mb-1 block text-[10px] font-bold text-primary">🖼️ Cover Image URL</label>
+                      <Input value={form.featuredImage} onChange={(e) => setForm((f) => ({ ...f, featuredImage: e.target.value }))} placeholder="https://example.com/cover.jpg" className="h-8 border-primary/40 bg-muted text-xs text-foreground" dir="ltr" />
+                      {form.featuredImage && (() => { try { new URL(form.featuredImage); return <img src={form.featuredImage} alt="Cover Preview" className="mt-2 max-h-32 rounded-lg border border-primary/40 object-cover" />; } catch { return null; } })()}
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1 block text-[10px] font-bold text-slate-400">Social Image URL</label>
-                      <Input value={form.ogImage} onChange={(e) => setForm((f) => ({ ...f, ogImage: e.target.value }))} placeholder="https://example.com/og-image.jpg" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" dir="ltr" />
-                      {form.ogImage && (() => { try { new URL(form.ogImage); return <img src={form.ogImage} alt="OG Preview" className="mt-2 max-h-32 rounded-lg border border-white/10 object-cover" />; } catch { return null; } })()}
+                      <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Social Image URL</label>
+                      <Input value={form.ogImage} onChange={(e) => setForm((f) => ({ ...f, ogImage: e.target.value }))} placeholder="https://example.com/og-image.jpg" className="h-8 border-border bg-muted text-xs text-foreground" dir="ltr" />
+                      {form.ogImage && (() => { try { new URL(form.ogImage); return <img src={form.ogImage} alt="OG Preview" className="mt-2 max-h-32 rounded-lg border border-border object-cover" />; } catch { return null; } })()}
                     </div>
                   </div>
                 </div>
@@ -1813,12 +1687,12 @@ export default function ContentStudio() {
               <Button
                 variant="ghost"
                 onClick={() => setDialog(null)}
-                className="text-slate-400"
+                className="text-muted-foreground"
               >
                 انصراف
               </Button>
               <Button
-                className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+                className="bg-primary/15 text-primary hover:bg-primary/25"
                 onClick={handleSave}
                 disabled={busy}
               >
@@ -1930,36 +1804,36 @@ export default function ContentStudio() {
         {/* AI Article Generation Dialog */}
         {aiGenDialog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="mx-4 w-full max-w-xl rounded-xl border border-white/10 bg-[#0c1a28] shadow-2xl">
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <h3 className="text-sm font-bold text-purple-300">AI Article Generator</h3>
-                <button onClick={() => { setAiGenDialog(false); setAiGenResult(""); setAiGenError("") }} className="text-slate-400 hover:text-white"><X className="h-4 w-4" /></button>
+            <div className="mx-4 w-full max-w-xl rounded-xl border border-border bg-card text-card-foreground shadow-2xl">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <h3 className="text-sm font-bold text-primary">AI Article Generator</h3>
+                <button onClick={() => { setAiGenDialog(false); setAiGenResult(""); setAiGenError("") }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
               </div>
               <div className="space-y-3 p-4">
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold text-slate-400">Topic</label>
-                  <Input value={aiGenPrompt} onChange={(e) => setAiGenPrompt(e.target.value)} placeholder="e.g. DNA structure and replication" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" onKeyDown={(e) => { if (e.key === "Enter" && !aiGenLoading) handleAIGenerate() }} />
+                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Topic</label>
+                  <Input value={aiGenPrompt} onChange={(e) => setAiGenPrompt(e.target.value)} placeholder="e.g. DNA structure and replication" className="h-8 border-border bg-muted text-xs text-foreground" onKeyDown={(e) => { if (e.key === "Enter" && !aiGenLoading) handleAIGenerate() }} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Title</label>
-                    <Input value={aiGenTitle} onChange={(e) => setAiGenTitle(e.target.value)} placeholder="Article title" className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Title</label>
+                    <Input value={aiGenTitle} onChange={(e) => setAiGenTitle(e.target.value)} placeholder="Article title" className="h-8 border-border bg-muted text-xs text-foreground" />
                   </div>
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold text-slate-400">Category</label>
-                    <Input value={aiGenCategory} onChange={(e) => setAiGenCategory(e.target.value)} className="h-8 border-white/10 bg-white/5 text-xs text-slate-200" />
+                    <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Category</label>
+                    <Input value={aiGenCategory} onChange={(e) => setAiGenCategory(e.target.value)} className="h-8 border-border bg-muted text-xs text-foreground" />
                   </div>
                 </div>
-                <Button size="sm" onClick={handleAIGenerate} disabled={aiGenLoading || !aiGenPrompt.trim()} className="w-full bg-purple-500/20 text-purple-300 hover:bg-purple-500/30">
+                <Button size="sm" onClick={handleAIGenerate} disabled={aiGenLoading || !aiGenPrompt.trim()} className="w-full bg-primary/15 text-primary hover:bg-primary/25">
                   {aiGenLoading ? "Generating..." : "Generate Article"}
                 </Button>
-                {aiGenLoading && (<div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3"><div className="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" /><span className="text-xs text-slate-400">AI is writing your article...</span></div>)}
-                {aiGenError && (<div className="rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-xs text-red-300">{aiGenError}</div>)}
+                {aiGenLoading && (<div className="flex items-center gap-2 rounded-lg border border-border bg-muted p-3"><div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" /><span className="text-xs text-muted-foreground">AI is writing your article...</span></div>)}
+                {aiGenError && (<div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{aiGenError}</div>)}
                 {aiGenResult && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400">Preview:</label>
-                    <div className="max-h-60 overflow-y-auto rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-200 whitespace-pre-wrap">{aiGenResult.replace(/<[^>]*>/g, " ").slice(0, 1000)}...</div>
-                    <Button size="sm" onClick={applyAIGeneratedArticle} className="w-full bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">Apply to Editor</Button>
+                    <label className="text-[10px] font-bold text-muted-foreground">Preview:</label>
+                    <div className="max-h-60 overflow-y-auto rounded-lg border border-border bg-muted p-3 text-xs text-foreground whitespace-pre-wrap">{aiGenResult.replace(/<[^>]*>/g, " ").slice(0, 1000)}...</div>
+                    <Button size="sm" onClick={applyAIGeneratedArticle} className="w-full bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20">Apply to Editor</Button>
                   </div>
                 )}
               </div>
@@ -1969,18 +1843,18 @@ export default function ContentStudio() {
         {/* AI Writing Assistant Panel */}
         {aiPanelOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="mx-4 w-full max-w-lg rounded-xl border border-white/10 bg-[#0c1a28] shadow-2xl">
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <h3 className="text-sm font-bold text-cyan-300">AI Writing Assistant</h3>
-                <button onClick={() => { setAiPanelOpen(false); setAiResult(""); setAiError("") }} className="text-slate-400 hover:text-white">
+            <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-card text-card-foreground shadow-2xl">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <h3 className="text-sm font-bold text-primary">AI Writing Assistant</h3>
+                <button onClick={() => { setAiPanelOpen(false); setAiResult(""); setAiError("") }} className="text-muted-foreground hover:text-foreground">
                   <X className="h-4 w-4" />
                 </button>
               </div>
               <div className="space-y-3 p-4">
                 {selectedText && (
-                  <div className="rounded-lg border border-white/10 bg-white/5 p-2">
-                    <span className="text-[10px] font-bold text-slate-500">Selected text:</span>
-                    <p className="mt-1 line-clamp-3 text-xs text-slate-300">{selectedText}</p>
+                  <div className="rounded-lg border border-border bg-muted p-2">
+                    <span className="text-[10px] font-bold text-muted-foreground">Selected text:</span>
+                    <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{selectedText}</p>
                   </div>
                 )}
                 <div className="flex flex-wrap gap-1.5">
@@ -2002,48 +1876,48 @@ export default function ContentStudio() {
                       key={action.label}
                       onClick={() => handleAIAction(action.prompt, true)}
                       disabled={aiLoading}
-                      className="rounded-lg border border-white/10 px-2.5 py-1 text-[10px] text-slate-300 transition-colors hover:border-cyan-400/30 hover:text-cyan-300 disabled:opacity-50"
+                      className="rounded-lg border border-border px-2.5 py-1 text-[10px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
                     >
                       {action.label}
                     </button>
                   ))}
                 </div>
                 <div>
-                  <label className="mb-1 block text-[10px] font-bold text-slate-400">Custom prompt</label>
+                  <label className="mb-1 block text-[10px] font-bold text-muted-foreground">Custom prompt</label>
                   <div className="flex gap-2">
                     <Input
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && aiPrompt.trim()) handleAIAction(aiPrompt, false) }}
                       placeholder="Type your instruction..."
-                      className="h-8 flex-1 border-white/10 bg-white/5 text-xs text-slate-200"
+                      className="h-8 flex-1 border-border bg-muted text-xs text-foreground"
                     />
                     <Button
                       size="sm"
                       onClick={() => { if (aiPrompt.trim()) handleAIAction(aiPrompt, false) }}
                       disabled={aiLoading || !aiPrompt.trim()}
-                      className="bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+                      className="bg-primary/15 text-primary hover:bg-primary/25"
                     >
                       {aiLoading ? "..." : "AI"}
                     </Button>
                   </div>
                 </div>
                 {aiLoading && (
-                  <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-3">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                    <span className="text-xs text-slate-400">Processing...</span>
+                  <div className="flex items-center gap-2 rounded-lg border border-border bg-muted p-3">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <span className="text-xs text-muted-foreground">Processing...</span>
                   </div>
                 )}
                 {aiError && (
-                  <div className="rounded-lg border border-red-400/20 bg-red-400/5 p-3 text-xs text-red-300">{aiError}</div>
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">{aiError}</div>
                 )}
                 {aiResult && (
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-400">Result:</label>
-                    <div className="max-h-40 overflow-y-auto rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-slate-200 whitespace-pre-wrap">{aiResult}</div>
+                    <label className="text-[10px] font-bold text-muted-foreground">Result:</label>
+                    <div className="max-h-40 overflow-y-auto rounded-lg border border-border bg-muted p-3 text-xs text-foreground whitespace-pre-wrap">{aiResult}</div>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={applyAIResult} className="bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">Apply</Button>
-                      <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(aiResult); toast.success("Copied") }} className="text-slate-400">Copy</Button>
+                      <Button size="sm" onClick={applyAIResult} className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/20">Apply</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(aiResult); toast.success("Copied") }} className="text-muted-foreground">Copy</Button>
                     </div>
                   </div>
                 )}
@@ -2051,7 +1925,6 @@ export default function ContentStudio() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </>
   );
 }
