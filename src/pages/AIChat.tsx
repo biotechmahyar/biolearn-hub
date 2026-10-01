@@ -77,6 +77,15 @@ const STARTERS = [
   { icon: FileText, title: "بررسی واقعیت", body: "ادعای علمی را بسنج و منابع را فهرست کن." },
 ];
 
+/** Which card floats where around the orb on desktop. */
+const STARTER_KEYS: Record<string, "top" | "right" | "left"> = {
+  "جمع‌بندی داده": "top",
+  "ایده‌پردازی خلاق": "right",
+  "بررسی واقعیت": "left",
+};
+
+const STARTER_KEYS_ORDER = { top: 0, right: 1, left: 2 } as const;
+
 type Range = "today" | "week" | "older";
 type HistoryFilter = "all" | Range;
 
@@ -190,25 +199,6 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
 
   return (
     <div className="rounded-3xl border border-border bg-card p-3 shadow-sm transition-colors focus-within:border-primary/40">
-      {/* Saved prompts sit above the input so the box itself stays compact. */}
-      <div className="admin-scroll flex items-center gap-1.5 overflow-x-auto px-1 pb-1.5">
-        <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-          <Lightbulb className="size-3.5" />
-          پرامپت‌های آماده
-        </span>
-        {SAVED_PROMPTS.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => setText(p)}
-            title={p}
-            className="shrink-0 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-          >
-            {p.length > 34 ? `${p.slice(0, 34)}…` : p}
-          </button>
-        ))}
-      </div>
-
       <Textarea
         ref={areaRef}
         autoFocus={autoFocus}
@@ -354,48 +344,109 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   );
 });
 
-// ── Floating starter bubbles (above the orb, chat-like) ─────────────────
-const FloatingStarters = memo(function FloatingStarters({
-  onStarter,
+// ── Saved prompt chips (float in the space between the cards) ────────────
+const SavedPromptsChips = memo(function SavedPromptsChips({
+  onPick,
 }: {
-  onStarter: (prompt: string) => void;
+  onPick: (prompt: string) => void;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-      className="grid w-full max-w-4xl gap-3 sm:grid-cols-3"
+      transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
+      className="flex max-w-xl flex-wrap items-center justify-center gap-1.5"
     >
-      {STARTERS.map((s, i) => (
+      <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+        <Lightbulb className="size-3.5" />
+        پرامپت‌های آماده
+      </span>
+      {SAVED_PROMPTS.map((p, i) => (
         <motion.button
-          key={s.title}
+          key={p}
           type="button"
-          onClick={() => onStarter(s.body)}
-          animate={{ y: [0, -6, 0] }}
+          onClick={() => onPick(p)}
+          title={p}
+          animate={{ y: [0, -4, 0] }}
           transition={{
-            duration: 5 + i * 0.6,
+            duration: 4 + (i % 3) * 0.7,
             repeat: Infinity,
             ease: "easeInOut",
-            delay: i * 0.4,
+            delay: i * 0.25,
           }}
-          whileHover={{ y: -10, scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="group relative overflow-hidden rounded-3xl rounded-tr-md border border-border bg-card/90 p-4 text-right shadow-sm backdrop-blur transition-shadow hover:border-primary/40 hover:shadow-lg"
+          whileHover={{ y: -6, scale: 1.03 }}
+          className="rounded-full border border-border bg-card/80 px-3 py-1.5 text-[11.5px] text-muted-foreground shadow-sm backdrop-blur transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
         >
-          <span className="pointer-events-none absolute -left-8 -top-8 size-24 rounded-full bg-primary/10 blur-2xl transition-opacity group-hover:opacity-100" />
-          <span className="relative flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-            <s.icon className="size-4" />
-          </span>
-          <p className="relative mt-3 text-[13.5px] font-extrabold">{s.title}</p>
-          <p className="relative mt-1.5 text-[12px] leading-5 text-muted-foreground">{s.body}</p>
-          <span className="relative mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
-            <Send className="size-3" />
-            بپرس
-          </span>
+          {p.length > 38 ? `${p.slice(0, 38)}…` : p}
         </motion.button>
       ))}
     </motion.div>
+  );
+});
+
+// ── Starter cards orbiting the orb: one above, one right, one left ───────
+function StarterCard({
+  starter,
+  index,
+  onStarter,
+}: {
+  starter: (typeof STARTERS)[number];
+  index: number;
+  onStarter: (prompt: string) => void;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onStarter(starter.body)}
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: [0, -7, 0] }}
+      transition={{
+        opacity: { duration: 0.5 },
+        y: { duration: 5.5 + index * 0.8, repeat: Infinity, ease: "easeInOut", delay: index * 0.4 },
+      }}
+      whileHover={{ y: -12, scale: 1.03 }}
+      whileTap={{ scale: 0.98 }}
+      className="group relative block w-full overflow-hidden rounded-3xl rounded-tr-md border border-border bg-card/90 p-4 text-right shadow-sm backdrop-blur transition-shadow hover:border-primary/40 hover:shadow-lg"
+    >
+      <span className="pointer-events-none absolute -left-8 -top-8 size-24 rounded-full bg-primary/10 blur-2xl" />
+      <span className="relative flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <starter.icon className="size-4" />
+      </span>
+      <p className="relative mt-3 text-[13.5px] font-extrabold">{starter.title}</p>
+      <p className="relative mt-1.5 text-[12px] leading-5 text-muted-foreground">{starter.body}</p>
+      <span className="relative mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+        <Send className="size-3" />
+        بپرس
+      </span>
+    </motion.button>
+  );
+}
+
+const FloatingStarters = memo(function FloatingStarters({
+  onStarter,
+  variant,
+}: {
+  onStarter: (prompt: string) => void;
+  /** "top" | "right" | "left" on desktop, or "stack" on small screens. */
+  variant: "top" | "right" | "left" | "stack";
+}) {
+  if (variant === "stack") {
+    return (
+      <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3 lg:hidden">
+        {STARTERS.map((s, i) => (
+          <StarterCard key={s.title} starter={s} index={i} onStarter={onStarter} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="hidden w-full lg:block">
+      <StarterCard
+        starter={STARTERS.find((s) => STARTER_KEYS[s.title] === variant)!}
+        index={STARTER_KEYS_ORDER[variant]}
+        onStarter={onStarter}
+      />
+    </div>
   );
 });
 
@@ -525,7 +576,8 @@ export default function AIChat() {
   // "پرامپت‌های آماده" in the sidebar drops a starter prompt into the composer.
   useEffect(() => {
     if (promptFillTick === 0) return;
-    composerRef.current?.setText(SAVED_PROMPTS[0]);
+    const prompt = SAVED_PROMPTS[promptFillTick % SAVED_PROMPTS.length];
+    composerRef.current?.setText(prompt);
   }, [promptFillTick]);
 
   useEffect(() => {
@@ -1173,10 +1225,35 @@ export default function AIChat() {
         <ScrollArea className="min-h-0 flex-1">
           <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
             {!selectedConvo ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
-                <FloatingStarters onStarter={startStarter} />
+              <div className="flex flex-1 flex-col items-center gap-5 py-6">
+                {/* Desktop: the three cards orbit the orb — one above, one right,
+                    one left — with the saved prompts floating in the middle. */}
+                <div className="hidden w-full max-w-5xl grid-cols-1 items-center gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_240px] lg:grid-rows-[auto_1fr]">
+                  <div className="lg:col-start-2 lg:row-start-1">
+                    <FloatingStarters onStarter={startStarter} variant="top" />
+                  </div>
+                  <div className="lg:col-start-1 lg:row-start-2">
+                    <FloatingStarters onStarter={startStarter} variant="left" />
+                  </div>
+                  <div className="flex flex-col items-center gap-4 text-center lg:col-start-2 lg:row-start-2">
+                    <EmptyHero firstName={firstName} />
+                    <SavedPromptsChips
+                      onPick={(prompt) => composerRef.current?.setText(prompt)}
+                    />
+                  </div>
+                  <div className="lg:col-start-3 lg:row-start-2">
+                    <FloatingStarters onStarter={startStarter} variant="right" />
+                  </div>
+                </div>
 
-                <EmptyHero firstName={firstName} />
+                {/* Small screens: stacked */}
+                <div className="flex w-full flex-col items-center gap-5 lg:hidden">
+                  <EmptyHero firstName={firstName} />
+                  <SavedPromptsChips
+                    onPick={(prompt) => composerRef.current?.setText(prompt)}
+                  />
+                  <FloatingStarters onStarter={startStarter} variant="stack" />
+                </div>
 
                 <div className="w-full max-w-2xl">
                   <Composer
