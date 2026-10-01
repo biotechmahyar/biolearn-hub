@@ -60,26 +60,7 @@ export const getMyResume = query({
       .query("resumes")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .first();
-
-    // Identity + avatar so the editor canvas can show a true-to-life preview.
-    let avatarUrl: string | null = null;
-    if (user.avatarStorageId) {
-      try {
-        avatarUrl = await ctx.storage.getUrl(user.avatarStorageId);
-      } catch {
-        avatarUrl = null;
-      }
-    }
-    const name =
-      [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-      user.name ||
-      user.email ||
-      "دانشجوی ژنوا";
-
-    return {
-      resume: resume ?? null,
-      identity: { name, avatarUrl, email: user.email ?? "", phone: user.phone ?? "" },
-    };
+    return resume ?? null;
   },
 });
 
@@ -95,21 +76,6 @@ export const updateMyResume = mutation({
     projects: v.optional(v.array(projValidator)),
     languages: v.optional(v.array(langValidator)),
     links: v.optional(v.array(linkValidator)),
-    style: v.optional(
-      v.object({
-        font: v.optional(v.string()),
-        accent: v.optional(v.string()),
-        scale: v.optional(v.number()),
-        density: v.optional(v.string()),
-        columns: v.optional(v.number()),
-        width: v.optional(v.string()),
-        radius: v.optional(v.number()),
-        shadow: v.optional(v.string()),
-        outline: v.optional(v.boolean()),
-        headingStyle: v.optional(v.string()),
-        align: v.optional(v.string()),
-      }),
-    ),
     isVisible: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -133,7 +99,6 @@ export const updateMyResume = mutation({
       ...(args.projects !== undefined ? { projects: args.projects } : {}),
       ...(args.languages !== undefined ? { languages: args.languages } : {}),
       ...(args.links !== undefined ? { links: args.links.slice(0, 10) } : {}),
-      ...(args.style !== undefined ? { style: args.style } : {}),
       ...(args.isVisible !== undefined ? { isVisible: args.isVisible } : {}),
       updatedAt: Date.now(),
     };
@@ -156,7 +121,6 @@ export const updateMyResume = mutation({
       projects: args.projects ?? [],
       languages: args.languages ?? [],
       links: args.links?.slice(0, 10) ?? [],
-      style: args.style,
       isVisible: args.isVisible ?? true,
       updatedAt: Date.now(),
       createdAt: Date.now(),
@@ -322,7 +286,6 @@ export const getPublicResume = query({
       projects: resume.projects ?? [],
       languages: resume.languages ?? [],
       links: resume.links ?? [],
-      style: resume.style ?? null,
       completedCourses,
       inProgressCourses,
       certificates,

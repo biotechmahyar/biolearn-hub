@@ -3,10 +3,17 @@ import { useQuery } from "convex/react";
 import {
   Award,
   BookOpen,
+  Briefcase,
   CheckCircle2,
+  ExternalLink,
+  Folder,
   GraduationCap,
+  Languages,
+  Link2,
   Loader2,
   Share2,
+  Sparkles,
+  Target,
   User,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,7 +23,6 @@ import { faNum } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import ResumeDocument from "@/components/resume/ResumeDocument";
 
 function Section({
   title,
@@ -94,6 +100,8 @@ export default function PublicResume() {
     );
   }
 
+  const hasEducation = resume.education.length > 0;
+  const hasExperience = resume.experience.length > 0;
 
   return (
     <PublicLayout>
@@ -106,11 +114,7 @@ export default function PublicResume() {
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
             <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl bg-primary/10 text-3xl font-extrabold text-primary ring-1 ring-primary/20">
               {resume.avatarUrl ? (
-                <img
-                  src={resume.avatarUrl}
-                  alt={resume.name}
-                  className="size-full object-cover"
-                />
+                <img src={resume.avatarUrl} alt={resume.name} className="size-full object-cover" />
               ) : (
                 (resume.name ?? "د")[0]
               )}
@@ -118,9 +122,7 @@ export default function PublicResume() {
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                  {resume.name}
-                </h1>
+                <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{resume.name}</h1>
                 <Badge className="border-0 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                   رزومه عمومی
                 </Badge>
@@ -155,26 +157,6 @@ export default function PublicResume() {
           </div>
         </div>
 
-        {/* ── The document (same renderer as the editor canvas) ── */}
-        <div className="mt-6">
-          <ResumeDocument
-            data={{
-              name: resume.name,
-              avatarUrl: resume.avatarUrl,
-              headline: resume.headline,
-              summary: resume.about,
-              skills: resume.skills,
-              education: resume.education,
-              experience: resume.experience,
-              projects: resume.projects,
-              achievements: resume.achievements,
-              languages: resume.languages,
-              links: resume.links,
-            }}
-            style={resume.style}
-          />
-        </div>
-
         {/* ── Stats strip ────────────────────────────────────── */}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
@@ -193,8 +175,35 @@ export default function PublicResume() {
           ))}
         </div>
 
-        {/* ── Platform activity (courses / certificates / workshops) ── */}
+        {/* ── Body ───────────────────────────────────────────── */}
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
+          {resume.about && (
+            <div className="lg:col-span-2">
+              <Section title="درباره من" icon={Sparkles}>
+                <p className="text-sm leading-7 whitespace-pre-line text-muted-foreground">
+                  {resume.about}
+                </p>
+              </Section>
+            </div>
+          )}
+
+          {resume.skills.length > 0 && (
+            <div className="lg:col-span-2">
+              <Section title="مهارت‌ها" icon={Target}>
+                <div className="flex flex-wrap gap-2">
+                  {resume.skills.map((s, i) => (
+                    <span
+                      key={`${s}-${i}`}
+                      className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </Section>
+            </div>
+          )}
+
           <Section title="دوره‌های گذرانده‌شده" icon={CheckCircle2}>
             {resume.completedCourses.length === 0 ? (
               <EmptyLine />
@@ -283,9 +292,7 @@ export default function PublicResume() {
                       className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition-colors hover:border-sky-500/40"
                     >
                       <span className="truncate text-[13px] font-bold">{w.title}</span>
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
-                        {w.date}
-                      </span>
+                      <span className="shrink-0 text-[11px] text-muted-foreground">{w.date}</span>
                     </Link>
                   </li>
                 ))}
@@ -293,6 +300,120 @@ export default function PublicResume() {
             )}
           </Section>
 
+          {hasEducation && (
+            <Section title="تحصیلات" icon={GraduationCap}>
+              <ul className="space-y-3">
+                {resume.education.map((e, i) => (
+                  <li key={i} className="border-r-2 border-primary/40 pr-3">
+                    <p className="text-[13px] font-extrabold">{e.degree}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[e.field, e.institute, e.year].filter(Boolean).join(" · ")}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {hasExperience && (
+            <Section title="تجربه کاری" icon={Briefcase}>
+              <ul className="space-y-3">
+                {resume.experience.map((e, i) => (
+                  <li key={i} className="border-r-2 border-emerald-500/40 pr-3">
+                    <p className="text-[13px] font-extrabold">{e.title}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {[e.org, e.period].filter(Boolean).join(" · ")}
+                    </p>
+                    {e.description && (
+                      <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                        {e.description}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {resume.projects.length > 0 && (
+            <Section title="پروژه‌ها" icon={Folder}>
+              <ul className="space-y-3">
+                {resume.projects.map((p, i) => (
+                  <li key={i} className="rounded-lg border border-border/60 bg-background/40 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[13px] font-extrabold">{p.name}</p>
+                      {p.link && (
+                        <a
+                          href={p.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 text-primary hover:underline"
+                        >
+                          <ExternalLink className="size-4" />
+                        </a>
+                      )}
+                    </div>
+                    {p.description && (
+                      <p className="mt-1 text-xs leading-6 text-muted-foreground">
+                        {p.description}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {resume.achievements.length > 0 && (
+            <Section title="دستاوردها" icon={Award}>
+              <ul className="space-y-2">
+                {resume.achievements.map((a, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-2 text-[13px] leading-6 text-muted-foreground"
+                  >
+                    <CheckCircle2 className="mt-1 size-3.5 shrink-0 text-emerald-500" />
+                    {a}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {resume.languages.length > 0 && (
+            <Section title="زبان‌ها" icon={Languages}>
+              <div className="flex flex-wrap gap-2">
+                {resume.languages.map((l, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full border border-border/70 bg-background/60 px-3 py-1.5 text-xs font-bold"
+                  >
+                    {l.name}
+                    {l.level && <span className="text-muted-foreground"> — {l.level}</span>}
+                  </span>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {resume.links.length > 0 && (
+            <Section title="لینک‌ها" icon={Link2}>
+              <div className="flex flex-wrap gap-2">
+                {resume.links.map((l, i) => (
+                  <a
+                    key={i}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-opacity hover:opacity-80"
+                  >
+                    {l.label}
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                ))}
+              </div>
+            </Section>
+          )}
         </div>
 
         {/* ── Footer CTA ─────────────────────────────────────── */}

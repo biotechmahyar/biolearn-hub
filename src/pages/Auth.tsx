@@ -15,6 +15,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { BrandMark } from "@/components/site/BrandLogo";
+import DnaHelix from "@/components/site/DnaHelix";
 import { useAuth } from "@/hooks/use-auth";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Dna, KeyRound, Loader2, Mail, Send, UserX } from "lucide-react";
@@ -270,16 +271,26 @@ function Auth({ redirectAfterAuth }: AuthProps = {}) {
         )}
       </AnimatePresence>
       {/* Brand panel */}
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-primary via-primary to-emerald-800 p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        <div className="absolute inset-0 bg-lab-grid opacity-20" />
-        <div className="absolute -bottom-24 -left-24 size-96 rounded-full bg-white/10 blur-3xl" />
+      <div className="relative hidden overflow-hidden bg-[#06121a] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        {/* Animated DNA behind the copy */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 opacity-70"
+          initial={{ opacity: 0, scale: 1.08 }}
+          animate={{ opacity: 0.7, scale: 1 }}
+          transition={{ duration: 2.2, ease: "easeOut" }}
+        >
+          <DnaHelix className="h-full w-full" />
+        </motion.div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#06121a]/70 via-[#06121a]/40 to-[#04100f]/85" />
+        <div className="absolute inset-0 bg-lab-grid opacity-[0.07]" />
+        <div className="absolute -bottom-24 -left-24 size-96 rounded-full bg-emerald-500/10 blur-3xl" />
         <Link to="/" className="relative flex items-center gap-3">
           <BrandMark className="" />
           <span className="text-lg font-extrabold">Genova</span>
           <span className="rounded-full bg-white/10 px-2.5 py-1 font-mono text-[10px] text-white/70 backdrop-blur">internal</span>
         </Link>
         <div className="relative">
-          <Dna className="mb-6 size-12 text-white/70" />
+          <Dna className="mb-6 size-12 animate-pulse text-emerald-300/80" />
           <h1 className="max-w-md text-3xl font-black leading-relaxed text-balance">
             یک حساب، کل مسیر یادگیری علوم زیستی
           </h1>
