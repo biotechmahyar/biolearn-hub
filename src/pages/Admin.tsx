@@ -1,6 +1,7 @@
 import { CategoryField } from "@/components/site/CategoryField";
 import { AdminEduManagement } from "@/pages/panels/AdminEduManagement";
 import BaleBotPanel from "@/pages/panels/BaleBotPanel";
+import AdminDashboard from "@/pages/panels/AdminDashboard";
 import { SiteDemosAdmin } from "@/pages/panels/SiteDemosAdmin";
 import AdminCertificateTemplates from "@/pages/panels/AdminCertificateTemplates";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
@@ -53,7 +54,6 @@ import {
   ArrowUp,
   AlertTriangle,
   Award,
-  BarChart3,
   Blocks,
   Route as RouteIcon,
   Bot,
@@ -66,7 +66,6 @@ import {
   ScrollText,
   Compass,
   CreditCard,
-  DollarSign,
   Download,
   GraduationCap,
   Eye,
@@ -90,12 +89,14 @@ import {
   MessageSquare,
   MessageCircle,
   Package,
+  PanelRight,
   Pencil,
   Plus,
   Receipt,
   Repeat,
   RefreshCw,
   Save,
+  Search,
   Send,
   Shield,
   Store,
@@ -117,7 +118,7 @@ import {
   Settings,
   Command,
   LinkIcon} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   DropdownMenu,
@@ -127,15 +128,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 // ── Navigation model ────────────────────────────────────────────────────────
 type Section =
@@ -310,14 +302,14 @@ function CourseStatusChip({ c }: { c: any }) {
 
 function SectionHeader({ title, subtitle, count }: { title: string; subtitle: string; count?: number }) {
   return (
-    <div className="flex items-end justify-between gap-3">
+    <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <p className="font-mono text-[11px] uppercase tracking-widest text-primary/80">{subtitle}</p>
-        <h1 className="mt-1 text-2xl font-extrabold tracking-tight">{title}</h1>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">{subtitle}</p>
+        <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-foreground">{title}</h1>
       </div>
       {count !== undefined && (
-        <span className="rounded-md border border-border bg-card px-2.5 py-1 font-mono text-xs text-muted-foreground">
-          {faNum(count)} items
+        <span className="rounded-lg border border-border bg-white px-2.5 py-1 text-xs font-medium text-muted-foreground">
+          {faNum(count)} مورد
         </span>
       )}
     </div>
@@ -405,7 +397,26 @@ export default function Admin() {
   const isAdmin = useQuery(api.admin.amIAdmin);
   const [section, setSection] = useState<Section>("overview");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [navQuery, setNavQuery] = useState("");
   const navigate = useNavigate();
+
+  // The admin console owns a bright canvas of its own. Portalled overlays
+  // (dropdowns, dialogs, selects) render on <body>, so the theme has to be
+  // applied there too or they would fall back to the public site's theme.
+  useEffect(() => {
+    document.body.classList.add("admin-scope");
+    return () => document.body.classList.remove("admin-scope");
+  }, []);
+
+  // Live section filter for the sidebar search box.
+  const navGroups = useMemo(() => {
+    const q = navQuery.trim().toLowerCase();
+    if (!q) return NAV_GROUPS;
+    return NAV_GROUPS.map((g) => ({
+      ...g,
+      items: g.items.filter((i) => i.label.toLowerCase().includes(q)),
+    })).filter((g) => g.items.length > 0);
+  }, [navQuery]);
   const notifCounts = useQuery(api.admin.getSectionNotifications);
   // System admins (full power) vs site admins (lower-tier team managers).
   const isSystemAdmin = user?.role === "admin" || user?.role === "site_admin";
@@ -484,69 +495,115 @@ export default function Admin() {
   }
 
   const active = ALL_SECTIONS.find((s) => s.key === section)!;
+  const totalNotifs = notifCounts
+    ? Object.values(notifCounts as Record<string, number>).reduce((s, n) => s + (n ?? 0), 0)
+    : 0;
+
+  const renderNav = (onPick?: () => void) =>
+    navGroups.map((g) => (
+      <div key={g.title}>
+        <p className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+          {g.title}
+        </p>
+        <div className="space-y-0.5">
+          {g.items.map((s) => {
+            const notifKey = NOTIF_MAP[s.key];
+            const count = notifCounts && notifKey ? (notifCounts as Record<string, number>)[notifKey] ?? 0 : 0;
+            const isActive = section === s.key;
+            return (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => {
+                  setSection(s.key);
+                  onPick?.();
+                }}
+                className={cn(
+                  "relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-[13px] font-medium transition-all",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {isActive && (
+                  <span className="absolute inset-y-1.5 right-0 w-1 rounded-full bg-primary" />
+                )}
+                <s.icon className={cn("size-4 shrink-0", isActive && "stroke-[2.4]")} />
+                <span className="truncate">{s.label}</span>
+                {count > 0 && (
+                  <span className="mr-auto rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
+                    {count > 99 ? "99+" : faNum(count)}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ));
 
   return (
-    <div className="h-screen overflow-hidden bg-background">
-      <div className="mx-auto flex h-full max-w-[1400px]">
+    <div className="admin-scope h-screen overflow-hidden bg-background text-foreground">
+      <div className="flex h-full">
         {/* Console sidebar */}
-        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-l border-border/70 bg-card/50 p-4 lg:flex">
-          <Link to="/" className="flex items-center gap-2.5 px-1">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <aside className="sticky top-0 hidden h-screen w-[270px] shrink-0 flex-col border-l border-border bg-white lg:flex">
+          <div className="flex items-center gap-2.5 px-5 pb-4 pt-5">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <Terminal className="size-4" />
             </span>
             <span className="leading-tight">
-              <span className="block text-[15px] font-extrabold tracking-tight">Genova</span>
-              <span className="block font-mono text-[10px] text-muted-foreground">admin console</span>
+              <span className="block text-[15px] font-extrabold tracking-tight text-foreground">Genova</span>
+              <span className="block text-[10px] font-medium text-muted-foreground">admin console</span>
             </span>
-          </Link>
+            <Link
+              to="/"
+              title="بازگشت به صفحهٔ اصلی"
+              className="mr-auto flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <PanelRight className="size-4" />
+            </Link>
+          </div>
 
-          <nav className="scrollbar-theme mt-6 flex-1 space-y-5 overflow-y-auto">
-            {NAV_GROUPS.map((g) => (
-              <div key={g.title}>
-                <p className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
-                  {g.title}
-                </p>
-                <div className="space-y-0.5">
-                  {g.items.map((s) => {
-                    const notifKey = NOTIF_MAP[s.key];
-                    const count = notifCounts && notifKey ? (notifCounts as Record<string, number>)[notifKey] ?? 0 : 0;
-                    return (
-                      <button
-                        key={s.key}
-                        type="button"
-                        onClick={() => setSection(s.key)}
-                        className={cn(
-                          "relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
-                          section === s.key
-                            ? "bg-primary/15 text-primary"
-                            : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                        )}
-                      >
-                        <s.icon className="size-4" />
-                        {s.label}
-                        {count > 0 && (
-                          <span className="absolute left-2 top-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white animate-pulse">
-                            {count > 9 ? "!" : count}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+          <div className="px-4 pb-3">
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                value={navQuery}
+                onChange={(e) => setNavQuery(e.target.value)}
+                placeholder="جستجوی بخش..."
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+              />
+              {navQuery && (
+                <button
+                  type="button"
+                  onClick={() => setNavQuery("")}
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="پاک کردن جستجو"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <nav className="admin-scroll flex-1 space-y-5 overflow-y-auto px-4 pb-4">
+            {navGroups.length === 0 ? (
+              <p className="px-2.5 py-8 text-center text-xs text-muted-foreground">بخشی با این عنوان نیست.</p>
+            ) : (
+              renderNav()
+            )}
           </nav>
 
-          <div className="mt-4 space-y-2 border-t border-border/70 pt-3">
+          <div className="border-t border-border p-4">
             {!isSystemAdmin && (
-              <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+              <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-xl text-xs">
                 <Link to="/dashboard">
                   <BookOpen className="ml-2 size-4" />
                   پنل دانشجویی
                 </Link>
               </Button>
             )}
-            <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+            <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-xl text-xs">
               <Link to="/">
                 <Home className="ml-2 size-4" />
                 بازگشت به صفحهٔ اصلی
@@ -558,83 +615,62 @@ export default function Admin() {
         {/* Main column */}
         <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
           {/* Console topbar */}
-          <header className="z-30 shrink-0 border-b border-border/70 bg-background/90 backdrop-blur-lg">
-            <div className="flex h-14 items-center justify-between gap-3 px-3 sm:px-6">
-              <div className="hidden items-center gap-2 font-mono text-xs text-muted-foreground sm:flex">
-                <Terminal className="size-3.5 text-primary" />
-                <span>admin</span>
-                <span className="text-border">/</span>
-                <span className="text-foreground">{active.label}</span>
+          <header className="z-30 shrink-0 border-b border-border bg-white">
+            <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <h2 className="truncate text-[15px] font-bold tracking-tight text-foreground">
+                  {active.label}
+                </h2>
+                <span className="hidden rounded-lg bg-muted px-2 py-1 text-[11px] font-medium text-muted-foreground sm:inline">
+                  {NAV_GROUPS.find((g) => g.items.some((i) => i.key === section))?.title}
+                </span>
               </div>
 
               {/* Mobile nav drawer */}
               <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-8 rounded-lg lg:hidden">
+                  <Button variant="outline" size="sm" className="h-9 rounded-xl lg:hidden">
                     <Menu className="size-4" />
                     <span className="mr-1 text-xs">بخش‌ها</span>
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="right" className="w-72">
+                <SheetContent side="right" className="admin-scope w-80 overflow-y-auto p-5">
                   <SheetTitle className="sr-only">بخش‌های پنل مدیریت</SheetTitle>
                   <div className="mb-4 flex items-center gap-2.5">
-                    <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
                       <Terminal className="size-4" />
                     </span>
                     <span className="leading-tight">
                       <span className="block text-sm font-extrabold tracking-tight">Genova</span>
-                      <span className="block font-mono text-[10px] text-muted-foreground">admin console</span>
+                      <span className="block text-[10px] text-muted-foreground">admin console</span>
                     </span>
                   </div>
-                  <nav className="scrollbar-theme max-h-[60vh] space-y-5 overflow-y-auto">
-                    {NAV_GROUPS.map((g) => (
-                      <div key={g.title}>
-                        <p className="mb-1.5 px-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
-                          {g.title}
-                        </p>
-                        <div className="space-y-0.5">
-                          {g.items.map((s) => {
-                            const notifKey = NOTIF_MAP[s.key];
-                            const count = notifCounts && notifKey ? (notifCounts as Record<string, number>)[notifKey] ?? 0 : 0;
-                            return (
-                              <button
-                                key={s.key}
-                                type="button"
-                                onClick={() => {
-                                  setSection(s.key);
-                                  setMobileNavOpen(false);
-                                }}
-                                className={cn(
-                                  "relative flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors",
-                                  section === s.key
-                                    ? "bg-primary/15 text-primary"
-                                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                                )}
-                              >
-                                <s.icon className="size-4" />
-                                {s.label}
-                                {count > 0 && (
-                                  <span className="absolute left-2 top-1.5 flex size-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white animate-pulse">
-                                    {count > 9 ? "!" : count}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="mb-4 flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 focus-within:border-primary/50">
+                    <Search className="size-4 shrink-0 text-muted-foreground" />
+                    <input
+                      value={navQuery}
+                      onChange={(e) => setNavQuery(e.target.value)}
+                      placeholder="جستجوی بخش..."
+                      className="w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <nav className="admin-scroll max-h-[58vh] space-y-5 overflow-y-auto">
+                    {navGroups.length === 0 ? (
+                      <p className="py-8 text-center text-xs text-muted-foreground">بخشی با این عنوان نیست.</p>
+                    ) : (
+                      renderNav(() => setMobileNavOpen(false))
+                    )}
                   </nav>
-                  <div className="mt-6 space-y-2 border-t border-border/70 pt-4">
+                  <div className="mt-6 space-y-2 border-t border-border pt-4">
                     {!isSystemAdmin && (
-                      <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+                      <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-xl text-xs">
                         <Link to="/dashboard">
                           <BookOpen className="ml-2 size-4" />
                           پنل دانشجویی
                         </Link>
                       </Button>
                     )}
-                    <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-lg text-xs">
+                    <Button asChild variant="ghost" size="sm" className="w-full justify-start rounded-xl text-xs">
                       <Link to="/">
                         <Home className="ml-2 size-4" />
                         بازگشت به صفحهٔ اصلی
@@ -645,17 +681,23 @@ export default function Admin() {
               </Sheet>
 
               <div className="flex items-center gap-2">
+                {totalNotifs > 0 && (
+                  <div className="relative hidden items-center gap-1.5 rounded-xl border border-border bg-background px-3 py-1.5 text-[11px] font-medium text-muted-foreground sm:flex">
+                    <Inbox className="size-3.5" />
+                    {faNum(totalNotifs)} مورد نیازمند رسیدگی
+                  </div>
+                )}
                 {canRoleSwitch && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 rounded-lg text-xs"
+                      className="h-9 rounded-xl text-xs"
                       title="جابه‌جایی بین پنل نقش‌ها"
                     >
                       <Repeat className="ml-1.5 size-3.5 text-primary" />
-                      سوییچ نقش
+                      <span className="hidden sm:inline">سوییچ نقش</span>
                       <ChevronDown className="mr-1 size-3 text-muted-foreground" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -677,20 +719,22 @@ export default function Admin() {
                   </DropdownMenuContent>
                 </DropdownMenu>
                 )}
-                <Button asChild variant="outline" size="sm" className="h-8 rounded-lg text-xs">
+                <Button asChild variant="outline" size="sm" className="h-9 rounded-xl text-xs">
                   <Link to="/" title="بازگشت به صفحهٔ اصلی">
                     <Home className="ml-1.5 size-3.5" />
                     <span className="hidden sm:inline">صفحهٔ اصلی</span>
                   </Link>
                 </Button>
-
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-[13px] font-bold text-primary">
+                  {(user?.name?.[0] ?? "G").toUpperCase()}
+                </span>
               </div>
             </div>
           </header>
 
-          <div className="scrollbar-theme min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="admin-scroll min-h-0 flex-1 overflow-y-auto bg-background p-4 sm:p-6">
             {section === "online" && <AdminOnline />}
-            {section === "overview" && <AdminOverview />}
+            {section === "overview" && <AdminDashboard onNavigate={(key) => setSection(key as Section)} />}
             {section === "courses" && <AdminCourses />}
             {section === "questions" && <AdminQuestions />}
             {section === "exams" && <AdminExams />}
@@ -1361,101 +1405,6 @@ function AdminSkills() {
           </div>
         </CardContent>
       </Card>
-    </div>
-  );
-}
-
-// ── Overview ────────────────────────────────────────────────────────────────
-function AdminOverview() {
-  const { isIran } = useMode();
-  const statsConvex = useQuery(api.admin.getAdminStats);
-  const revenueConvex = useQuery(api.admin.getRevenueSeries);
-  const enrollmentsConvex = useQuery(api.admin.getEnrollmentStats);
-  const { data: statsIran } = useApiQuery<any>(isIran ? "/api/admin/stats" : "");
-  const stats = isIran ? statsIran : statsConvex;
-  const revenue = isIran ? null : revenueConvex;
-  const enrollments = isIran ? null : enrollmentsConvex;
-
-  if (!stats) return <Loading />;
-
-  const kpis = [
-    { icon: Users, label: "کاربران", value: faNum(stats.userCount), color: "bg-primary/10 text-primary" },
-    { icon: DollarSign, label: "درآمد (تومان)", value: faNum(stats.revenue), color: "bg-emerald-500/10 text-emerald-500" },
-    { icon: CreditCard, label: "سفارش پرداخت‌شده", value: faNum(stats.paidOrderCount), color: "bg-violet-500/10 text-violet-500" },
-    { icon: TrendingUp, label: "میانگین ارزش سفارش", value: faNum(stats.avgOrderValue), color: "bg-amber-500/10 text-amber-500" },
-    { icon: Repeat, label: "تکرار خرید (نسبت)", value: faNum(stats.repeatPurchase), color: "bg-sky-500/10 text-sky-500" },
-    { icon: ClipboardList, label: "تست‌های انجام‌شده", value: faNum(stats.attemptCount), color: "bg-rose-500/10 text-rose-500" },
-    { icon: BarChart3, label: "میانگین درصد آزمون", value: `${faNum(stats.avgTestPercent)}٪`, color: "bg-teal-500/10 text-teal-500" },
-    { icon: BookOpen, label: "دوره‌ها", value: faNum(stats.courseCount), color: "bg-indigo-500/10 text-indigo-500" },
-    { icon: HelpCircle, label: "سؤالات", value: faNum(stats.questionCount), color: "bg-amber-500/10 text-amber-500" },
-    { icon: Ticket, label: "تیکت‌های باز", value: faNum(stats.openTicketCount), color: "bg-red-500/10 text-red-500" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <SectionHeader title="نمای کلی" subtitle="system overview" />
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {kpis.map((k) => (
-          <Card key={k.label} className="border-border/70 shadow-sm">
-            <CardContent className="p-4">
-              <span className={cn("flex size-8 items-center justify-center rounded-lg", k.color)}>
-                <k.icon className="size-4" />
-              </span>
-              <p className="mt-2.5 text-lg font-extrabold">{k.value}</p>
-              <p className="text-[11px] text-muted-foreground">{k.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">درآمد روزانه</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(revenue ?? []).length > 0 ? (
-              <div className="h-56" dir="ltr">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenue ?? []}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                    <XAxis dataKey="date" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} />
-                    <YAxis stroke="var(--muted-foreground)" fontSize={10} tickLine={false} axisLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }} />
-                    <Bar dataKey="revenue" name="درآمد" fill="var(--primary)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="py-10 text-center text-sm text-muted-foreground">هنوز فروشی ثبت نشده است.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">ثبت‌نام در دوره‌ها</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(enrollments ?? []).length > 0 ? (
-              <div className="h-56" dir="ltr">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={enrollments ?? []} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                    <XAxis type="number" stroke="var(--muted-foreground)" fontSize={10} tickLine={false} />
-                    <YAxis type="category" dataKey="title" width={130} stroke="var(--muted-foreground)" fontSize={10} tickLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }} />
-                    <Bar dataKey="count" name="ثبت‌نام" fill="var(--chart-2)" radius={[0, 6, 6, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="py-10 text-center text-sm text-muted-foreground">داده‌ای موجود نیست.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
@@ -5670,7 +5619,7 @@ function AdminOfflinePayments() {
           <Plus className="ml-1 size-3.5" /> افزودن پرداخت
         </Button>
       </div>
-      <Card className="border-white/5 bg-[#0b1a2a]">
+      <Card className="border-border bg-card">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -5692,16 +5641,16 @@ function AdminOfflinePayments() {
                   <TableRow key={p._id}>
                     <TableCell>
                       <div>
-                        <p className="text-sm font-medium text-white">{p.userName}</p>
-                        <p className="text-[11px] text-slate-500">{p.userEmail}</p>
+                        <p className="text-sm font-medium text-foreground">{p.userName}</p>
+                        <p className="text-[11px] text-muted-foreground">{p.userEmail}</p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-slate-300">{p.courseTitle}</TableCell>
-                    <TableCell className="text-xs text-slate-400">{TIER[p.tier] ?? p.tier}</TableCell>
-                    <TableCell className="text-sm font-mono text-white">{formatPrice(p.amount)}</TableCell>
-                    <TableCell className="font-mono text-xs text-slate-400" dir="ltr">{p.trackingNumber}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{p.courseTitle}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{TIER[p.tier] ?? p.tier}</TableCell>
+                    <TableCell className="text-sm font-mono text-foreground">{formatPrice(p.amount)}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground" dir="ltr">{p.trackingNumber}</TableCell>
                     <TableCell>
-                      <span className="text-xs text-cyan-400">{p.receiptStorageId ? "فیش آپلود شده" : "—"}</span>
+                      <span className="text-xs text-primary">{p.receiptStorageId ? "فیش آپلود شده" : "—"}</span>
                     </TableCell>
                     <TableCell><span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${st.cls}`}>{st.label}</span></TableCell>
                     <TableCell className="text-left">
@@ -5716,7 +5665,7 @@ function AdminOfflinePayments() {
                         </div>
                       )}
                       {p.status !== "pending" && (
-                        <Button size="sm" variant="ghost" className="text-slate-500 hover:text-red-400" onClick={() => void remove({ paymentId: p._id })}>
+                        <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => void remove({ paymentId: p._id })}>
                           <Trash2 className="size-3" />
                         </Button>
                       )}

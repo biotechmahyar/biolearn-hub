@@ -99,6 +99,136 @@ export const getEnrollmentStats = query({
   },
 });
 
+// ── Admin Dashboard (Shopeers-style overview) ───────────────────────────────
+// One round-trip for the whole overview: KPI cards with period-over-period
+// deltas, a zero-filled daily revenue series, weekday activity, the repeat
+// purchase gauge and the best selling course table.
+export const getAdminDashboard = query({
+  args: { days: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) return null;
+
+    const DAY = 86_400_000;
+    // Tehran runs on UTC+03:30. Bucketing on raw UTC would shift every day
+    // boundary, so day/weekday maths is done on a shifted clock.
+    const TZ = 3.5 * 3600 * 1000;
+    const days = Math.min(90, Math.max(7, Math.round(args.days ?? 30)));
+    const now = Date.now();
+    const todayStart = Math.floor((now + TZ) / DAY) * DAY - TZ;
+    const rangeStart = todayStart - (days - 1) * DAY;
+    const prevStart = rangeStart - days * DAY;
+
+    const [users, courses, orders, enrollments, tickets] = await Promise.all([
+      ctx.db.query("users").collect(),
+      ctx.db.query("courses").collect(),
+      ctx.db.query("orders").collect(),
+      ctx.db.query("enrollments").collect(),
+      ctx.db.query("tickets").collect(),
+    ]);
+
+    const paid = orders.filter((o: any) => o.status === "paid");
+    const sum = (list: any[]) => list.reduce((s: number, o: any) => s + (o.total ?? 0), 0);
+    const pct = (cur: number, prev: number) =>
+      prev === 0 ? (cur > 0 ? 100 : 0) : Math.round(((cur - prev) / prev) * 100);
+
+    // Daily revenue / orders, zero filled so the chart never has gaps.
+    const revenueByDay = new Map<number, { revenue: number; orders: number }>();
+    for (const o of paid) {
+      const bucket = Math.floor((o.createdAt + TZ) / DAY) * DAY - TZ;
+      if (bucket < rangeStart) continue;
+      const cur = revenueByDay.get(bucket) ?? { revenue: 0, orders: 0 };
+      cur.revenue += o.total ?? 0;
+      cur.orders += 1;
+      revenueByDay.set(bucket, cur);
+    }
+    const series = Array.from({ length: days }, (_, i) => {
+      const bucket = rangeStart + i * DAY;
+      const hit = revenueByDay.get(bucket) ?? { revenue: 0, orders: 0 };
+      return {
+        date: new Date(bucket + TZ).toISOString().slice(0, 10),
+        label: new Date(bucket + TZ).toISOString().slice(5, 10),
+        revenue: hit.revenue,
+        orders: hit.orders,
+      };
+    });
+
+    const inRange = paid.filter((o: any) => o.createdAt >= rangeStart);
+    const inPrev = paid.filter((o: any) => o.createdAt >= prevStart && o.createdAt < rangeStart);
+    const revenue = sum(inRange);
+    const prevRevenue = sum(inPrev);
+    const newUsers = users.filter((u: any) => u._creationTime >= rangeStart).length;
+    const prevNewUsers = users.filter(
+      (u: any) => u._creationTime >= prevStart && u._creationTime < rangeStart,
+    ).length;
+
+    // Weekday activity, ordered شنبه → جمعه.
+    const WEEKDAYS = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
+    const weekdayTotals = WEEKDAYS.map(() => 0);
+    for (const o of inRange) {
+      const idx = (new Date(o.createdAt + TZ).getDay() + 1) % 7;
+      weekdayTotals[idx] += 1;
+    }
+    const weekday = WEEKDAYS.map((label, i) => ({ label, value: weekdayTotals[i] }));
+
+    // Repeat purchase: share of all members who paid more than once.
+    const paidByUser = new Map<string, number>();
+    for (const o of paid) paidByUser.set(o.userId, (paidByUser.get(o.userId) ?? 0) + 1);
+    const repeatCustomers = [...paidByUser.values()].filter((c) => c > 1).length;
+    const repeatRate = users.length === 0 ? 0 : Math.round((repeatCustomers / users.length) * 100);
+
+    // Best sellers from paid order line items (+ enrollments for context).
+    const soldByCourse = new Map<string, { count: number; revenue: number }>();
+    for (const o of paid) {
+      for (const item of o.items ?? []) {
+        if (item.type !== "course") continue;
+        const cur = soldByCourse.get(item.refId) ?? { count: 0, revenue: 0 };
+        cur.count += 1;
+        cur.revenue += item.price ?? 0;
+        soldByCourse.set(item.refId, cur);
+      }
+    }
+    const enrolledByCourse = new Map<string, number>();
+    for (const e of enrollments) {
+      enrolledByCourse.set(e.courseId, (enrolledByCourse.get(e.courseId) ?? 0) + 1);
+    }
+    const topCourses = courses
+      .map((c: any) => {
+        const sold = soldByCourse.get(c._id) ?? { count: 0, revenue: 0 };
+        return {
+          _id: c._id,
+          title: c.title,
+          sold: sold.count,
+          revenue: sold.revenue,
+          rating: c.rating ?? 0,
+          students: enrolledByCourse.get(c._id) ?? c.studentsCount ?? 0,
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue || b.sold - a.sold)
+      .slice(0, 6);
+
+    return {
+      days,
+      kpis: {
+        revenue,
+        revenueDelta: pct(revenue, prevRevenue),
+        orders: inRange.length,
+        ordersDelta: pct(inRange.length, inPrev.length),
+        users: newUsers,
+        usersDelta: pct(newUsers, prevNewUsers),
+        repeatRate,
+        repeatCustomers,
+        avgOrderValue: inRange.length === 0 ? 0 : Math.round(revenue / inRange.length),
+        openTickets: tickets.filter((t: any) => t.status === "open").length,
+        courseCount: courses.length,
+        memberCount: users.length,
+      },
+      series,
+      weekday,
+      topCourses,
+    };
+  },
+});
+
 // ── Section Notifications ───────────────────────────────────────────────────
 export const getSectionNotifications = query({
   args: {},
