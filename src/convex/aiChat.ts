@@ -43,6 +43,24 @@ export const getAIConfigRaw = internalQuery({
         };
       }
     }
+    // No explicit model: use the first active model the admin configured, so
+    // the models set in the admin panel are actually the ones that answer.
+    const configured = await ctx.db.query("aiModels").collect();
+    const fallbackModel = configured
+      .filter((m) => m.active && m.apiKey)
+      .sort((a, b) => a.sortOrder - b.sortOrder)[0];
+    if (fallbackModel) {
+      return {
+        apiKey: fallbackModel.apiKey,
+        baseUrl: fallbackModel.baseUrl,
+        model: fallbackModel.model,
+        provider: fallbackModel.provider,
+        temperature: fallbackModel.temperature,
+        maxTokensPerRequest: fallbackModel.maxTokens,
+        systemPrompt: fallbackModel.systemPrompt ?? "شما یک دستیار تخصصی علوم زیستی هستید.",
+      };
+    }
+
     // Fallback to legacy single config
     const config = await ctx.db.query("aiConfig").first();
     if (!config) return null;

@@ -17,6 +17,7 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { api as iranApi } from "@/lib/apiClient";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -282,9 +283,10 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
             <Button variant="ghost" size="icon" className="size-9 rounded-full" title="انتخاب مدل">
               <Wand2 className="size-4" />
             </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-64">
-            <p className="mb-2 text-[11px] font-bold text-muted-foreground">مدل فعال</p>
+          </PopoverTrigger>            <PopoverContent align="end" className="w-64">
+              <p className="mb-2 text-[11px] font-bold text-muted-foreground">
+                مدل فعال{models.length === 1 ? " · تنها مدل تنظیم‌شده" : ""}
+              </p>
             <div className="space-y-1">
               {models.length === 0 && (
                 <p className="px-2 py-3 text-[12px] text-muted-foreground">
@@ -304,7 +306,9 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
                   )}
                 >
                   {m.name}
-                  {m.isFree && <span className="text-[10px]">رایگان</span>}
+                  <span className="text-[10px] text-muted-foreground">
+                    {m.isFree ? "رایگان" : m.dailyLimit ? `${faNum(m.dailyLimit)} پیام/روز` : ""}
+                  </span>
                 </button>
               ))}
             </div>
@@ -347,6 +351,51 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
         </label>
       </div>
     </div>
+  );
+});
+
+// ── Floating starter bubbles (above the orb, chat-like) ─────────────────
+const FloatingStarters = memo(function FloatingStarters({
+  onStarter,
+}: {
+  onStarter: (prompt: string) => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="grid w-full max-w-4xl gap-3 sm:grid-cols-3"
+    >
+      {STARTERS.map((s, i) => (
+        <motion.button
+          key={s.title}
+          type="button"
+          onClick={() => onStarter(s.body)}
+          animate={{ y: [0, -6, 0] }}
+          transition={{
+            duration: 5 + i * 0.6,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: i * 0.4,
+          }}
+          whileHover={{ y: -10, scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="group relative overflow-hidden rounded-3xl rounded-tr-md border border-border bg-card/90 p-4 text-right shadow-sm backdrop-blur transition-shadow hover:border-primary/40 hover:shadow-lg"
+        >
+          <span className="pointer-events-none absolute -left-8 -top-8 size-24 rounded-full bg-primary/10 blur-2xl transition-opacity group-hover:opacity-100" />
+          <span className="relative flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <s.icon className="size-4" />
+          </span>
+          <p className="relative mt-3 text-[13.5px] font-extrabold">{s.title}</p>
+          <p className="relative mt-1.5 text-[12px] leading-5 text-muted-foreground">{s.body}</p>
+          <span className="relative mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+            <Send className="size-3" />
+            بپرس
+          </span>
+        </motion.button>
+      ))}
+    </motion.div>
   );
 });
 
@@ -530,11 +579,18 @@ export default function AIChat() {
 
   const setConvoModelMut = useMutation(api.aiChat.setConversationModel);
   const handleModelSelect = useCallback(
-    (modelId: string) => {
-      setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
+    (rawId: string) => {
+      // "default" / empty = the site default model; clicking the active model
+      // again clears the override.
+      const modelId = rawId && rawId !== "default" ? rawId : null;
+      setSelectedModelId((prev: string | null) =>
+        prev === modelId ? null : modelId,
+      );
       if (selectedConvo) {
-        setConvoModelMut({ conversationId: selectedConvo as any, modelId: modelId as any })
-          .catch((e) => toast.error(e instanceof Error ? e.message : "خطا در تغییر مدل"));
+        setConvoModelMut({
+          conversationId: selectedConvo as any,
+          ...(modelId ? { modelId: modelId as any } : {}),
+        }).catch((e) => toast.error(e instanceof Error ? e.message : "خطا در تغییر مدل"));
       }
     },
     [selectedConvo, setConvoModelMut],
@@ -552,6 +608,10 @@ export default function AIChat() {
     () => activeModels.find((m: any) => m._id === selectedModelId) ?? null,
     [activeModels, selectedModelId],
   );
+
+  // With no explicit pick the first configured (active) model is the one that
+  // answers, so the UI shows that same name instead of a vague placeholder.
+  const effectiveModel = activeModel ?? activeModels[0] ?? null;
 
   const filteredConversations = useMemo(() => {
     const list = [...((conversations ?? []) as any[])].sort(
@@ -742,7 +802,12 @@ export default function AIChat() {
   const dailyLimit = usage?.dailyLimit ?? 0;
   const messagesSent = usage?.messagesSent ?? 0;
   const remaining = usage?.remaining ?? 0;
-  const hasReachedLimit = dailyLimit > 0 && remaining <= 0;
+  // A model configured with its own daily limit wins over the account quota.
+  const effectiveLimit = effectiveModel?.dailyLimit ?? dailyLimit;
+  const effectiveRemaining = effectiveModel?.dailyLimit
+    ? Math.max(effectiveModel.dailyLimit - messagesSent, 0)
+    : remaining;
+  const hasReachedLimit = effectiveLimit > 0 && effectiveRemaining <= 0;
 
   const lastMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
   const isWaitingForAI = !!lastMessage && lastMessage.role === "user";
@@ -936,44 +1001,48 @@ export default function AIChat() {
         </ScrollArea>
 
         <div className="w-[300px] space-y-2 border-t border-border p-4">
-          {usage && (
-            <div className="rounded-2xl border border-border bg-muted/40 p-3">
-              <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Zap className="size-3 text-amber-500" />
-                  پیام‌های امروز
-                </span>
-                <span className="font-mono">
-                  {faNum(messagesSent)}/{faNum(dailyLimit)}
-                </span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    hasReachedLimit
-                      ? "bg-destructive"
-                      : remaining <= 1
-                        ? "bg-amber-500"
-                        : "bg-primary",
-                  )}
-                  style={{
-                    width: `${Math.min(100, (messagesSent / Math.max(dailyLimit, 1)) * 100)}%`,
-                  }}
-                />
-              </div>
-              {conversations && conversations.length > 0 && !deleteMode && (
-                <button
-                  type="button"
-                  onClick={() => setDeleteMode(true)}
-                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="size-3" />
-                  حذف سوابق
-                </button>
-              )}
+          <div className="rounded-2xl border border-border bg-muted/40 p-3">
+            <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Zap className="size-3 text-amber-500" />
+                پیام‌های امروز
+              </span>
+              <span className="font-mono">
+                {usage ? `${faNum(messagesSent)}/${faNum(effectiveLimit)}` : "—"}
+              </span>
             </div>
-          )}
+            <p className="mt-1 truncate text-[10.5px] text-muted-foreground">
+              {effectiveModel
+                ? `مدل: ${effectiveModel.name}${activeModel ? "" : " (پیش‌فرض)"}`
+                : "مدل پیش‌فرض سایت"}
+              {usage ? ` · ${faNum(Math.max(effectiveRemaining, 0))} پیام باقی‌مانده` : ""}
+            </p>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  hasReachedLimit
+                    ? "bg-destructive"
+                    : effectiveRemaining <= 1
+                      ? "bg-amber-500"
+                      : "bg-primary",
+                )}
+                style={{
+                  width: `${Math.min(100, (messagesSent / Math.max(effectiveLimit, 1)) * 100)}%`,
+                }}
+              />
+            </div>
+            {conversations && conversations.length > 0 && !deleteMode && (
+              <button
+                type="button"
+                onClick={() => setDeleteMode(true)}
+                className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Trash2 className="size-3" />
+                حذف سوابق
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-2.5 rounded-2xl border border-border bg-background p-2.5">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary">
@@ -1030,19 +1099,20 @@ export default function AIChat() {
               <Button variant="outline" className="h-10 gap-2 rounded-2xl px-3">
                 <Sparkles className="size-4 text-primary" />
                 <span className="max-w-[140px] truncate">
-                  {activeModel?.name ?? "مدل پیش‌فرض"}
+                  {effectiveModel?.name ?? "مدل پیش‌فرض"}
+                  {!activeModel && effectiveModel ? " (پیش‌فرض)" : ""}
                 </span>
                 <ChevronDown className="size-3.5 opacity-70" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuItem onClick={() => handleModelSelect("")}>مدل پیش‌فرض سایت</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleModelSelect("default")}>مدل پیش‌فرض سایت</DropdownMenuItem>
               {activeModels.map((m: any) => (
                 <DropdownMenuItem key={m._id} onClick={() => handleModelSelect(m._id)}>
-                  {m.name}
-                  {m.isFree && (
-                    <span className="mr-auto text-[10px] text-muted-foreground">رایگان</span>
-                  )}
+                  <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                  <span className="mr-auto text-[10px] text-muted-foreground">
+                    {m.isFree ? "رایگان" : m.dailyLimit ? `${faNum(m.dailyLimit)} پیام/روز` : ""}
+                  </span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -1103,7 +1173,9 @@ export default function AIChat() {
         <ScrollArea className="min-h-0 flex-1">
           <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
             {!selectedConvo ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center">
+              <div className="flex flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
+                <FloatingStarters onStarter={startStarter} />
+
                 <EmptyHero firstName={firstName} />
 
                 <div className="w-full max-w-2xl">
@@ -1121,21 +1193,6 @@ export default function AIChat() {
                       hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
                     }
                   />
-                </div>
-
-                <div className="grid w-full max-w-4xl gap-3 sm:grid-cols-3">
-                  {STARTERS.map((s) => (
-                    <button
-                      key={s.title}
-                      type="button"
-                      onClick={() => startStarter(s.body)}
-                      className="rounded-2xl border border-border bg-card p-4 text-right transition-colors hover:border-primary/40 hover:shadow-sm"
-                    >
-                      <s.icon className="size-5 text-foreground" />
-                      <p className="mt-3 text-[13.5px] font-extrabold">{s.title}</p>
-                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">{s.body}</p>
-                    </button>
-                  ))}
                 </div>
               </div>
             ) : (
