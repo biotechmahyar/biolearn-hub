@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
@@ -7,7 +17,6 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { api as iranApi } from "@/lib/apiClient";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,19 +30,19 @@ import {
   Download,
   FileText,
   FolderOpen,
-  Globe,
   History,
   Library,
   Lightbulb,
-  Link2,
   Loader2,
   LogOut,
   MessageSquare,
   Mic,
   MoreHorizontal,
   Paperclip,
+  PanelLeftClose,
   Plus,
   Search,
+  Send,
   Sparkles,
   Trash2,
   User,
@@ -42,11 +51,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AssistantOrb } from "@/components/site/AssistantOrb";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,24 +71,13 @@ const SAVED_PROMPTS = [
 ];
 
 const STARTERS = [
-  {
-    icon: BarChart3,
-    title: "جمع‌بندی داده",
-    body: "یک متن یا جزوه را به ۵ نکتهٔ کلیدی تبدیل کن.",
-  },
-  {
-    icon: Wand2,
-    title: "ایده‌پردازی خلاق",
-    body: "برای یک پروژهٔ کلاسی زیست‌شناسی ایده بساز.",
-  },
-  {
-    icon: FileText,
-    title: "بررسی واقعیت",
-    body: "ادعای علمی را بسنج و منابع را فهرست کن.",
-  },
+  { icon: BarChart3, title: "جمع‌بندی داده", body: "یک متن یا جزوه را به ۵ نکتهٔ کلیدی تبدیل کن." },
+  { icon: Wand2, title: "ایده‌پردازی خلاق", body: "برای یک پروژهٔ کلاسی زیست‌شناسی ایده بساز." },
+  { icon: FileText, title: "بررسی واقعیت", body: "ادعای علمی را بسنج و منابع را فهرست کن." },
 ];
 
 type Range = "today" | "week" | "older";
+type HistoryFilter = "all" | Range;
 
 const RANGE_LABEL: Record<Range, string> = {
   today: "امروز",
@@ -91,30 +85,378 @@ const RANGE_LABEL: Record<Range, string> = {
   older: "قدیمی‌تر",
 };
 
+const DAY = 24 * 60 * 60 * 1000;
+
 function rangeOf(ts: number, now: number): Range {
-  const day = 24 * 60 * 60 * 1000;
   const diff = now - (ts || now);
-  if (diff < day) return "today";
-  if (diff < 7 * day) return "week";
+  if (diff < DAY) return "today";
+  if (diff < 7 * DAY) return "week";
   return "older";
 }
 
+type Attachment = { name: string; size: number; text: string };
+
+// ── Composer ──────────────────────────────────────────────────────────────
+type ComposerHandle = {
+  setText: (value: string) => void;
+  focus: () => void;
+};
+
+type ComposerProps = {
+  models: any[];
+  selectedModelId: string | null;
+  onSelectModel: (id: string) => void;
+  onSubmit: (text: string, attachment: Attachment | null, deep: boolean) => void;
+  deepResearch: boolean;
+  onToggleDeep: (next: boolean) => void;
+  isSending: boolean;
+  disabled?: boolean;
+  placeholder: string;
+  autoFocus?: boolean;
+};
+
+const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
+  {
+    models,
+    selectedModelId,
+    onSelectModel,
+    onSubmit,
+    deepResearch,
+    onToggleDeep,
+    isSending,
+    disabled,
+    placeholder,
+    autoFocus,
+  },
+  ref,
+) {
+  const [text, setText] = useState("");
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [reading, setReading] = useState(false);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    setText: (value: string) => {
+      setText(value);
+      window.setTimeout(() => areaRef.current?.focus(), 40);
+    },
+    focus: () => areaRef.current?.focus(),
+  }));
+
+  const canSend = !disabled && !isSending && (!!text.trim() || !!attachment);
+
+  const submit = () => {
+    if (!canSend) return;
+    const body = text.trim();
+    onSubmit(body, attachment, deepResearch);
+    setText("");
+    setAttachment(null);
+  };
+
+  const readFile = async (file: File) => {
+    setReading(true);
+    try {
+      const content = await file.text();
+      setAttachment({ name: file.name, size: file.size, text: content.slice(0, 4000) });
+    } catch {
+      toast.error("خواندن این فایل ممکن نشد");
+    } finally {
+      setReading(false);
+    }
+  };
+
+  const startVoiceInput = () => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error("مرورگر شما از ورودی صوتی پشتیبانی نمی‌کند");
+      return;
+    }
+    const rec = new SpeechRecognition();
+    rec.lang = "fa-IR";
+    rec.interimResults = false;
+    rec.onresult = (e: any) => {
+      const said: string = e.results?.[0]?.[0]?.transcript ?? "";
+      if (said) {
+        setText((prev) => (prev ? `${prev} ${said}` : said));
+        areaRef.current?.focus();
+      }
+    };
+    rec.onerror = () => toast.error("تشخیص صدا انجام نشد");
+    rec.start();
+    toast.info("در حال شنیدن…");
+  };
+
+  return (
+    <div className="rounded-3xl border border-border bg-card p-3 shadow-sm transition-colors focus-within:border-primary/40">
+      <Textarea
+        ref={areaRef}
+        autoFocus={autoFocus}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        placeholder={placeholder}
+        disabled={disabled}
+        rows={3}
+        className="resize-none border-0 bg-transparent p-2 text-[14px] leading-7 shadow-none focus-visible:ring-0"
+      />
+
+      {attachment && (
+        <div className="mx-1 mb-2 flex items-center gap-2.5 rounded-2xl border border-border bg-muted/60 p-2.5">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <FileText className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[12.5px] font-semibold" dir="auto">
+              {attachment.name}
+            </span>
+            <span className="block text-[10.5px] text-muted-foreground">
+              {(attachment.size / 1024).toLocaleString("fa-IR")} کیلوبایت · آمادهٔ ارسال
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setAttachment(null)}
+            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="حذف پیوست"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onToggleDeep(!deepResearch)}
+          className={cn(
+            "h-9 rounded-full px-3.5 text-[12.5px]",
+            deepResearch && "border-primary bg-primary/10 text-primary",
+          )}
+        >
+          <Sparkles className="ml-1.5 size-3.5" />
+          پژوهش عمیق
+        </Button>
+
+        <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+          {reading ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Paperclip className="size-3.5" />
+          )}
+          پیوست فایل
+          <input
+            type="file"
+            className="hidden"
+            accept=".txt,.md,.csv,.json,text/*"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void readFile(f);
+              e.target.value = "";
+            }}
+          />
+        </label>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 rounded-full px-3 text-[12.5px] text-muted-foreground hover:text-foreground"
+            >
+              <Lightbulb className="ml-1.5 size-3.5" />
+              پرامپت‌های آماده
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80">
+            <p className="mb-2 text-[11px] font-bold text-muted-foreground">
+              پرامپت‌های ذخیره‌شدهٔ ژنوا
+            </p>
+            <div className="space-y-1">
+              {SAVED_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setText(p)}
+                  className="block w-full rounded-lg px-2.5 py-2 text-right text-[12px] leading-5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <div className="mr-auto flex items-center gap-1.5">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-9 rounded-full" title="انتخاب مدل">
+                <Wand2 className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64">
+              <p className="mb-2 text-[11px] font-bold text-muted-foreground">مدل فعال</p>
+              <div className="space-y-1">
+                {models.length === 0 && (
+                  <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                    مدلی برای این حساب فعال نشده است.
+                  </p>
+                )}
+                {models.map((m) => (
+                  <button
+                    key={m._id}
+                    type="button"
+                    onClick={() => onSelectModel(m._id)}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12.5px] transition-colors",
+                      selectedModelId === m._id
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {m.name}
+                    {m.isFree && <span className="text-[10px]">رایگان</span>}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-9 rounded-full"
+            title="ورودی صوتی"
+            onClick={startVoiceInput}
+          >
+            <Mic className="size-4" />
+          </Button>
+
+          <Button
+            type="button"
+            size="icon"
+            onClick={submit}
+            disabled={!canSend}
+            className="size-10 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-colors hover:bg-emerald-600 disabled:opacity-40"
+            title="ارسال"
+          >
+            {isSending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Send className="size-4" />
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ── Empty hero (memoised so typing never re-runs the orb animation) ───────
+const EmptyHero = memo(function EmptyHero({ firstName }: { firstName: string }) {
+  return (
+    <>
+      <AssistantOrb thinking={false} />
+      <div>
+        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
+          سلام، {firstName}
+        </h2>
+        <p className="mt-3 text-xl font-bold text-foreground sm:text-2xl">
+          چطور می‌توانم کمکت کنم؟
+        </p>
+        <p className="mx-auto mt-3 max-w-lg text-[13px] leading-7 text-muted-foreground">
+          دربارهٔ زیست‌شناسی، ژنتیک، میکروبیولوژی و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها همراه با
+          توضیح مرحله‌به‌مرحله و منابع پیشنهادی ارائه می‌شود.
+        </p>
+      </div>
+    </>
+  );
+});
+
+// ── Message thread (memoised) ─────────────────────────────────────────────
+const MessageThread = memo(function MessageThread({
+  messages,
+  isSending,
+  isWaiting,
+  endRef,
+}: {
+  messages: any[] | undefined;
+  isSending: boolean;
+  isWaiting: boolean;
+  endRef: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="space-y-6 py-2">
+      {messages === undefined && (
+        <div className="flex justify-center py-12">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {messages?.map((m: any) => (
+        <div
+          key={m._id}
+          className={cn("flex gap-3", m.role === "user" ? "flex-row-reverse" : "")}
+        >
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+            {m.role === "user" ? <User className="size-4" /> : <Bot className="size-4" />}
+          </div>
+          <div
+            className={cn(
+              "max-w-[80%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-[13.5px] leading-7",
+              m.role === "user"
+                ? "rounded-ee-md bg-primary text-primary-foreground"
+                : "rounded-es-md border border-border bg-card text-foreground",
+            )}
+          >
+            {m.content}
+          </div>
+        </div>
+      ))}
+      {(isSending || isWaiting) && (
+        <div className="flex gap-3">
+          <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Bot className="size-4" />
+          </div>
+          <div className="flex items-center gap-2 rounded-3xl border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
+            <span className="flex gap-1">
+              <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
+              <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
+              <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:300ms]" />
+            </span>
+            در حال نوشتن پاسخ…
+          </div>
+        </div>
+      )}
+      <div ref={endRef} />
+    </div>
+  );
+});
+
 export default function AIChat() {
-  const { isIran, setMode } = useMode();
+  const { isIran } = useMode();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const navigate = useNavigate();
   const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
-  const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<ComposerHandle>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<any>(null);
-  const [historyFilter, setHistoryFilter] = useState<"all" | Range>("all");
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [query, setQuery] = useState("");
   const [searchFocusTick, setSearchFocusTick] = useState(0);
+  const [promptFillTick, setPromptFillTick] = useState(0);
   const [deepResearch, setDeepResearch] = useState(false);
   // Single timestamp used to bucket the history list (stable across renders).
   const [clock] = useState(() => Date.now());
@@ -142,7 +484,12 @@ export default function AIChat() {
     return () => window.clearTimeout(timer);
   }, [searchFocusTick]);
 
-  // ⌘K / Ctrl+K focuses the sidebar search
+  // "پرامپت‌های آماده" in the sidebar drops a starter prompt into the composer.
+  useEffect(() => {
+    if (promptFillTick === 0) return;
+    composerRef.current?.setText(SAVED_PROMPTS[0]);
+  }, [promptFillTick]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -168,20 +515,23 @@ export default function AIChat() {
 
   // Merge dual mode data
   const conversations = isIran ? conversationsIran : conversationsConvex;
-  const activeModels = isIran ? activeModelsIran : activeModelsConvex;
+  const activeModels = (isIran ? activeModelsIran : activeModelsConvex) ?? [];
   const subConvex = useQuery(api.aiSubscriptions.getMySubscription, isAuthenticated ? {} : "skip");
   const sub = isIran ? null : subConvex;
   const usage = isIran ? usageIran : usageConvex;
   const messages = isIran ? messagesIran : messagesConvex;
 
-  // Auto-select if only 1 model
   useEffect(() => {
-    if (!selectedModelId && activeModels && activeModels.length === 1) {
+    if (!selectedModelId && activeModels.length === 1) {
       setSelectedModelId(activeModels[0]._id);
     }
   }, [activeModels, selectedModelId]);
 
-  const selectedConvoDoc = conversations?.find((c: any) => c._id === selectedConvo);
+  const selectedConvoDoc = useMemo(
+    () => (conversations ?? []).find((c: any) => c._id === selectedConvo),
+    [conversations, selectedConvo],
+  );
+
   useEffect(() => {
     if (selectedConvoDoc) {
       setSelectedModelId((selectedConvoDoc as any).modelId ?? null);
@@ -190,15 +540,17 @@ export default function AIChat() {
   }, [selectedConvo]);
 
   const setConvoModelMut = useMutation(api.aiChat.setConversationModel);
-  const handleModelSelect = (modelId: string) => {
-    setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
-    if (selectedConvo) {
-      setConvoModelMut({ conversationId: selectedConvo as any, modelId: modelId as any })
-        .catch((e) => toast.error(e instanceof Error ? e.message : "خطا در تغییر مدل"));
-    }
-  };
+  const handleModelSelect = useCallback(
+    (modelId: string) => {
+      setSelectedModelId((prev: string | null) => (prev === modelId ? null : modelId));
+      if (selectedConvo) {
+        setConvoModelMut({ conversationId: selectedConvo as any, modelId: modelId as any })
+          .catch((e) => toast.error(e instanceof Error ? e.message : "خطا در تغییر مدل"));
+      }
+    },
+    [selectedConvo, setConvoModelMut],
+  );
 
-  // Convex mutations (global mode)
   const createConvoConvex = useMutation(api.aiChat.createConversation);
   const sendMessageConvex = useMutation(api.aiChat.sendMessage);
   const deleteConvoConvex = useMutation(api.aiChat.deleteConversation);
@@ -208,7 +560,7 @@ export default function AIChat() {
   }, [messages]);
 
   const activeModel = useMemo(
-    () => (activeModels ?? []).find((m: any) => m._id === selectedModelId) ?? null,
+    () => activeModels.find((m: any) => m._id === selectedModelId) ?? null,
     [activeModels, selectedModelId],
   );
 
@@ -231,81 +583,91 @@ export default function AIChat() {
       { label: RANGE_LABEL.older, items: [] },
     ];
     filteredConversations.forEach((c) => {
-      const bucket = groups.find((g) => g.label === RANGE_LABEL[rangeOf(c.createdAt ?? clock, clock)]);
+      const bucket = groups.find(
+        (g) => g.label === RANGE_LABEL[rangeOf(c.createdAt ?? clock, clock)],
+      );
       bucket?.items.push(c);
     });
     return groups.filter((g) => g.items.length > 0);
   }, [filteredConversations, clock]);
 
-  const createConversation = async (title: string) => {
-    if (isIran) {
-      const res = await iranApi.post("/api/ai/conversations", {
-        title,
-        modelId: selectedModelId ?? undefined,
-      });
-      return (res.data as any)?.id as string;
-    }
-    return (await createConvoConvex({ title, modelId: selectedModelId ?? undefined })) as string;
-  };
+  const createConversation = useCallback(
+    async (title: string) => {
+      if (isIran) {
+        const res = await iranApi.post("/api/ai/conversations", {
+          title,
+          modelId: selectedModelId ?? undefined,
+        });
+        return (res.data as any)?.id as string;
+      }
+      return (await createConvoConvex({ title, modelId: selectedModelId ?? undefined })) as string;
+    },
+    [createConvoConvex, isIran, selectedModelId],
+  );
 
-  const sendToConversation = async (conversationId: string, content: string) => {
-    if (isIran) {
-      await iranApi.post("/api/ai/chat", { conversationId, content });
-    } else {
-      await sendMessageConvex({ conversationId: conversationId as any, content });
-    }
-  };
+  const sendToConversation = useCallback(
+    async (conversationId: string, content: string) => {
+      if (isIran) {
+        await iranApi.post("/api/ai/chat", { conversationId, content });
+      } else {
+        await sendMessageConvex({ conversationId: conversationId as any, content });
+      }
+    },
+    [isIran, sendMessageConvex],
+  );
 
-  const startChatWith = async (prompt: string) => {
-    try {
-      const newId = await createConversation(prompt.slice(0, 40));
-      setSelectedConvo(newId);
-      setSidebarOpen(false);
-      setInput("");
-      await sendToConversation(newId, deepResearch ? `${prompt}\n\nبا جزئیات و مثال توضیح بده.` : prompt);
-    } catch (e) {
-      console.error("Quick chat failed:", e);
-      toast.error("ارسال پیام ناموفق بود");
-    }
-  };
+  /** The single send path used by the button, Enter and the suggestion cards. */
+  const submitPrompt = useCallback(
+    async (raw: string, attachment: Attachment | null, deep: boolean) => {
+      const parts: string[] = [];
+      if (attachment) {
+        parts.push(`📎 پیوست: ${attachment.name}\n\n${attachment.text}`);
+      }
+      if (raw) parts.push(raw);
+      const body = parts.join("\n\n").trim();
+      if (!body) return;
+      if (deep) parts.push("با جزئیات و مثال توضیح بده.");
+      const content = parts.join("\n\n").trim();
+      setIsSending(true);
+      try {
+        if (selectedConvo) {
+          await sendToConversation(selectedConvo, content);
+        } else {
+          const id = await createConversation((raw || attachment?.name || "چت جدید").slice(0, 40));
+          setSelectedConvo(id);
+          await sendToConversation(id, content);
+        }
+      } catch (e) {
+        console.error("Send failed:", e);
+        toast.error("ارسال پیام ناموفق بود");
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [createConversation, selectedConvo, sendToConversation],
+  );
 
-  const handleNewChat = async () => {
+  const handleNewChat = useCallback(async () => {
     try {
       const id = await createConversation("چت جدید");
       setSelectedConvo(id);
       setSidebarOpen(false);
-      setInput("");
-      inputRef.current?.focus();
+      composerRef.current?.focus();
     } catch (e) {
       console.error("Failed to create conversation:", e);
     }
-  };
+  }, [createConversation]);
 
-  const handleSend = async () => {
-    if (!input.trim() || !selectedConvo || isSending) return;
-    const content = deepResearch ? `${input.trim()}\n\nبا جزئیات و مثال توضیح بده.` : input.trim();
-    setInput("");
-    setIsSending(true);
-    try {
-      await sendToConversation(selectedConvo, content);
-    } catch (e: any) {
-      console.error("Send failed:", e);
-    } finally {
-      setIsSending(false);
-      inputRef.current?.focus();
-    }
-  };
-
-  const toggleSelect = (id: string) => {
+  const toggleSelect = useCallback((id: string) => {
     setSelectedForDelete((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const confirmDelete = async () => {
+  const confirmDelete = useCallback(async () => {
     if (selectedForDelete.size === 0) return;
     if (!confirm(`${selectedForDelete.size} چت حذف شود؟`)) return;
     for (const id of selectedForDelete) {
@@ -322,12 +684,17 @@ export default function AIChat() {
     }
     setSelectedForDelete(new Set());
     setDeleteMode(false);
-  };
+  }, [deleteConvoConvex, isIran, selectedConvo, selectedForDelete]);
 
-  const exitDeleteMode = () => {
+  const exitDeleteMode = useCallback(() => {
     setDeleteMode(false);
     setSelectedForDelete(new Set());
-  };
+  }, []);
+
+  const selectConversation = useCallback((id: string) => {
+    setSelectedConvo(id);
+    setSidebarOpen(false);
+  }, []);
 
   const transcript = useMemo(
     () =>
@@ -337,7 +704,7 @@ export default function AIChat() {
     [messages],
   );
 
-  const copyTranscript = async () => {
+  const copyTranscript = useCallback(async () => {
     if (!transcript) {
       toast.error("پیامی برای کپی وجود ندارد");
       return;
@@ -348,9 +715,9 @@ export default function AIChat() {
     } catch {
       toast.error("کپی ممکن نشد");
     }
-  };
+  }, [transcript]);
 
-  const exportTranscript = () => {
+  const exportTranscript = useCallback(() => {
     if (!transcript) {
       toast.error("پیامی برای خروجی گرفتن وجود ندارد");
       return;
@@ -363,47 +730,12 @@ export default function AIChat() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success("فایل گفتگو دانلود شد");
-  };
+  }, [selectedConvoDoc, transcript]);
 
-  const attachFile = async (file: File) => {
-    try {
-      const text = await file.text();
-      const excerpt = text.slice(0, 1200);
-      if (!excerpt.trim()) {
-        toast.error("محتوای متنی این فایل خوانده نشد");
-        return;
-      }
-      setInput((prev) =>
-        `${prev}${prev ? "\n\n" : ""}محتوای فایل «${file.name}»:\n${excerpt}`,
-      );
-      inputRef.current?.focus();
-      toast.success("محتوای فایل به پیام اضافه شد");
-    } catch {
-      toast.error("خواندن فایل ممکن نشد");
-    }
-  };
-
-  const startVoiceInput = () => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error("مرورگر شما از ورودی صوتی پشتیبانی نمی‌کند");
-      return;
-    }
-    const rec = new SpeechRecognition();
-    rec.lang = "fa-IR";
-    rec.interimResults = false;
-    rec.onresult = (e: any) => {
-      const said: string = e.results?.[0]?.[0]?.transcript ?? "";
-      if (said) {
-        setInput((prev) => (prev ? `${prev} ${said}` : said));
-        inputRef.current?.focus();
-      }
-    };
-    rec.onerror = () => toast.error("تشخیص صدا انجام نشد");
-    rec.start();
-    toast.info("در حال شنیدن… دوباره صحبت نکنید");
-  };
+  const startStarter = useCallback(
+    (prompt: string) => void submitPrompt(prompt, null, deepResearch),
+    [deepResearch, submitPrompt],
+  );
 
   if (authLoading) {
     return (
@@ -450,167 +782,18 @@ export default function AIChat() {
     </button>
   );
 
-  const composer = (
-    <div className="rounded-3xl border border-border bg-card p-3 shadow-sm transition-colors focus-within:border-primary/40">
-      <Textarea
-        ref={inputRef}
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            if (selectedConvo) handleSend();
-            else if (input.trim()) void startChatWith(input.trim());
-          }
-        }}
-        placeholder={
-          hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
-        }
-        disabled={isSending || hasReachedLimit}
-        rows={3}
-        className="resize-none border-0 bg-transparent p-2 text-[14px] leading-7 shadow-none focus-visible:ring-0"
-      />
-      <div className="flex flex-wrap items-center gap-2 px-1 pt-1">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setDeepResearch((v) => !v)}
-          className={cn(
-            "h-9 rounded-full px-3.5 text-[12.5px]",
-            deepResearch && "border-primary bg-primary/10 text-primary",
-          )}
-        >
-          <Sparkles className="ml-1.5 size-3.5" />
-          پژوهش عمیق
-        </Button>
-
-        <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-          <Paperclip className="size-3.5" />
-          پیوست فایل
-          <input
-            type="file"
-            className="hidden"
-            accept=".txt,.md,.csv,.json,text/*"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void attachFile(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-9 rounded-full px-3 text-[12.5px] text-muted-foreground hover:text-foreground"
-            >
-              <Lightbulb className="ml-1.5 size-3.5" />
-              پرامپت‌های آماده
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-80">
-            <p className="mb-2 text-[11px] font-bold text-muted-foreground">
-              پرامپت‌های ذخیره‌شدهٔ ژنوا
-            </p>
-            <div className="space-y-1">
-              {SAVED_PROMPTS.map((p) => (
-<button
-                  key={p}
-                  type="button"
-                  onClick={() => {
-                    setInput(p);
-                    inputRef.current?.focus();
-                  }}
-                  className="block w-full rounded-lg px-2.5 py-2 text-right text-[12px] leading-5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <div className="mr-auto flex items-center gap-1.5">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-9 rounded-full" title="تنظیمات مدل">
-                <Wand2 className="size-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64">
-              <p className="mb-2 text-[11px] font-bold text-muted-foreground">مدل فعال</p>
-              <div className="space-y-1">
-                {((activeModels ?? []) as any[]).length === 0 && (
-                  <p className="px-2 py-3 text-[12px] text-muted-foreground">
-                    مدلی برای این حساب فعال نشده است.
-                  </p>
-                )}
-                {((activeModels ?? []) as any[]).map((m: any) => (
-                  <button
-                    key={m._id}
-                    type="button"
-                    onClick={() => handleModelSelect(m._id)}
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12.5px] transition-colors",
-                      selectedModelId === m._id
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    {m.name}
-                    {m.isFree && <span className="text-[10px]">رایگان</span>}
-                  </button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-9 rounded-full"
-            title={isIran ? "حالت ایران" : "حالت جهانی"}
-            onClick={() => setMode(isIran ? "global" : "iran")}
-          >
-            <Globe className="size-4" />
-          </Button>
-
-          <Button
-            type="button"
-            size="icon"
-            className="size-10 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 hover:bg-primary/90"
-            title="ورودی صوتی"
-            onClick={startVoiceInput}
-            disabled={isSending || hasReachedLimit}
-          >
-            {isSending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Mic className="size-4" />
-            )}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="flex h-screen bg-background" dir="rtl">
+    <div className="flex h-screen overflow-hidden bg-background" dir="rtl">
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside
         className={cn(
-          "flex shrink-0 flex-col border-l border-border bg-card transition-[width,transform] duration-300",
-          collapsed ? "lg:w-0 lg:overflow-hidden lg:border-l-0" : "w-[300px]",
-          sidebarOpen
-            ? "fixed inset-y-0 right-0 z-50 w-[300px] shadow-2xl translate-x-0"
-            : "fixed inset-y-0 right-0 z-50 w-[300px] translate-x-full lg:relative lg:z-auto lg:translate-x-0 lg:shadow-none",
+          "z-40 flex w-[300px] shrink-0 flex-col border-l border-border bg-card transition-[width,transform] duration-300",
+          "lg:static lg:z-auto lg:translate-x-0",
+          sidebarOpen ? "fixed inset-y-0 right-0 translate-x-0 shadow-2xl" : "fixed inset-y-0 right-0 translate-x-full",
+          collapsed && "lg:w-0 lg:overflow-hidden lg:border-l-0",
         )}
       >
-        <div className="flex items-center gap-2.5 px-4 py-4">
+        <div className="flex w-[300px] items-center gap-2.5 px-4 py-4">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="size-4" />
           </span>
@@ -622,14 +805,11 @@ export default function AIChat() {
           </span>
           <button
             type="button"
-            onClick={() => {
-              setCollapsed(true);
-              setSidebarOpen(false);
-            }}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            onClick={() => setCollapsed(true)}
+            className="hidden rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:block"
             title="جمع کردن منو"
           >
-            <Link2 className="size-4 rotate-180" />
+            <PanelLeftClose className="size-4" />
           </button>
           <button
             type="button"
@@ -641,7 +821,7 @@ export default function AIChat() {
           </button>
         </div>
 
-        <div className="px-4">
+        <div className="w-[300px] px-4">
           {deleteMode ? (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-2">
               <p className="px-1 pb-2 text-[11.5px] font-bold text-destructive">
@@ -679,7 +859,7 @@ export default function AIChat() {
           )}
         </div>
 
-        <div className="px-4 pt-3">
+        <div className="w-[300px] px-4 pt-3">
           <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2 focus-within:border-primary/50">
             <Search className="size-4 shrink-0 text-muted-foreground" />
             <input
@@ -695,20 +875,19 @@ export default function AIChat() {
           </div>
         </div>
 
-        <nav className="space-y-0.5 px-4 pt-3">
+        <nav className="w-[300px] space-y-0.5 px-4 pt-3">
           {navItem(Search, "کاوش", focusSearch)}
           {navItem(
             Library,
             "پرامپت‌های آماده",
-            () => setInput(SAVED_PROMPTS[0]),
-            false,
+            () => setPromptFillTick((t) => t + 1),
           )}
           {navItem(FolderOpen, "همهٔ گفتگوها", () => setHistoryFilter("all"), historyFilter === "all")}
-          {navItem(History, "تاریخچه", () => setHistoryFilter("today"), historyFilter === "today")}
+          {navItem(History, "امروز", () => setHistoryFilter("today"), historyFilter === "today")}
         </nav>
 
         <ScrollArea className="mt-3 min-h-0 flex-1 px-4">
-          <div className="space-y-4 pb-3">
+          <div className="w-[276px] space-y-4 pb-3">
             {conversations === undefined && (
               <div className="flex justify-center py-6">
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -731,14 +910,7 @@ export default function AIChat() {
                       <button
                         key={c._id}
                         type="button"
-                        onClick={() => {
-                          if (deleteMode) {
-                            toggleSelect(c._id);
-                          } else {
-                            setSelectedConvo(c._id);
-                            setSidebarOpen(false);
-                          }
-                        }}
+                        onClick={() => (deleteMode ? toggleSelect(c._id) : selectConversation(c._id))}
                         className={cn(
                           "group flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-right text-[12.5px] transition-colors",
                           deleteMode
@@ -774,7 +946,7 @@ export default function AIChat() {
           </div>
         </ScrollArea>
 
-        <div className="space-y-2 border-t border-border p-4">
+        <div className="w-[300px] space-y-2 border-t border-border p-4">
           {usage && (
             <div className="rounded-2xl border border-border bg-muted/40 p-3">
               <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
@@ -839,7 +1011,7 @@ export default function AIChat() {
 
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-foreground/30 lg:hidden"
+          className="fixed inset-0 z-30 bg-foreground/30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -857,7 +1029,11 @@ export default function AIChat() {
             }}
             title="منوی گفتگوها"
           >
-            {collapsed ? <MessageSquare className="size-4" /> : <Link2 className="size-4 rotate-180" />}
+            {collapsed ? (
+              <PanelLeftClose className="size-4 rotate-180" />
+            ) : (
+              <MessageSquare className="size-4" />
+            )}
           </Button>
 
           <DropdownMenu>
@@ -871,10 +1047,8 @@ export default function AIChat() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuItem onClick={() => setSelectedModelId(null)}>
-                مدل پیش‌فرض سایت
-              </DropdownMenuItem>
-              {((activeModels ?? []) as any[]).map((m: any) => (
+              <DropdownMenuItem onClick={() => handleModelSelect("")}>مدل پیش‌فرض سایت</DropdownMenuItem>
+              {activeModels.map((m: any) => (
                 <DropdownMenuItem key={m._id} onClick={() => handleModelSelect(m._id)}>
                   {m.name}
                   {m.isFree && (
@@ -941,100 +1115,47 @@ export default function AIChat() {
           <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
             {!selectedConvo ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center">
-                <AssistantOrb thinking={false} />
+                <EmptyHero firstName={firstName} />
 
-                <div>
-                  <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
-                    سلام، {firstName}
-                  </h2>
-                  <p className="mt-3 text-xl font-bold text-foreground sm:text-2xl">
-                    چطور می‌توانم کمکت کنم؟
-                  </p>
-                  <p className="mx-auto mt-3 max-w-lg text-[13px] leading-7 text-muted-foreground">
-                    دربارهٔ زیست‌شناسی، ژنتیک، میکروبیولوژی و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها
-                    همراه با توضیح مرحله‌به‌مرحله و منابع پیشنهادی ارائه می‌شود.
-                  </p>
+                <div className="w-full max-w-2xl">
+                  <Composer
+                    ref={composerRef}
+                    models={activeModels}
+                    selectedModelId={selectedModelId}
+                    onSelectModel={handleModelSelect}
+                    onSubmit={submitPrompt}
+                    deepResearch={deepResearch}
+                    onToggleDeep={setDeepResearch}
+                    isSending={isSending}
+                    disabled={hasReachedLimit}
+                    placeholder={
+                      hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
+                    }
+                  />
                 </div>
-
-                <div className="w-full max-w-2xl">{composer}</div>
 
                 <div className="grid w-full max-w-4xl gap-3 sm:grid-cols-3">
                   {STARTERS.map((s) => (
                     <button
                       key={s.title}
                       type="button"
-                      onClick={() => void startChatWith(s.body)}
+                      onClick={() => startStarter(s.body)}
                       className="rounded-2xl border border-border bg-card p-4 text-right transition-colors hover:border-primary/40 hover:shadow-sm"
                     >
                       <s.icon className="size-5 text-foreground" />
                       <p className="mt-3 text-[13.5px] font-extrabold">{s.title}</p>
-                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">
-                        {s.body}
-                      </p>
+                      <p className="mt-1.5 text-[12px] leading-5 text-muted-foreground">{s.body}</p>
                     </button>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="space-y-6 py-2">
-                {messages === undefined && (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                  </div>
-                )}
-                {messages?.map((m: any) => (
-                  <motion.div
-                    key={m._id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={cn(
-                      "flex gap-3",
-                      m.role === "user" ? "flex-row-reverse" : "",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "flex size-8 shrink-0 items-center justify-center rounded-full",
-                        m.role === "user"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-primary/10 text-primary",
-                      )}
-                    >
-                      {m.role === "user" ? (
-                        <User className="size-4" />
-                      ) : (
-                        <Bot className="size-4" />
-                      )}
-                    </div>
-                    <div
-                      className={cn(
-                        "max-w-[80%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-[13.5px] leading-7",
-                        m.role === "user"
-                          ? "rounded-ee-md bg-primary text-primary-foreground"
-                          : "rounded-es-md border border-border bg-card text-foreground",
-                      )}
-                    >
-                      {m.content}
-                    </div>
-                  </motion.div>
-                ))}
-                {(isSending || isWaitingForAI) && (
-                  <div className="flex gap-3">
-                    <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Bot className="size-4" />
-                    </div>
-                    <div className="flex items-center gap-2 rounded-3xl border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
-                      <span className="flex gap-1">
-                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
-                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
-                        <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:300ms]" />
-                      </span>
-                      در حال نوشتن پاسخ…
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
+              <MessageThread
+                messages={messages as any[] | undefined}
+                isSending={isSending}
+                isWaiting={isWaitingForAI}
+                endRef={messagesEndRef}
+              />
             )}
           </div>
         </ScrollArea>
@@ -1049,7 +1170,20 @@ export default function AIChat() {
                   محدودیت روزانه تمام شده. فردا دوباره شارژ می‌شود.
                 </div>
               )}
-              {composer}
+              <Composer
+                ref={composerRef}
+                models={activeModels}
+                selectedModelId={selectedModelId}
+                onSelectModel={handleModelSelect}
+                onSubmit={submitPrompt}
+                deepResearch={deepResearch}
+                onToggleDeep={setDeepResearch}
+                isSending={isSending}
+                disabled={hasReachedLimit}
+                placeholder={
+                  hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
+                }
+              />
             </div>
           </div>
         )}
