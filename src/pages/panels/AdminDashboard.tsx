@@ -141,7 +141,7 @@ function ChartTooltip({
   const revenue = payload.find((p) => p.dataKey === "revenue")?.value ?? 0;
   const compare = payload.find((p) => p.dataKey === "compare")?.value ?? 0;
   return (
-    <div className="rounded-xl border border-border bg-white px-3 py-2 text-right shadow-lg">
+    <div className="rounded-xl border border-border bg-card px-3 py-2 text-right shadow-lg">
       <p className="font-mono text-[11px] text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm font-bold text-foreground">{faNum(revenue)} تومان</p>
       <p className="text-[11px] text-muted-foreground">دورهٔ قبل: {faNum(compare)}</p>
@@ -319,7 +319,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate?: (section: 
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 rounded-xl border border-border bg-white p-1">
+          <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1">
             <CalendarDays className="mx-1.5 size-4 text-muted-foreground" />
             {[7, 30, 90].map((d) => (
               <button
@@ -598,7 +598,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate?: (section: 
                   key={q.key}
                   type="button"
                   onClick={() => onNavigate(q.key)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-2 text-xs font-medium text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-medium text-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                 >
                   <q.icon className="size-3.5 text-primary" />
                   {q.label}
@@ -613,7 +613,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate?: (section: 
       <Sheet open={pickerOpen} onOpenChange={setPickerOpen}>
         <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-md">
           <SheetTitle className="sr-only">افزودن ویجت</SheetTitle>
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-white px-5 py-4">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-5 py-4">
             <div>
               <h2 className="text-base font-bold tracking-tight">افزودن ویجت</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -641,7 +641,7 @@ export default function AdminDashboard({ onNavigate }: { onNavigate?: (section: 
               return (
                 <div
                   key={w.key}
-                  className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 transition-shadow hover:shadow-md"
+                  className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 transition-shadow hover:shadow-md"
                 >
                   <span className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Icon className="size-5" />

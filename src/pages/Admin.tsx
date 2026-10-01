@@ -2,7 +2,6 @@ import { CategoryField } from "@/components/site/CategoryField";
 import { AdminEduManagement } from "@/pages/panels/AdminEduManagement";
 import BaleBotPanel from "@/pages/panels/BaleBotPanel";
 import AdminDashboard from "@/pages/panels/AdminDashboard";
-import { SiteDemosAdmin } from "@/pages/panels/SiteDemosAdmin";
 import AdminCertificateTemplates from "@/pages/panels/AdminCertificateTemplates";
 import { JalaliDatePicker } from "@/components/site/JalaliDatePicker";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
@@ -43,6 +42,7 @@ import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAuth } from "@/hooks/use-auth";
 import { accent, faNum, formatDate, formatDateTime, formatJalaliDate, formatJalaliDateString, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { applyAdminTheme, useAdminTheme } from "@/lib/adminThemeStore";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import { uploadBlob } from "@/lib/upload";
@@ -54,7 +54,6 @@ import {
   ArrowUp,
   AlertTriangle,
   Award,
-  Blocks,
   Route as RouteIcon,
   Bot,
   BellRing,
@@ -86,6 +85,7 @@ import {
   Clock,
   Mail,
   Menu,
+  Moon,
   MessageSquare,
   MessageCircle,
   Package,
@@ -101,6 +101,7 @@ import {
   Shield,
   Store,
   ShieldCheck,
+  Sun,
   Terminal,
   Ticket,
   Trash2,
@@ -174,7 +175,6 @@ type Section =
   | "telegram"
   | "bale"
   | "aiSubscriptions"
-  | "siteDemos"
   | "certificateTemplates"
   | "testimonials"
   | "popups"
@@ -226,7 +226,6 @@ const NAV_GROUPS: { title: string; items: { key: Section; label: string; icon: t
       { key: "telegram", label: "تلگرام", icon: Bot },
       { key: "bale", label: "پیام‌رسان بله", icon: MessageCircle },
       { key: "aiSubscriptions", label: "اشتراک هوش مصنوعی", icon: Sparkles },
-      { key: "siteDemos", label: "دمو سایت", icon: Blocks },
       { key: "academyPaths", label: "مسیر آکادمی", icon: RouteIcon } as any,
       { key: "pathSuggestions", label: "مسیرهای پیشنهادی", icon: RouteIcon, notifKey: "pathSuggestions" } as any,
       { key: "certificates", label: "درخواست‌های گواهی", icon: Award },
@@ -308,7 +307,7 @@ function SectionHeader({ title, subtitle, count }: { title: string; subtitle: st
         <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-foreground">{title}</h1>
       </div>
       {count !== undefined && (
-        <span className="rounded-lg border border-border bg-white px-2.5 py-1 text-xs font-medium text-muted-foreground">
+        <span className="rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-muted-foreground">
           {faNum(count)} مورد
         </span>
       )}
@@ -400,13 +399,11 @@ export default function Admin() {
   const [navQuery, setNavQuery] = useState("");
   const navigate = useNavigate();
 
-  // The admin console owns a bright canvas of its own. Portalled overlays
-  // (dropdowns, dialogs, selects) render on <body>, so the theme has to be
-  // applied there too or they would fall back to the public site's theme.
-  useEffect(() => {
-    document.body.classList.add("admin-scope");
-    return () => document.body.classList.remove("admin-scope");
-  }, []);
+  // The admin console owns a canvas of its own (light or dark). Portalled
+  // overlays (dropdowns, dialogs, selects) render on <body>, so the theme has
+  // to be applied there too or they would fall back to the public site theme.
+  const { theme: adminTheme } = useAdminTheme();
+  useEffect(() => applyAdminTheme(adminTheme), [adminTheme]);
 
   // Live section filter for the sidebar search box.
   const navGroups = useMemo(() => {
@@ -452,8 +449,6 @@ export default function Admin() {
     ...(user?.role === "admin"
       ? [{ label: "مدیریت Telegram", icon: Bot, to: "/panel/telegram-admin" }]
       : []),
-    // Site Studio — permission-gated inside the page itself
-    { label: "طراحی سایت (Site Studio)", icon: Blocks, to: "/panel/site-studio" },
     // System admins (role admin) and site managers (site_admin) can open the
     // super admin console — it is protected by its own password gate.
     ...(user?.role === "admin" || user?.role === "site_admin"
@@ -543,10 +538,15 @@ export default function Admin() {
     ));
 
   return (
-    <div className="admin-scope h-screen overflow-hidden bg-background text-foreground">
+    <div
+      className={cn(
+        "admin-scope h-screen overflow-hidden bg-background text-foreground",
+        adminTheme === "dark" && "admin-dark",
+      )}
+    >
       <div className="flex h-full">
         {/* Console sidebar */}
-        <aside className="sticky top-0 hidden h-screen w-[270px] shrink-0 flex-col border-l border-border bg-white lg:flex">
+        <aside className="sticky top-0 hidden h-screen w-[270px] shrink-0 flex-col border-l border-border bg-card lg:flex">
           <div className="flex items-center gap-2.5 px-5 pb-4 pt-5">
             <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
               <Terminal className="size-4" />
@@ -615,7 +615,7 @@ export default function Admin() {
         {/* Main column */}
         <main className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
           {/* Console topbar */}
-          <header className="z-30 shrink-0 border-b border-border bg-white">
+          <header className="z-30 shrink-0 border-b border-border bg-card">
             <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6">
               <div className="flex min-w-0 items-center gap-3">
                 <h2 className="truncate text-[15px] font-bold tracking-tight text-foreground">
@@ -777,7 +777,6 @@ export default function Admin() {
             {section === "telegram" && <AdminTelegram />}
             {section === "bale" && <BaleBotPanel />}
             {section === "aiSubscriptions" && <AdminAISubscriptions />}
-            {section === "siteDemos" && <SiteDemosAdmin />}
             {section === "testimonials" && <AdminTestimonials />}
             {section === "popups" && <AdminPopups />}
             {section === "skills" && <AdminSkills />}
@@ -3965,13 +3964,13 @@ function AdminComments() {
 
       {stats && (
         <div className="flex flex-wrap gap-2 text-[11px]">
-          <span className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-muted-foreground">
+          <span className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-muted-foreground">
             کل دیدگاه‌ها: <span className="font-semibold text-foreground">{faNum(stats.total)}</span>
           </span>
-          <span className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-muted-foreground">
+          <span className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-muted-foreground">
             تأییدشده: <span className="font-semibold text-foreground">{faNum(stats.approved)}</span>
           </span>
-          <span className="rounded-lg border border-border bg-white px-2.5 py-1.5 text-muted-foreground">
+          <span className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-muted-foreground">
             در انتظار: <span className="font-semibold text-foreground">{faNum(stats.pending)}</span>
           </span>
         </div>
@@ -5516,6 +5515,9 @@ function AdminInbox() {
 
 // ── My profile (admin console) ──────────────────────────────────────────────
 function AdminMyProfile() {
+  const { theme, setTheme } = useAdminTheme();
+  const isDark = theme === "dark";
+
   return (
     <div className="space-y-4">
       <div>
@@ -5524,6 +5526,47 @@ function AdminMyProfile() {
           نام، عکس و معرفی خود را ثبت کنید — شما ادمین هستید و تغییرات‌تان بدون تأیید، همان لحظه اعمال و عمومی می‌شود.
         </p>
       </div>
+
+      <Card className="gap-0 rounded-2xl border-border py-0">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              {isDark ? <Moon className="size-5" /> : <Sun className="size-5" />}
+            </span>
+            <div>
+              <p className="text-sm font-bold">تم پنل مدیریت</p>
+              <p className="text-xs text-muted-foreground">
+                {isDark ? "تم تاریک فعال است" : "تم روشن فعال است"} — انتخاب شما روی همین مرورگر ذخیره می‌شود.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 rounded-xl border border-border bg-background p-1">
+            <button
+              type="button"
+              onClick={() => setTheme("light")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                !isDark ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <Sun className="size-3.5" />
+              روشن
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme("dark")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                isDark ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+              )}
+            >
+              <Moon className="size-3.5" />
+              تاریک
+            </button>
+          </div>
+        </CardContent>
+      </Card>
+
       <MemberProfileEditor />
     </div>
   );

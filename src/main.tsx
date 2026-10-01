@@ -70,10 +70,6 @@ const StoreProductDetail = lazy(() => import("./pages/ProductDetail.tsx"));
 const SellerPanel = lazy(() => import("./pages/SellerPanel.tsx"));
 const CartPage = lazy(() => import("./pages/CartPage.tsx"));
 const AdminMarketplacePanel = lazy(() => import("./pages/panels/AdminMarketplacePanel.tsx"));
-const SiteStudio = lazy(() => import("./pages/SiteStudio.tsx"));
-const StudioPreviewPage = lazy(() =>
-  import("./pages/SiteStudio.tsx").then((m) => ({ default: m.StudioPreviewPage })),
-);
 const DemoPreview = lazy(() => import("./pages/DemoPreview.tsx"));
 
 // Simple loading fallback for route transitions
@@ -337,33 +333,6 @@ createRoot(document.getElementById("root")!).render(
                   <RoleGate allowed={["content_manager", "admin", "site_admin"]} title="content studio">
                     <ContentStudio />
                   </RoleGate>
-                }
-              />
-
-                            {/* Site Studio — permission-gated inside the page itself */}
-              <Route
-                path="/panel/site-studio"
-                element={
-                  <RequireAuth>
-                    <SiteStudio />
-                  </RequireAuth>
-                }
-              />
-              {/* Site Studio preview (published pages, auth-gated) */}
-              <Route
-                path="/studio-preview"
-                element={
-                  <RequireAuth>
-                    <StudioPreviewPage />
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/studio-preview/*"
-                element={
-                  <RequireAuth>
-                    <StudioPreviewPage />
-                  </RequireAuth>
                 }
               />
 

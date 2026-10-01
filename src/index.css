@@ -425,6 +425,84 @@
   color-scheme: light;
 }
 
+/* ── Admin console · dark mode ───────────────────────────────────────────────
+   Toggled from the admin profile panel. Keeps the same structure as the light
+   canvas (blue accent, hairline borders) but on a deep neutral background so
+   long data sessions stay comfortable at night. */
+.admin-scope.admin-dark {
+  --radius: 1rem;
+  --background: oklch(0.165 0.012 260);
+  --foreground: oklch(0.96 0.004 260);
+  --card: oklch(0.205 0.014 260);
+  --card-foreground: oklch(0.96 0.004 260);
+  --popover: oklch(0.205 0.014 260);
+  --popover-foreground: oklch(0.96 0.004 260);
+  --primary: oklch(0.7 0.16 264);
+  --primary-foreground: oklch(0.16 0.02 264);
+  --secondary: oklch(0.25 0.014 260);
+  --secondary-foreground: oklch(0.95 0.004 260);
+  --muted: oklch(0.245 0.013 260);
+  --muted-foreground: oklch(0.72 0.015 260);
+  --accent: oklch(0.28 0.016 260);
+  --accent-foreground: oklch(0.96 0.004 260);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.7 0.16 264);
+  --chart-1: oklch(0.7 0.16 264);
+  --chart-2: oklch(0.74 0.17 155);
+  --chart-3: oklch(0.78 0.15 85);
+  --chart-4: oklch(0.7 0.18 300);
+  --chart-5: oklch(0.7 0.19 20);
+  --sidebar: oklch(0.19 0.013 260);
+  --sidebar-foreground: oklch(0.96 0.004 260);
+  --sidebar-primary: oklch(0.7 0.16 264);
+  --sidebar-primary-foreground: oklch(0.16 0.02 264);
+  --sidebar-accent: oklch(0.3 0.03 264);
+  --sidebar-accent-foreground: oklch(0.93 0.03 264);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.7 0.16 264);
+  color-scheme: dark;
+}
+
+.admin-scope.admin-dark [data-slot="card"] {
+  box-shadow:
+    0 1px 2px oklch(0 0 0 / 0.3),
+    0 10px 30px -18px oklch(0 0 0 / 0.7);
+}
+
+/* Status / KPI tints need a readable dark counterpart. */
+.admin-scope.admin-dark .bg-emerald-50 {
+  background-color: oklch(0.28 0.06 155);
+}
+.admin-scope.admin-dark .bg-rose-50 {
+  background-color: oklch(0.28 0.07 20);
+}
+.admin-scope.admin-dark .bg-blue-50 {
+  background-color: oklch(0.28 0.06 264);
+}
+.admin-scope.admin-dark .bg-violet-50 {
+  background-color: oklch(0.28 0.06 300);
+}
+.admin-scope.admin-dark .bg-amber-50 {
+  background-color: oklch(0.3 0.06 80);
+}
+.admin-scope.admin-dark .text-emerald-600 {
+  color: oklch(0.82 0.16 155);
+}
+.admin-scope.admin-dark .text-rose-600 {
+  color: oklch(0.78 0.16 20);
+}
+.admin-scope.admin-dark .text-blue-600 {
+  color: oklch(0.78 0.14 264);
+}
+.admin-scope.admin-dark .text-violet-600 {
+  color: oklch(0.78 0.15 300);
+}
+.admin-scope.admin-dark .text-amber-600 {
+  color: oklch(0.82 0.14 80);
+}
+
 /* Cards inside the admin canvas: white, hairline border, soft lift. */
 .admin-scope [data-slot="card"] {
   border-color: var(--border);
@@ -437,6 +515,9 @@
 .admin-scroll {
   scrollbar-width: thin;
   scrollbar-color: oklch(0.8 0.01 255 / 0.7) transparent;
+}
+.admin-scope.admin-dark .admin-scroll {
+  scrollbar-color: oklch(0.45 0.01 260 / 0.8) transparent;
 }
 .admin-scroll::-webkit-scrollbar {
   width: 6px;

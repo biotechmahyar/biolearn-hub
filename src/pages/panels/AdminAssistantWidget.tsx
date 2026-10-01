@@ -99,7 +99,7 @@ function MessageList({ turns, thinking }: { turns: Turn[]; thinking: boolean }) 
               "max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-[12.5px] leading-6",
               t.role === "user"
                 ? "rounded-ee-sm bg-primary text-primary-foreground"
-                : "rounded-es-sm border border-border bg-white text-foreground",
+                : "rounded-es-sm border border-border bg-card text-foreground",
             )}
           >
             {t.content}
@@ -108,7 +108,7 @@ function MessageList({ turns, thinking }: { turns: Turn[]; thinking: boolean }) 
       ))}
       {thinking && (
         <div className="flex justify-end">
-          <span className="flex items-center gap-1 rounded-2xl rounded-es-sm border border-border bg-white px-3 py-2.5">
+          <span className="flex items-center gap-1 rounded-2xl rounded-es-sm border border-border bg-card px-3 py-2.5">
             {[0, 1, 2].map((i) => (
               <motion.span
                 key={i}
@@ -137,7 +137,7 @@ function Composer({
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   return (
-    <div className="rounded-2xl border border-border bg-white p-1.5 transition-shadow focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10">
+    <div className="rounded-2xl border border-border bg-card p-1.5 transition-shadow focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10">
       <div className="flex items-end gap-1.5">
         <span className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
           <Paperclip className="size-3.5" />
@@ -251,7 +251,7 @@ export default function AdminAssistantWidget({ days = 30 }: { days?: number }) {
                   key={s}
                   type="button"
                   onClick={() => void send(s)}
-                  className="rounded-full border border-border bg-white px-2.5 py-1.5 text-[11px] text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground"
+                  className="rounded-full border border-border bg-card px-2.5 py-1.5 text-[11px] text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground"
                 >
                   {s}
                 </button>
@@ -304,7 +304,7 @@ export default function AdminAssistantWidget({ days = 30 }: { days?: number }) {
                     key={s}
                     type="button"
                     onClick={() => void send(s)}
-                    className="rounded-full border border-border bg-white px-2.5 py-1.5 text-[11px] text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground"
+                    className="rounded-full border border-border bg-card px-2.5 py-1.5 text-[11px] text-muted-foreground transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:text-foreground"
                   >
                     {s}
                   </button>
