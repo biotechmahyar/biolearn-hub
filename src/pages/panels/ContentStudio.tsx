@@ -9,7 +9,8 @@ import ContentStudioLayout, { type StatusFilter } from "@/pages/panels/ContentSt
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { applyStudioTheme } from "@/lib/studioTheme";
+import { applyDeskTheme, useDeskTheme } from "@/lib/deskTheme";
+import type { DeskFeedItem } from "@/components/panels/DeskTopBar";
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,9 @@ import {
 import {
   Plus,
   Bold,
+  Mail,
+  PenLine,
+  Rocket,
   Italic,
   Underline,
   Strikethrough,
@@ -1266,7 +1270,12 @@ export default function ContentStudio() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [myArticlesOnly, setMyArticlesOnly] = useState(false);
-  useEffect(() => applyStudioTheme(), []);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme: deskTheme } = useDeskTheme("content-studio");
+  useEffect(() => applyDeskTheme(deskTheme, "content-studio"), [deskTheme]);
+  const announcements = useQuery(api.notifications.listAnnouncements);
+
+  
   const filteredArticles = useMemo(() => {
     if (!articles) return [];
     let list = articles;
@@ -1413,6 +1422,36 @@ export default function ContentStudio() {
     setDialog({ mode: "edit", article: a });
   };
 
+  const notifications = useMemo<DeskFeedItem[]>(() => {
+    const now = Date.now();
+    return ((articles ?? []) as any[])
+      .slice()
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      .slice(0, 12)
+      .map((a) => ({
+        id: `article-${a._id}`,
+        title: a.published
+          ? `مقاله «${a.title}» منتشر شد`
+          : `پیش‌نویس «${a.title}» در انتظار تکمیل است`,
+        body: a.excerpt || a.categoryLabel || a.category || undefined,
+        at: a.createdAt ?? now,
+        icon: a.published ? <Rocket className="size-3.5" /> : <PenLine className="size-3.5" />,
+        onClick: () => openEdit(a),
+      }));
+  }, [articles]);
+
+  const messages = useMemo<DeskFeedItem[]>(
+    () =>
+      ((announcements ?? []) as any[]).slice(0, 12).map((a) => ({
+        id: `announcement-${a._id}`,
+        title: a.title,
+        body: a.body,
+        at: a.createdAt,
+        icon: <Mail className="size-3.5" />,
+      })),
+    [announcements],
+  );
+
   const handleSave = async () => {
     if (!form.title.trim()) {
       toast.error("عنوان مقاله الزامی است");
@@ -1528,6 +1567,10 @@ export default function ContentStudio() {
             user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/",
           )
         }
+        notifications={notifications}
+        messages={messages}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
         {/* Create / Edit Dialog */}

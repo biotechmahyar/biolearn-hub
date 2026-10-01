@@ -11,7 +11,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  Bell,
   BookOpen,
   ChevronLeft,
   Clock,
@@ -22,12 +21,10 @@ import {
   Inbox,
   LayoutDashboard,
   LogOut,
-  Mail,
   MoreVertical,
   PenLine,
   Plus,
   Rocket,
-  Search,
   Settings,
   Sparkles,
   Trash2,
@@ -35,6 +32,7 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import DeskTopBar, { type DeskFeedItem } from "@/components/panels/DeskTopBar";
 import { cn } from "@/lib/utils";
 import { faNum } from "@/lib/format";
 
@@ -52,11 +50,7 @@ export type StudioArticle = {
 
 export type StatusFilter = "all" | "draft" | "published";
 
-const ROLE_LABELS: Record<string, string> = {
-  admin: "مدیر کل",
-  site_admin: "مدیر سایت",
-  content_manager: "مدیر محتوا",
-};
+
 
 const JALALI_MONTHS = [
   "فروردین",
@@ -134,6 +128,10 @@ export default function ContentStudioLayout({
   onTogglePublish,
   onDelete,
   onGoAdmin,
+  notifications,
+  messages,
+  sidebarOpen,
+  onToggleSidebar,
 }: {
   articles: StudioArticle[] | undefined;
   allArticles?: StudioArticle[] | undefined;
@@ -151,6 +149,10 @@ export default function ContentStudioLayout({
   onTogglePublish: (a: StudioArticle) => void;
   onDelete: (a: StudioArticle) => void;
   onGoAdmin: () => void;
+  notifications: DeskFeedItem[];
+  messages: DeskFeedItem[];
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
 }) {
   const list = useMemo(() => articles ?? [], [articles]);
   const all = useMemo(() => allArticles ?? list, [allArticles, list]);
@@ -217,9 +219,14 @@ export default function ContentStudioLayout({
   ];
 
   return (
-    <div className="studio-light flex min-h-screen bg-muted/40 text-foreground" dir="rtl">
+    <div className="desk-scope flex min-h-screen bg-muted/40 text-foreground" dir="rtl">
       {/* ── Side rail ─────────────────────────────────────── */}
-      <aside className="sticky top-0 hidden h-screen w-[240px] shrink-0 flex-col border-l border-border bg-card lg:flex">
+      <aside
+        className={cn(
+          "fixed inset-y-0 right-0 z-40 flex w-[250px] shrink-0 flex-col border-l border-border bg-card transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "translate-x-full",
+        )}
+      >
         <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
           <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <BookOpen className="size-4" />
@@ -282,59 +289,36 @@ export default function ContentStudioLayout({
         </div>
       </aside>
 
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="بستن منو"
+          onClick={onToggleSidebar}
+          className="fixed inset-0 z-30 bg-foreground/30 lg:hidden"
+        />
+      )}
+
       <div className="flex min-w-0 flex-1 flex-col">
         {/* ── Top bar ──────────────────────────────────────── */}
-        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-card/90 px-4 backdrop-blur sm:px-6">
-          <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10">
-            <Search className="size-4 shrink-0 text-muted-foreground" />
-            <input
-              value={searchQuery}
-              onChange={(e) => onSearch(e.target.value)}
-              placeholder="جست‌وجوی مقالات..."
-              className="w-full bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-9 rounded-xl"
-              title="پیام‌ها"
-              onClick={() => onStatusFilter("draft")}
-            >
-              <Mail className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="relative size-9 rounded-xl"
-              title="اعلان‌ها"
-            >
-              <Bell className="size-4" />
-              {drafts.length > 0 && (
-                <span className="absolute -left-1 -top-1 size-4 rounded-full bg-rose-500 text-[9px] font-bold leading-4 text-white">
-                  {drafts.length > 9 ? "!" : faNum(drafts.length)}
-                </span>
-              )}
-            </Button>
-            <span className="flex items-center gap-2 rounded-xl border border-border bg-background py-1.5 pl-3 pr-1.5">
-              <span className="leading-tight">
-                <span className="block text-[12px] font-semibold">{userName}</span>
-                {userRole && (
-                  <span className="block text-[10px] text-muted-foreground">{ROLE_LABELS[userRole] ?? userRole}</span>
-                )}
-              </span>
-              <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-[11px] font-bold text-primary">
-                {(userName || "G")[0].toUpperCase()}
-              </span>
-            </span>
-          </div>
-        </header>
+        <DeskTopBar
+          scope="content-studio"
+          searchValue={searchQuery}
+          onSearchChange={onSearch}
+          searchPlaceholder="جست‌وجوی مقالات…"
+          notifications={notifications}
+          messages={messages}
+          userName={userName}
+          userRole={userRole}
+          onToggleSidebar={onToggleSidebar}
+          extraProfileLinks={[
+            { label: "پنل مدیریت", to: "/admin", icon: <Settings className="size-4" /> },
+          ]}
+        />
 
         <div className="grid gap-5 p-4 sm:p-6 xl:grid-cols-[1fr_300px]">
           <main className="min-w-0 space-y-5">
             {/* ── Hero banner ──────────────────────────────── */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-violet-600 via-violet-500 to-indigo-500 p-6 text-white sm:p-8">
+            <div className="desk-hero-gradient relative overflow-hidden rounded-3xl bg-gradient-to-l from-violet-600 via-violet-500 to-indigo-500 p-6 text-white sm:p-8">
               <div className="pointer-events-none absolute -left-10 -top-16 size-56 rounded-full bg-white/15 blur-3xl" />
               <Sparkles className="pointer-events-none absolute bottom-6 left-10 size-28 text-white/10" />
               <div className="relative max-w-lg">

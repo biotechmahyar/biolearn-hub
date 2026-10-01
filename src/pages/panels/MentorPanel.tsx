@@ -1,407 +1,1062 @@
 import { api } from "@/convex/_generated/api";
 import { MemberProfileEditor } from "@/components/site/MemberProfileEditor";
 import { useAuth } from "@/hooks/use-auth";
-import { useMode } from "@/hooks/useMode";
-import { useApiQuery } from "@/hooks/useApiQuery";
 import { useMutation, useQuery } from "convex/react";
+import * as jalaali from "jalaali-js";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import {
+  ArrowRight,
+  BarChart3,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
   Compass,
+  HeartHandshake,
   HelpCircle,
+  LifeBuoy,
   MessageCircleQuestion,
   Plus,
+  Search as SearchIcon,
   Send,
   Sparkles,
+  Star,
   Trash2,
   User,
   Users,
-  X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import DeskTopBar, { type DeskFeedItem } from "@/components/panels/DeskTopBar";
+import { applyDeskTheme, useDeskTheme } from "@/lib/deskTheme";
+import { cn } from "@/lib/utils";
+import { faNum } from "@/lib/format";
 
+type SessionRow = (typeof api.mentor.listSessions)["_returnType"][number];
 type QuestionRow = (typeof api.mentor.listMentorQuestions)["_returnType"][number];
 type GroupRow = (typeof api.collab.listMentorGroups)["_returnType"][number];
-type SessionRow = (typeof api.mentor.listSessions)["_returnType"][number];
+type StudentRow = (typeof api.mentor.listStudents)["_returnType"][number];
 
-type Tab = "dashboard" | "questions" | "groups" | "sessions" | "profile";
+type Tab =
+  | "dashboard"
+  | "pairs"
+  | "questions"
+  | "sessions"
+  | "groups"
+  | "students"
+  | "profile";
 
-const TABS: { id: Tab; label: string; icon: typeof Compass; hint: string }[] = [
-  { id: "dashboard", label: "داشبورد", icon: Compass, hint: "نمای کلی" },
-  { id: "questions", label: "سؤالات دانشجویان", icon: MessageCircleQuestion, hint: "پاسخ به سؤالات" },
-  { id: "groups", label: "گروه‌های منتورینگ", icon: Users, hint: "حلقه‌های مطالعه" },
-  { id: "sessions", label: "جلسات انفرادی", icon: CalendarClock, hint: "برنامه‌ریزی ۱:۱" },
-  { id: "profile", label: "پروفایل من", icon: User, hint: "عکس و مشخصات" },
+const TABS: {
+  id: Tab;
+  label: string;
+  icon: typeof Compass;
+  section: "main" | "mentorship";
+}[] = [
+  { id: "dashboard", label: "داشبورد", icon: BarChart3, section: "main" },
+  { id: "students", label: "دانشجویان", icon: Users, section: "main" },
+  { id: "questions", label: "پرسش‌ها و پاسخ‌ها", icon: MessageCircleQuestion, section: "main" },
+  { id: "sessions", label: "جلسات ۱:۱", icon: CalendarClock, section: "main" },
+  { id: "pairs", label: "جفت‌های منتورینگ", icon: HeartHandshake, section: "mentorship" },
+  { id: "groups", label: "گروه‌های منتورینگ", icon: Users, section: "mentorship" },
+  { id: "profile", label: "پروفایل من", icon: User, section: "main" },
 ];
 
+const WEEKDAYS = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+const JALALI_MONTHS = [
+  "فروردین",
+  "اردیبهشت",
+  "خرداد",
+  "تیر",
+  "مرداد",
+  "شهریور",
+  "مهر",
+  "آبان",
+  "آذر",
+  "دی",
+  "بهمن",
+  "اسفند",
+];
+const RANGES: { id: RangeKey; label: string }[] = [
+  { id: "day", label: "روز" },
+  { id: "week", label: "هفته" },
+  { id: "month", label: "ماه" },
+  { id: "year", label: "سال" },
+];
+
+type RangeKey = "day" | "week" | "month" | "year";
+type StatusFilter = "all" | "scheduled" | "done" | "cancelled";
+
+function startOfDay(d: Date) {
+  const copy = new Date(d);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function addDays(d: Date, days: number) {
+  const copy = new Date(d);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function shiftAnchor(anchor: Date, range: RangeKey, offset: number) {
+  switch (range) {
+    case "day":
+      return addDays(anchor, offset);
+    case "week":
+      return addDays(anchor, offset * 7);
+    case "month":
+      return new Date(anchor.getFullYear(), anchor.getMonth() + offset, 1);
+    case "year":
+      return new Date(anchor.getFullYear() + offset, anchor.getMonth(), 1);
+  }
+}
+
+function bucketKey(d: Date, range: RangeKey) {
+  if (range === "year") {
+    const j = jalaali.toJalaali(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    return `${j.jy}-${j.jm}`;
+  }
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+type Column = { key: string; label: string; sub?: string; start: Date };
+
+function buildColumns(range: RangeKey, anchor: Date): Column[] {
+  if (range === "day") {
+    const d = startOfDay(anchor);
+    return [
+      {
+        key: bucketKey(d, range),
+        label: WEEKDAYS[(d.getDay() + 1) % 7],
+        sub: d.toLocaleDateString("fa-IR"),
+        start: d,
+      },
+    ];
+  }
+  if (range === "week") {
+    const first = addDays(startOfDay(anchor), -((anchor.getDay() + 1) % 7));
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = addDays(first, i);
+      return {
+        key: bucketKey(d, range),
+        label: WEEKDAYS[i],
+        sub: d.toLocaleDateString("fa-IR", { day: "2-digit", month: "2-digit" }),
+        start: d,
+      };
+    });
+  }
+  if (range === "month") {
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const days = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+    return Array.from({ length: days }, (_, i) => {
+      const d = addDays(first, i);
+      return {
+        key: bucketKey(d, range),
+        label: faNum(i + 1),
+        sub: WEEKDAYS[(d.getDay() + 1) % 7],
+        start: d,
+      };
+    });
+  }
+  const j = jalaali.toJalaali(anchor.getFullYear(), anchor.getMonth() + 1, 1);
+  const monthStart = jalaali.toGregorian(j.jy, 1, 1);
+  return JALALI_MONTHS.map((label, i) => ({
+    key: `${j.jy}-${i + 1}`,
+    label,
+    sub: faNum(`${j.jy}/${i + 1}`),
+    start: new Date(monthStart.gy, monthStart.gm - 1 + i, 1),
+  }));
+}
+
+function parseSessionDate(date?: string | null) {
+  if (!date) return null;
+  const d = new Date(date);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+const STATUS_STYLE: Record<
+  string,
+  { chip: string; bar: string; label: string }
+> = {
+  scheduled: {
+    chip: "border-rose-200 bg-rose-50 text-rose-600",
+    bar: "border-rose-200 bg-rose-50/90 text-rose-700",
+    label: "درخواست جلسه",
+  },
+  done: {
+    chip: "border-emerald-200 bg-emerald-50 text-emerald-600",
+    bar: "border-emerald-200 bg-emerald-50/90 text-emerald-700",
+    label: "انجام شد",
+  },
+  cancelled: {
+    chip: "border-border bg-muted text-muted-foreground",
+    bar: "border-border bg-muted text-muted-foreground",
+    label: "لغو شد",
+  },
+};
+
+function initials(name?: string | null) {
+  return (name || "ن").trim().charAt(0).toUpperCase();
+}
+
+// ── Shell ──────────────────────────────────────────────────────────────────
 export default function MentorPanel() {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>("pairs");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mentorshipOpen, setMentorshipOpen] = useState(true);
+  const [query, setQuery] = useState("");
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planStudent, setPlanStudent] = useState("");
 
-  const stats = useQuery(api.mentor.mentorStats);
+  const { theme } = useDeskTheme("mentor-desk");
+  useEffect(() => applyDeskTheme(theme, "mentor-desk"), [theme]);
+
   const touchPresence = useMutation(api.collab.touchPresence);
-
   useEffect(() => {
     touchPresence({ location: "میز منتور" });
     const t = setInterval(() => touchPresence({ location: "میز منتور" }), 25_000);
     return () => clearInterval(t);
   }, [touchPresence]);
 
+  const questionsQuery = useQuery(api.mentor.listMentorQuestions);
+  const sessionsQuery = useQuery(api.mentor.listSessions);
+  const groupsQuery = useQuery(api.collab.listMentorGroups);
+  const studentsQuery = useQuery(api.mentor.listStudents);
+  const announcementsQuery = useQuery(api.notifications.listAnnouncements);
+
+  const questions = useMemo(() => questionsQuery ?? [], [questionsQuery]);
+  const sessions = useMemo(() => sessionsQuery ?? [], [sessionsQuery]);
+  const groups = useMemo(() => groupsQuery ?? [], [groupsQuery]);
+  const students = useMemo(() => studentsQuery ?? [], [studentsQuery]);
+  const announcements = useMemo(() => announcementsQuery ?? [], [announcementsQuery]);
+
+  const openQuestions = questions.filter((q) => q.status === "open");
+  const scheduled = sessions.filter((s) => s.status === "scheduled");
+  const done = sessions.filter((s) => s.status === "done");
+
+  const notifications = useMemo<DeskFeedItem[]>(() => {
+    const items: DeskFeedItem[] = [];
+    openQuestions.slice(0, 6).forEach((q) => {
+      items.push({
+        id: `q-${q._id}`,
+        title: `سؤال جدید از ${q.studentName}`,
+        body: q.text,
+        at: q.createdAt,
+        icon: <MessageCircleQuestion className="size-3.5" />,
+        onClick: () => setTab("questions"),
+      });
+    });
+    scheduled.slice(0, 6).forEach((s) => {
+      items.push({
+        id: `s-${s._id}`,
+        title: `جلسهٔ ${s.title} با ${s.studentName}`,
+        body: [s.date, s.time].filter(Boolean).join(" — ") || undefined,
+        at: s.createdAt,
+        icon: <CalendarClock className="size-3.5" />,
+        onClick: () => setTab("pairs"),
+      });
+    });
+    return items.sort((a, b) => (b.at ?? 0) - (a.at ?? 0)).slice(0, 12);
+  }, [openQuestions, scheduled]);
+
+  const messages = useMemo<DeskFeedItem[]>(
+    () =>
+      announcements.slice(0, 12).map((a) => ({
+        id: `ann-${a._id}`,
+        title: a.title,
+        body: a.body,
+        at: a.createdAt,
+        icon: <HelpCircle className="size-3.5" />,
+      })),
+    [announcements],
+  );
+
+  const userName = user?.name || user?.email || "منتور";
+  const nextSession = useMemo(() => {
+    const dated = scheduled
+      .map((s) => ({ s, d: parseSessionDate(s.date) }))
+      .filter((x): x is { s: SessionRow; d: Date } => !!x.d)
+      .sort((a, b) => a.d.getTime() - b.d.getTime());
+    return dated[0]?.s ?? scheduled[0] ?? null;
+  }, [scheduled]);
+
+  const navButton = (item: (typeof TABS)[number], badge?: number) => (
+    <button
+      key={item.id}
+      type="button"
+      onClick={() => {
+        setTab(item.id);
+        setSidebarOpen(false);
+      }}
+      className={cn(
+        "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors",
+        tab === item.id
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <item.icon className="size-4 shrink-0" />
+      <span className="truncate">{item.label}</span>
+      {badge !== undefined && badge > 0 && (
+        <span className="mr-auto rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
+          {faNum(badge)}
+        </span>
+      )}
+    </button>
+  );
+
   return (
-    <div className="min-h-screen bg-[#17100a] text-amber-50" dir="rtl">
-      <header className="sticky top-0 z-20 border-b border-amber-400/10 bg-[#17100a]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg border border-amber-400/30 bg-amber-400/10">
-              <Compass className="size-5 text-amber-300" />
-            </span>
-            <div>
-              <h1 className="text-sm font-bold text-amber-100">میز منتور</h1>
-              <p className="font-mono text-[10px] tracking-wide text-amber-400/60">
-                mentor desk · guidance
-              </p>
-            </div>
+    <div className="desk-scope flex min-h-screen bg-muted/40 text-foreground" dir="rtl">
+      <aside
+        className={cn(
+          "fixed inset-y-0 right-0 z-40 flex w-[250px] shrink-0 flex-col border-l border-border bg-card transition-transform lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "translate-x-full",
+        )}
+      >
+        <Link to="/" className="flex items-center gap-2.5 px-5 py-5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Compass className="size-4" />
+          </span>
+          <span className="leading-tight">
+            <span className="block text-[15px] font-extrabold tracking-tight">میز منتور</span>
+            <span className="block text-[10px] text-muted-foreground">mentor desk</span>
+          </span>
+        </Link>
+
+        <nav className="admin-scroll flex-1 space-y-5 overflow-y-auto px-4 pb-4">
+          <div className="space-y-0.5">
+            {TABS.filter((t) => t.section === "main" && t.id !== "profile").map((t) =>
+              navButton(t, t.id === "questions" ? openQuestions.length : undefined),
+            )}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-            <Badge variant="outline" className="hidden border-amber-400/20 bg-amber-400/10 text-[11px] text-amber-200 sm:inline-flex">
-              <HelpCircle className="size-3" />
-              {stats?.openQuestions ?? 0} سؤال
-            </Badge>
-            <Badge variant="outline" className="border-white/10 font-mono text-[10px] text-amber-100/70">
-              {user?.name ?? "منتور"}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 text-amber-100/50"
-              onClick={() => navigate(user?.role === "admin" || user?.role === "site_admin" ? "/admin" : "/")}
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setMentorshipOpen((v) => !v)}
+              className="mb-1.5 flex w-full items-center gap-2 rounded-xl px-3 py-1.5 text-[13px] font-semibold text-foreground transition-colors hover:bg-muted"
             >
-              <X className="size-4" />
+              <HeartHandshake className="size-4 text-muted-foreground" />
+              منتورینگ
+              <ChevronDown
+                className={cn(
+                  "mr-auto size-4 text-muted-foreground transition-transform",
+                  mentorshipOpen && "rotate-180",
+                )}
+              />
+            </button>
+            {mentorshipOpen && (
+              <div className="space-y-0.5 border-r border-border pr-2.5">
+                {TABS.filter((t) => t.section === "mentorship").map((t) =>
+                  navButton(t, t.id === "groups" ? groups.length : undefined),
+                )}
+              </div>
+            )}
+          </div>
+        </nav>
+
+        <div className="space-y-2 border-t border-border p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 w-full justify-start rounded-xl text-xs"
+            onClick={() => setTab("profile")}
+          >
+            <User className="ml-2 size-4" />
+            پروفایل من
+          </Button>
+          <div className="rounded-2xl border border-border bg-muted/50 p-3">
+            <p className="text-[11px] font-bold">سازمان ژنوا</p>
+            <p className="mt-1 text-[10px] leading-5 text-muted-foreground">
+              منتورینگ دانشجویان زیست‌شناسی
+            </p>
+            <Button variant="outline" size="sm" className="mt-3 h-8 w-full rounded-xl text-[11px]">
+              <LifeBuoy className="ml-1.5 size-3.5" />
+              راهنما
             </Button>
           </div>
+          <p className="pt-1 text-center text-[10px] text-muted-foreground/70">
+            © {faNum(1404)} ژنوا — تمامی حقوق محفوظ است
+          </p>
         </div>
-      </header>
+      </aside>
 
-      <div className="mx-auto grid max-w-7xl gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6 lg:grid-cols-[240px_1fr]">
-        <aside className="lg:sticky lg:top-20 lg:self-start">
-          <nav className="flex flex-row gap-1 overflow-x-auto pb-2 lg:flex-col lg:pb-0">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors ${
-                  tab === t.id
-                    ? "border border-amber-400/30 bg-amber-400/10 text-amber-200"
-                    : "text-amber-100/40 hover:bg-white/5 hover:text-amber-100"
-                }`}
-              >
-                <t.icon className="size-4" />
-                <span>{t.label}</span>
-                <span className="mr-auto hidden font-mono text-[10px] text-amber-100/30 lg:inline">
-                  {t.hint}
-                </span>
-              </button>
-            ))}
-          </nav>
-        </aside>
+      {sidebarOpen && (
+        <button
+          type="button"
+          aria-label="بستن منو"
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-foreground/30 lg:hidden"
+        />
+      )}
 
-        <main className="min-w-0">
-          {tab === "dashboard" && <MentorDashboard />}
-          {tab === "questions" && <QuestionsView />}
-          {tab === "groups" && <GroupsView />}
-          {tab === "sessions" && <SessionsView />}
-          {tab === "profile" && <MentorProfileView />}
-        </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <DeskTopBar
+          scope="mentor-desk"
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="جست‌وجوی دانشجو، جلسه یا گروه…"
+          notifications={notifications}
+          messages={messages}
+          userName={userName}
+          userRole={user?.role}
+          onToggleSidebar={() => setSidebarOpen((v) => !v)}
+          extraProfileLinks={[
+            {
+              label: "پنل مدیریت",
+              to: "/admin",
+              icon: <BarChart3 className="size-4" />,
+            },
+          ]}
+        />
+
+        <div className="grid flex-1 gap-5 p-4 sm:p-6 xl:grid-cols-[1fr_290px]">
+          <main className="min-w-0 space-y-4">
+            {tab === "pairs" && (
+              <PairsView
+                sessions={sessions}
+                groups={groups}
+                students={students}
+                query={query}
+                onPlan={(studentId) => {
+                  setPlanStudent(studentId ?? "");
+                  setPlanOpen(true);
+                }}
+              />
+            )}
+            {tab === "dashboard" && (
+              <DashboardView
+                userName={userName}
+                openQuestions={openQuestions.length}
+                groups={groups}
+                scheduled={scheduled.length}
+                done={done.length}
+                nextSession={nextSession}
+                announcements={announcements}
+              />
+            )}
+            {tab === "questions" && <QuestionsView />}
+            {tab === "sessions" && (
+              <SessionsView
+                onPlan={() => {
+                  setPlanStudent("");
+                  setPlanOpen(true);
+                }}
+              />
+            )}
+            {tab === "groups" && <GroupsView groups={groups} query={query} />}
+            {tab === "students" && (
+              <StudentsView
+                students={students}
+                sessions={sessions}
+                query={query}
+                onPlan={(id) => {
+                  setPlanStudent(id);
+                  setPlanOpen(true);
+                }}
+              />
+            )}
+            {tab === "profile" && (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-xl font-extrabold tracking-tight">پروفایل من</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    عکس، نام و معرفی کوتاه خود را ثبت کنید؛ تغییرات پس از تأیید مدیر سایت اعمال می‌شود.
+                  </p>
+                </div>
+                <MemberProfileEditor />
+              </div>
+            )}
+          </main>
+
+          <aside className="space-y-4">
+            <Card className="gap-0 rounded-2xl border-border py-0">
+              <div className="px-5 pt-5">
+                <h3 className="text-[15px] font-extrabold tracking-tight">وضعیت من</h3>
+              </div>
+              <div className="space-y-3 p-5">
+                <StatLine label="سؤال بی‌پاسخ" value={openQuestions.length} />
+                <StatLine label="جلسهٔ زمان‌بندی‌شده" value={scheduled.length} />
+                <StatLine label="جلسهٔ انجام‌شده" value={done.length} />
+                <StatLine label="گروه فعال" value={groups.length} />
+                <StatLine label="دانشجویان" value={students.length} />
+              </div>
+            </Card>
+
+            <Card className="gap-0 rounded-2xl border-border py-0">
+              <div className="px-5 pt-5">
+                <h3 className="text-[15px] font-extrabold tracking-tight">جلسهٔ بعدی</h3>
+              </div>
+              <div className="p-5">
+                {nextSession ? (
+                  <div className="space-y-2">
+                    <p className="text-[13px] font-bold">{nextSession.title}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {nextSession.studentName} · {nextSession.date || "بدون تاریخ"}{" "}
+                      {nextSession.time}
+                    </p>
+                    <Badge className={cn("border text-[10px]", STATUS_STYLE.scheduled.chip)}>
+                      {STATUS_STYLE.scheduled.label}
+                    </Badge>
+                  </div>
+                ) : (
+                  <p className="text-[12px] text-muted-foreground">
+                    جلسه‌ای برنامه‌ریزی نشده است.
+                  </p>
+                )}
+                <Button
+                  size="sm"
+                  className="mt-4 w-full rounded-xl"
+                  onClick={() => {
+                    setPlanStudent("");
+                    setPlanOpen(true);
+                  }}
+                >
+                  <Plus className="ml-1.5 size-4" />
+                  برنامه‌ریزی جلسه
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="gap-0 rounded-2xl border-border py-0">
+              <div className="px-5 pt-5">
+                <h3 className="text-[15px] font-extrabold tracking-tight">دسترسی سریع</h3>
+              </div>
+              <div className="space-y-1 p-3">
+                {[
+                  { icon: HeartHandshake, label: "جفت‌های منتورینگ", tab: "pairs" as Tab },
+                  { icon: MessageCircleQuestion, label: "پاسخ به سؤال‌ها", tab: "questions" as Tab },
+                  { icon: Users, label: "گروه‌های منتورینگ", tab: "groups" as Tab },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => setTab(item.tab)}
+                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <item.icon className="size-4" />
+                    {item.label}
+                  </button>
+                ))}
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start rounded-xl text-[12.5px]"
+                >
+                  <Link to="/">
+                    <ArrowRight className="ml-2 size-4" />
+                    بازگشت به سایت
+                  </Link>
+                </Button>
+              </div>
+            </Card>
+          </aside>
+        </div>
       </div>
+
+      <PlanSessionDialog
+        open={planOpen}
+        onOpenChange={setPlanOpen}
+        students={students}
+        initialStudentId={planStudent}
+      />
     </div>
   );
 }
 
-// ── Dashboard ──────────────────────────────────────────────────────────────
-function MentorDashboard() {
-  const { user } = useAuth();
-  const stats = useQuery(api.mentor.mentorStats);
-  const groups = useQuery(api.collab.listMentorGroups) ?? [];
-  const sessions = useQuery(api.mentor.listSessions) ?? [];
-  const questions = useQuery(api.mentor.listMentorQuestions) ?? [];
-  const announcements = useQuery(api.notifications.listAnnouncements) ?? [];
-  const enrollments = useQuery(api.enroll.getMyEnrollments) ?? [];
+function StatLine({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3 py-2">
+      <span className="text-[12px] text-muted-foreground">{label}</span>
+      <span className="text-[13px] font-extrabold">{faNum(value)}</span>
+    </div>
+  );
+}
 
-  const openQuestions = questions.filter((q) => q.status === "open");
-  const scheduledSessions = sessions.filter((s) => s.status === "scheduled");
-  const doneSessions = sessions.filter((s) => s.status === "done");
-  const activeGroups = groups.filter((g) => g.memberCount > 0);
+// ── Mentorship pairs (timeline) ───────────────────────────────────────────
+function PairsView({
+  sessions,
+  groups,
+  students,
+  query,
+  onPlan,
+}: {
+  sessions: SessionRow[];
+  groups: GroupRow[];
+  students: StudentRow[];
+  query: string;
+  onPlan: (studentId?: string) => void;
+}) {
+  const [range, setRange] = useState<RangeKey>("week");
+  const [offset, setOffset] = useState(0);
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [mentorFilter, setMentorFilter] = useState<string | null>(null);
+  const navigate = useNavigate();
 
-  // Find next session (closest scheduled date)
-  const nextSession = scheduledSessions.length > 0
-    ? scheduledSessions.reduce((closest, s) => {
-        if (!closest) return s;
-        const sDate = new Date(s.date);
-        const cDate = new Date(closest.date);
-        return sDate < cDate ? s : closest;
-      }, scheduledSessions[0])
-    : null;
+  const anchor = useMemo(() => shiftAnchor(new Date(), range, offset), [range, offset]);
+  const columns = useMemo(() => buildColumns(range, anchor), [anchor, range]);
 
-  // Course progress stats
-  const totalCourses = enrollments.length;
-  const completedCourses = enrollments.filter((e) => e.percent === 100).length;
-  const inProgressCourses = enrollments.filter((e) => e.percent > 0 && e.percent < 100).length;
-  const notStartedCourses = enrollments.filter((e) => e.percent === 0).length;
-  const averageProgress = totalCourses > 0
-    ? Math.round(enrollments.reduce((sum, e) => sum + e.percent, 0) / totalCourses)
-    : 0;
+  const q = query.trim().toLowerCase();
 
-  // Recent announcements
-  const recentAnnouncements = announcements.slice(0, 3);
+  const rows = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; sessions: SessionRow[] }>();
+    for (const s of sessions) {
+      if (status !== "all" && s.status !== status) continue;
+      const id = String(s.studentId);
+      if (!map.has(id)) map.set(id, { id, name: s.studentName ?? "دانشجو", sessions: [] });
+      map.get(id)!.sessions.push(s);
+    }
+    return [...map.values()]
+      .filter(
+        (r) =>
+          !q ||
+          r.name.toLowerCase().includes(q) ||
+          r.sessions.some((s) => (s.title ?? "").toLowerCase().includes(q)),
+      )
+      .filter((r) => !mentorFilter || r.sessions.some((s) => s.mentorName === mentorFilter))
+      .sort((a, b) => b.sessions.length - a.sessions.length);
+  }, [sessions, status, q, mentorFilter]);
+
+  const mentors = useMemo(() => {
+    const map = new Map<string, { name: string; total: number; done: number; mentees: Set<string> }>();
+    for (const s of sessions) {
+      const name = s.mentorName ?? "منتور";
+      if (!map.has(name)) map.set(name, { name, total: 0, done: 0, mentees: new Set() });
+      const row = map.get(name)!;
+      row.total += 1;
+      if (s.status === "done") row.done += 1;
+      row.mentees.add(String(s.studentId));
+    }
+    return [...map.values()].sort((a, b) => b.done - a.done);
+  }, [sessions]);
+
+  const columnIndex = (s: SessionRow) => {
+    const d = parseSessionDate(s.date);
+    if (!d) return -1;
+    return columns.findIndex((c) => c.key === bucketKey(d, range));
+  };
+
+  const rangeTitle =
+    range === "day"
+      ? anchor.toLocaleDateString("fa-IR", { dateStyle: "full" })
+      : range === "week"
+        ? `هفتهٔ ${anchor.toLocaleDateString("fa-IR", { day: "2-digit", month: "long" })}`
+        : range === "month"
+          ? anchor.toLocaleDateString("fa-IR", { month: "long", year: "numeric" })
+          : `سال ${jalaali.toJalaali(anchor).jy}`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="outline" size="icon" className="size-9 rounded-xl" onClick={() => navigate(-1)} title="بازگشت">
+          <ArrowRight className="size-4" />
+        </Button>
+        <h1 className="text-lg font-extrabold tracking-tight">جفت‌های منتورینگ</h1>
+        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-600">
+          منتور برتر
+        </span>
+        <Button
+          size="icon"
+          className="size-9 rounded-xl"
+          onClick={() => onPlan()}
+          title="افزودن جفت جدید"
+        >
+          <Plus className="size-4" />
+        </Button>
+        <div className="mr-auto flex items-center gap-2">
+          <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+            <SelectTrigger className="h-9 w-36 rounded-xl text-[12px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">همهٔ وضعیت‌ها</SelectItem>
+              <SelectItem value="scheduled">زمان‌بندی‌شده</SelectItem>
+              <SelectItem value="done">انجام‌شده</SelectItem>
+              <SelectItem value="cancelled">لغوشده</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="hidden items-center gap-1 rounded-xl border border-border px-3 py-2 text-[12px] text-muted-foreground sm:flex">
+            <SearchIcon className="size-3.5" />
+            {faNum(students.length)} دانشجو
+          </div>
+        </div>
+      </div>
+
+      <Card className="gap-0 rounded-2xl border-border py-0">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3">
+          <div className="flex items-center gap-1 rounded-xl bg-muted p-1">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => {
+                  setRange(r.id);
+                  setOffset(0);
+                }}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors",
+                  range === r.id
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-[12px] font-semibold text-muted-foreground">{rangeTitle}</span>
+          <div className="mr-auto flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 rounded-lg"
+              onClick={() => setOffset((o) => o - 1)}
+              title="قبلی"
+            >
+              <ChevronRightIcon />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 rounded-lg"
+              onClick={() => setOffset(0)}
+              title="امروز"
+            >
+              <CalendarClock className="size-3.5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 rounded-lg"
+              onClick={() => setOffset((o) => o + 1)}
+              title="بعدی"
+            >
+              <ChevronLeft className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex">
+          {/* Mentor cards — reference left column */}
+          <div className="admin-scroll hidden w-[260px] shrink-0 space-y-3 overflow-y-auto border-l border-border bg-muted/30 p-3 xl:block">
+            {mentors.length === 0 && (
+              <p className="px-2 py-6 text-center text-[11px] text-muted-foreground">
+                هنوز منتوری جلسه‌ای ثبت نکرده است.
+              </p>
+            )}
+            {mentors.map((m) => {
+              const rating = m.total ? (m.done / m.total) * 5 : 0;
+              return (
+                <Card key={m.name} className="gap-0 rounded-2xl border-border py-0">
+                  <div className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[13px] font-extrabold">منتور</span>
+                      <Badge className="border-amber-200 bg-amber-50 text-[9px] font-bold text-amber-600">
+                        برتر
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex items-center gap-2.5">
+                      <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-[13px] font-bold text-primary">
+                        {initials(m.name)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-bold">{m.name}</p>
+                        <p className="text-[10px] text-muted-foreground">منتور ژنوا</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-[11px] text-muted-foreground">
+                      {faNum(m.mentees.size)} دانشجو · {faNum(m.done)} جلسهٔ انجام‌شده
+                    </p>
+                    <div className="mt-2 flex items-center gap-1 text-[11px] text-amber-500">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={cn(
+                            "size-3",
+                            i < Math.round(rating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40",
+                          )}
+                        />
+                      ))}
+                      <span className="mr-1 font-bold text-foreground">
+                        {rating.toLocaleString("fa-IR", { maximumFractionDigits: 1 })} از ۵
+                      </span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "mt-3 h-8 w-full rounded-xl text-[11px]",
+                        mentorFilter === m.name && "border-primary text-primary",
+                      )}
+                      onClick={() =>
+                        setMentorFilter((prev) => (prev === m.name ? null : m.name))
+                      }
+                    >
+                      {mentorFilter === m.name ? "نمایش همه" : "مشاهدهٔ تاریخچه"}
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Timeline */}
+          <div className="admin-scroll min-w-0 flex-1 overflow-x-auto">
+            <div className="min-w-[720px]">
+              <div
+                className="grid border-b border-border bg-muted/40"
+                style={{ gridTemplateColumns: `180px repeat(${columns.length}, minmax(96px, 1fr))` }}
+              >
+                <div className="px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  دانشجو
+                </div>
+                {columns.map((c) => {
+                  const today = c.key === bucketKey(new Date(), range);
+                  return (
+                    <div
+                      key={c.key}
+                      className={cn(
+                        "border-r border-border px-2 py-3 text-center",
+                        today && "bg-primary/5",
+                      )}
+                    >
+                      <p className="text-[11px] font-bold">{c.label}</p>
+                      {c.sub && (
+                        <p className="mt-0.5 text-[9px] text-muted-foreground">{c.sub}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {rows.length === 0 && (
+                <div className="px-6 py-16 text-center">
+                  <HeartHandshake className="mx-auto size-8 text-muted-foreground/40" />
+                  <p className="mt-3 text-[13px] font-semibold">جفت منتورینگی یافت نشد</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    برای شروع یک جلسهٔ ۱:۱ برنامه‌ریزی کنید یا بازهٔ زمانی را تغییر دهید.
+                  </p>
+                  <Button size="sm" className="mt-4 rounded-xl" onClick={() => onPlan()}>
+                    <Plus className="ml-1.5 size-4" />
+                    برنامه‌ریزی جلسه
+                  </Button>
+                </div>
+              )}
+
+              {rows.map((row) => (
+                <div
+                  key={row.id}
+                  className="grid border-b border-border/70 last:border-0"
+                  style={{ gridTemplateColumns: `180px repeat(${columns.length}, minmax(96px, 1fr))` }}
+                >
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                      {initials(row.name)}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-[12.5px] font-bold">{row.name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {faNum(row.sessions.length)} جلسه
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      title="افزودن جلسه برای این دانشجو"
+                      onClick={() => onPlan(row.id)}
+                      className="mr-auto rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                    >
+                      <Plus className="size-4" />
+                    </button>
+                  </div>
+
+                  {columns.map((c) => {
+                    const cell = row.sessions.filter((s) => columnIndex(s) === columns.indexOf(c));
+                    return (
+                      <div
+                        key={c.key}
+                        className={cn(
+                          "min-h-[64px] space-y-1.5 border-r border-border/70 p-1.5",
+                          c.key === bucketKey(new Date(), range) && "bg-primary/[0.04]",
+                        )}
+                      >
+                        {cell.map((s) => {
+                          const style = STATUS_STYLE[s.status] ?? STATUS_STYLE.scheduled;
+                          return (
+                            <div
+                              key={s._id}
+                              className={cn(
+                                "rounded-lg border px-2 py-1.5 text-[10px] leading-4",
+                                style.bar,
+                              )}
+                            >
+                              <p className="font-bold">
+                                {s.title || "جلسهٔ مشاوره"}
+                              </p>
+                              <p className="opacity-80">
+                                {[s.date, s.time].filter(Boolean).join(" · ")}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {groups.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {groups.map((g) => (
+            <Card key={g._id} className="gap-0 rounded-2xl border-border py-0">
+              <div className="p-4">
+                <p className="text-[13px] font-bold">{g.title}</p>
+                <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{g.description}</p>
+                <p className="mt-3 text-[10px] text-muted-foreground">
+                  {g.meetingDay} · {g.meetingTime} — {faNum(g.memberCount)} از {faNum(g.capacity)}{" "}
+                  عضو
+                </p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChevronRightIcon() {
+  return <ChevronLeft className="size-3.5 rotate-180" />;
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+function DashboardView({
+  userName,
+  openQuestions,
+  groups,
+  scheduled,
+  done,
+  nextSession,
+  announcements,
+}: {
+  userName: string;
+  openQuestions: number;
+  groups: GroupRow[];
+  scheduled: number;
+  done: number;
+  nextSession: SessionRow | null;
+  announcements: { _id: string; title: string; body: string; createdAt: number }[];
+}) {
+  const tiles = [
+    { icon: MessageCircleQuestion, label: "سؤال بی‌پاسخ", value: openQuestions },
+    { icon: CalendarClock, label: "جلسهٔ آینده", value: scheduled },
+    { icon: CheckCircle2, label: "جلسهٔ انجام‌شده", value: done },
+    { icon: Users, label: "گروه فعال", value: groups.length },
+  ];
+
+  return (
+    <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-amber-50">داشبورد منتور</h2>
-        <p className="mt-1 text-sm text-amber-100/50">
-          نمای کلی فعالیت‌ها و وضعیت دانشجویان تحت نظر شما.
+        <h1 className="text-xl font-extrabold tracking-tight">داشبورد منتور</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          روز بخیر {userName} 👋 — نمای کلی فعالیت‌های شما.
         </p>
       </div>
 
-      {/* Mentor Info Card */}
-      <Card className="border-amber-400/20 bg-gradient-to-br from-[#201609] to-[#17100a]">
-        <CardContent className="flex items-center gap-4 py-6">
-          <div className="flex size-16 items-center justify-center rounded-full bg-amber-400/20 text-2xl font-bold text-amber-300">
-            {(user?.name ?? "م").slice(0, 1)}
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-bold text-amber-50">{user?.name ?? "منتور"}</h3>
-            <p className="text-sm text-amber-100/60">{user?.email ?? ""}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Badge variant="outline" className="border-amber-400/30 text-amber-200">
-                <Compass className="size-3" />
-                منتور
-              </Badge>
-              <Badge variant="outline" className="border-amber-400/20 text-amber-300">
-                {groups.length} گروه فعال
-              </Badge>
-              <Badge variant="outline" className="border-amber-400/20 text-amber-300">
-                {doneSessions.length} جلسه انجام‌شده
-              </Badge>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {tiles.map((t) => (
+          <Card key={t.label} className="gap-0 rounded-2xl border-border py-0">
+            <div className="flex items-center justify-between p-4">
+              <div>
+                <p className="text-[12px] text-muted-foreground">{t.label}</p>
+                <p className="mt-1.5 text-2xl font-extrabold">{faNum(t.value)}</p>
+              </div>
+              <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <t.icon className="size-4" />
+              </span>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <Card className="border-amber-400/15 bg-[#201609]">
-          <CardContent className="flex items-center gap-3 py-4">
-            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
-              <MessageCircleQuestion className="size-5 text-amber-300" />
-            </span>
-            <div>
-              <p className="text-2xl font-bold text-amber-50">{openQuestions.length}</p>
-              <p className="text-xs text-amber-100/50">سؤال در انتظار پاسخ</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-400/15 bg-[#201609]">
-          <CardContent className="flex items-center gap-3 py-4">
-            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
-              <Users className="size-5 text-amber-300" />
-            </span>
-            <div>
-              <p className="text-2xl font-bold text-amber-50">{groups.length}</p>
-              <p className="text-xs text-amber-100/50">گروه منتورینگ</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-400/15 bg-[#201609]">
-          <CardContent className="flex items-center gap-3 py-4">
-            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
-              <CalendarClock className="size-5 text-amber-300" />
-            </span>
-            <div>
-              <p className="text-2xl font-bold text-amber-50">{scheduledSessions.length}</p>
-              <p className="text-xs text-amber-100/50">جلسه آینده</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-400/15 bg-[#201609]">
-          <CardContent className="flex items-center gap-3 py-4">
-            <span className="flex size-10 items-center justify-center rounded-lg bg-amber-400/10">
-              <CheckCircle2 className="size-5 text-amber-300" />
-            </span>
-            <div>
-              <p className="text-2xl font-bold text-amber-50">{doneSessions.length}</p>
-              <p className="text-xs text-amber-100/50">جلسه انجام‌شده</p>
-            </div>
-          </CardContent>
-        </Card>
+          </Card>
+        ))}
       </div>
 
-      {/* Next Session */}
-      <Card className="border-amber-400/20 bg-[#201609]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
-            <CalendarClock className="size-4" />
-            جلسه بعدی
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <Card className="gap-0 rounded-2xl border-border py-0">
+        <div className="border-b border-border px-5 py-4">
+          <h3 className="text-[15px] font-extrabold tracking-tight">جلسهٔ بعدی</h3>
+        </div>
+        <div className="p-5">
           {nextSession ? (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <CalendarClock className="size-5" />
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-amber-50">{nextSession.title}</p>
-                <p className="text-xs text-amber-100/50">
-                  {nextSession.studentName} · {nextSession.date || "بدون تاریخ"} · {nextSession.time}
+                <p className="text-[13.5px] font-bold">{nextSession.title}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {nextSession.studentName} · {nextSession.date || "بدون تاریخ"} ·{" "}
+                  {nextSession.time}
                 </p>
-                {nextSession.notes && (
-                  <p className="mt-1 text-xs text-amber-100/40">{nextSession.notes}</p>
-                )}
               </div>
-              <Badge variant="outline" className="shrink-0 border-amber-400/30 text-amber-300">
+              <Badge className={cn("border text-[10px]", STATUS_STYLE.scheduled.chip)}>
                 زمان‌بندی‌شده
               </Badge>
             </div>
           ) : (
-            <div className="flex items-center gap-3 text-amber-100/40">
-              <CalendarClock className="size-8 text-amber-100/20" />
-              <p className="text-sm">جلسه‌ای برنامه‌ریزی نشده است.</p>
-            </div>
+            <p className="text-[12px] text-muted-foreground">جلسه‌ای برنامه‌ریزی نشده است.</p>
           )}
-        </CardContent>
+        </div>
       </Card>
 
-      {/* Active Groups */}
-      <Card className="border-amber-400/20 bg-[#201609]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
-            <Users className="size-4" />
-            گروه‌های فعال
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {activeGroups.length > 0 ? (
-            <div className="space-y-3">
-              {activeGroups.map((g) => (
-                <div key={g._id} className="flex items-center justify-between rounded-lg border border-amber-400/10 bg-white/5 p-3">
-                  <div className="flex items-center gap-3">
-                    <Users className="size-4 text-amber-300" />
-                    <div>
-                      <p className="text-sm font-bold text-amber-50">{g.title}</p>
-                      <p className="text-xs text-amber-100/50">
-                        {g.meetingDay} · {g.meetingTime}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-amber-50">{g.memberCount}/{g.capacity}</p>
-                    <p className="text-[10px] text-amber-100/40">عضو</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 text-amber-100/40">
-              <Users className="size-8 text-amber-100/20" />
-              <p className="text-sm">هنوز گروه منتورینگی فعال نیست.</p>
-            </div>
+      <Card className="gap-0 rounded-2xl border-border py-0">
+        <div className="border-b border-border px-5 py-4">
+          <h3 className="text-[15px] font-extrabold tracking-tight">اعلان‌های سایت</h3>
+        </div>
+        <div className="space-y-2 p-5">
+          {announcements.length === 0 && (
+            <p className="text-[12px] text-muted-foreground">اعلانی وجود ندارد.</p>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Progress Path */}
-      <Card className="border-amber-400/20 bg-[#201609]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
-            <Sparkles className="size-4" />
-            مسیر پیشرفت
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {totalCourses > 0 ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-amber-100/70">میانگین پیشرفت دوره‌ها</span>
-                <span className="text-lg font-bold text-amber-50">{averageProgress}%</span>
+          {announcements.slice(0, 4).map((a) => (
+            <div key={a._id} className="rounded-xl border border-border bg-muted/40 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[12.5px] font-bold">{a.title}</p>
+                <span className="text-[10px] text-muted-foreground">
+                  {new Date(a.createdAt).toLocaleDateString("fa-IR")}
+                </span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-500"
-                  style={{ width: `${averageProgress}%` }}
-                />
-              </div>
-              <div className="grid grid-cols-3 gap-2 pt-2 sm:gap-4">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-emerald-400">{completedCourses}</p>
-                  <p className="text-xs text-amber-100/50">تکمیل‌شده</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-amber-300">{inProgressCourses}</p>
-                  <p className="text-xs text-amber-100/50">در حال انجام</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-amber-100/40">{notStartedCourses}</p>
-                  <p className="text-xs text-amber-100/50">شروع نشده</p>
-                </div>
-              </div>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-muted-foreground">{a.body}</p>
             </div>
-          ) : (
-            <div className="flex items-center gap-3 text-amber-100/40">
-              <Sparkles className="size-8 text-amber-100/20" />
-              <p className="text-sm">اطلاعات پیشرفتی موجود نیست.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card className="border-amber-400/20 bg-[#201609]">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-sm text-amber-200">
-            <HelpCircle className="size-4" />
-            اعلان‌های مهم
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentAnnouncements.length > 0 ? (
-            <div className="space-y-3">
-              {recentAnnouncements.map((a) => (
-                <div key={a._id} className="rounded-lg border border-amber-400/10 bg-white/5 p-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-bold text-amber-50">{a.title}</p>
-                    <span className="font-mono text-[10px] text-amber-100/30">
-                      {new Date(a.createdAt).toLocaleDateString("fa-IR")}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-amber-100/60 line-clamp-2">{a.body}</p>
-                  {a.targetTitle && (
-                    <Badge variant="outline" className="mt-2 border-amber-400/20 text-[10px] text-amber-300">
-                      {a.targetTitle}
-                    </Badge>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 text-amber-100/40">
-              <HelpCircle className="size-8 text-amber-100/20" />
-              <p className="text-sm">اعلان جدیدی وجود ندارد.</p>
-            </div>
-          )}
-        </CardContent>
+          ))}
+        </div>
       </Card>
     </div>
   );
 }
 
-// ── Q&A ─────────────────────────────────────────────────────────────────────
+// ── Q&A ────────────────────────────────────────────────────────────────────
 function QuestionsView() {
   const [text, setText] = useState("");
   const [topic, setTopic] = useState("عمومی");
@@ -440,26 +1095,25 @@ function QuestionsView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-amber-50">سؤالات دانشجویان</h2>
-        <p className="mt-1 text-sm text-amber-100/50">
-          دانشجویان در هر لحظه می‌توانند سؤال بپرسند؛ پاسخ‌ها برای همان دانشجو نمایش داده می‌شود.
+        <h1 className="text-xl font-extrabold tracking-tight">پرسش‌ها و پاسخ‌ها</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          دانشجویان هر لحظه می‌توانند سؤال بپرسند؛ پاسخ شما برای همان دانشجو ارسال می‌شود.
         </p>
       </div>
 
-      {/* Ask box (mentors can test the flow as a student too) */}
-      <Card className="border-amber-400/15 bg-[#201609]">
-        <CardContent className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center">
+      <Card className="gap-0 rounded-2xl border-border py-0">
+        <CardContent className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center">
           <Input
             placeholder="سؤال جدید خود را بنویسید…"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAsk()}
-            className="flex-1 border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
+            className="flex-1"
           />
           <Select value={topic} onValueChange={setTopic}>
-            <SelectTrigger className="w-full border-white/10 bg-white/5 text-amber-50 sm:w-36">
+            <SelectTrigger className="w-full sm:w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -469,8 +1123,8 @@ function QuestionsView() {
               <SelectItem value="مسیر شغلی">مسیر شغلی</SelectItem>
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={handleAsk}>
-            <Send className="size-4" />
+          <Button onClick={handleAsk}>
+            <Send className="ml-1.5 size-4" />
             پرسیدن
           </Button>
         </CardContent>
@@ -478,39 +1132,39 @@ function QuestionsView() {
 
       {open.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-400/70">
-            در انتظار پاسخ ({open.length})
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+            در انتظار پاسخ ({faNum(open.length)})
           </p>
           {open.map((q) => (
-            <Card key={q._id} className="border-amber-400/20 bg-[#201609]">
-              <CardContent className="space-y-3 py-4">
+            <Card key={q._id} className="gap-0 rounded-2xl border-border py-0">
+              <CardContent className="space-y-3 p-4">
                 <div className="flex items-center gap-2">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-amber-400/10 text-sm font-bold text-amber-300">
-                    {(q.studentName ?? "؟").slice(0, 1)}
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary">
+                    {initials(q.studentName)}
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-amber-50">{q.studentName}</p>
-                    <Badge variant="outline" className="mt-0.5 border-amber-400/20 text-[10px] text-amber-300">
+                    <p className="text-[13px] font-bold">{q.studentName}</p>
+                    <Badge variant="outline" className="mt-0.5 text-[10px]">
                       {q.topic}
                     </Badge>
                   </div>
-                  <span className="mr-auto font-mono text-[10px] text-amber-100/30">
+                  <span className="mr-auto text-[10px] text-muted-foreground">
                     {new Date(q.createdAt).toLocaleDateString("fa-IR")}
                   </span>
                 </div>
-                <p className="text-sm text-amber-100/80">{q.text}</p>
+                <p className="text-[13px] leading-6 text-foreground/90">{q.text}</p>
 
                 {replyTarget === q._id ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Input
                       autoFocus
                       placeholder="پاسخ شما…"
                       value={answers[q._id] ?? ""}
                       onChange={(e) => setAnswers((a) => ({ ...a, [q._id]: e.target.value }))}
-                      className="flex-1 border-amber-400/30 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
+                      className="flex-1"
                     />
                     <Button size="sm" onClick={() => handleAnswer(q)}>
-                      <Send className="size-3.5" />
+                      <Send className="ml-1.5 size-3.5" />
                       ارسال
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => setReplyTarget(null)}>
@@ -518,12 +1172,7 @@ function QuestionsView() {
                     </Button>
                   </div>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-amber-400/30 text-amber-300 hover:bg-amber-400/10"
-                    onClick={() => setReplyTarget(q._id)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => setReplyTarget(q._id)}>
                     <MessageCircleQuestion className="size-4" />
                     پاسخ دادن
                   </Button>
@@ -536,19 +1185,19 @@ function QuestionsView() {
 
       {answered.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-100/40">
-            پاسخ‌داده‌شده ({answered.length})
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+            پاسخ‌داده‌شده ({faNum(answered.length)})
           </p>
           {answered.map((q) => (
-            <Card key={q._id} className="border-white/5 bg-white/[0.02]">
-              <CardContent className="space-y-2 py-3">
-                <div className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="size-4 text-emerald-400" />
-                  <span className="font-bold text-amber-100/80">{q.studentName}</span>
-                  <span className="text-xs text-amber-100/40">— {q.topic}</span>
+            <Card key={q._id} className="gap-0 rounded-2xl border-border py-0">
+              <CardContent className="space-y-2 p-4">
+                <div className="flex items-center gap-2 text-[13px]">
+                  <CheckCircle2 className="size-4 text-emerald-600" />
+                  <span className="font-bold">{q.studentName}</span>
+                  <span className="text-[11px] text-muted-foreground">— {q.topic}</span>
                 </div>
-                <p className="text-sm text-amber-100/70">{q.text}</p>
-                <div className="rounded-md border border-emerald-400/15 bg-emerald-400/5 px-3 py-2 text-sm text-emerald-200/90">
+                <p className="text-[12.5px] text-muted-foreground">{q.text}</p>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[12.5px] text-emerald-700">
                   {q.answer}
                 </div>
               </CardContent>
@@ -558,10 +1207,10 @@ function QuestionsView() {
       )}
 
       {questions.length === 0 && (
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Sparkles className="size-8 text-amber-100/30" />
-            <p className="text-sm text-amber-100/50">
+        <Card className="gap-0 rounded-2xl border-dashed border-border py-0">
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <Sparkles className="size-8 text-muted-foreground/40" />
+            <p className="text-[13px] text-muted-foreground">
               هنوز سؤالی نیامده. وقتی دانشجویی سؤال بپرسد اینجا نمایش داده می‌شود.
             </p>
           </CardContent>
@@ -571,8 +1220,90 @@ function QuestionsView() {
   );
 }
 
-// ── Mentoring groups ────────────────────────────────────────────────────────
-function GroupsView() {
+// ── Sessions ───────────────────────────────────────────────────────────────
+function SessionsView({ onPlan }: { onPlan: () => void }) {
+  const sessions = useQuery(api.mentor.listSessions) ?? [];
+  const setSessionStatus = useMutation(api.mentor.setSessionStatus);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-extrabold tracking-tight">جلسات ۱:۱</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            جلسات با دانشجویان را زمان‌بندی و پیگیری کنید.
+          </p>
+        </div>
+        <Button onClick={onPlan} className="rounded-xl">
+          <Plus className="ml-1.5 size-4" />
+          جلسهٔ جدید
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {sessions.length === 0 && (
+          <Card className="gap-0 rounded-2xl border-dashed border-border py-0">
+            <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+              <CalendarClock className="size-8 text-muted-foreground/40" />
+              <p className="text-[13px] text-muted-foreground">جلسه‌ای ثبت نشده است.</p>
+            </CardContent>
+          </Card>
+        )}
+        {sessions.map((s) => {
+          const style = STATUS_STYLE[s.status] ?? STATUS_STYLE.scheduled;
+          return (
+            <Card key={s._id} className="gap-0 rounded-2xl border-border py-0">
+              <CardContent className="flex flex-wrap items-center gap-3 p-4">
+                <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <CalendarClock className="size-4" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-bold">{s.title}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {s.studentName} · {s.date || "بدون تاریخ"} · {s.time}
+                  </p>
+                  {s.notes && (
+                    <p className="mt-1 text-[11px] text-muted-foreground/80">{s.notes}</p>
+                  )}
+                </div>
+                <Badge className={cn("border text-[10px]", style.chip)}>{style.label}</Badge>
+                {s.status === "scheduled" && (
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-xl text-[11px]"
+                      onClick={() => setSessionStatus({ sessionId: s._id, status: "done" })}
+                    >
+                      انجام شد
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 rounded-xl text-[11px] text-destructive"
+                      onClick={() => setSessionStatus({ sessionId: s._id, status: "cancelled" })}
+                    >
+                      لغو
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Groups ─────────────────────────────────────────────────────────────────
+function GroupsView({
+  groups,
+  query,
+}: {
+  groups: GroupRow[];
+  query: string;
+}) {
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -580,11 +1311,19 @@ function GroupsView() {
   const [meetingTime, setMeetingTime] = useState("۱۸:۰۰");
   const [capacity, setCapacity] = useState(8);
 
-  const groups = useQuery(api.collab.listMentorGroups) ?? [];
   const createMentorGroup = useMutation(api.collab.createMentorGroup);
   const deleteMentorGroup = useMutation(api.collab.deleteMentorGroup);
 
+  const q = query.trim().toLowerCase();
+  const visible = groups.filter(
+    (g) => !q || g.title.toLowerCase().includes(q) || (g.description ?? "").toLowerCase().includes(q),
+  );
+
   async function handleCreate() {
+    if (!title.trim()) {
+      toast.error("نام گروه را وارد کنید");
+      return;
+    }
     try {
       await createMentorGroup({ title, description, meetingDay, meetingTime, capacity });
       toast.success("گروه منتورینگ ساخته شد");
@@ -597,66 +1336,58 @@ function GroupsView() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-amber-50">گروه‌های منتورینگ</h2>
-          <p className="mt-1 text-sm text-amber-100/50">
+          <h1 className="text-xl font-extrabold tracking-tight">گروه‌های منتورینگ</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             حلقه‌های مطالعهٔ کوچک با جلسات هفتگی؛ دانشجویان می‌توانند عضو شوند.
           </p>
         </div>
-        <Button
-          className="border-amber-400/30 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
-          onClick={() => setShowCreate((s) => !s)}
-        >
-          <Plus className="size-4" />
+        <Button className="rounded-xl" onClick={() => setShowCreate((s) => !s)}>
+          <Plus className="ml-1.5 size-4" />
           گروه جدید
         </Button>
       </div>
 
       {showCreate && (
-        <Card className="border-amber-400/20 bg-[#201609]">
-          <CardHeader>
-            <CardTitle className="text-sm text-amber-200">ایجاد گروه جدید</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <Card className="gap-0 rounded-2xl border-border py-0">
+          <CardContent className="space-y-3 p-4">
             <Input
               placeholder="نام گروه (مثلاً: حلقهٔ میکروب‌شناسی)"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
             />
             <Textarea
-              placeholder="توضیح: این گروه برای چه کسانی است و چه کاری انجام می‌دهد؟"
+              placeholder="توضیح: این گروه برای چه کسانی است؟"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
             />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <Select value={meetingDay} onValueChange={setMeetingDay}>
-                <SelectTrigger className="border-white/10 bg-white/5 text-amber-50">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"].map((d) => (
-                    <SelectItem key={d} value={d}>
-                      {d}
-                    </SelectItem>
-                  ))}
+                  {["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"].map(
+                    (d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ),
+                  )}
                 </SelectContent>
               </Select>
               <Input
                 placeholder="ساعت (۱۸:۰۰)"
                 value={meetingTime}
                 onChange={(e) => setMeetingTime(e.target.value)}
-                className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
               />
               <Input
                 type="number"
                 placeholder="ظرفیت"
                 value={capacity}
                 onChange={(e) => setCapacity(Number(e.target.value))}
-                className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
               />
             </div>
             <div className="flex justify-end">
@@ -666,218 +1397,208 @@ function GroupsView() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {groups.map((g) => (
-          <Card key={g._id} className="border-amber-400/15 bg-[#201609]">
-            <CardContent className="space-y-3 py-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {visible.length === 0 && (
+          <Card className="gap-0 rounded-2xl border-dashed border-border py-0 sm:col-span-2">
+            <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+              <Users className="size-8 text-muted-foreground/40" />
+              <p className="text-[13px] text-muted-foreground">گروهی برای نمایش وجود ندارد.</p>
+            </CardContent>
+          </Card>
+        )}
+        {visible.map((g) => (
+          <Card key={g._id} className="gap-0 rounded-2xl border-border py-0">
+            <CardContent className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Users className="size-5 text-amber-300" />
-                  <h3 className="font-bold text-amber-50">{g.title}</h3>
+                  <Users className="size-4 text-primary" />
+                  <h3 className="font-bold">{g.title}</h3>
                 </div>
                 <button
+                  type="button"
                   onClick={async () => {
                     await deleteMentorGroup({ groupId: g._id });
                     toast.success("گروه حذف شد");
                   }}
-                  className="text-amber-100/30 transition-colors hover:text-red-400"
+                  className="text-muted-foreground transition-colors hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
                 </button>
               </div>
-              <p className="text-xs text-amber-100/60">{g.description}</p>
-              <div className="flex flex-wrap items-center gap-2 text-[11px] text-amber-100/50">
-                <Badge variant="outline" className="border-amber-400/20 text-amber-300">
+              <p className="text-[11.5px] text-muted-foreground">{g.description}</p>
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <Badge variant="outline">
                   {g.meetingDay} · {g.meetingTime}
                 </Badge>
                 <span>
-                  {g.memberCount}/{g.capacity} عضو
+                  {faNum(g.memberCount)}/{faNum(g.capacity)} عضو
                 </span>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
-
-      {groups.length === 0 && !showCreate && (
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <Users className="size-8 text-amber-100/30" />
-            <p className="text-sm text-amber-100/50">هنوز گروهی نساخته‌اید.</p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
 
-// ── Sessions ────────────────────────────────────────────────────────────────
-function SessionsView() {
-  const [showPlan, setShowPlan] = useState(false);
-  const [studentId, setStudentId] = useState("");
+// ── Students ───────────────────────────────────────────────────────────────
+function StudentsView({
+  students,
+  sessions,
+  query,
+  onPlan,
+}: {
+  students: StudentRow[];
+  sessions: SessionRow[];
+  query: string;
+  onPlan: (id: string) => void;
+}) {
+  const q = query.trim().toLowerCase();
+  const visible = students.filter(
+    (s) => !q || s.name.toLowerCase().includes(q) || (s.email ?? "").toLowerCase().includes(q),
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-xl font-extrabold tracking-tight">دانشجویان</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          دانشجویانی که می‌توانید برایشان جلسهٔ ۱:۱ برنامه‌ریزی کنید.
+        </p>
+      </div>
+
+      <Card className="gap-0 overflow-hidden rounded-2xl border-border py-0">
+        {visible.length === 0 ? (
+          <CardContent className="flex flex-col items-center gap-3 py-14 text-center">
+            <Users className="size-8 text-muted-foreground/40" />
+            <p className="text-[13px] text-muted-foreground">دانشجویی یافت نشد.</p>
+          </CardContent>
+        ) : (
+          <div className="divide-y divide-border">
+            {visible.map((s) => {
+              const mine = sessions.filter((x) => String(x.studentId) === s._id);
+              return (
+                <div key={s._id} className="flex flex-wrap items-center gap-3 p-4">
+                  <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-[12px] font-bold text-primary">
+                    {initials(s.name)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-bold">{s.name}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {s.email ?? "—"} · {faNum(mine.length)} جلسه
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 rounded-xl text-[11px]" onClick={() => onPlan(s._id)}>
+                    <Plus className="ml-1.5 size-3.5" />
+                    برنامه‌ریزی جلسه
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ── Plan session dialog ────────────────────────────────────────────────────
+function PlanSessionDialog({
+  open,
+  onOpenChange,
+  students,
+  initialStudentId,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  students: StudentRow[];
+  initialStudentId: string;
+}) {
+  const [studentId, setStudentId] = useState(initialStudentId);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("۱۷:۰۰");
   const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const sessions = useQuery(api.mentor.listSessions) ?? [];
-  const students = useQuery(api.mentor.listStudents) ?? [];
   const planSession = useMutation(api.mentor.planSession);
-  const setSessionStatus = useMutation(api.mentor.setSessionStatus);
+
+  const value = studentId || initialStudentId;
 
   async function handlePlan() {
-    if (!studentId || !title.trim()) {
-      toast.error("دانشجو و عنوان جلسه را انتخاب کنید");
+    if (!value) {
+      toast.error("دانشجو را انتخاب کنید");
       return;
     }
+    if (!title.trim()) {
+      toast.error("عنوان جلسه را وارد کنید");
+      return;
+    }
+    setBusy(true);
     try {
-      await planSession({ studentId: studentId as any, title, date, time, notes });
+      await planSession({ studentId: value as never, title, date, time, notes });
       toast.success("جلسه برنامه‌ریزی شد");
-      setShowPlan(false);
       setTitle("");
       setDate("");
       setNotes("");
+      onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "خطا");
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold text-amber-50">جلسات انفرادی</h2>
-          <p className="mt-1 text-sm text-amber-100/50">
-            جلسات ۱:۱ با دانشجویان را زمان‌بندی و پیگیری کنید.
-          </p>
-        </div>
-        <Button
-          className="border-amber-400/30 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
-          onClick={() => setShowPlan((s) => !s)}
-        >
-          <Plus className="size-4" />
-          جلسهٔ جدید
-        </Button>
-      </div>
-
-      {showPlan && (
-        <Card className="border-amber-400/20 bg-[#201609]">
-          <CardHeader>
-            <CardTitle className="text-sm text-amber-200">برنامه‌ریزی جلسه</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Select value={studentId} onValueChange={setStudentId}>
-              <SelectTrigger className="border-white/10 bg-white/5 text-amber-50">
-                <SelectValue placeholder="دانشجو را انتخاب کنید…" />
-              </SelectTrigger>
-              <SelectContent>
-                {students.map((s) => (
-                  <SelectItem key={s._id} value={s._id}>
-                    {s.name} {s.email ? `(${s.email})` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-right">برنامه‌ریزی جلسهٔ ۱:۱</DialogTitle>
+          <DialogDescription className="text-right">
+            پس از ثبت، دانشجو از طریق اعلان مطلع می‌شود.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Select value={value} onValueChange={setStudentId}>
+            <SelectTrigger>
+              <SelectValue placeholder="دانشجو را انتخاب کنید…" />
+            </SelectTrigger>
+            <SelectContent>
+              {students.map((s) => (
+                <SelectItem key={s._id} value={s._id}>
+                  {s.name}
+                  {s.email ? ` (${s.email})` : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="عنوان جلسه (مثلاً: مرور روش تحقیق)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <Input
-              placeholder="عنوان جلسه (مثلاً: مرور روش تحقیق)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
+              placeholder="ساعت (۱۷:۰۰)"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
             />
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="border-white/10 bg-white/5 text-amber-50"
-              />
-              <Input
-                placeholder="ساعت (۱۷:۰۰)"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
-              />
-            </div>
-            <Textarea
-              placeholder="یادداشت‌ها (اختیاری)…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="border-white/10 bg-white/5 text-amber-50 placeholder:text-amber-100/30"
-            />
-            <div className="flex justify-end">
-              <Button onClick={handlePlan}>
-                <CalendarClock className="size-4" />
-                ثبت جلسه
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="space-y-3">
-        {sessions.map((s) => (
-          <Card key={s._id} className="border-amber-400/15 bg-[#201609]">
-            <CardContent className="flex flex-wrap items-center gap-3 py-4">
-              <span className="flex size-9 items-center justify-center rounded-full bg-amber-400/10">
-                <CalendarClock className="size-4 text-amber-300" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-amber-50">{s.title}</p>
-                <p className="text-xs text-amber-100/50">
-                  {s.studentName} · {s.date || "بدون تاریخ"} · {s.time}
-                </p>
-                {s.notes && <p className="mt-1 text-xs text-amber-100/40">{s.notes}</p>}
-              </div>
-              <Badge
-                variant="outline"
-                className={
-                  s.status === "done"
-                    ? "border-emerald-400/30 text-emerald-300"
-                    : s.status === "cancelled"
-                      ? "border-red-400/30 text-red-300"
-                      : "border-amber-400/30 text-amber-300"
-                }
-              >
-                {s.status === "done" ? "انجام‌شده" : s.status === "cancelled" ? "لغوشده" : "زمان‌بندی‌شده"}
-              </Badge>
-              {s.status === "scheduled" && (
-                <div className="flex w-full shrink-0 gap-1 sm:w-auto">
-                  <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px] sm:flex-none" onClick={() => setSessionStatus({ sessionId: s._id, status: "done" })}>
-                    انجام شد
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-7 flex-1 text-[11px] text-red-300 sm:flex-none" onClick={() => setSessionStatus({ sessionId: s._id, status: "cancelled" })}>
-                    لغو
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {sessions.length === 0 && !showPlan && (
-        <Card className="border-white/5 bg-white/[0.02]">
-          <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
-            <CalendarClock className="size-8 text-amber-100/30" />
-            <p className="text-sm text-amber-100/50">جلسه‌ای ثبت نشده است.</p>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// ── My profile ──────────────────────────────────────────────────────────────
-function MentorProfileView() {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold text-amber-100">پروفایل من</h2>
-        <p className="mt-1 text-sm text-amber-100/50">
-          عکس، نام و معرفی کوتاه خود را ثبت کنید؛ تغییرات پس از تأیید مدیر سایت اعمال می‌شود.
-        </p>
-      </div>
-      <MemberProfileEditor />
-    </div>
+          </div>
+          <Textarea
+            placeholder="یادداشت‌ها (اختیاری)…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+        <DialogFooter>
+          <Button onClick={handlePlan} disabled={busy}>
+            <CalendarClock className="ml-1.5 size-4" />
+            ثبت جلسه
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
