@@ -1879,6 +1879,7 @@ function AdminTestimonials() {
   const create = useMutation(api.content.createTestimonial);
   const update = useMutation(api.content.updateTestimonial);
   const remove = useMutation(api.content.deleteTestimonial);
+  const wipe = useMutation(api.content.wipeAllTestimonials);
 
   const [dialog, setDialog] = useState<null | { mode: "create"; item?: any }>(null);
   const [form, setForm] = useState({
@@ -1943,6 +1944,16 @@ function AdminTestimonials() {
 
   const accents = ["teal", "sky", "violet", "amber", "rose", "emerald", "blue", "indigo", "pink", "orange", "slate", "zinc"];
 
+  const runWipeTestimonials = async () => {
+    if (!confirm("همهٔ نظرات دانشجویان برای همیشه حذف می‌شوند. ادامه می‌دهید؟")) return;
+    try {
+      const res = await wipe({ confirm: true });
+      toast.success(`${faNum(res.deleted)} نظر حذف شد.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "خطا در پاک‌سازی");
+    }
+  };
+
   return (
     <div className="space-y-5">
       <SectionHeader
@@ -1951,13 +1962,24 @@ function AdminTestimonials() {
         count={items?.length}
       />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           نظرات ثبت‌شده در صفحه اصلی نمایش داده می‌شوند.
         </p>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="ml-1.5 size-4" /> ثبت نظر جدید
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 rounded-xl border-destructive/30 text-xs text-destructive hover:bg-destructive/10"
+            onClick={() => void runWipeTestimonials()}
+          >
+            <Trash2 className="ml-1.5 size-3.5" />
+            ریست کل نظرات
+          </Button>
+          <Button size="sm" className="h-9 rounded-xl" onClick={openCreate}>
+            <Plus className="ml-1.5 size-4" /> ثبت نظر جدید
+          </Button>
+        </div>
       </div>
 
       {/* List */}

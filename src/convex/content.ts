@@ -466,3 +466,15 @@ export const deleteTestimonial = mutation({
     await ctx.db.delete(args.id);
   },
 });
+
+/** Remove every testimonial at once (irreversible; guarded + explicit flag). */
+export const wipeAllTestimonials = mutation({
+  args: { confirm: v.boolean() },
+  handler: async (ctx, args) => {
+    if (!(await isAnyAdmin(ctx))) throw new Error("دسترسی غیرمجاز.");
+    if (!args.confirm) throw new Error("برای پاک‌سازی باید تأیید ارسال شود.");
+    const items = await ctx.db.query("testimonials").collect();
+    for (const t of items) await ctx.db.delete(t._id);
+    return { deleted: items.length };
+  },
+});
