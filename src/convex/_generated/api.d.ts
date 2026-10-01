@@ -66,6 +66,7 @@ import type * as telegramNotifications from "../telegramNotifications.js";
 import type * as telegramSetupWebhook from "../telegramSetupWebhook.js";
 import type * as telegramWebhook from "../telegramWebhook.js";
 import type * as tests from "../tests.js";
+import type * as ticketCleanup from "../ticketCleanup.js";
 import type * as tickets from "../tickets.js";
 import type * as upload from "../upload.js";
 import type * as userAuthActions from "../userAuthActions.js";
@@ -136,6 +137,7 @@ declare const fullApi: ApiFromModules<{
   telegramSetupWebhook: typeof telegramSetupWebhook;
   telegramWebhook: typeof telegramWebhook;
   tests: typeof tests;
+  ticketCleanup: typeof ticketCleanup;
   tickets: typeof tickets;
   upload: typeof upload;
   userAuthActions: typeof userAuthActions;

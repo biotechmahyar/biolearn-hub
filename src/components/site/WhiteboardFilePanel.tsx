@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -11,18 +11,21 @@ import {
   ChevronRight,
   FileUp,
   Loader2,
+  Maximize2,
+  Minimize2,
   Presentation,
   Trash2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
  * Whiteboard file panel — instructor uploads PDF / PowerPoint / image files
  * and pages through them live; students see the current page in realtime via
  * Convex reactivity.
  *
- * - PDF  → rendered by the browser <embed>, page locked via #page=N; students
- *          cannot scroll/click inside the viewer (pointer-events blocked) so
- *          only the instructor advances pages.
+ * - PDF  → rendered by the browser <embed>; the viewer is remounted whenever the
+ *          page changes (a hash-only `src` change is ignored by some PDF
+ *          viewers), so students always land on the instructor's page.
  * - PPTX → slides are parsed and rendered to images at upload time (jszip +
  *          canvas) and stored in Convex; instructor flips slides one by one
  *          and everyone sees the exact same rendered slide — no download.
@@ -43,7 +46,33 @@ export function WhiteboardFilePanel({
   const removeFile = useMutation(api.collab.removeWhiteboardFile);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const viewerRef = useRef<HTMLDivElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => {
+      setIsFullscreen(
+        typeof document !== "undefined" && !!document.fullscreenElement,
+      );
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else if (viewerRef.current?.requestFullscreen) {
+        await viewerRef.current.requestFullscreen();
+      } else {
+        toast.error("مرورگر شما از نمایش تمام‌صفحه پشتیبانی نمی‌کند.");
+      }
+    } catch {
+      toast.error("ورود به حالت تمام‌صفحه ممکن نشد.");
+    }
+  };
 
   const active = files?.[0];
   const page = active?.currentPage ?? 1;
@@ -110,45 +139,62 @@ export function WhiteboardFilePanel({
   if (!isInstructor && !active) return null;
 
   return (
-    <Card className="border-cyan-400/20 bg-[#0b1a2a]">
+    <Card className="border-border bg-card text-card-foreground">
       <CardContent className="space-y-3 py-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="flex items-center gap-2 text-sm font-bold text-cyan-200">
-            <Presentation className="size-4" />
+          <p className="flex items-center gap-2 text-sm font-bold">
+            <Presentation className="size-4 text-primary" />
             فایل تدریس (PDF / PowerPoint)
           </p>
-          {isInstructor && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.ppt,.pptx,image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void handleUpload(f);
-                  e.target.value = "";
-                }}
-              />
-              <Button
-                size="sm"
-                className="h-8 rounded-lg bg-cyan-500 text-[11px] text-[#04121c] hover:bg-cyan-400"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <Loader2 className="ml-1 size-3.5 animate-spin" />
-                ) : (
-                  <FileUp className="ml-1 size-3.5" />
-                )}
-                آپلود فایل
-              </Button>
-            </>
-          )}
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 rounded-lg text-[11px]"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "خروج از تمام‌صفحه" : "تمام‌صفحه"}
+              disabled={!active}
+            >
+              {isFullscreen ? (
+                <Minimize2 className="ml-1 size-3.5" />
+              ) : (
+                <Maximize2 className="ml-1 size-3.5" />
+              )}
+              {isFullscreen ? "خروج از تمام‌صفحه" : "تمام‌صفحه"}
+            </Button>
+            {isInstructor && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.ppt,.pptx,image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleUpload(f);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  size="sm"
+                  className="h-8 rounded-lg text-[11px]"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? (
+                    <Loader2 className="ml-1 size-3.5 animate-spin" />
+                  ) : (
+                    <FileUp className="ml-1 size-3.5" />
+                  )}
+                  آپلود فایل
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {!active ? (
-          <p className="py-6 text-center text-xs text-slate-500">
+          <p className="py-6 text-center text-xs text-muted-foreground">
             {isInstructor
               ? "فایلی بارگذاری نشده — PDF یا PowerPoint آپلود کنید تا صفحه‌به‌صفحه تدریس کنید."
               : "مدرس هنوز فایلی نمایش نداده است."}
@@ -156,10 +202,10 @@ export function WhiteboardFilePanel({
         ) : (
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="truncate text-xs font-bold text-slate-200" dir="ltr">
+              <p className="truncate text-xs font-bold" dir="ltr">
                 {active.fileName}
                 {totalPages > 1 && (
-                  <span className="mr-2 font-normal text-slate-500">
+                  <span className="mr-2 font-normal text-muted-foreground">
                     صفحه {page} از {totalPages}
                   </span>
                 )}
@@ -170,22 +216,29 @@ export function WhiteboardFilePanel({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 border-white/10 px-2 text-slate-300 hover:bg-white/10"
+                      className="size-7 px-2"
                       onClick={() => goto(page - 1)}
                       disabled={page <= 1}
+                      title="صفحهٔ قبل"
                     >
                       <ChevronRight className="size-3.5" />
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 border-white/10 px-2 text-slate-300 hover:bg-white/10"
+                      className="size-7 px-2"
                       onClick={() => goto(page + 1)}
                       disabled={page >= totalPages}
+                      title="صفحهٔ بعد"
                     >
                       <ChevronLeft className="size-3.5" />
                     </Button>
                   </>
+                )}
+                {!isInstructor && totalPages > 1 && (
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">
+                    صفحهٔ {page} — نمایش مدرس
+                  </span>
                 )}
                 {isInstructor && (
                   <>
@@ -195,7 +248,7 @@ export function WhiteboardFilePanel({
                         target="_blank"
                         rel="noopener noreferrer"
                         download
-                        className="rounded-md border border-white/10 px-2 py-1 text-[10px] text-slate-300 hover:bg-white/10"
+                        className="rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted"
                       >
                         دانلود اصلی ({formatFileSize(active.fileSize)})
                       </a>
@@ -203,7 +256,7 @@ export function WhiteboardFilePanel({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 px-2 text-red-400 hover:bg-red-400/10 hover:text-red-300"
+                      className="size-7 px-2 text-destructive hover:bg-destructive/10"
                       onClick={async () => {
                         if (!confirm("این فایل از تخته حذف شود؟")) return;
                         try {
@@ -213,6 +266,7 @@ export function WhiteboardFilePanel({
                           toast.error(e instanceof Error ? e.message : "خطا");
                         }
                       }}
+                      title="حذف فایل"
                     >
                       <Trash2 className="size-3.5" />
                     </Button>
@@ -227,23 +281,28 @@ export function WhiteboardFilePanel({
                 <img
                   src={slideUrl}
                   alt={`اسلاید ${page}`}
-                  className="max-h-[460px] w-full rounded-lg border border-white/10 bg-black/30 object-contain"
+                  className="max-h-[460px] w-full rounded-lg border border-border bg-muted object-contain"
                 />
-                {!isInstructor && (
-                  <div className="absolute inset-0" aria-hidden="true" />
-                )}
               </div>
             )}
 
-            {/* PDF — page locked via #page=N; students can't scroll inside */}
+            {/* PDF — the viewer is keyed on the page so a page change remounts
+                it; otherwise browsers keep the previously rendered page and the
+                student's view appears frozen. */}
             {isPdf && active.url && (
               <div
-                className={!isInstructor ? "pointer-events-none select-none" : ""}
+                ref={viewerRef}
+                className={cn(
+                  "overflow-hidden rounded-lg border border-border bg-muted",
+                  isFullscreen && "flex h-screen items-center justify-center bg-background p-4",
+                  !isInstructor && "pointer-events-none select-none",
+                )}
               >
                 <embed
-                  src={`${active.url}#page=${page}&toolbar=0&navpanes=0&scrollbar=0`}
+                  key={`${active._id}-${page}`}
+                  src={`${active.url}#page=${page}&view=FitH&toolbar=0&navpanes=0&scrollbar=0`}
                   type="application/pdf"
-                  className="h-[440px] w-full rounded-lg border border-white/10 bg-black/30"
+                  className={cn("w-full", isFullscreen ? "h-screen" : "h-[440px]")}
                 />
               </div>
             )}
@@ -252,12 +311,12 @@ export function WhiteboardFilePanel({
               <img
                 src={active.url}
                 alt={active.fileName}
-                className="max-h-[420px] w-full rounded-lg border border-white/10 object-contain bg-black/30"
+                className="max-h-[420px] w-full rounded-lg border border-border bg-muted object-contain"
               />
             )}
 
             {isLegacyPpt && (
-              <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-3 text-xs text-amber-300">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-600">
                 این فایل با قالب قدیمی PowerPoint (.ppt) است و نمایش اسلایدی آن
                 در مرورگر پشتیبانی نمی‌شود. برای نمایش صفحه‌به‌صفحه، فایل را با
                 پسوند <span dir="ltr" className="font-bold">.pptx</span> ذخیره و
@@ -266,7 +325,7 @@ export function WhiteboardFilePanel({
             )}
 
             {slideUrl && !isInstructor && (
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10.5px] text-muted-foreground">
                 اسلایدها به‌صورت زنده و هم‌گام با مدرس نمایش داده می‌شوند؛
                 حرکت بین اسلایدها فقط با مدرس است.
               </p>

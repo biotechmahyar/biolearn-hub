@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { forceReloadAfterThemeChange } from "@/lib/forceReload";
 import { Check, Moon, Paintbrush, Settings2, Sun, Type } from "lucide-react";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
@@ -82,8 +83,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const value: SettingsContextValue = {
     settings,
-    setTheme: (theme) => setSettings((s) => ({ ...s, theme })),
-    setAccent: (accent) => setSettings((s) => ({ ...s, accent })),
+    setTheme: (theme) => {
+      setSettings((s) => ({ ...s, theme }));
+      forceReloadAfterThemeChange();
+    },
+    setAccent: (accent) => {
+      setSettings((s) => ({ ...s, accent }));
+      // A theme/accent change is followed by a hard reload so every portal
+      // layer (dialogs, popovers, iframes) is rebuilt with the new tokens.
+      forceReloadAfterThemeChange();
+    },
     setFont: (font) => setSettings((s) => ({ ...s, font })),
   };
 

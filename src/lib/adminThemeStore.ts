@@ -3,6 +3,7 @@
 // keeps using the global settings provider. Mirrors lib/modeStore.
 
 import { useSyncExternalStore, useCallback } from "react";
+import { forceReloadAfterThemeChange } from "@/lib/forceReload";
 
 export type AdminTheme = "light" | "dark";
 
@@ -32,6 +33,8 @@ function write(theme: AdminTheme) {
       // ignore listener errors
     }
   }
+  // Hard reload so portal layers pick up the new palette immediately.
+  forceReloadAfterThemeChange();
 }
 
 function subscribe(callback: () => void) {

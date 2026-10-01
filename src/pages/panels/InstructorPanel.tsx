@@ -9,6 +9,7 @@ import { LessonContentEditor } from "@/components/site/LessonContentEditor";
 import { CourseManageView } from "@/components/site/CourseManageView";
 import { WhiteboardCanvas, type WbTool } from "@/components/site/WhiteboardCanvas";
 import { WhiteboardFilePanel } from "@/components/site/WhiteboardFilePanel";
+import { LiveActivityToasts } from "@/components/site/LiveActivityToasts";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useMode } from "@/hooks/useMode";
@@ -659,7 +660,7 @@ function PaymentsView() {
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-bold text-foreground">{p.amount.toLocaleString("fa-IR")} تومان</span>
                   <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                    p.status === "paid" ? "bg-emerald-50/70 text-emerald-600"
+                    p.status === "paid" ? "bg-emerald-50 text-emerald-600"
                     : p.status === "pending" ? "bg-amber-50 text-amber-600"
                     : "bg-destructive/10 text-destructive"
                   }`}>
@@ -1052,7 +1053,7 @@ function CoursesMineView({ onManageCourse }: { onManageCourse: (courseId: string
   const courses = myCourses;
 
   const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-    published: { label: "منتشر", cls: "bg-emerald-50/70 text-emerald-600" },
+    published: { label: "منتشر", cls: "bg-emerald-50 text-emerald-600" },
     approved: { label: "تأیید شده", cls: "bg-primary/15 text-primary" },
     pending: { label: "در بررسی", cls: "bg-amber-50 text-amber-600" },
     draft: { label: "پیش‌نویس", cls: "bg-slate-400/15 text-muted-foreground" },
@@ -1337,7 +1338,7 @@ function ResourcesView() {
               {!isFree && (
                 <>
                   <Input type="number" placeholder="قیمت پایه (تومان)" value={price} onChange={(e) => setPrice(e.target.value)} />
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-xs space-y-1">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs space-y-1">
                     <p className="text-amber-600 font-bold">قیمت با کارمزد سایت (۴٪):</p>
                     <p className="text-muted-foreground">قیمت پایه: {formatPriceNumber(basePrice)} تومان</p>
                     <p className="text-muted-foreground">کارمزد سایت (۴٪): {formatPriceNumber(commission)} تومان</p>
@@ -1439,7 +1440,7 @@ function CalendarView() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-destructive/10 px-2.5 py-1 text-[10px] font-bold text-destructive">LIVE</span>
-                  <button onClick={() => handleEndLive(r._id)} className="rounded-md bg-amber-50/70 px-2 py-1 text-[10px] font-bold text-amber-600 hover:bg-amber-100">پایان کلاس</button>
+                  <button onClick={() => handleEndLive(r._id)} className="rounded-md bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-600 hover:bg-amber-50">پایان کلاس</button>
                 </div>
               </div>
             ))}
@@ -2200,7 +2201,7 @@ function QAView({ rooms }: { rooms: RoomRow[] }) {
             </Card>
           ) : (
             questions.map((q: any) => (
-              <Card key={q._id} className={`border-border ${q.answer ? "bg-background" : "bg-amber-50/70"}`}>
+              <Card key={q._id} className={`border-border ${q.answer ? "bg-background" : "bg-amber-50"}`}>
                 <CardContent className="space-y-3 py-4">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm text-foreground">{q.text}</p>
@@ -2728,18 +2729,18 @@ function RoomsView({
 
       {/* ── Request form (to admin) ── */}
       {showRequest && (
-        <Card className="border-amber-200 bg-amber-50/70">
+        <Card className="border-amber-200 bg-amber-50">
           <CardHeader>
             <CardTitle className="text-sm text-amber-600">درخواست تشکیل کلاس</CardTitle>
-            <p className="text-xs text-amber-600/60 mt-1">درخواست شما برای مدیر سایت ارسال می‌شود.</p>
+            <p className="mt-1 text-xs text-muted-foreground">درخواست شما برای مدیر سایت ارسال می‌شود.</p>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input placeholder="عنوان کلاس" value={title} onChange={(e) => setTitle(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
             <Input placeholder="موضوع" value={topic} onChange={(e) => setTopic(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
             <Textarea placeholder="توضیح…" value={description} onChange={(e) => setDescription(e.target.value)} className="border-border bg-muted text-foreground placeholder:text-muted-foreground" />
             <JalaliDatePicker value={immediate ? "" : proposedDate} onChange={setProposedDate} placeholder="تاریخ پیشنهادی" className="w-full" />
-            <label className="flex items-center gap-2 text-sm text-amber-600 cursor-pointer">
-              <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} className="size-4 rounded border-amber-200 bg-amber-50 accent-amber-400" />
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+              <input type="checkbox" checked={immediate} onChange={(e) => setImmediate(e.target.checked)} className="size-4 rounded border-border accent-primary" />
               <span>فوری — بدون زمان مشخص ارسال شود</span>
             </label>
             <div className="flex justify-end gap-2">
@@ -2771,11 +2772,11 @@ function RoomsView({
 
       {/* Pending requests */}
       {myPending.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/70">
+        <Card className="border-amber-200 bg-amber-50">
           <CardHeader><CardTitle className="text-sm text-amber-600">درخواست‌های در انتظار</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {myPending.map((r: any) => (
-              <div key={r._id} className="flex items-center justify-between rounded-lg border border-amber-400/10 bg-background p-3">
+              <div key={r._id} className="flex items-center justify-between rounded-lg border border-amber-200 bg-card p-3">
                 <div>
                   <p className="text-sm font-medium text-foreground">{r.title}</p>
                   <p className="text-xs text-muted-foreground">تاریخ پیشنهادی: {r.proposedDate ? formatJalaliFull(r.proposedDate) : "—"}</p>
@@ -3181,7 +3182,7 @@ function RoomView({
                 <Mic className="size-4 text-emerald-600" />
                 <p className="text-sm font-bold text-emerald-700">مدیریت صدا</p>
                 {(voiceRequests.speakers?.length ?? 0) > 0 && (
-                  <span className="rounded-full bg-emerald-50/70 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
                     {(voiceRequests.speakers?.length ?? 0)} فعال
                   </span>
                 )}
@@ -3196,7 +3197,7 @@ function RoomView({
                 <div className="space-y-2">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">درخواست‌های صحبت</p>
                   {voiceRequests.requests!.map((req) => (
-                    <div key={req.userId} className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                    <div key={req.userId} className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
                       <span className="text-xs font-bold text-foreground">{req.name}</span>
                       <div className="flex gap-1.5">
                         <Button size="sm" className="h-7 text-[10px] bg-emerald-500 hover:bg-emerald-500" onClick={async () => {
@@ -3226,7 +3227,7 @@ function RoomView({
                 <div className="space-y-2">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">گویندگان فعال</p>
                   {voiceRequests.speakers!.map((sp: { userId: string; name: string }) => (
-                    <div key={sp.userId} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+                    <div key={sp.userId} className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
                       <span className="flex items-center gap-1.5 text-xs font-bold text-foreground">
                         <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
                         {sp.name}
@@ -3267,6 +3268,14 @@ function RoomView({
         </div>
       )}
 
+      {/* Student messages / questions pop up for ten seconds */}
+      {(detail?.messages ?? []).length > 0 && (
+        <LiveActivityToasts
+          messages={(detail?.messages ?? []) as any}
+          onOpen={() => setSubTab("chat")}
+        />
+      )}
+
       {subTab === "chat" && (
         <>
       {/* Chat stream */}
@@ -3286,8 +3295,8 @@ function RoomView({
                 className={`rounded-lg border p-3 ${
                   isQuestion
                     ? answered
-                      ? "border-emerald-200 bg-emerald-50/60"
-                      : "border-amber-200 bg-amber-50/70"
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-amber-200 bg-amber-50"
                     : "border-border bg-background"
                 }`}
               >
@@ -3421,7 +3430,7 @@ function RoomView({
               <button
                 onClick={() => setAsQuestion(true)}
                 className={`rounded-md px-3 py-1.5 text-xs font-bold transition-colors ${
-                  asQuestion ? "bg-amber-100 text-amber-600" : "text-muted-foreground"
+                  asQuestion ? "bg-amber-50 text-amber-600" : "text-muted-foreground"
                 }`}
               >
                 سؤال
@@ -4724,7 +4733,7 @@ function InstructorSupportView() {
     switch (s) {
       case "open": case "waiting_for_teacher": return "bg-amber-50 text-amber-600";
       case "waiting_for_student": return "bg-blue-400/15 text-blue-300";
-      case "resolved": return "bg-emerald-50/70 text-emerald-600";
+      case "resolved": return "bg-emerald-50 text-emerald-600";
       case "closed": return "bg-muted text-muted-foreground";
       default: return "bg-muted text-muted-foreground";
     }

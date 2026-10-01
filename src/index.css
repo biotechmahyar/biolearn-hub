@@ -602,6 +602,15 @@
 :root.dark .desk-scope .bg-indigo-50 {
   background-color: oklch(0.28 0.06 264);
 }
+:root.dark .desk-scope .border-amber-200 {
+  border-color: oklch(0.4 0.07 80);
+}
+:root.dark .desk-scope .border-emerald-200 {
+  border-color: oklch(0.4 0.07 155);
+}
+:root.dark .desk-scope .border-rose-200 {
+  border-color: oklch(0.42 0.08 20);
+}
 :root.dark .desk-scope .text-emerald-600 {
   color: oklch(0.82 0.16 155);
 }
@@ -625,6 +634,23 @@
 }
 :root.dark .desk-scope .desk-hero-gradient {
   background-image: linear-gradient(to left, oklch(0.4 0.16 274), oklch(0.46 0.15 288), oklch(0.44 0.14 258));
+}
+
+/* ── Live class popups ─────────────────────────────────────────────────────
+   Student messages and questions float above the classroom for ten seconds;
+   the underline drains as the timer runs. */
+@keyframes genova-toast-drain {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.genova-toast-progress {
+  transform-origin: right center;
+  animation: genova-toast-drain 10s linear forwards;
 }
 
 /* Cards inside the admin canvas: white, hairline border, soft lift. */

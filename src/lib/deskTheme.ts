@@ -10,6 +10,7 @@
 // lib/adminThemeStore.
 
 import { useCallback, useSyncExternalStore } from "react";
+import { forceReloadAfterThemeChange } from "@/lib/forceReload";
 
 export type DeskTheme = "light" | "dark";
 
@@ -51,6 +52,9 @@ function write(key: string, theme: DeskTheme) {
       // ignore listener errors
     }
   });
+  // Every desk theme switch ends in a hard reload so portal layers (dialogs,
+  // popovers, the live-class iframes) pick the new palette up as well.
+  forceReloadAfterThemeChange();
 }
 
 /**

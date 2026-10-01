@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 async function getCurrentUser(ctx: any) {
@@ -61,6 +62,14 @@ export const createTicket = mutation({
       isRead: false,
       createdAt: now,
     });
+
+    // Sweep tickets that were closed more than two weeks ago (legacy ones that
+    // predate the scheduled cleanup) while a mutation is already running.
+    try {
+      await purgeExpiredTickets(ctx);
+    } catch {
+      // cleanup is best effort
+    }
 
     return { ticketId };
   },
@@ -220,6 +229,37 @@ export const markAsRead = mutation({
 });
 
 // ── Update ticket status ───────────────────────────────────────────────────
+/**
+ * Tickets that a teacher closes are kept for two weeks so the student can
+ * still read the thread, then removed automatically.
+ */
+const CLOSED_TICKET_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Internal: drop every closed/resolved ticket older than the TTL. */
+async function purgeExpiredTickets(ctx: any) {
+  const cutoff = Date.now() - CLOSED_TICKET_TTL_MS;
+  const closed = await ctx.db
+    .query("supportTickets")
+    .filter((q: any) =>
+      q.or(
+        q.eq(q.field("status"), "closed"),
+        q.eq(q.field("status"), "resolved"),
+      ),
+    )
+    .collect();
+  const expired = closed.filter((t: any) => (t.updatedAt ?? t.createdAt) < cutoff);
+  for (const t of expired) {
+    // Only the ticket document goes away; its messages are removed with it by
+    // the same pass so no orphans are left behind.
+    try {
+      await ctx.db.delete(t._id);
+    } catch {
+      // already gone
+    }
+  }
+  return expired.length;
+}
+
 export const updateTicketStatus = mutation({
   args: {
     ticketId: v.id("supportTickets"),
@@ -239,8 +279,40 @@ export const updateTicketStatus = mutation({
     if (ticket.teacherId !== user._id && ticket.studentId !== user._id) {
       throw new Error("دسترسی غیرمجاز.");
     }
-    await ctx.db.patch(args.ticketId, { status: args.status, updatedAt: Date.now() });
+    const now = Date.now();
+    await ctx.db.patch(args.ticketId, { status: args.status, updatedAt: now });
+
+    // Closing a ticket schedules its own cleanup in two weeks.
+    if (args.status === "closed" || args.status === "resolved") {
+      try {
+        await ctx.scheduler.runAfter(
+          CLOSED_TICKET_TTL_MS,
+          internal.ticketCleanup.deleteExpiredTicket,
+          { ticketId: args.ticketId },
+        );
+      } catch {
+        // scheduler unavailable — the sweep in createTicket still cleans up
+      }
+    }
+
+    // Sweep any ticket that was closed more than two weeks ago.
+    try {
+      await purgeExpiredTickets(ctx);
+    } catch {
+      // cleanup is best effort
+    }
     return { ok: true };
+  },
+});
+
+/** Manual sweep (admin / teacher panel button). */
+export const purgeOldClosedTickets = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("ابتدا وارد حساب شوید.");
+    const deleted = await purgeExpiredTickets(ctx);
+    return { deleted };
   },
 });
 
