@@ -23,7 +23,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertTriangle,
-  BarChart3,
   Bot,
   Check,
   ChevronDown,
@@ -70,21 +69,6 @@ const SAVED_PROMPTS = [
   "یک خلاصهٔ ساختاری از DNA و نقش آن در وراثت بنویس.",
   "سوالات پرتکرار آزمون زیست‌شناسی کنکور را با پاسخ کوتاه فهرست کن.",
 ];
-
-const STARTERS = [
-  { icon: BarChart3, title: "جمع‌بندی داده", body: "یک متن یا جزوه را به ۵ نکتهٔ کلیدی تبدیل کن." },
-  { icon: Wand2, title: "ایده‌پردازی خلاق", body: "برای یک پروژهٔ کلاسی زیست‌شناسی ایده بساز." },
-  { icon: FileText, title: "بررسی واقعیت", body: "ادعای علمی را بسنج و منابع را فهرست کن." },
-];
-
-/** Which card floats where around the orb on desktop. */
-const STARTER_KEYS: Record<string, "top" | "right" | "left"> = {
-  "جمع‌بندی داده": "top",
-  "ایده‌پردازی خلاق": "right",
-  "بررسی واقعیت": "left",
-};
-
-const STARTER_KEYS_ORDER = { top: 0, right: 1, left: 2 } as const;
 
 type Range = "today" | "week" | "older";
 type HistoryFilter = "all" | Range;
@@ -344,109 +328,55 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   );
 });
 
-// ── Saved prompt chips (float in the space between the cards) ────────────
-const SavedPromptsChips = memo(function SavedPromptsChips({
+// ── Saved prompt cards, arranged in two or three rows under the orb ──────
+const SavedPromptsGrid = memo(function SavedPromptsGrid({
   onPick,
 }: {
   onPick: (prompt: string) => void;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.15, ease: "easeOut" }}
-      className="flex max-w-xl flex-wrap items-center justify-center gap-1.5"
+      transition={{ duration: 0.5, delay: 0.12, ease: "easeOut" }}
+      className="w-full max-w-3xl"
     >
-      <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+      <p className="mb-2.5 flex items-center justify-center gap-1.5 text-[11.5px] font-semibold text-muted-foreground">
         <Lightbulb className="size-3.5" />
         پرامپت‌های آماده
-      </span>
-      {SAVED_PROMPTS.map((p, i) => (
-        <motion.button
-          key={p}
-          type="button"
-          onClick={() => onPick(p)}
-          title={p}
-          animate={{ y: [0, -4, 0] }}
-          transition={{
-            duration: 4 + (i % 3) * 0.7,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.25,
-          }}
-          whileHover={{ y: -6, scale: 1.03 }}
-          className="rounded-full border border-border bg-card/80 px-3 py-1.5 text-[11.5px] text-muted-foreground shadow-sm backdrop-blur transition-colors hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-        >
-          {p.length > 38 ? `${p.slice(0, 38)}…` : p}
-        </motion.button>
-      ))}
-    </motion.div>
-  );
-});
-
-// ── Starter cards orbiting the orb: one above, one right, one left ───────
-function StarterCard({
-  starter,
-  index,
-  onStarter,
-}: {
-  starter: (typeof STARTERS)[number];
-  index: number;
-  onStarter: (prompt: string) => void;
-}) {
-  return (
-    <motion.button
-      type="button"
-      onClick={() => onStarter(starter.body)}
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: [0, -7, 0] }}
-      transition={{
-        opacity: { duration: 0.5 },
-        y: { duration: 5.5 + index * 0.8, repeat: Infinity, ease: "easeInOut", delay: index * 0.4 },
-      }}
-      whileHover={{ y: -12, scale: 1.03 }}
-      whileTap={{ scale: 0.98 }}
-      className="group relative block w-full overflow-hidden rounded-3xl rounded-tr-md border border-border bg-card/90 p-4 text-right shadow-sm backdrop-blur transition-shadow hover:border-primary/40 hover:shadow-lg"
-    >
-      <span className="pointer-events-none absolute -left-8 -top-8 size-24 rounded-full bg-primary/10 blur-2xl" />
-      <span className="relative flex size-9 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-        <starter.icon className="size-4" />
-      </span>
-      <p className="relative mt-3 text-[13.5px] font-extrabold">{starter.title}</p>
-      <p className="relative mt-1.5 text-[12px] leading-5 text-muted-foreground">{starter.body}</p>
-      <span className="relative mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
-        <Send className="size-3" />
-        بپرس
-      </span>
-    </motion.button>
-  );
-}
-
-const FloatingStarters = memo(function FloatingStarters({
-  onStarter,
-  variant,
-}: {
-  onStarter: (prompt: string) => void;
-  /** "top" | "right" | "left" on desktop, or "stack" on small screens. */
-  variant: "top" | "right" | "left" | "stack";
-}) {
-  if (variant === "stack") {
-    return (
-      <div className="grid w-full max-w-3xl gap-3 sm:grid-cols-3 lg:hidden">
-        {STARTERS.map((s, i) => (
-          <StarterCard key={s.title} starter={s} index={i} onStarter={onStarter} />
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {SAVED_PROMPTS.map((p, i) => (
+          <motion.button
+            key={p}
+            type="button"
+            onClick={() => onPick(p)}
+            title={p}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: [0, -4, 0] }}
+            transition={{
+              opacity: { duration: 0.4, delay: 0.1 + i * 0.05 },
+              y: { duration: 4.5 + (i % 3) * 0.6, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 },
+            }}
+            whileHover={{ y: -6, scale: 1.02 }}
+            className="group flex items-start gap-2.5 rounded-2xl border border-border bg-card/80 p-3 text-right shadow-sm backdrop-blur transition-colors hover:border-primary/40 hover:bg-primary/5"
+          >
+            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Sparkles className="size-3.5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="line-clamp-2 block text-[12px] leading-5 text-foreground/90">
+                {p}
+              </span>
+              <span className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                <Send className="size-3" />
+                استفاده در چت
+              </span>
+            </span>
+          </motion.button>
         ))}
       </div>
-    );
-  }
-  return (
-    <div className="hidden w-full lg:block">
-      <StarterCard
-        starter={STARTERS.find((s) => STARTER_KEYS[s.title] === variant)!}
-        index={STARTER_KEYS_ORDER[variant]}
-        onStarter={onStarter}
-      />
-    </div>
+    </motion.div>
   );
 });
 
@@ -832,11 +762,6 @@ export default function AIChat() {
     URL.revokeObjectURL(url);
     toast.success("فایل گفتگو دانلود شد");
   }, [selectedConvoDoc, transcript]);
-
-  const startStarter = useCallback(
-    (prompt: string) => void submitPrompt(prompt, null, deepResearch),
-    [deepResearch, submitPrompt],
-  );
 
   if (authLoading) {
     return (
@@ -1226,34 +1151,12 @@ export default function AIChat() {
           <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
             {!selectedConvo ? (
               <div className="flex flex-1 flex-col items-center gap-5 py-6">
-                {/* Desktop: the three cards orbit the orb — one above, one right,
-                    one left — with the saved prompts floating in the middle. */}
-                <div className="hidden w-full max-w-5xl grid-cols-1 items-center gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)_240px] lg:grid-rows-[auto_1fr]">
-                  <div className="lg:col-start-2 lg:row-start-1">
-                    <FloatingStarters onStarter={startStarter} variant="top" />
-                  </div>
-                  <div className="lg:col-start-1 lg:row-start-2">
-                    <FloatingStarters onStarter={startStarter} variant="left" />
-                  </div>
-                  <div className="flex flex-col items-center gap-4 text-center lg:col-start-2 lg:row-start-2">
-                    <EmptyHero firstName={firstName} />
-                    <SavedPromptsChips
-                      onPick={(prompt) => composerRef.current?.setText(prompt)}
-                    />
-                  </div>
-                  <div className="lg:col-start-3 lg:row-start-2">
-                    <FloatingStarters onStarter={startStarter} variant="right" />
-                  </div>
-                </div>
+                <EmptyHero firstName={firstName} />
 
-                {/* Small screens: stacked */}
-                <div className="flex w-full flex-col items-center gap-5 lg:hidden">
-                  <EmptyHero firstName={firstName} />
-                  <SavedPromptsChips
-                    onPick={(prompt) => composerRef.current?.setText(prompt)}
-                  />
-                  <FloatingStarters onStarter={startStarter} variant="stack" />
-                </div>
+                {/* Two or three rows of saved prompts, right under the orb */}
+                <SavedPromptsGrid
+                  onPick={(prompt) => composerRef.current?.setText(prompt)}
+                />
 
                 <div className="w-full max-w-2xl">
                   <Composer
