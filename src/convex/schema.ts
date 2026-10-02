@@ -1760,6 +1760,40 @@ const schema = defineSchema(
     })
       .index("by_user", ["userId"])
       .index("by_user_archived", ["userId", "archived"]),
+    // ── Fly experiments (Phase C) ──────────────────────────────────────────
+    // A student-defined experiment on one of their flies. The condition and the
+    // stimulus are the student's *inputs*; any result produced later is stored
+    // separately and must state its kind (observation vs simulation vs real VFB
+    // data). The neural target stores only the VFB id + label that was returned.
+    flyExperiments: defineTable({
+      userId: ID("users"),
+      flyId: ID("virtualFlies"),
+      name: STR(),
+      objective: OPT(STR()),
+      condition: OPT(STR()),
+      // Stimulus applied by this experiment (drives the simulated fly).
+      stimulusKind: UN(L("none"), L("light"), L("odor"), L("temperature"), L("mechanical")),
+      stimulusIntensity: NUM(),
+      // Neural target — real VFB entity, stored as provenance only.
+      target: OPT(
+        OBJ({
+          vfbId: STR(),
+          label: STR(),
+          entityType: OPT(STR()),
+          source: STR(),
+          accessedAt: NUM(),
+        }),
+      ),
+      durationMin: NUM(),
+      params: OPT(STR()),
+      status: UN(L("draft"), L("in_progress"), L("completed")),
+      createdAt: NUM(),
+      updatedAt: NUM(),
+      completedAt: OPT(NUM()),
+    })
+      .index("by_user", ["userId"])
+      .index("by_fly", ["flyId"])
+      .index("by_user_status", ["userId", "status"]),
     // ── Genova Compute Game (blockchain-style token economy) ──────────────
     // Per-user wallet with a pseudo address plus an append-only hash-chained
     // ledger. Token amounts are integers (1 GVA = 1 unit).

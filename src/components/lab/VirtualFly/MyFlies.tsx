@@ -46,6 +46,7 @@ import { VFB_SOURCE } from "@/services/vfb/types";
 import { DataKindBadge } from "./dataKind";
 import { FlyBrainSnapshot } from "./FlyBrainSnapshot";
 import { FlyViewer } from "./FlyViewer";
+import { FlyExperiments } from "./FlyExperiments";
 import { SEX_LABEL, STATUS_CHIP, STATUS_LABEL, type FlyRow, type FlySex, type FlyStatus } from "./types";
 import { VfbAnchorPicker, type VfbAnchor } from "./VfbAnchorPicker";
 
@@ -498,6 +499,11 @@ function FlyDetail({
         {/* Live brain status — real VFB data, read on demand. */}
         {fly.brainModel && <FlyBrainSnapshot fly={fly} onOpenBrain={onOpenBrain} />}
 
+        {/* Experiments — builder + workspace, scoped to this fly. */}
+        <section className="border-t border-emerald-900/5 pt-4">
+          <FlyExperiments fly={fly} onOpenBrain={onOpenBrain} />
+        </section>
+
         {/* Fly viewer — simulated behaviour, never presented as biology. */}
         <section className="border-t border-emerald-900/5 pt-4">
           <FlyViewer fly={fly} />
@@ -741,16 +747,14 @@ export function MyFlies({ onOpenBrain }: { onOpenBrain: (term: { id: string; lab
         </label>
       </div>
 
-      {/* Create / edit form */}
-      {mode !== "idle" && (
+      {/* Create form — shown above the bench when creating. */}
+      {mode === "create" && (
         <div className={cn(FRAME, "space-y-3 p-4 sm:p-5")}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[13px] font-extrabold text-slate-900">
-              {mode === "create" ? "ساخت مگس مجازی" : `ویرایش ${selected?.name ?? ""}`}
-            </p>
+            <p className="text-[13px] font-extrabold text-slate-900">ساخت مگس مجازی</p>
             <DataKindBadge kind="metadata" />
           </div>
-          <FlyForm form={form} setForm={setForm} idPrefix={mode === "create" ? "new-fly" : "edit-fly"} />
+          <FlyForm form={form} setForm={setForm} idPrefix="new-fly" />
           <div className="flex flex-wrap gap-1.5 pt-1">
             <Button
               type="button"
@@ -760,7 +764,7 @@ export function MyFlies({ onOpenBrain }: { onOpenBrain: (term: { id: string; lab
               className="h-9 gap-1.5 rounded-xl bg-emerald-700 px-4 text-[12px] text-white hover:bg-emerald-800"
             >
               {busy && <Loader2 className="size-3.5 animate-spin" />}
-              {mode === "create" ? "ساخت مگس" : "ذخیرهٔ تغییرات"}
+              ساخت مگس
             </Button>
             <Button
               type="button"
@@ -805,7 +809,44 @@ export function MyFlies({ onOpenBrain }: { onOpenBrain: (term: { id: string; lab
         </div>
 
         <div>
-          {selected ? (
+          {selected && mode === "edit" ? (
+            // The edit form replaces the detail panel so the "ویرایش" button
+            // opens the form right where the student is looking.
+            <div className={cn(FRAME, "space-y-3 p-4 sm:p-5")}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-[13px] font-extrabold text-slate-900">
+                  <Pencil className="size-3.5 text-emerald-600" />
+                  ویرایش {selected.name}
+                </p>
+                <DataKindBadge kind="metadata" />
+              </div>
+              <p className="text-[10.5px] leading-5 text-slate-500">
+                شناسهٔ {selected.genovaFlyId} ثابت می‌ماند؛ برای دیدن اثر ذخیره، دکمهٔ «ذخیرهٔ تغییرات» را بزنید.
+              </p>
+              <FlyForm form={form} setForm={setForm} idPrefix="edit-fly" />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy}
+                  onClick={save}
+                  className="h-9 gap-1.5 rounded-xl bg-emerald-700 px-4 text-[12px] text-white hover:bg-emerald-800"
+                >
+                  {busy && <Loader2 className="size-3.5 animate-spin" />}
+                  ذخیرهٔ تغییرات
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={cancelForm}
+                  className="h-9 rounded-xl border-emerald-900/10 bg-white text-[12px] text-slate-700 hover:border-emerald-300"
+                >
+                  انصراف
+                </Button>
+              </div>
+            </div>
+          ) : selected ? (
             <FlyDetail
               fly={selected}
               busy={busy}

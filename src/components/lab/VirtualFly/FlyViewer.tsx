@@ -206,7 +206,16 @@ function drawArena(
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-export function FlyViewer({ fly }: { fly: FlyRow }) {
+export function FlyViewer({
+  fly,
+  stimulus,
+  locked,
+}: {
+  fly: FlyRow;
+  /** When set, the stimulus comes from an experiment and the controls lock. */
+  stimulus?: { kind: StimulusKind; intensity: number };
+  locked?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<BehaviorState>(SimpleLocomotionEngine.initialState());
   const rngRef = useRef<() => number>(createRng(1));
@@ -246,6 +255,16 @@ export function FlyViewer({ fly }: { fly: FlyRow }) {
     if (next.intensity !== undefined) setIntensity(next.intensity);
     syncControls(next);
   }, [syncControls]);
+
+  // Experiment-driven stimulus: when an experiment is running, the experiment
+  // owns the stimulus. The display value is derived during render (no state
+  // mirroring, no ref writes during render) and the animation loop's ref is
+  // synced from the prop inside an effect.
+  const effKind = stimulus ? stimulus.kind : stimulusKind;
+  const effIntensity = stimulus ? stimulus.intensity : intensity;
+  useEffect(() => {
+    if (stimulus) stimRef.current = { kind: stimulus.kind, intensity: stimulus.intensity };
+  }, [stimulus]);
 
   const reset = useCallback(() => {
     const next = (seedRef.current % 9999) + 1;
@@ -441,10 +460,11 @@ export function FlyViewer({ fly }: { fly: FlyRow }) {
             <button
               key={k}
               type="button"
+              disabled={locked}
               onClick={() => setAll({ stimulus: k })}
               className={cn(
-                "rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors",
-                stimulusKind === k
+                "rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                effKind === k
                   ? "bg-emerald-700 text-white"
                   : "bg-white text-slate-600 ring-1 ring-emerald-900/10 hover:bg-emerald-50",
               )}
@@ -460,15 +480,21 @@ export function FlyViewer({ fly }: { fly: FlyRow }) {
             min={0}
             max={1}
             step={0.05}
-            value={intensity}
+            value={effIntensity}
+            disabled={locked}
             onChange={(e) => setAll({ intensity: Number(e.target.value) })}
-            className="h-1.5 flex-1 accent-emerald-700"
+            className="h-1.5 flex-1 accent-emerald-700 disabled:opacity-60"
             aria-label="شدت محرک"
           />
           <span dir="ltr" className="w-9 text-left font-mono text-[10.5px] text-slate-600">
-            {intensity.toFixed(2)}
+            {effIntensity.toFixed(2)}
           </span>
         </label>
+        {locked && (
+          <p className="mt-2 rounded-lg bg-white px-2.5 py-1.5 text-[10.5px] leading-5 text-slate-500 ring-1 ring-emerald-900/10">
+            محرک توسط آزمایش تعیین شده است. برای تغییر، مقادیر آزمایش را ویرایش کنید تا اعمال شود.
+          </p>
+        )}
         <p className="mt-1.5 text-[10px] leading-5 text-slate-500">
           نگاشت «محرک → درایو عصبی → حرکت» در این نسخه یک تقریب heuristics است و بر پایهٔ هیچ دادهٔ عصبی
           کالیبره نشده است.

@@ -32,6 +32,7 @@ import type * as dailyQuizAdmin from "../dailyQuizAdmin.js";
 import type * as emailOtp from "../emailOtp.js";
 import type * as enroll from "../enroll.js";
 import type * as examReports from "../examReports.js";
+import type * as flyExperiments from "../flyExperiments.js";
 import type * as game from "../game.js";
 import type * as googleAuth from "../googleAuth.js";
 import type * as http from "../http.js";
@@ -104,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   emailOtp: typeof emailOtp;
   enroll: typeof enroll;
   examReports: typeof examReports;
+  flyExperiments: typeof flyExperiments;
   game: typeof game;
   googleAuth: typeof googleAuth;
   http: typeof http;

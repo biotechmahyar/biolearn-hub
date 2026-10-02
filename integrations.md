@@ -300,3 +300,70 @@ mapping is monotonic and heuristic; `mechanical` is modelled as an immediate sto
 One `requestAnimationFrame` loop drawing straight to a 2D canvas; React state is refreshed only
 ~5×/s for the telemetry panel, so frame rate is independent of the React tree. The loop pauses when
 the tab is hidden and cancels on unmount. `dt` is clamped so a stalled frame cannot teleport the fly.
+
+# Fly Experiments (Phase C) — Genova Virtual Lab
+
+## What this phase adds
+
+A fly experiment is a **student-authored protocol** attached to one of the student's own
+`virtualFlies` rows: objective, condition, stimulus + intensity, duration, and an optional
+*neural target* that must be a real Virtual Fly Brain entity chosen through `VfbAnchorPicker`.
+
+It is the bridge between Phase B (a fly you can watch) and Phase D (writing down what you
+observed). The workspace holds the protocol, edits autosave on blur, and drives the `FlyViewer`
+with the experiment's own stimulus in `locked` mode.
+
+## Schema — `flyExperiments`
+
+| Field | Meaning |
+|---|---|
+| `userId` | owner (auth-scoping) |
+| `flyId` | the fly this experiment runs on |
+| `name`, `objective`, `condition`, `params` | free text written by the student |
+| `stimulusKind`, `stimulusIntensity` | `none/light/odor/temperature/mechanical`, 0–1 |
+| `target` | **REAL DATA** — `{ vfbId, label, entityType, source, accessedAt }` captured from VFB |
+| `durationMin` | 1–600 |
+| `status` | `draft` / `in_progress` / `completed` (+`completedAt`) |
+| `createdAt`, `updatedAt` | |
+
+Indexes: `by_fly`, `by_user`, `by_user_status`.
+
+## Endpoints
+
+| Function | Purpose |
+|---|---|
+| `listMyExperiments({ flyId? })` | caller's experiments, newest first; `[]` when anonymous |
+| `myExperimentSummary()` | counts per status; zeros when anonymous |
+| `createExperiment(...)` | verifies fly ownership, caps 40 experiments/fly |
+| `updateExperiment(...)` | ownership + fly-ownership re-check on every write |
+| `deleteExperiment(...)` | ownership checked |
+
+`requireOwnFly(ctx, userId, flyId)` is typed with `MutationCtx` + `GenericId<"virtualFlies">`, so a
+student cannot attach an experiment to another student's fly. `flyId` is validated by
+`v.id("virtualFlies")` before the handler runs, and `stimulusKind` / `status` are validated
+unions, so unknown enum values are rejected at the edge.
+
+## Stimulus binding
+
+`FlyViewer` gained `stimulus?: { kind, intensity }` and `locked?: boolean`. When a stimulus prop is
+present the viewer **derives** the displayed value during render (no mirrored state, no ref writes
+during render) and syncs the animation-loop ref from the prop in an effect, so changing the
+experiment's stimulus immediately changes the simulation input.
+
+## Autosave
+
+The workspace form saves on blur (`onBlur` → `updateExperiment`), not on every keystroke, so a
+half-typed word never reaches the database. Errors surface through `sonner` toasts.
+
+## Explicit limitation — no results are written yet
+
+This phase stores **protocol only**. There is no observation row, no measurement, and no result
+record. The `FlyViewer` output stays labelled SIMULATION and the fly never "produces data". The
+workspace says so on screen. Result capture is Phase D; do not backfill fake numbers to fill the
+gap.
+
+## Scientific status
+
+`target` is the only field carrying scientific source data, and it holds nothing except what the
+VFB API returned plus the moment it was read. Binding an experiment to `FBbt_00003748` (medulla)
+records provenance — it does **not** claim the simulation is driven by that brain region.
