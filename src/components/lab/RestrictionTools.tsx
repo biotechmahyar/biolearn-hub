@@ -171,7 +171,7 @@ function AiInterpretButton({ resultText, toolName }: { resultText: string; toolN
   return (
     <div>
       <Button size="sm" variant="outline"
-        className="h-8 gap-1.5 border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-300 hover:bg-rose-500/20 hover:text-rose-200"
+        className="h-8 gap-1.5 border-rose-500/30 bg-rose-500/10 text-[11px] text-rose-600 hover:bg-rose-500/20 hover:text-rose-700"
         onClick={handleInterpret} disabled={loading}>
         {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
         تفسیر با هوش مصنوعی
@@ -180,10 +180,10 @@ function AiInterpretButton({ resultText, toolName }: { resultText: string; toolN
         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
           className="mt-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
           <div className="flex items-start gap-2">
-            <Sparkles className="size-4 shrink-0 text-rose-400 mt-0.5" />
+            <Sparkles className="size-4 shrink-0 text-rose-600 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-rose-300">تفسیر هوش مصنوعی</p>
-              <p className="mt-1 text-[11px] leading-6 text-rose-200/70">نتایج به چت هوش مصنوعی ارسال شد. برای مشاهده تفسیر کامل به بخش AI Chat سایت مراجعه کنید.</p>
+              <p className="text-xs font-bold text-rose-600">تفسیر هوش مصنوعی</p>
+              <p className="mt-1 text-[11px] leading-6 text-rose-700/70">نتایج به چت هوش مصنوعی ارسال شد. برای مشاهده تفسیر کامل به بخش AI Chat سایت مراجعه کنید.</p>
             </div>
           </div>
         </motion.div>
@@ -219,21 +219,21 @@ export function RestrictionMapperTool() {
         </div>
         <div>
           <h2 className="text-lg font-bold">Restriction Mapper</h2>
-          <p className="text-[11px] text-white/40">جستجوی جایگاه برش آنزیم‌های محدودکننده در توالی DNA</p>
+          <p className="text-[11px] text-slate-400">جستجوی جایگاه برش آنزیم‌های محدودکننده در توالی DNA</p>
         </div>
       </div>
 
       <div className="space-y-3">
-        <Label className="text-[11px] text-white/50">🧬 ورودی توالی DNA</Label>
+        <Label className="text-[11px] text-slate-500">🧬 ورودی توالی DNA</Label>
         <Textarea value={seq} onChange={(e) => setSeq(e.target.value)} rows={4}
           placeholder="مثال: CGCGCTAGATGTTTCTGCGCCAATGCAGGTAAGTAATACTCGCTGGATGCCGAGTCCGGAC..."
-          className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+          className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
       </div>
 
       <div className="space-y-2">
-        <Label className="text-[11px] text-white/50">🔎 جستجوی آنزیم خاص (اختیاری)</Label>
+        <Label className="text-[11px] text-slate-500">🔎 جستجوی آنزیم خاص (اختیاری)</Label>
         <select value={enzymeFilter} onChange={(e) => setEnzymeFilter(e.target.value)}
-          className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-white/80">
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700">
           <option value="__all__">همه آنزیم‌ها</option>
           {ENZYME_DB.map((e) => <option key={e.name} value={e.name}>{e.name} ({e.site})</option>)}
         </select>
@@ -244,7 +244,7 @@ export function RestrictionMapperTool() {
           <Scissors className="size-3.5" /> جستجوی جایگاه برش
         </Button>
         {result && (
-          <Button variant="outline" size="sm" className="gap-2 border-white/[0.08] text-[11px]"
+          <Button variant="outline" size="sm" className="gap-2 border-slate-200 text-[11px]"
             onClick={() => {
               const rows = [["آنزیم", "جایگاه برش", "نوع برش", "تعداد", "موقعیت‌ها"]];
               result.sites.forEach((s) => rows.push([s.enzyme.name, s.enzyme.site, getCutDescription(s.enzyme), String(s.positions.length), s.positions.join(" ، ")]));
@@ -258,41 +258,41 @@ export function RestrictionMapperTool() {
       {result && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-[12px]">
-            <span className="text-white/50">📊 نتایج جستجو</span>
-            <Badge variant="outline" className="text-[10px] border-white/[0.08] bg-white/[0.03]">{result.sites.length} آنزیم · {result.total} جایگاه</Badge>
+            <span className="text-slate-500">📊 نتایج جستجو</span>
+            <Badge variant="outline" className="text-[10px] border-slate-200 bg-slate-50">{result.sites.length} آنزیم · {result.total} جایگاه</Badge>
           </div>
 
           {result.sites.length === 0 ? (
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-              <AlertTriangle className="mx-auto mb-2 size-5 text-amber-400" />
-              <p className="text-[12px] text-amber-300">هیچ جایگاه برشی یافت نشد.</p>
+              <AlertTriangle className="mx-auto mb-2 size-5 text-amber-600" />
+              <p className="text-[12px] text-amber-700">هیچ جایگاه برشی یافت نشد.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full text-[11px]">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">آنزیم</th>
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">جایگاه برش</th>
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">نوع برش</th>
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">تعداد</th>
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">موقعیت‌ها</th>
+                  <tr className="border-b border-slate-200 bg-slate-50/70">
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">آنزیم</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">جایگاه برش</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">نوع برش</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">تعداد</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">موقعیت‌ها</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.sites.map((s) => (
-                    <tr key={s.enzyme.name} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                      <td className="px-3 py-2 font-mono font-bold text-rose-300">{s.enzyme.name}</td>
-                      <td className="px-3 py-2 font-mono text-white/70">{s.enzyme.site}</td>
+                    <tr key={s.enzyme.name} className="border-b border-slate-200 hover:bg-slate-50/70">
+                      <td className="px-3 py-2 font-mono font-bold text-rose-600">{s.enzyme.name}</td>
+                      <td className="px-3 py-2 font-mono text-slate-600">{s.enzyme.site}</td>
                       <td className="px-3 py-2">
                         <Badge variant="outline" className={`text-[9px] ${
-                          s.enzyme.cutType === "blunt" ? "border-amber-500/30 text-amber-400" :
-                          s.enzyme.cutType === "5' sticky" ? "border-cyan-500/30 text-cyan-400" :
-                          "border-violet-500/30 text-violet-400"
+                          s.enzyme.cutType === "blunt" ? "border-amber-500/30 text-amber-600" :
+                          s.enzyme.cutType === "5' sticky" ? "border-cyan-500/30 text-teal-600" :
+                          "border-violet-500/30 text-emerald-600"
                         }`}>{getCutDescription(s.enzyme)}</Badge>
                       </td>
-                      <td className="px-3 py-2 text-white/70">{s.positions.length}</td>
-                      <td className="px-3 py-2 font-mono text-[10px] text-white/50">{s.positions.join(" ، ")}</td>
+                      <td className="px-3 py-2 text-slate-600">{s.positions.length}</td>
+                      <td className="px-3 py-2 font-mono text-[10px] text-slate-500">{s.positions.join(" ، ")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -367,7 +367,7 @@ export function EnzymeSearchTool() {
         </div>
         <div>
           <h2 className="text-lg font-bold">جستجوی آنزیم</h2>
-          <p className="text-[11px] text-white/40">۴ نوع جستجوی مختلف برای آنزیم‌های محدودکننده</p>
+          <p className="text-[11px] text-slate-400">۴ نوع جستجوی مختلف برای آنزیم‌های محدودکننده</p>
         </div>
       </div>
 
@@ -381,7 +381,7 @@ export function EnzymeSearchTool() {
         ]).map((m) => (
           <button key={m.id} onClick={() => { setMode(m.id); setResult(null); }}
             className={`rounded-xl border p-3 text-right text-[11px] transition-all ${
-              mode === m.id ? "border-rose-500/40 bg-rose-500/10 text-rose-300" : "border-white/[0.06] bg-white/[0.02] text-white/40 hover:bg-white/[0.04]"
+              mode === m.id ? "border-rose-500/40 bg-rose-500/10 text-rose-600" : "border-slate-200 bg-slate-50/70 text-slate-400 hover:bg-slate-50"
             }`}>
             <span className="text-base">{m.icon}</span>
             <p className="mt-1 font-semibold">{m.label}</p>
@@ -392,26 +392,26 @@ export function EnzymeSearchTool() {
       {/* Inputs per mode */}
       {mode === "name" && (
         <div className="space-y-2">
-          <Label className="text-[11px] text-white/50">✂️ نام آنزیم</Label>
+          <Label className="text-[11px] text-slate-500">✂️ نام آنزیم</Label>
           <Input value={enzymeName} onChange={(e) => setEnzymeName(e.target.value)} placeholder="مثال: EcoRI"
-            className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+            className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
         </div>
       )}
 
       {mode === "sequence" && (
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label className="text-[11px] text-white/50">🧬 توالی DNA</Label>
+            <Label className="text-[11px] text-slate-500">🧬 توالی DNA</Label>
             <Textarea value={dnaSeq} onChange={(e) => setDnaSeq(e.target.value)} rows={3}
-              className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+              className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
           </div>
           <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-[11px] text-white/50 cursor-pointer">
-              <Checkbox checked={onlyBlunt} onCheckedChange={(v) => setOnlyBlunt(v === true)} className="border-white/20" />
+            <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer">
+              <Checkbox checked={onlyBlunt} onCheckedChange={(v) => setOnlyBlunt(v === true)} className="border-slate-300" />
               فقط blunt
             </label>
-            <label className="flex items-center gap-2 text-[11px] text-white/50 cursor-pointer">
-              <Checkbox checked={onlySticky} onCheckedChange={(v) => setOnlySticky(v === true)} className="border-white/20" />
+            <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer">
+              <Checkbox checked={onlySticky} onCheckedChange={(v) => setOnlySticky(v === true)} className="border-slate-300" />
               فقط sticky
             </label>
           </div>
@@ -421,24 +421,24 @@ export function EnzymeSearchTool() {
       {mode === "compare" && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label className="text-[11px] text-white/50">آنزیم اول</Label>
+            <Label className="text-[11px] text-slate-500">آنزیم اول</Label>
             <Input value={enzyme1} onChange={(e) => setEnzyme1(e.target.value)} placeholder="مثال: EcoRI"
-              className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+              className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
           </div>
           <div className="space-y-2">
-            <Label className="text-[11px] text-white/50">آنزیم دوم</Label>
+            <Label className="text-[11px] text-slate-500">آنزیم دوم</Label>
             <Input value={enzyme2} onChange={(e) => setEnzyme2(e.target.value)} placeholder="مثال: BamHI"
-              className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+              className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
           </div>
         </div>
       )}
 
       {mode === "cloning" && (
         <div className="space-y-2">
-          <Label className="text-[11px] text-white/50">🧬 توالی DNA هدف</Label>
+          <Label className="text-[11px] text-slate-500">🧬 توالی DNA هدف</Label>
           <Textarea value={dnaSeq} onChange={(e) => setDnaSeq(e.target.value)} rows={3}
             placeholder="آنزیم‌هایی که دقیقاً یک‌بار برش می‌دهند پیشنهاد می‌شوند"
-            className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+            className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
         </div>
       )}
 
@@ -447,11 +447,11 @@ export function EnzymeSearchTool() {
           <Search className="size-3.5" /> جستجو
         </Button>
         <Button variant="ghost" size="sm" onClick={() => { setResult(null); setEnzymeName(""); setDnaSeq(""); setEnzyme1(""); setEnzyme2(""); }}
-          className="gap-1 text-[11px] text-white/30 hover:text-white/60">
+          className="gap-1 text-[11px] text-slate-400 hover:text-slate-500">
           <RotateCcw className="size-3" /> Reset
         </Button>
         {result && (
-          <Button variant="outline" size="sm" className="gap-2 border-white/[0.08] text-[11px] mr-auto"
+          <Button variant="outline" size="sm" className="gap-2 border-slate-200 text-[11px] mr-auto"
             onClick={() => {
               const rows: string[][] = [["آنزیم", "جایگاه برش", "نوع برش", "تعداد", "موقعیت‌ها / سازگار با"]];
               if (result.type === "name") { rows.push([result.enzyme.name, result.enzyme.site, getCutDescription(result.enzyme), result.enzyme.isoschizomers.join(", ")]); }
@@ -468,37 +468,37 @@ export function EnzymeSearchTool() {
       {/* Results */}
       {result?.type === "name" && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
             <div className="flex items-center gap-3 mb-3">
-              <div className="flex size-10 items-center justify-center rounded-xl bg-rose-500/20 text-rose-400 font-mono font-bold text-sm">{result.enzyme.name}</div>
+              <div className="flex size-10 items-center justify-center rounded-xl bg-rose-500/20 text-rose-600 font-mono font-bold text-sm">{result.enzyme.name}</div>
               <div>
-                <p className="font-mono text-lg text-white/90">{result.enzyme.site}</p>
-                <p className="text-[10px] text-white/30">{result.enzyme.source} · Type II</p>
+                <p className="font-mono text-lg text-slate-800">{result.enzyme.site}</p>
+                <p className="text-[10px] text-slate-400">{result.enzyme.source} · Type II</p>
               </div>
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-[11px]">
-              <div className="rounded-lg bg-white/[0.03] p-3">
-                <p className="text-white/30 mb-1">🧪 بافر</p>
-                <p className="text-white/70">{result.enzyme.buffer}</p>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-slate-400 mb-1">🧪 بافر</p>
+                <p className="text-slate-600">{result.enzyme.buffer}</p>
               </div>
-              <div className="rounded-lg bg-white/[0.03] p-3">
-                <p className="text-white/30 mb-1">🌡️ دما</p>
-                <p className="text-white/70">{result.enzyme.temp}°C</p>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-slate-400 mb-1">🌡️ دما</p>
+                <p className="text-slate-600">{result.enzyme.temp}°C</p>
               </div>
-              <div className="rounded-lg bg-white/[0.03] p-3">
-                <p className="text-white/30 mb-1">🔄 نوع برش</p>
-                <p className="text-white/70">{getCutDescription(result.enzyme)}</p>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-slate-400 mb-1">🔄 نوع برش</p>
+                <p className="text-slate-600">{getCutDescription(result.enzyme)}</p>
               </div>
-              <div className="rounded-lg bg-white/[0.03] p-3">
-                <p className="text-white/30 mb-1">📍 منبع</p>
-                <p className="text-white/70">{result.enzyme.source}</p>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-slate-400 mb-1">📍 منبع</p>
+                <p className="text-slate-600">{result.enzyme.source}</p>
               </div>
             </div>
             {result.enzyme.isoschizomers.length > 0 && (
               <div className="mt-3 flex items-center gap-2 text-[11px]">
-                <span className="text-white/30">ایزو‌شیمرها:</span>
+                <span className="text-slate-400">ایزو‌شیمرها:</span>
                 {result.enzyme.isoschizomers.map((iso: string) => (
-                  <Badge key={iso} variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-400">{iso}</Badge>
+                  <Badge key={iso} variant="outline" className="text-[9px] border-cyan-500/30 text-teal-600">{iso}</Badge>
                 ))}
               </div>
             )}
@@ -513,26 +513,26 @@ export function EnzymeSearchTool() {
         <div className="space-y-3">
           {result.sites.length === 0 ? (
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-              <p className="text-[12px] text-amber-300">هیچ جایگاه برشی یافت نشد.</p>
+              <p className="text-[12px] text-amber-700">هیچ جایگاه برشی یافت نشد.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full text-[11px]">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">نقشه برش</th>
+                  <tr className="border-b border-slate-200 bg-slate-50/70">
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">نقشه برش</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.sites.map((s: any) => (
-                    <tr key={s.enzyme.name} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                    <tr key={s.enzyme.name} className="border-b border-slate-200 hover:bg-slate-50/70">
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-3">
-                          <span className="font-mono font-bold text-rose-300">{s.enzyme.name}</span>
-                          <span className="font-mono text-white/60">{s.enzyme.site}</span>
-                          <Badge variant="outline" className={`text-[9px] ${s.enzyme.cutType === "blunt" ? "border-amber-500/30 text-amber-400" : "border-cyan-500/30 text-cyan-400"}`}>{getCutDescription(s.enzyme)}</Badge>
-                          <span className="text-white/40">{s.positions.length}×</span>
-                          <span className="font-mono text-[10px] text-white/40">{s.positions.join(", ")}</span>
+                          <span className="font-mono font-bold text-rose-600">{s.enzyme.name}</span>
+                          <span className="font-mono text-slate-500">{s.enzyme.site}</span>
+                          <Badge variant="outline" className={`text-[9px] ${s.enzyme.cutType === "blunt" ? "border-amber-500/30 text-amber-600" : "border-cyan-500/30 text-teal-600"}`}>{getCutDescription(s.enzyme)}</Badge>
+                          <span className="text-slate-400">{s.positions.length}×</span>
+                          <span className="font-mono text-[10px] text-slate-400">{s.positions.join(", ")}</span>
                         </div>
                       </td>
                     </tr>
@@ -551,19 +551,19 @@ export function EnzymeSearchTool() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             {[result.e1, result.e2].map((e: Enzyme) => (
-              <div key={e.name} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-                <p className="font-mono font-bold text-rose-300 text-sm">{e.name}</p>
-                <p className="font-mono text-white/60 text-[12px] mt-1">{e.site}</p>
-                <p className="text-[10px] text-white/30 mt-2">{getCutDescription(e)} · {e.temp}°C</p>
+              <div key={e.name} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="font-mono font-bold text-rose-600 text-sm">{e.name}</p>
+                <p className="font-mono text-slate-500 text-[12px] mt-1">{e.site}</p>
+                <p className="text-[10px] text-slate-400 mt-2">{getCutDescription(e)} · {e.temp}°C</p>
               </div>
             ))}
           </div>
           <div className={`rounded-xl border p-4 text-center ${result.compatible ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
-            {result.compatible ? <CheckCircle2 className="mx-auto mb-2 size-5 text-emerald-400" /> : <AlertTriangle className="mx-auto mb-2 size-5 text-red-400" />}
-            <p className={`text-[12px] font-semibold ${result.compatible ? "text-emerald-300" : "text-red-300"}`}>
+            {result.compatible ? <CheckCircle2 className="mx-auto mb-2 size-5 text-emerald-600" /> : <AlertTriangle className="mx-auto mb-2 size-5 text-red-400" />}
+            <p className={`text-[12px] font-semibold ${result.compatible ? "text-emerald-700" : "text-red-300"}`}>
               {result.compatible ? "سازگار — این دو آنزیم دُم‌های سازگار تولید می‌کنند" : "ناسازگار — دُم‌های این دو آنزیم با هم سازگار نیستند"}
             </p>
-            {result.sameIso && <p className="mt-2 text-[11px] text-cyan-400">این دو آنزیم ایزو‌شیمر یکدیگر هستند.</p>}
+            {result.sameIso && <p className="mt-2 text-[11px] text-teal-600">این دو آنزیم ایزو‌شیمر یکدیگر هستند.</p>}
           </div>
           <AiInterpretButton
             resultText={`Comparing ${result.e1.name} (${result.e1.site}, ${getCutDescription(result.e1)}) with ${result.e2.name} (${result.e2.site}, ${getCutDescription(result.e2)})\nCompatible: ${result.compatible}\nIsoschizomers: ${result.sameIso}`}
@@ -575,26 +575,26 @@ export function EnzymeSearchTool() {
         <div className="space-y-3">
           {result.candidates.length === 0 ? (
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-              <p className="text-[12px] text-amber-300">هیچ آنزیم مناسبی یافت نشد.</p>
+              <p className="text-[12px] text-amber-700">هیچ آنزیم مناسبی یافت نشد.</p>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full text-[11px]">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">آنزیم</th>
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">جایگاه برش</th>
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">نوع برش</th>
-                    <th className="px-3 py-2.5 text-right font-semibold text-white/50">موقعیت</th>
+                  <tr className="border-b border-slate-200 bg-slate-50/70">
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">آنزیم</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">جایگاه برش</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">نوع برش</th>
+                    <th className="px-3 py-2.5 text-right font-semibold text-slate-500">موقعیت</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.candidates.map((c: any) => (
-                    <tr key={c.enzyme.name} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                      <td className="px-3 py-2 font-mono font-bold text-emerald-300">{c.enzyme.name}</td>
-                      <td className="px-3 py-2 font-mono text-white/70">{c.enzyme.site}</td>
-                      <td className="px-3 py-2"><Badge variant="outline" className="text-[9px] border-cyan-500/30 text-cyan-400">{getCutDescription(c.enzyme)}</Badge></td>
-                      <td className="px-3 py-2 font-mono text-white/50">{c.positions[0]}</td>
+                    <tr key={c.enzyme.name} className="border-b border-slate-200 hover:bg-slate-50/70">
+                      <td className="px-3 py-2 font-mono font-bold text-emerald-700">{c.enzyme.name}</td>
+                      <td className="px-3 py-2 font-mono text-slate-600">{c.enzyme.site}</td>
+                      <td className="px-3 py-2"><Badge variant="outline" className="text-[9px] border-cyan-500/30 text-teal-600">{getCutDescription(c.enzyme)}</Badge></td>
+                      <td className="px-3 py-2 font-mono text-slate-500">{c.positions[0]}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -641,26 +641,26 @@ export function EnzymeCompatibilityTool() {
         </div>
         <div>
           <h2 className="text-lg font-bold">Compatible & Isoschizomers Finder</h2>
-          <p className="text-[11px] text-white/40">جستجوی آنزیم‌های سازگار و ایزو‌شیمر</p>
+          <p className="text-[11px] text-slate-400">جستجوی آنزیم‌های سازگار و ایزو‌شیمر</p>
         </div>
       </div>
 
       <div className="space-y-3">
         <div className="space-y-2">
-          <Label className="text-[11px] text-white/50">✂️ نام آنزیم محدودکننده</Label>
+          <Label className="text-[11px] text-slate-500">✂️ نام آنزیم محدودکننده</Label>
           <Input value={enzymeName} onChange={(e) => setEnzymeName(e.target.value)} placeholder="مثال: EcoRI"
-            className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+            className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
         </div>
         <div className="space-y-2">
-          <Label className="text-[11px] text-white/50">🎯 نوع جستجو</Label>
+          <Label className="text-[11px] text-slate-500">🎯 نوع جستجو</Label>
           <RadioGroup value={searchType} onValueChange={(v) => { setSearchType(v as any); setResult(null); }}
             className="flex gap-4">
-            <label className="flex items-center gap-2 text-[11px] text-white/60 cursor-pointer">
-              <RadioGroupItem value="compatible" className="border-white/20" />
+            <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer">
+              <RadioGroupItem value="compatible" className="border-slate-300" />
               آنزیم‌های Compatible (چسبنده)
             </label>
-            <label className="flex items-center gap-2 text-[11px] text-white/60 cursor-pointer">
-              <RadioGroupItem value="isoschizomers" className="border-white/20" />
+            <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-pointer">
+              <RadioGroupItem value="isoschizomers" className="border-slate-300" />
               ایزو‌شیمرها
             </label>
           </RadioGroup>
@@ -671,7 +671,7 @@ export function EnzymeCompatibilityTool() {
         <Button onClick={search} className="gap-2 bg-gradient-to-r from-amber-500 to-orange-600 text-[12px] text-white hover:from-amber-600 hover:to-orange-700">
           <Search className="size-3.5" /> جستجو
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => { setResult(null); setEnzymeName(""); }} className="gap-1 text-[11px] text-white/30 hover:text-white/60">
+        <Button variant="ghost" size="sm" onClick={() => { setResult(null); setEnzymeName(""); }} className="gap-1 text-[11px] text-slate-400 hover:text-slate-500">
           <RotateCcw className="size-3" /> Reset
         </Button>
       </div>
@@ -679,52 +679,52 @@ export function EnzymeCompatibilityTool() {
       {result && (
         <div className="space-y-4">
           {/* Enzyme info card */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
             <div className="flex items-center gap-3 mb-3">
               <div className="flex size-12 items-center justify-center rounded-xl bg-amber-500/20">
-                <Scissors className="size-6 text-amber-400" />
+                <Scissors className="size-6 text-amber-600" />
               </div>
               <div>
-                <p className="font-mono text-xl font-bold text-white/90">{result.enzyme.name}</p>
-                <p className="font-mono text-sm text-white/50">{result.enzyme.site}</p>
+                <p className="font-mono text-xl font-bold text-slate-800">{result.enzyme.name}</p>
+                <p className="font-mono text-sm text-slate-500">{result.enzyme.site}</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 text-[11px]">
-              <Badge variant="outline" className={`border-white/[0.08] ${result.enzyme.cutType === "blunt" ? "text-amber-400" : "text-cyan-400"}`}>
+              <Badge variant="outline" className={`border-slate-200 ${result.enzyme.cutType === "blunt" ? "text-amber-600" : "text-teal-600"}`}>
                 🔄 {getCutDescription(result.enzyme)}
               </Badge>
-              <Badge variant="outline" className="border-white/[0.08] text-white/50">🧪 بافر: {result.enzyme.buffer}</Badge>
-              <Badge variant="outline" className="border-white/[0.08] text-white/50">🌡️ {result.enzyme.temp}°C</Badge>
-              <Badge variant="outline" className="border-white/[0.08] text-white/50">📍 {result.enzyme.source}</Badge>
-              <Badge variant="outline" className="border-white/[0.08] text-white/50">🧬 Type II</Badge>
+              <Badge variant="outline" className="border-slate-200 text-slate-500">🧪 بافر: {result.enzyme.buffer}</Badge>
+              <Badge variant="outline" className="border-slate-200 text-slate-500">🌡️ {result.enzyme.temp}°C</Badge>
+              <Badge variant="outline" className="border-slate-200 text-slate-500">📍 {result.enzyme.source}</Badge>
+              <Badge variant="outline" className="border-slate-200 text-slate-500">🧬 Type II</Badge>
             </div>
           </div>
 
           {/* Matches */}
           {result.matches.length === 0 ? (
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-center">
-              <p className="text-[12px] text-amber-300">هیچ آنزیم {searchType === "compatible" ? "سازگار" : "ایزو‌شیمری"} یافت نشد.</p>
+              <p className="text-[12px] text-amber-700">هیچ آنزیم {searchType === "compatible" ? "سازگار" : "ایزو‌شیمری"} یافت نشد.</p>
             </div>
           ) : (
             <div>
-              <p className="text-[11px] text-white/40 mb-2">📋 نتایج: {result.matches.length} آنزیم</p>
-              <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+              <p className="text-[11px] text-slate-400 mb-2">📋 نتایج: {result.matches.length} آنزیم</p>
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <table className="w-full text-[11px]">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                      <th className="px-3 py-2.5 text-right font-semibold text-white/50">آنزیم</th>
-                      <th className="px-3 py-2.5 text-right font-semibold text-white/50">جایگاه</th>
-                      <th className="px-3 py-2.5 text-right font-semibold text-white/50">نوع</th>
-                      <th className="px-3 py-2.5 text-right font-semibold text-white/50">منبع</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/70">
+                      <th className="px-3 py-2.5 text-right font-semibold text-slate-500">آنزیم</th>
+                      <th className="px-3 py-2.5 text-right font-semibold text-slate-500">جایگاه</th>
+                      <th className="px-3 py-2.5 text-right font-semibold text-slate-500">نوع</th>
+                      <th className="px-3 py-2.5 text-right font-semibold text-slate-500">منبع</th>
                     </tr>
                   </thead>
                   <tbody>
                     {result.matches.map((m) => (
-                      <tr key={m.name} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                        <td className="px-3 py-2 font-mono font-bold text-amber-300">{m.name}</td>
-                        <td className="px-3 py-2 font-mono text-white/70">{m.site}</td>
-                        <td className="px-3 py-2"><Badge variant="outline" className={`text-[9px] ${m.cutType === "blunt" ? "border-amber-500/30 text-amber-400" : "border-cyan-500/30 text-cyan-400"}`}>{getCutDescription(m)}</Badge></td>
-                        <td className="px-3 py-2 text-white/40">{m.source}</td>
+                      <tr key={m.name} className="border-b border-slate-200 hover:bg-slate-50/70">
+                        <td className="px-3 py-2 font-mono font-bold text-amber-700">{m.name}</td>
+                        <td className="px-3 py-2 font-mono text-slate-600">{m.site}</td>
+                        <td className="px-3 py-2"><Badge variant="outline" className={`text-[9px] ${m.cutType === "blunt" ? "border-amber-500/30 text-amber-600" : "border-cyan-500/30 text-teal-600"}`}>{getCutDescription(m)}</Badge></td>
+                        <td className="px-3 py-2 text-slate-400">{m.source}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -843,35 +843,35 @@ export function DnaMethylationTool() {
         </div>
         <div>
           <h2 className="text-lg font-bold">آنالیز متیلاسیون DNA</h2>
-          <p className="text-[11px] text-white/40">شناسایی جزایر CpG و الگوهای متیلاسیون</p>
+          <p className="text-[11px] text-slate-400">شناسایی جزایر CpG و الگوهای متیلاسیون</p>
         </div>
       </div>
 
       <div className="space-y-3">
-        <Label className="text-[11px] text-white/50">🧬 ورودی توالی DNA</Label>
+        <Label className="text-[11px] text-slate-500">🧬 ورودی توالی DNA</Label>
         <Textarea value={seq} onChange={(e) => setSeq(e.target.value)} rows={4}
-          className="font-mono text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90 placeholder:text-white/20" />
+          className="font-mono text-[12px] border-slate-200 bg-slate-50 text-slate-800 placeholder:text-slate-300" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="space-y-2">
-          <Label className="text-[11px] text-white/50">🎯 نوع متیلاسیون</Label>
+          <Label className="text-[11px] text-slate-500">🎯 نوع متیلاسیون</Label>
           <select value={methType} onChange={(e) => setMethType(e.target.value as any)}
-            className="w-full rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-[12px] text-white/80">
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-700">
             <option value="CpG">CpG (متیلاسیون سیتوزین)</option>
             <option value="CHG">CHG</option>
             <option value="CHH">CHH</option>
           </select>
         </div>
         <div className="space-y-2">
-          <Label className="text-[11px] text-white/50">📏 حداقل طول جزیره</Label>
+          <Label className="text-[11px] text-slate-500">📏 حداقل طول جزیره</Label>
           <Input type="number" value={minIslandLen} onChange={(e) => setMinIslandLen(Number(e.target.value) || 200)}
-            className="text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90" />
+            className="text-[12px] border-slate-200 bg-slate-50 text-slate-800" />
         </div>
         <div className="space-y-2">
-          <Label className="text-[11px] text-white/50">🧪 حداقل GC%</Label>
+          <Label className="text-[11px] text-slate-500">🧪 حداقل GC%</Label>
           <Input type="number" value={minGcPct} onChange={(e) => setMinGcPct(Number(e.target.value) || 50)}
-            className="text-[12px] border-white/[0.06] bg-white/[0.03] text-white/90" />
+            className="text-[12px] border-slate-200 bg-slate-50 text-slate-800" />
         </div>
       </div>
 
@@ -879,11 +879,11 @@ export function DnaMethylationTool() {
         <Button onClick={analyze} className="gap-2 bg-gradient-to-r from-teal-500 to-cyan-600 text-[12px] text-white hover:from-teal-600 hover:to-cyan-700">
           <Atom className="size-3.5" /> آنالیز Methylation
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => { setResult(null); setSeq(""); }} className="gap-1 text-[11px] text-white/30 hover:text-white/60">
+        <Button variant="ghost" size="sm" onClick={() => { setResult(null); setSeq(""); }} className="gap-1 text-[11px] text-slate-400 hover:text-slate-500">
           <RotateCcw className="size-3" /> Reset
         </Button>
         {result && (
-          <Button variant="outline" size="sm" className="gap-2 border-white/[0.08] text-[11px]"
+          <Button variant="outline" size="sm" className="gap-2 border-slate-200 text-[11px]"
             onClick={() => {
               const rows: string[][] = [["موقعیت", "وضعیت"]];
               result.cpgPositions.forEach((p: number) => rows.push([String(p), "CpG"]));
@@ -906,20 +906,20 @@ export function DnaMethylationTool() {
               { label: "جزایر CpG", value: result.islandCount, color: "emerald" },
             ].map((s) => (
               <div key={s.label} className={`rounded-xl border border-${s.color}-500/20 bg-${s.color}-500/5 p-4 text-center`}>
-                <p className="text-2xl font-bold text-white/90">{s.value}</p>
-                <p className="text-[10px] text-white/40 mt-1">{s.label}</p>
+                <p className="text-2xl font-bold text-slate-800">{s.value}</p>
+                <p className="text-[10px] text-slate-400 mt-1">{s.label}</p>
               </div>
             ))}
           </div>
 
           {/* Methylation level */}
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-center">
-            <p className="text-[12px] text-white/50">سطح متیلاسیون: <span className="font-semibold text-teal-300">{result.methylLevel}</span></p>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-center">
+            <p className="text-[12px] text-slate-500">سطح متیلاسیون: <span className="font-semibold text-teal-300">{result.methylLevel}</span></p>
           </div>
 
           {/* CpG positions */}
           <div>
-            <p className="text-[11px] text-white/40 mb-2">📍 موقعیت‌های CpG ({result.cpgCount} عدد)</p>
+            <p className="text-[11px] text-slate-400 mb-2">📍 موقعیت‌های CpG ({result.cpgCount} عدد)</p>
             <div className="flex flex-wrap gap-1.5">
               {result.cpgPositions.map((p: number) => (
                 <Badge key={p} variant="outline" className="text-[9px] font-mono border-teal-500/30 text-teal-400">
@@ -932,32 +932,32 @@ export function DnaMethylationTool() {
           {/* CpG Islands */}
           {result.islands.length > 0 && (
             <div>
-              <p className="text-[11px] text-white/40 mb-2">🏝️ جزایر CpG ({result.islands.length} عدد)</p>
-              <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+              <p className="text-[11px] text-slate-400 mb-2">🏝️ جزایر CpG ({result.islands.length} عدد)</p>
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <table className="w-full text-[11px]">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                      <th className="px-3 py-2 text-right text-white/50">#</th>
-                      <th className="px-3 py-2 text-right text-white/50">شروع</th>
-                      <th className="px-3 py-2 text-right text-white/50">پایان</th>
-                      <th className="px-3 py-2 text-right text-white/50">طول</th>
-                      <th className="px-3 py-2 text-right text-white/50">CpG</th>
-                      <th className="px-3 py-2 text-right text-white/50">GC%</th>
-                      <th className="px-3 py-2 text-right text-white/50">Obs/Exp</th>
-                      <th className="px-3 py-2 text-right text-white/50">وضعیت</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/70">
+                      <th className="px-3 py-2 text-right text-slate-500">#</th>
+                      <th className="px-3 py-2 text-right text-slate-500">شروع</th>
+                      <th className="px-3 py-2 text-right text-slate-500">پایان</th>
+                      <th className="px-3 py-2 text-right text-slate-500">طول</th>
+                      <th className="px-3 py-2 text-right text-slate-500">CpG</th>
+                      <th className="px-3 py-2 text-right text-slate-500">GC%</th>
+                      <th className="px-3 py-2 text-right text-slate-500">Obs/Exp</th>
+                      <th className="px-3 py-2 text-right text-slate-500">وضعیت</th>
                     </tr>
                   </thead>
                   <tbody>
                     {result.islands.map((island: any, idx: number) => (
-                      <tr key={idx} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
-                        <td className="px-3 py-2 text-white/70">{idx + 1}</td>
-                        <td className="px-3 py-2 font-mono text-white/70">{island.start}</td>
-                        <td className="px-3 py-2 font-mono text-white/70">{island.end}</td>
-                        <td className="px-3 py-2 text-white/70">{island.length}</td>
-                        <td className="px-3 py-2 text-white/70">{island.cpgCount}</td>
-                        <td className="px-3 py-2 text-white/70">{island.gcPct.toFixed(1)}%</td>
-                        <td className="px-3 py-2 text-white/70">{island.obsExp.toFixed(2)}</td>
-                        <td className="px-3 py-2 text-emerald-400">{island.status}</td>
+                      <tr key={idx} className="border-b border-slate-200 hover:bg-slate-50/70">
+                        <td className="px-3 py-2 text-slate-600">{idx + 1}</td>
+                        <td className="px-3 py-2 font-mono text-slate-600">{island.start}</td>
+                        <td className="px-3 py-2 font-mono text-slate-600">{island.end}</td>
+                        <td className="px-3 py-2 text-slate-600">{island.length}</td>
+                        <td className="px-3 py-2 text-slate-600">{island.cpgCount}</td>
+                        <td className="px-3 py-2 text-slate-600">{island.gcPct.toFixed(1)}%</td>
+                        <td className="px-3 py-2 text-slate-600">{island.obsExp.toFixed(2)}</td>
+                        <td className="px-3 py-2 text-emerald-600">{island.status}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -968,15 +968,15 @@ export function DnaMethylationTool() {
 
           {/* Colored sequence */}
           <div>
-            <p className="text-[11px] text-white/40 mb-2">🧬 نمایش رنگی متیلاسیون در توالی</p>
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 font-mono text-[11px] leading-relaxed text-white/60 space-y-0.5">
+            <p className="text-[11px] text-slate-400 mb-2">🧬 نمایش رنگی متیلاسیون در توالی</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 font-mono text-[11px] leading-relaxed text-slate-500 space-y-0.5">
               {result.coloredSeq.map((line: any) => (
                 <div key={line.pos} className="flex gap-3">
-                  <span className="w-8 text-right text-white/30 shrink-0">{String(line.pos).padStart(3, " ")}:</span>
+                  <span className="w-8 text-right text-slate-400 shrink-0">{String(line.pos).padStart(3, " ")}:</span>
                   <span>{line.bases.split("").map((b: string, i: number) => {
                     const cpg = line.cpgs.find((c: any) => c.offset === i);
                     if (cpg) {
-                      return <span key={i} className={cpg.methylated ? "text-rose-400 font-bold bg-rose-500/10 rounded" : "text-amber-400 font-bold bg-amber-500/10 rounded"}>{b}</span>;
+                      return <span key={i} className={cpg.methylated ? "text-rose-600 font-bold bg-rose-500/10 rounded" : "text-amber-600 font-bold bg-amber-500/10 rounded"}>{b}</span>;
                     }
                     return <span key={i}>{b}</span>;
                   })}</span>
@@ -986,30 +986,30 @@ export function DnaMethylationTool() {
             <div className="flex gap-4 mt-2 text-[10px]">
               <span className="flex items-center gap-1"><span className="inline-block size-2 rounded bg-rose-400" /> CpG متیله شده</span>
               <span className="flex items-center gap-1"><span className="inline-block size-2 rounded bg-amber-400" /> CpG بدون متیلاسیون</span>
-              <span className="flex items-center gap-1"><span className="inline-block size-2 rounded bg-white/30" /> سایر نوکلئوتیدها</span>
+              <span className="flex items-center gap-1"><span className="inline-block size-2 rounded bg-slate-100" /> سایر نوکلئوتیدها</span>
             </div>
           </div>
 
           {/* Methylation-sensitive enzymes */}
           <div>
-            <p className="text-[11px] text-white/40 mb-2">✂️ آنزیم‌های حساس به متیلاسیون</p>
-            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+            <p className="text-[11px] text-slate-400 mb-2">✂️ آنزیم‌های حساس به متیلاسیون</p>
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
               <table className="w-full text-[11px]">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-white/[0.02]">
-                    <th className="px-3 py-2 text-right text-white/50">آنزیم</th>
-                    <th className="px-3 py-2 text-right text-white/50">جایگاه شناسایی</th>
-                    <th className="px-3 py-2 text-right text-white/50">حساسیت</th>
-                    <th className="px-3 py-2 text-right text-white/50">کاربرد</th>
+                  <tr className="border-b border-slate-200 bg-slate-50/70">
+                    <th className="px-3 py-2 text-right text-slate-500">آنزیم</th>
+                    <th className="px-3 py-2 text-right text-slate-500">جایگاه شناسایی</th>
+                    <th className="px-3 py-2 text-right text-slate-500">حساسیت</th>
+                    <th className="px-3 py-2 text-right text-slate-500">کاربرد</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.sensitiveEnzymes.map((e: Enzyme) => (
-                    <tr key={e.name} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                    <tr key={e.name} className="border-b border-slate-200 hover:bg-slate-50/70">
                       <td className="px-3 py-2 font-mono font-bold text-teal-300">{e.name}</td>
-                      <td className="px-3 py-2 font-mono text-white/70">{e.site}</td>
-                      <td className="px-3 py-2 text-amber-400">حساس</td>
-                      <td className="px-3 py-2 text-white/50">
+                      <td className="px-3 py-2 font-mono text-slate-600">{e.site}</td>
+                      <td className="px-3 py-2 text-amber-600">حساس</td>
+                      <td className="px-3 py-2 text-slate-500">
                         {e.name === "HpaII" ? "تشخیص متیلاسیون CpG" :
                          e.name === "MspI" ? "کنترل مثبت" :
                          e.name === "BstUI" ? "تشخیص متیلاسیون CpG" :

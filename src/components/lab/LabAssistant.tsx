@@ -3,7 +3,7 @@
  * themed for the lab's emerald canvas and grounded in the tool the visitor is
  * currently working with.
  */
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useAction } from "convex/react";
 import { motion } from "framer-motion";
 import { ArrowUp, Eraser, FlaskConical, Maximize2, Sparkles } from "lucide-react";
@@ -114,19 +114,22 @@ function Composer({
   );
 }
 
-export function LabAssistant({
-  tool,
-  defaultOpen = false,
-}: {
-  /** Title of the tool currently open, used to ground the answers. */
-  tool?: string;
-  defaultOpen?: boolean;
-}) {
+export type LabAssistantHandle = {
+  /** Open the assistant sheet from anywhere on the page (e.g. a hero CTA). */
+  open: () => void;
+};
+
+export const LabAssistant = forwardRef<
+  LabAssistantHandle,
+  { tool?: string; defaultOpen?: boolean }
+>(function LabAssistant({ tool, defaultOpen = false }, ref) {
   const ask = useAction(api.aiActions.labAssistantAsk);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [open, setOpen] = useState(defaultOpen);
+
+  useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), []);
 
   const send = async (preset?: string) => {
     const text = (preset ?? input).trim();
@@ -252,6 +255,6 @@ export function LabAssistant({
       </Sheet>
     </>
   );
-}
+});
 
 export default LabAssistant;

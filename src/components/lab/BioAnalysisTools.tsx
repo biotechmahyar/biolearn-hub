@@ -185,8 +185,8 @@ function downloadCsv(headers: string[], rows: (string | number)[][], filename: s
 
 function ResultBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3 backdrop-blur-sm">
-      <h4 className="text-xs font-black tracking-wide text-violet-300/80">{title}</h4>
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3 backdrop-blur-sm">
+      <h4 className="text-xs font-black tracking-wide text-emerald-700/80">{title}</h4>
       {children}
     </div>
   );
@@ -194,9 +194,9 @@ function ResultBlock({ title, children }: { title: string; children: React.React
 
 function KV({ label, value, primary }: { label: string; value: string; primary?: boolean }) {
   return (
-    <div className="flex items-center justify-between rounded-xl bg-white/[0.04] px-4 py-2.5 text-xs">
-      <span className="text-white/50">{label}</span>
-      <span className={cn("font-black tabular-nums", primary ? "text-violet-300" : "text-white/80")} dir="ltr">{value}</span>
+    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5 text-xs">
+      <span className="text-slate-500">{label}</span>
+      <span className={cn("font-black tabular-nums", primary ? "text-emerald-700" : "text-slate-700")} dir="ltr">{value}</span>
     </div>
   );
 }
@@ -230,7 +230,7 @@ function DownloadCsvBtn({ headers, rows, filename }: { headers: string[]; rows: 
   );
 }
 
-function SimpleBarChart({ data, color = "#8b5cf6" }: { data: { label: string; value: number }[]; color?: string }) {
+function SimpleBarChart({ data, color = "#059669" }: { data: { label: string; value: number }[]; color?: string }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   const CHART_H = 160;
   const LABEL_H = 28;
@@ -255,7 +255,7 @@ function SimpleBarChart({ data, color = "#8b5cf6" }: { data: { label: string; va
                   <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/10" />
                 </motion.div>
               </div>
-              <span className="text-[11px] font-bold text-white/60 truncate w-full text-center">{d.label}</span>
+              <span className="text-[11px] font-bold text-slate-500 truncate w-full text-center">{d.label}</span>
             </div>
           );
         })}
@@ -300,7 +300,7 @@ export function AiInterpretButton({ resultText, toolName }: { resultText: string
       <Button
         size="sm"
         variant="outline"
-        className="h-8 gap-1.5 border-violet-500/30 bg-violet-500/10 text-[11px] text-violet-300 hover:bg-violet-500/20 hover:text-violet-200"
+        className="h-8 gap-1.5 border-violet-500/30 bg-emerald-500/10 text-[11px] text-emerald-700 hover:bg-emerald-600/10 hover:text-emerald-800"
         onClick={handleInterpret}
         disabled={loading}
       >
@@ -315,13 +315,13 @@ export function AiInterpretButton({ resultText, toolName }: { resultText: string
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
-          className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4"
+          className="mt-3 rounded-xl border border-violet-500/20 bg-emerald-500/5 p-4"
         >
           <div className="flex items-start gap-2">
-            <Sparkles className="size-4 shrink-0 text-violet-400 mt-0.5" />
+            <Sparkles className="size-4 shrink-0 text-emerald-600 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-violet-300">تفسیر هوش مصنوعی</p>
-              <p className="mt-1 text-[11px] leading-6 text-violet-200/70">نتایج به چت هوش مصنوعی ارسال شد. برای مشاهده تفسیر کامل به بخش AI Chat سایت مراجعه کنید.</p>
+              <p className="text-xs font-bold text-emerald-700">تفسیر هوش مصنوعی</p>
+              <p className="mt-1 text-[11px] leading-6 text-emerald-800/70">نتایج به چت هوش مصنوعی ارسال شد. برای مشاهده تفسیر کامل به بخش AI Chat سایت مراجعه کنید.</p>
             </div>
           </div>
         </motion.div>
@@ -385,17 +385,17 @@ ${frame3}
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-400">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-emerald-600/10 text-emerald-600">
           <Dna className="size-5" />
         </span>
         <div>
-          <h2 className="text-lg font-black text-white">تحلیل DNA</h2>
-          <p className="text-[11px] text-white/40">شمارش نوکلئوتیدها، درصد GC، Reverse Complement و ترجمه پروتئین</p>
+          <h2 className="text-lg font-black text-slate-900">تحلیل DNA</h2>
+          <p className="text-[11px] text-slate-400">شمارش نوکلئوتیدها، درصد GC، Reverse Complement و ترجمه پروتئین</p>
         </div>
       </div>
 
       <div>
-          <label className="mb-1 block text-[11px] text-white/40">🧬 ورودی توالی DNA</label>
+          <label className="mb-1 block text-[11px] text-slate-400">🧬 ورودی توالی DNA</label>
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -434,7 +434,7 @@ ${frame3}
                     { label: "G", value: result.counts.G ?? 0 },
                     { label: "C", value: result.counts.C ?? 0 },
                   ]}
-                  color="#8b5cf6"
+                  color="#059669"
                 />
               </ResultBlock>
             </div>
@@ -546,12 +546,12 @@ ${dotBracket}
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-400">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-emerald-600/10 text-emerald-600">
           <Dna className="size-5" />
         </span>
         <div>
-          <h2 className="text-lg font-black text-white">تحلیل RNA</h2>
-          <p className="text-[11px] text-white/40">شمارش، وزن مولکولی، cDNA، ترجمه و ساختار ثانویه</p>
+          <h2 className="text-lg font-black text-slate-900">تحلیل RNA</h2>
+          <p className="text-[11px] text-slate-400">شمارش، وزن مولکولی، cDNA، ترجمه و ساختار ثانویه</p>
         </div>
       </div>
         <div>
@@ -594,7 +594,7 @@ ${dotBracket}
                     { label: "G", value: result.counts.G ?? 0 },
                     { label: "C", value: result.counts.C ?? 0 },
                   ]}
-                  color="#8b5cf6"
+                  color="#059669"
                 />
               </ResultBlock>
             </div>
@@ -806,7 +806,7 @@ ${composition.map((c) => `${c.aa} | ${c.three} | ${c.count} | ${c.percent.toFixe
     <Card className="border-violet-500/30">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <Dna className="size-4 text-violet-500" />
+          <Dna className="size-4 text-emerald-600" />
           تحلیل پروتئین
         </CardTitle>
         <p className="text-[11px] text-muted-foreground">
@@ -896,7 +896,7 @@ ${composition.map((c) => `${c.aa} | ${c.three} | ${c.count} | ${c.percent.toFixe
                   { label: "بار مثبت", value: result.basic },
                   { label: "بار منفی", value: result.acidic },
                 ]}
-                color="#8b5cf6"
+                color="#059669"
               />
             </ResultBlock>
           </>
@@ -944,7 +944,7 @@ export function GcWindowTool() {
     <Card className="border-violet-500/30">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <BarChart3 className="size-4 text-violet-500" />
+          <BarChart3 className="size-4 text-emerald-600" />
           محاسبه GC% پنجره‌ای
         </CardTitle>
         <p className="text-[11px] text-muted-foreground">
@@ -1060,7 +1060,7 @@ export function PatternSearchTool() {
     <Card className="border-violet-500/30">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <SearchCode className="size-4 text-violet-500" />
+          <SearchCode className="size-4 text-emerald-600" />
           جستجوی الگو
         </CardTitle>
         <p className="text-[11px] text-muted-foreground">
@@ -1135,7 +1135,7 @@ export function PatternSearchTool() {
                           <td className="px-2 py-1 font-medium">{pos}</td>
                           <td className="px-2 py-1 font-mono" dir="ltr">
                             ...{seq.substring(Math.max(0, pos - 6), pos - 1)}
-                            <span className="bg-violet-500/20 font-bold">{seq.substring(pos - 1, pos - 1 + pattern.length)}</span>
+                            <span className="bg-emerald-600/10 font-bold">{seq.substring(pos - 1, pos - 1 + pattern.length)}</span>
                             {seq.substring(pos - 1 + pattern.length, pos - 1 + pattern.length + 5)}...
                           </td>
                         </tr>
@@ -1202,7 +1202,7 @@ export function NucleotideCounterTool() {
     <Card className="border-violet-500/30">
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-2 text-sm">
-          <ArrowDownAZ className="size-4 text-violet-500" />
+          <ArrowDownAZ className="size-4 text-emerald-600" />
           شمارش نوکلئوتیدها
         </CardTitle>
         <p className="text-[11px] text-muted-foreground">
@@ -1231,7 +1231,7 @@ export function NucleotideCounterTool() {
                   size="sm"
                   variant={seqType === t ? "default" : "outline"}
                   onClick={() => setSeqType(t)}
-                  className={cn(seqType === t && "bg-violet-600 hover:bg-violet-700")}
+                  className={cn(seqType === t && "bg-emerald-600 hover:bg-emerald-700")}
                 >
                   {t}
                 </Button>
@@ -1245,7 +1245,7 @@ export function NucleotideCounterTool() {
                 size="sm"
                 variant={showChart ? "default" : "outline"}
                 onClick={() => setShowChart(true)}
-                className={cn(showChart && "bg-violet-600 hover:bg-violet-700")}
+                className={cn(showChart && "bg-emerald-600 hover:bg-emerald-700")}
               >
                 نمودار + جدول
               </Button>
@@ -1253,7 +1253,7 @@ export function NucleotideCounterTool() {
                 size="sm"
                 variant={!showChart ? "default" : "outline"}
                 onClick={() => setShowChart(false)}
-                className={cn(!showChart && "bg-violet-600 hover:bg-violet-700")}
+                className={cn(!showChart && "bg-emerald-600 hover:bg-emerald-700")}
               >
                 فقط جدول
               </Button>
@@ -1282,7 +1282,7 @@ export function NucleotideCounterTool() {
 
             {showChart && (
               <ResultBlock title="📊 نمودار توزیع">
-                <SimpleBarChart data={result.data} color="#8b5cf6" />
+                <SimpleBarChart data={result.data} color="#059669" />
               </ResultBlock>
             )}
 
@@ -1306,7 +1306,7 @@ export function NucleotideCounterTool() {
                         <td className="px-2 py-1">
                           <div className="h-2 w-full rounded-full bg-muted">
                             <div
-                              className="h-full rounded-full bg-violet-500 transition-all"
+                              className="h-full rounded-full bg-emerald-500 transition-all"
                               style={{ width: `${result.total > 0 ? (d.value / result.total) * 100 : 0}%` }}
                             />
                           </div>

@@ -172,7 +172,7 @@ function checkCrossDimer(seq1: string, seq2: string, minLen = 3): { count: numbe
 
 function CopyBtn({ text }: { text: string }) {
   return (
-    <Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px] text-white/50 hover:text-white/80"
+    <Button size="sm" variant="ghost" className="h-7 gap-1 text-[11px] text-slate-500 hover:text-slate-700"
       onClick={() => { navigator.clipboard.writeText(text); toast.success("کپی شد"); }}>
       <ClipboardCopy className="size-3" /> کپی
     </Button>
@@ -201,13 +201,13 @@ function AiInterpretButton({ resultText, toolName }: { resultText: string; toolN
 
   return (
     <div>
-      <Button size="sm" variant="outline" className="h-8 gap-1.5 border-violet-500/30 bg-violet-500/10 text-[11px] text-violet-300 hover:bg-violet-500/20"
+      <Button size="sm" variant="outline" className="h-8 gap-1.5 border-violet-500/30 bg-emerald-500/10 text-[11px] text-emerald-700 hover:bg-emerald-600/10"
         onClick={handleInterpret} disabled={loading}>
         {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
         تفسیر با هوش مصنوعی
       </Button>
       {done && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-[10px] text-violet-400/60">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-[10px] text-emerald-600/60">
           ✓ نتایج به چت AI ارسال شد
         </motion.div>
       )}
@@ -271,39 +271,39 @@ export function PrimerDesignTool() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-cyan-600/20 text-cyan-400">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-teal-600/10 text-teal-600">
           <Pipette className="size-5" />
         </span>
         <div>
-          <h2 className="text-lg font-black text-white">طراحی پرایمر</h2>
-          <p className="text-[11px] text-white/40">طراحی پرایمر Forward و Reverse با پارامترهای دلخواه</p>
+          <h2 className="text-lg font-black text-slate-900">طراحی پرایمر</h2>
+          <p className="text-[11px] text-slate-400">طراحی پرایمر Forward و Reverse با پارامترهای دلخواه</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
         <div>
-          <label className="mb-1 block text-[11px] text-white/40">🧬 ورودی توالی هدف</label>
+          <label className="mb-1 block text-[11px] text-slate-400">🧬 ورودی توالی هدف</label>
           <Textarea value={seqInput} onChange={(e) => setSeqInput(e.target.value)} rows={3} dir="ltr"
             placeholder="TCCATGTTTAGTGCGCAAAG..." className="font-mono text-xs" />
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">طول پرایمر</label>
+            <label className="mb-1 block text-[11px] text-slate-400">طول پرایمر</label>
             <Input type="number" value={primerLen} onChange={(e) => setPrimerLen(e.target.value)} dir="ltr" min={15} max={30} />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">Tm حداقل / حداکثر</label>
+            <label className="mb-1 block text-[11px] text-slate-400">Tm حداقل / حداکثر</label>
             <div className="flex gap-1">
               <Input type="number" value={tmMin} onChange={(e) => setTmMin(e.target.value)} dir="ltr" className="text-center" />
-              <span className="flex items-center text-white/30">–</span>
+              <span className="flex items-center text-slate-400">–</span>
               <Input type="number" value={tmMax} onChange={(e) => setTmMax(e.target.value)} dir="ltr" className="text-center" />
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">GC% حداقل / حداکثر</label>
+            <label className="mb-1 block text-[11px] text-slate-400">GC% حداقل / حداکثر</label>
             <div className="flex gap-1">
               <Input type="number" value={gcMin} onChange={(e) => setGcMin(e.target.value)} dir="ltr" className="text-center" />
-              <span className="flex items-center text-white/30">–</span>
+              <span className="flex items-center text-slate-400">–</span>
               <Input type="number" value={gcMax} onChange={(e) => setGcMax(e.target.value)} dir="ltr" className="text-center" />
             </div>
           </div>
@@ -313,32 +313,32 @@ export function PrimerDesignTool() {
       {result ? (
         <>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/60"
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-slate-200 text-[11px] text-slate-500"
               onClick={() => downloadCsv(result.csvHeaders, result.csvRows, "primers.csv")}>
               <Download className="size-3" /> دانلود CSV
             </Button>
             <AiInterpretButton resultText={`Forward: ${result.forward.map(p => p.seq).join(", ")}\nReverse: ${result.reverse.map(p => p.seq).join(", ")}`} toolName="طراحی پرایمر" />
           </div>
 
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3">
-            <h3 className="text-sm font-black text-cyan-300">📊 پرایمرهای Forward (حساس‌تر)</h3>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3">
+            <h3 className="text-sm font-black text-teal-700">📊 پرایمرهای Forward (حساس‌تر)</h3>
             {result.forward.length === 0 ? (
-              <p className="text-xs text-white/40">پرایمری با پارامترهای مورد نظر یافت نشد</p>
+              <p className="text-xs text-slate-400">پرایمری با پارامترهای مورد نظر یافت نشد</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
-                  <thead className="text-white/40">
+                  <thead className="text-slate-400">
                     <tr><th className="px-2 py-1 text-right">#</th><th className="px-2 py-1 text-right">توالی</th><th className="px-2 py-1 text-right">طول</th><th className="px-2 py-1 text-right">Tm</th><th className="px-2 py-1 text-right">GC%</th><th className="px-2 py-1 text-right">موقعیت</th></tr>
                   </thead>
                   <tbody>
                     {result.forward.map((p, i) => (
-                      <tr key={i} className="border-t border-white/[0.04]">
-                        <td className="px-2 py-1.5 text-white/60">{i + 1}</td>
-                        <td className="px-2 py-1.5 font-mono text-cyan-300" dir="ltr">{p.seq}</td>
-                        <td className="px-2 py-1.5 text-white/70">{p.len}</td>
-                        <td className="px-2 py-1.5 text-white/70">{p.tm}°C</td>
-                        <td className="px-2 py-1.5 text-white/70">{p.gc.toFixed(1)}%</td>
-                        <td className="px-2 py-1.5 text-white/50">{p.pos}</td>
+                      <tr key={i} className="border-t border-slate-200">
+                        <td className="px-2 py-1.5 text-slate-500">{i + 1}</td>
+                        <td className="px-2 py-1.5 font-mono text-teal-700" dir="ltr">{p.seq}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{p.len}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{p.tm}°C</td>
+                        <td className="px-2 py-1.5 text-slate-600">{p.gc.toFixed(1)}%</td>
+                        <td className="px-2 py-1.5 text-slate-500">{p.pos}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -347,25 +347,25 @@ export function PrimerDesignTool() {
             )}
           </div>
 
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3">
-            <h3 className="text-sm font-black text-rose-300">📊 پرایمرهای Reverse (معکوس)</h3>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3">
+            <h3 className="text-sm font-black text-rose-600">📊 پرایمرهای Reverse (معکوس)</h3>
             {result.reverse.length === 0 ? (
-              <p className="text-xs text-white/40">پرایمری با پارامترهای مورد نظر یافت نشد</p>
+              <p className="text-xs text-slate-400">پرایمری با پارامترهای مورد نظر یافت نشد</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
-                  <thead className="text-white/40">
+                  <thead className="text-slate-400">
                     <tr><th className="px-2 py-1 text-right">#</th><th className="px-2 py-1 text-right">توالی</th><th className="px-2 py-1 text-right">طول</th><th className="px-2 py-1 text-right">Tm</th><th className="px-2 py-1 text-right">GC%</th><th className="px-2 py-1 text-right">موقعیت</th></tr>
                   </thead>
                   <tbody>
                     {result.reverse.map((p, i) => (
-                      <tr key={i} className="border-t border-white/[0.04]">
-                        <td className="px-2 py-1.5 text-white/60">{i + 1}</td>
-                        <td className="px-2 py-1.5 font-mono text-rose-300" dir="ltr">{p.seq}</td>
-                        <td className="px-2 py-1.5 text-white/70">{p.len}</td>
-                        <td className="px-2 py-1.5 text-white/70">{p.tm}°C</td>
-                        <td className="px-2 py-1.5 text-white/70">{p.gc.toFixed(1)}%</td>
-                        <td className="px-2 py-1.5 text-white/50">{p.pos}</td>
+                      <tr key={i} className="border-t border-slate-200">
+                        <td className="px-2 py-1.5 text-slate-500">{i + 1}</td>
+                        <td className="px-2 py-1.5 font-mono text-rose-600" dir="ltr">{p.seq}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{p.len}</td>
+                        <td className="px-2 py-1.5 text-slate-600">{p.tm}°C</td>
+                        <td className="px-2 py-1.5 text-slate-600">{p.gc.toFixed(1)}%</td>
+                        <td className="px-2 py-1.5 text-slate-500">{p.pos}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -375,7 +375,7 @@ export function PrimerDesignTool() {
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">
+        <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-400">
           توالی هدف را وارد کنید تا پرایمرها طراحی شوند
         </div>
       )}
@@ -433,34 +433,34 @@ export function BlastSearchTool() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-emerald-600/20 text-emerald-400">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-emerald-600/20 text-emerald-600">
           <SearchCode className="size-5" />
         </span>
         <div>
-          <h2 className="text-lg font-black text-white">BLAST Search</h2>
-          <p className="text-[11px] text-white/40">جستجوی توالی در دیتاست‌های ذخیره شده</p>
+          <h2 className="text-lg font-black text-slate-900">BLAST Search</h2>
+          <p className="text-[11px] text-slate-400">جستجوی توالی در دیتاست‌های ذخیره شده</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
         <div>
-          <label className="mb-1 block text-[11px] text-white/40">📝 توالی Query</label>
+          <label className="mb-1 block text-[11px] text-slate-400">📝 توالی Query</label>
           <Textarea value={query} onChange={(e) => setQuery(e.target.value)} rows={2} dir="ltr"
             placeholder="ACAATCCGCAC..." className="font-mono text-xs" />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">حداقل درصد شباهت</label>
+            <label className="mb-1 block text-[11px] text-slate-400">حداقل درصد شباهت</label>
             <div className="flex items-center gap-2">
               <Input type="number" value={minSimilarity} onChange={(e) => setMinSimilarity(e.target.value)} dir="ltr" className="w-20" />
-              <span className="text-xs text-white/40">%</span>
+              <span className="text-xs text-slate-400">%</span>
             </div>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">جستجو در دیتاست‌ها</label>
+            <label className="mb-1 block text-[11px] text-slate-400">جستجو در دیتاست‌ها</label>
             <div className="space-y-1">
               {MOCK_DATASETS.map((ds) => (
-                <label key={ds.name} className="flex items-center gap-2 text-[11px] text-white/60">
+                <label key={ds.name} className="flex items-center gap-2 text-[11px] text-slate-500">
                   <input type="checkbox" checked={selectedDatasets.includes(ds.name)}
                     onChange={(e) => setSelectedDatasets((prev) => e.target.checked ? [...prev, ds.name] : prev.filter((n) => n !== ds.name))}
                     className="accent-emerald-500" />
@@ -471,7 +471,7 @@ export function BlastSearchTool() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/60"
+          <Button size="sm" variant="outline" className="h-8 gap-1 border-slate-200 text-[11px] text-slate-500"
             onClick={() => { navigator.clipboard.writeText(reverseComplement(q)); toast.success("Reverse Complement کپی شد"); }}>
             🔄 Reverse Complement
           </Button>
@@ -482,34 +482,34 @@ export function BlastSearchTool() {
       {result ? (
         <>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/60"
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-slate-200 text-[11px] text-slate-500"
               onClick={() => downloadCsv(result.csvHeaders, result.csvRows, "blast_results.csv")}>
               <Download className="size-3" /> دانلود CSV
             </Button>
-            <Badge variant="outline" className="rounded-full border-emerald-500/30 text-[10px] text-emerald-300/80">
+            <Badge variant="outline" className="rounded-full border-emerald-500/30 text-[10px] text-emerald-700/80">
               {result.hits.length} تطابق
             </Badge>
             <AiInterpretButton resultText={result.hits.map((h) => `${h.file}: ${h.position} (${h.similarity}%)`).join("\n")} toolName="BLAST Search" />
           </div>
 
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
-                <thead className="text-white/40">
+                <thead className="text-slate-400">
                   <tr><th className="px-2 py-1 text-right">فایل</th><th className="px-2 py-1 text-right">موقعیت</th><th className="px-2 py-1 text-right">شباهت</th><th className="px-2 py-1 text-right">Score</th><th className="px-2 py-1 text-right">E-value</th></tr>
                 </thead>
                 <tbody>
                   {result.hits.map((h, i) => (
-                    <tr key={i} className="border-t border-white/[0.04]">
-                      <td className="px-2 py-1.5 text-emerald-300/80 font-mono text-[10px]">{h.file}</td>
-                      <td className="px-2 py-1.5 text-white/70" dir="ltr">{h.position}</td>
+                    <tr key={i} className="border-t border-slate-200">
+                      <td className="px-2 py-1.5 text-emerald-700/80 font-mono text-[10px]">{h.file}</td>
+                      <td className="px-2 py-1.5 text-slate-600" dir="ltr">{h.position}</td>
                       <td className="px-2 py-1.5">
-                        <span className={cn("font-bold", h.similarity >= 90 ? "text-emerald-400" : h.similarity >= 80 ? "text-yellow-400" : "text-orange-400")}>
+                        <span className={cn("font-bold", h.similarity >= 90 ? "text-emerald-600" : h.similarity >= 80 ? "text-yellow-400" : "text-orange-400")}>
                           {h.similarity}%
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-white/60">{h.score}</td>
-                      <td className="px-2 py-1.5 text-white/50 font-mono text-[10px]" dir="ltr">{h.evalue}</td>
+                      <td className="px-2 py-1.5 text-slate-500">{h.score}</td>
+                      <td className="px-2 py-1.5 text-slate-500 font-mono text-[10px]" dir="ltr">{h.evalue}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -518,7 +518,7 @@ export function BlastSearchTool() {
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">
+        <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-400">
           توالی Query را وارد کنید (حداقل ۷ نوکلئوتید)
         </div>
       )}
@@ -583,26 +583,26 @@ export function TmCalculatorTool() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-amber-600/20 text-amber-400">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-amber-600/20 text-amber-600">
           <Thermometer className="size-5" />
         </span>
         <div>
-          <h2 className="text-lg font-black text-white">محاسبه Tm</h2>
-          <p className="text-[11px] text-white/40">محاسبه دمای ذوب با روش‌های مختلف</p>
+          <h2 className="text-lg font-black text-slate-900">محاسبه Tm</h2>
+          <p className="text-[11px] text-slate-400">محاسبه دمای ذوب با روش‌های مختلف</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
         <div>
-          <label className="mb-1 block text-[11px] text-white/40">🧬 ورودی توالی اولیگونوکلئوتید</label>
+          <label className="mb-1 block text-[11px] text-slate-400">🧬 ورودی توالی اولیگونوکلئوتید</label>
           <Textarea value={seqInput} onChange={(e) => setSeqInput(e.target.value)} rows={3} dir="ltr"
             placeholder="ACAATTTGGAGGTGCACGCA..." className="font-mono text-xs" />
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">🧪 روش محاسبه</label>
+            <label className="mb-1 block text-[11px] text-slate-400">🧪 روش محاسبه</label>
             <select value={method} onChange={(e) => setMethod(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white">
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
               <option value="wallace">Wallace (قانون 2+4)</option>
               <option value="basic">Basic (Marmur & Doty)</option>
               <option value="santalucia">SantaLucia (دقیق)</option>
@@ -610,11 +610,11 @@ export function TmCalculatorTool() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">🧂 غلظت نمک (Na⁺ mM)</label>
+            <label className="mb-1 block text-[11px] text-slate-400">🧂 غلظت نمک (Na⁺ mM)</label>
             <Input type="number" value={salt} onChange={(e) => setSalt(e.target.value)} dir="ltr" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">🧬 غلظت اولیگو (nM)</label>
+            <label className="mb-1 block text-[11px] text-slate-400">🧬 غلظت اولیگو (nM)</label>
             <Input type="number" value={oligoNn} onChange={(e) => setOligoNn(e.target.value)} dir="ltr" />
           </div>
         </div>
@@ -623,7 +623,7 @@ export function TmCalculatorTool() {
       {result ? (
         <>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/60"
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-slate-200 text-[11px] text-slate-500"
               onClick={() => downloadFile(result.txt, "tm_calculation.txt")}>
               <Download className="size-3" /> دانلود گزارش
             </Button>
@@ -631,8 +631,8 @@ export function TmCalculatorTool() {
           </div>
 
           {/* Tm comparison chart */}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
-            <h3 className="text-sm font-black text-amber-300">📈 مقایسه روش‌های محاسبه Tm</h3>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+            <h3 className="text-sm font-black text-amber-700">📈 مقایسه روش‌های محاسبه Tm</h3>
             <div className="space-y-3">
               {[
                 { label: "Wallace", value: result.tmW, color: "#f59e0b", desc: "اولیگوهای کوتاه (<20bp)" },
@@ -644,26 +644,26 @@ export function TmCalculatorTool() {
                 return (
                   <div key={item.label} className="space-y-1">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-white/60">{item.label}</span>
+                      <span className="text-slate-500">{item.label}</span>
                       <span className="font-bold" style={{ color: item.color }}>{item.value.toFixed(1)}°C</span>
                     </div>
-                    <div className="h-3 rounded-full bg-white/5 overflow-hidden">
+                    <div className="h-3 rounded-full bg-slate-50 overflow-hidden">
                       <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
                         transition={{ duration: 0.8, ease: "easeOut" }}
                         className="h-full rounded-full" style={{ background: `linear-gradient(to left, ${item.color}, ${item.color}80)` }} />
                     </div>
-                    <p className="text-[9px] text-white/30">{item.desc}</p>
+                    <p className="text-[9px] text-slate-400">{item.desc}</p>
                   </div>
                 );
               })}
             </div>
 
             {/* Temperature scale visualization */}
-            <div className="relative mt-4 h-12 rounded-xl bg-white/5 overflow-hidden">
+            <div className="relative mt-4 h-12 rounded-xl bg-slate-50 overflow-hidden">
               <div className="absolute inset-y-0 left-0 right-0 flex">
                 {[0, 20, 40, 60, 80, 100].map((t) => (
-                  <div key={t} className="flex-1 border-r border-white/5 flex items-end justify-center pb-1">
-                    <span className="text-[8px] text-white/20">{t}°C</span>
+                  <div key={t} className="flex-1 border-r border-slate-200 flex items-end justify-center pb-1">
+                    <span className="text-[8px] text-slate-300">{t}°C</span>
                   </div>
                 ))}
               </div>
@@ -680,7 +680,7 @@ export function TmCalculatorTool() {
                     className="absolute bottom-6 flex flex-col items-center" style={{ left: `${left}%` }}>
                     <span className="text-[8px] font-bold" style={{ color: item.color }}>{item.value.toFixed(0)}°</span>
                     <div className="w-0.5 h-4 rounded" style={{ background: item.color }} />
-                    <span className="text-[7px] text-white/40 mt-0.5">{item.label}</span>
+                    <span className="text-[7px] text-slate-400 mt-0.5">{item.label}</span>
                   </motion.div>
                 );
               })}
@@ -688,8 +688,8 @@ export function TmCalculatorTool() {
           </div>
 
           {/* Quality assessment */}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3">
-            <h3 className="text-sm font-black text-white/80">🎯 کیفیت توالی برای PCR</h3>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3">
+            <h3 className="text-sm font-black text-slate-700">🎯 کیفیت توالی برای PCR</h3>
             <div className="grid gap-2 sm:grid-cols-2">
               {[
                 { label: "درصد GC مناسب", ok: result.gcOk, detail: `${result.gc.toFixed(1)}%` },
@@ -698,7 +698,7 @@ export function TmCalculatorTool() {
                 { label: "GC Clamp", ok: result.gcClamp, detail: result.gcClamp ? "دارد" : "ندارد" },
               ].map((item) => (
                 <div key={item.label} className={cn("flex items-center justify-between rounded-xl px-3 py-2 text-[11px]",
-                  item.ok ? "bg-emerald-500/10 text-emerald-300" : "bg-amber-500/10 text-amber-300")}>
+                  item.ok ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700")}>
                   <span>{item.label}</span>
                   <span className="font-bold">{item.ok ? "✓" : "⚠️"} {item.detail}</span>
                 </div>
@@ -707,25 +707,25 @@ export function TmCalculatorTool() {
           </div>
 
           {/* Details table */}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
-            <h3 className="text-sm font-black text-white/80 mb-3">🔬 جزئیات محاسبات</h3>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+            <h3 className="text-sm font-black text-slate-700 mb-3">🔬 جزئیات محاسبات</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
-                <thead className="text-white/40">
+                <thead className="text-slate-400">
                   <tr><th className="px-2 py-1 text-right">روش</th><th className="px-2 py-1 text-right">نتیجه</th><th className="px-2 py-1 text-right">کاربرد</th></tr>
                 </thead>
                 <tbody>
-                  <tr className="border-t border-white/[0.04]"><td className="px-2 py-1.5 text-amber-300">Wallace</td><td className="px-2 py-1.5 text-white/80">{result.tmW.toFixed(1)}°C</td><td className="px-2 py-1.5 text-white/50">اولیگوهای کوتاه</td></tr>
-                  <tr className="border-t border-white/[0.04]"><td className="px-2 py-1.5 text-emerald-300">Basic</td><td className="px-2 py-1.5 text-white/80">{result.tmB.toFixed(1)}°C</td><td className="px-2 py-1.5 text-white/50">اولیگوهای بلند</td></tr>
-                  <tr className="border-t border-white/[0.04]"><td className="px-2 py-1.5 text-violet-300">SantaLucia</td><td className="px-2 py-1.5 text-white/80">{result.tmS.toFixed(1)}°C</td><td className="px-2 py-1.5 text-white/50">دقت بالا</td></tr>
-                  <tr className="border-t border-white/[0.04]"><td className="px-2 py-1.5 text-rose-300">PCR</td><td className="px-2 py-1.5 text-white/80">{result.tmP.toFixed(1)}°C</td><td className="px-2 py-1.5 text-white/50">طراحی پرایمر</td></tr>
+                  <tr className="border-t border-slate-200"><td className="px-2 py-1.5 text-amber-700">Wallace</td><td className="px-2 py-1.5 text-slate-700">{result.tmW.toFixed(1)}°C</td><td className="px-2 py-1.5 text-slate-500">اولیگوهای کوتاه</td></tr>
+                  <tr className="border-t border-slate-200"><td className="px-2 py-1.5 text-emerald-700">Basic</td><td className="px-2 py-1.5 text-slate-700">{result.tmB.toFixed(1)}°C</td><td className="px-2 py-1.5 text-slate-500">اولیگوهای بلند</td></tr>
+                  <tr className="border-t border-slate-200"><td className="px-2 py-1.5 text-emerald-700">SantaLucia</td><td className="px-2 py-1.5 text-slate-700">{result.tmS.toFixed(1)}°C</td><td className="px-2 py-1.5 text-slate-500">دقت بالا</td></tr>
+                  <tr className="border-t border-slate-200"><td className="px-2 py-1.5 text-rose-600">PCR</td><td className="px-2 py-1.5 text-slate-700">{result.tmP.toFixed(1)}°C</td><td className="px-2 py-1.5 text-slate-500">طراحی پرایمر</td></tr>
                 </tbody>
               </table>
             </div>
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">
+        <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-400">
           توالی را وارد کنید تا دمای ذوب محاسبه شود
         </div>
       )}
@@ -783,33 +783,33 @@ export function DimerCheckerTool() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-rose-600/20 text-rose-400">
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-rose-600/20 text-rose-600">
           <Zap className="size-5" />
         </span>
         <div>
-          <h2 className="text-lg font-black text-white">بررسی دیمر و Hairpin</h2>
-          <p className="text-[11px] text-white/40">تشخیص دیمرهای خودی و بین پرایمرها</p>
+          <h2 className="text-lg font-black text-slate-900">بررسی دیمر و Hairpin</h2>
+          <p className="text-[11px] text-slate-400">تشخیص دیمرهای خودی و بین پرایمرها</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">🔹 پرایمر Forward (5' → 3')</label>
+            <label className="mb-1 block text-[11px] text-slate-400">🔹 پرایمر Forward (5' → 3')</label>
             <Input value={fwdInput} onChange={(e) => setFwdInput(e.target.value)} dir="ltr" placeholder="CTGGCGAGGAACATTCACTT" className="font-mono text-xs" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">🔸 پرایمر Reverse (5' → 3')</label>
+            <label className="mb-1 block text-[11px] text-slate-400">🔸 پرایمر Reverse (5' → 3')</label>
             <Input value={revInput} onChange={(e) => setRevInput(e.target.value)} dir="ltr" placeholder="AGAATTCTATGCATCCGGCG" className="font-mono text-xs" />
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">🎯 حداکثر دمای دیمر (ΔG)</label>
+            <label className="mb-1 block text-[11px] text-slate-400">🎯 حداکثر دمای دیمر (ΔG)</label>
             <Input value={maxDg} onChange={(e) => setMaxDg(e.target.value)} dir="ltr" placeholder="-7" />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] text-white/40">📏 حداقل طول همپوشانی</label>
+            <label className="mb-1 block text-[11px] text-slate-400">📏 حداقل طول همپوشانی</label>
             <Input type="number" value={minOverlap} onChange={(e) => setMinOverlap(e.target.value)} dir="ltr" />
           </div>
         </div>
@@ -818,7 +818,7 @@ export function DimerCheckerTool() {
       {result ? (
         <>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/60"
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-slate-200 text-[11px] text-slate-500"
               onClick={() => downloadFile(result.txt, "dimer_check.txt")}>
               <Download className="size-3" /> دانلود گزارش
             </Button>
@@ -833,20 +833,20 @@ export function DimerCheckerTool() {
           )}>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
-                <p className="text-2xl font-black text-emerald-400">{result.good ? result.totalDimers : 0}</p>
-                <p className="text-[10px] text-white/50">ساختارهای خوب</p>
+                <p className="text-2xl font-black text-emerald-600">{result.good ? result.totalDimers : 0}</p>
+                <p className="text-[10px] text-slate-500">ساختارهای خوب</p>
               </div>
               <div>
-                <p className="text-2xl font-black text-amber-400">{result.warnings ? result.totalDimers : 0}</p>
-                <p className="text-[10px] text-white/50">هشدار</p>
+                <p className="text-2xl font-black text-amber-600">{result.warnings ? result.totalDimers : 0}</p>
+                <p className="text-[10px] text-slate-500">هشدار</p>
               </div>
               <div>
-                <p className="text-2xl font-black text-rose-400">{result.bad ? result.totalDimers : 0}</p>
-                <p className="text-[10px] text-white/50">مشکل دار</p>
+                <p className="text-2xl font-black text-rose-600">{result.bad ? result.totalDimers : 0}</p>
+                <p className="text-[10px] text-slate-500">مشکل دار</p>
               </div>
             </div>
             <p className={cn("mt-3 text-center text-xs font-bold",
-              result.good ? "text-emerald-300" : result.warnings ? "text-amber-300" : "text-rose-300"
+              result.good ? "text-emerald-700" : result.warnings ? "text-amber-700" : "text-rose-600"
             )}>
               {result.good ? "✓ طراحی مناسب — مشکل عمده‌ای وجود ندارد" :
                result.warnings ? "⚠ طراحی قابل قبول — بررسی کنید" :
@@ -855,25 +855,25 @@ export function DimerCheckerTool() {
           </div>
 
           {/* Dimer counts */}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-3">
-            <h3 className="text-sm font-black text-white/80">🔄 خلاصه دیمرها</h3>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3">
+            <h3 className="text-sm font-black text-slate-700">🔄 خلاصه دیمرها</h3>
             <div className="grid gap-2 sm:grid-cols-3">
               {[
-                { label: "Forward ↔ Forward", count: result.fwdSelf.count, worst: result.fwdSelf.worst, color: "text-cyan-300" },
-                { label: "Reverse ↔ Reverse", count: result.revSelf.count, worst: result.revSelf.worst, color: "text-rose-300" },
-                { label: "Forward ↔ Reverse", count: result.cross.count, worst: result.cross.worst, color: "text-violet-300" },
+                { label: "Forward ↔ Forward", count: result.fwdSelf.count, worst: result.fwdSelf.worst, color: "text-teal-700" },
+                { label: "Reverse ↔ Reverse", count: result.revSelf.count, worst: result.revSelf.worst, color: "text-rose-600" },
+                { label: "Forward ↔ Reverse", count: result.cross.count, worst: result.cross.worst, color: "text-emerald-700" },
               ].map((item) => (
-                <div key={item.label} className="rounded-xl bg-white/[0.04] p-3 text-center">
+                <div key={item.label} className="rounded-xl bg-slate-50 p-3 text-center">
                   <p className={cn("text-xl font-black", item.color)}>{item.count}</p>
-                  <p className="text-[10px] text-white/40 mt-1">{item.label}</p>
-                  {item.count > 0 && <p className="text-[9px] text-white/30 mt-0.5">ΔG min: {item.worst.toFixed(1)}</p>}
+                  <p className="text-[10px] text-slate-400 mt-1">{item.label}</p>
+                  {item.count > 0 && <p className="text-[9px] text-slate-400 mt-0.5">ΔG min: {item.worst.toFixed(1)}</p>}
                 </div>
               ))}
             </div>
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-xs text-white/30">
+        <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-xs text-slate-400">
           هر دو پرایمر را وارد کنید تا بررسی دیمر انجام شود
         </div>
       )}
@@ -942,47 +942,47 @@ export function MultiplexPrimerTool() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-purple-600/20 text-purple-400"><Pipette className="size-5" /></span>
-        <div><h2 className="text-lg font-black text-white">پرایمر مولتیپلکس</h2><p className="text-[11px] text-white/40">طراحی همزمان پرایمر برای چندین هدف</p></div>
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-teal-600/10 text-teal-600"><Pipette className="size-5" /></span>
+        <div><h2 className="text-lg font-black text-slate-900">پرایمر مولتیپلکس</h2><p className="text-[11px] text-slate-400">طراحی همزمان پرایمر برای چندین هدف</p></div>
       </div>
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
-        <label className="text-[11px] font-bold text-white/50">🧬 ورودی توالی‌های هدف</label>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+        <label className="text-[11px] font-bold text-slate-500">🧬 ورودی توالی‌های هدف</label>
         {targets.map((target, i) => (
-          <div key={target.id} className="rounded-xl border border-white/[0.04] bg-white/[0.02] p-3 space-y-2">
+          <div key={target.id} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 space-y-2">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-purple-300">🎯 هدف {i + 1}</span>
-              {targets.length > 1 && <button onClick={() => removeTarget(target.id)} className="mr-auto text-[10px] text-rose-400/60 hover:text-rose-400">✖️ حذف</button>}
+              <span className="text-[11px] font-bold text-teal-700">🎯 هدف {i + 1}</span>
+              {targets.length > 1 && <button onClick={() => removeTarget(target.id)} className="mr-auto text-[10px] text-rose-600/60 hover:text-rose-600">✖️ حذف</button>}
             </div>
             <Input value={target.name} onChange={(e) => updateTarget(target.id, "name", e.target.value)} placeholder="نام هدف" className="h-8 text-[11px]" />
             <Textarea value={target.sequence} onChange={(e) => updateTarget(target.id, "sequence", e.target.value)} rows={2} dir="ltr" placeholder="TGCGCAAAG..." className="font-mono text-[11px]" />
           </div>
         ))}
-        <button onClick={addTarget} className="w-full rounded-xl border border-dashed border-white/10 py-2 text-[11px] font-medium text-white/30 hover:border-white/20 hover:text-white/50 transition-colors">➕ افزودن هدف جدید</button>
+        <button onClick={addTarget} className="w-full rounded-xl border border-dashed border-slate-200 py-2 text-[11px] font-medium text-slate-400 hover:border-slate-300 hover:text-slate-500 transition-colors">➕ افزودن هدف جدید</button>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div><label className="mb-1 block text-[10px] text-white/30">طول پرایمر</label><Input type="number" value={primerLen} onChange={(e) => setPrimerLen(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">محدوده Tm</label><div className="flex gap-1"><Input type="number" value={tmMin} onChange={(e) => setTmMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={tmMax} onChange={(e) => setTmMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">محدوده GC%</label><div className="flex gap-1"><Input type="number" value={gcMin} onChange={(e) => setGcMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={gcMax} onChange={(e) => setGcMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">حداکثر اختلاف Tm</label><Input type="number" value={tmDiff} onChange={(e) => setTmDiff(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">حداکثر دیمر مجاز</label><Input value={maxDg} onChange={(e) => setMaxDg(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">طول پرایمر</label><Input type="number" value={primerLen} onChange={(e) => setPrimerLen(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">محدوده Tm</label><div className="flex gap-1"><Input type="number" value={tmMin} onChange={(e) => setTmMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-slate-300">-</span><Input type="number" value={tmMax} onChange={(e) => setTmMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">محدوده GC%</label><div className="flex gap-1"><Input type="number" value={gcMin} onChange={(e) => setGcMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-slate-300">-</span><Input type="number" value={gcMax} onChange={(e) => setGcMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">حداکثر اختلاف Tm</label><Input type="number" value={tmDiff} onChange={(e) => setTmDiff(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">حداکثر دیمر مجاز</label><Input value={maxDg} onChange={(e) => setMaxDg(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={design} className="h-9 gap-1.5 bg-purple-600 text-white hover:bg-purple-500 text-[11px] font-bold">🎯 طراحی پرایمر مولتیپلکس</Button>
-          {result && <Button onClick={reset} variant="ghost" className="h-9 text-[11px] text-white/30 hover:text-white/60">🔄 Reset</Button>}
+          <Button onClick={design} className="h-9 gap-1.5 bg-teal-600 text-white hover:bg-teal-700 text-[11px] font-bold">🎯 طراحی پرایمر مولتیپلکس</Button>
+          {result && <Button onClick={reset} variant="ghost" className="h-9 text-[11px] text-slate-400 hover:text-slate-500">🔄 Reset</Button>}
         </div>
       </div>
       {result && (
         <>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/50" onClick={() => downloadFile(`هدف,Forward,Reverse,Tm Fwd,Tm Rev,GC\n${result.targets.map((t) => `${t.name},${t.fwd},${t.rev},${t.tmFwd},${t.tmRev},${t.gcFwd.toFixed(0)}/${t.gcRev.toFixed(0)}`).join("\n")}`, "multiplex_primers.csv", "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-slate-200 text-[11px] text-slate-500" onClick={() => downloadFile(`هدف,Forward,Reverse,Tm Fwd,Tm Rev,GC\n${result.targets.map((t) => `${t.name},${t.fwd},${t.rev},${t.tmFwd},${t.tmRev},${t.gcFwd.toFixed(0)}/${t.gcRev.toFixed(0)}`).join("\n")}`, "multiplex_primers.csv", "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
             <AiInterpretButton resultText={`Multiplex Primer Design\n${result.targets.map((t) => `${t.name}: Fwd=${t.fwd} Rev=${t.rev}`).join("\n")}`} toolName="پرایمر مولتیپلکس" />
           </div>
-          {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/80">⚠️ {w}</p>)}</div>}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
+          {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-700/80">⚠️ {w}</p>)}</div>}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
-                <thead className="text-white/30"><tr><th className="px-2 py-1 text-right">هدف</th><th className="px-2 py-1 text-right">Forward</th><th className="px-2 py-1 text-right">Reverse</th><th className="px-2 py-1 text-right">Tm</th><th className="px-2 py-1 text-right">GC%</th></tr></thead>
+                <thead className="text-slate-400"><tr><th className="px-2 py-1 text-right">هدف</th><th className="px-2 py-1 text-right">Forward</th><th className="px-2 py-1 text-right">Reverse</th><th className="px-2 py-1 text-right">Tm</th><th className="px-2 py-1 text-right">GC%</th></tr></thead>
                 <tbody>{result.targets.map((t, i) => (
-                  <tr key={i} className="border-t border-white/[0.04]"><td className="px-2 py-1.5 font-bold text-purple-300">{t.name}</td><td className="px-2 py-1.5 font-mono text-[10px] text-cyan-300" dir="ltr">{t.fwd}</td><td className="px-2 py-1.5 font-mono text-[10px] text-rose-300" dir="ltr">{t.rev}</td><td className="px-2 py-1.5 text-white/60">{t.tmFwd}/{t.tmRev}°C</td><td className="px-2 py-1.5 text-white/50">{t.gcFwd.toFixed(0)}/{t.gcRev.toFixed(0)}%</td></tr>
+                  <tr key={i} className="border-t border-slate-200"><td className="px-2 py-1.5 font-bold text-teal-700">{t.name}</td><td className="px-2 py-1.5 font-mono text-[10px] text-teal-700" dir="ltr">{t.fwd}</td><td className="px-2 py-1.5 font-mono text-[10px] text-rose-600" dir="ltr">{t.rev}</td><td className="px-2 py-1.5 text-slate-500">{t.tmFwd}/{t.tmRev}°C</td><td className="px-2 py-1.5 text-slate-500">{t.gcFwd.toFixed(0)}/{t.gcRev.toFixed(0)}%</td></tr>
                 ))}</tbody>
               </table>
             </div>
@@ -1043,42 +1043,42 @@ export function RealTimePrimerTool() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <span className="flex size-10 items-center justify-center rounded-2xl bg-amber-600/20 text-amber-400"><Thermometer className="size-5" /></span>
-        <div><h2 className="text-lg font-black text-white">طراحی پرایمر qPCR</h2><p className="text-[11px] text-white/40">طراحی پرایمر برای Real-Time PCR</p></div>
+        <span className="flex size-10 items-center justify-center rounded-2xl bg-amber-600/20 text-amber-600"><Thermometer className="size-5" /></span>
+        <div><h2 className="text-lg font-black text-slate-900">طراحی پرایمر qPCR</h2><p className="text-[11px] text-slate-400">طراحی پرایمر برای Real-Time PCR</p></div>
       </div>
-      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <div><label className="mb-1 block text-[10px] text-white/30">🎯 نام ژن / هدف</label><Input value={geneName} onChange={(e) => setGeneName(e.target.value)} placeholder="مثلاً GAPDH" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">🎯 نام ژن / هدف</label><Input value={geneName} onChange={(e) => setGeneName(e.target.value)} placeholder="مثلاً GAPDH" className="h-8 text-[11px]" /></div>
         </div>
-        <div><label className="mb-1 block text-[10px] text-white/30">🧬 توالی DNA هدف</label><Textarea value={seqInput} onChange={(e) => setSeqInput(e.target.value)} rows={3} dir="ltr" placeholder="AAGGATAGTTCCGCCTAGG..." className="font-mono text-[11px]" /></div>
+        <div><label className="mb-1 block text-[10px] text-slate-400">🧬 توالی DNA هدف</label><Textarea value={seqInput} onChange={(e) => setSeqInput(e.target.value)} rows={3} dir="ltr" placeholder="AAGGATAGTTCCGCCTAGG..." className="font-mono text-[11px]" /></div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div><label className="mb-1 block text-[10px] text-white/30">طول پرایمر</label><Input type="number" value={primerLen} onChange={(e) => setPrimerLen(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">محدوده Tm</label><div className="flex gap-1"><Input type="number" value={tmMin} onChange={(e) => setTmMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={tmMax} onChange={(e) => setTmMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">محدوده GC%</label><div className="flex gap-1"><Input type="number" value={gcMin} onChange={(e) => setGcMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={gcMax} onChange={(e) => setGcMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">طول محصول (bp)</label><div className="flex gap-1"><Input type="number" value={productMin} onChange={(e) => setProductMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-white/20">-</span><Input type="number" value={productMax} onChange={(e) => setProductMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">حداکثر اختلاف Tm</label><Input type="number" value={tmDiff} onChange={(e) => setTmDiff(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
-          <div><label className="mb-1 block text-[10px] text-white/30">جلوگیری از Hairpin</label>
-            <button onClick={() => setHairpin(!hairpin)} className={cn("h-8 rounded-xl border px-3 text-[11px] font-medium transition-colors", hairpin ? "border-amber-500/30 bg-amber-500/10 text-amber-300" : "border-white/10 bg-white/5 text-white/40")}>{hairpin ? "فعال" : "غیرفعال"}</button>
+          <div><label className="mb-1 block text-[10px] text-slate-400">طول پرایمر</label><Input type="number" value={primerLen} onChange={(e) => setPrimerLen(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">محدوده Tm</label><div className="flex gap-1"><Input type="number" value={tmMin} onChange={(e) => setTmMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-slate-300">-</span><Input type="number" value={tmMax} onChange={(e) => setTmMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">محدوده GC%</label><div className="flex gap-1"><Input type="number" value={gcMin} onChange={(e) => setGcMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-slate-300">-</span><Input type="number" value={gcMax} onChange={(e) => setGcMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">طول محصول (bp)</label><div className="flex gap-1"><Input type="number" value={productMin} onChange={(e) => setProductMin(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /><span className="flex items-center text-slate-300">-</span><Input type="number" value={productMax} onChange={(e) => setProductMax(e.target.value)} dir="ltr" className="h-8 text-[11px] text-center" /></div></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">حداکثر اختلاف Tm</label><Input type="number" value={tmDiff} onChange={(e) => setTmDiff(e.target.value)} dir="ltr" className="h-8 text-[11px]" /></div>
+          <div><label className="mb-1 block text-[10px] text-slate-400">جلوگیری از Hairpin</label>
+            <button onClick={() => setHairpin(!hairpin)} className={cn("h-8 rounded-xl border px-3 text-[11px] font-medium transition-colors", hairpin ? "border-amber-500/30 bg-amber-500/10 text-amber-700" : "border-slate-200 bg-slate-50 text-slate-400")}>{hairpin ? "فعال" : "غیرفعال"}</button>
           </div>
         </div>
         <div className="flex gap-2">
           <Button onClick={design} className="h-9 gap-1.5 bg-amber-600 text-white hover:bg-amber-500 text-[11px] font-bold">🔬 طراحی پرایمر qPCR</Button>
-          {result && <Button onClick={reset} variant="ghost" className="h-9 text-[11px] text-white/30 hover:text-white/60">🔄 Reset</Button>}
+          {result && <Button onClick={reset} variant="ghost" className="h-9 text-[11px] text-slate-400 hover:text-slate-500">🔄 Reset</Button>}
         </div>
       </div>
       {result && (
         <>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1 border-white/10 text-[11px] text-white/50" onClick={() => downloadFile(`Gene,${geneName}\nForward,${result.fwd}\nReverse,${result.rev}\nTm,${result.tmFwd}/${result.tmRev}\nProduct,${result.productLen} bp`, `qPCR_${geneName || "primers"}.csv`, "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
+            <Button size="sm" variant="outline" className="h-8 gap-1 border-slate-200 text-[11px] text-slate-500" onClick={() => downloadFile(`Gene,${geneName}\nForward,${result.fwd}\nReverse,${result.rev}\nTm,${result.tmFwd}/${result.tmRev}\nProduct,${result.productLen} bp`, `qPCR_${geneName || "primers"}.csv`, "text/csv")}><Download className="size-3" /> دانلود گزارش</Button>
             <AiInterpretButton resultText={`qPCR Primer\nGene: ${geneName}\nForward: ${result.fwd}\nReverse: ${result.rev}\nProduct: ${result.productLen} bp`} toolName="پرایمر qPCR" />
           </div>
-          {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-300/80">⚠️ {w}</p>)}</div>}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5 space-y-4">
+          {result.warnings.length > 0 && <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">{result.warnings.map((w, i) => <p key={i} className="text-[11px] text-amber-700/80">⚠️ {w}</p>)}</div>}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl bg-white/[0.03] p-4"><p className="text-[10px] font-bold text-cyan-400/60 mb-2">🔹 Forward</p><p className="font-mono text-sm text-cyan-300" dir="ltr">{result.fwd}</p><div className="mt-2 flex gap-3 text-[10px] text-white/40"><span>Tm: {result.tmFwd}°C</span><span>GC: {result.gcFwd.toFixed(1)}%</span></div></div>
-              <div className="rounded-xl bg-white/[0.03] p-4"><p className="text-[10px] font-bold text-rose-400/60 mb-2">🔸 Reverse</p><p className="font-mono text-sm text-rose-300" dir="ltr">{result.rev}</p><div className="mt-2 flex gap-3 text-[10px] text-white/40"><span>Tm: {result.tmRev}°C</span><span>GC: {result.gcRev.toFixed(1)}%</span></div></div>
+              <div className="rounded-xl bg-slate-50 p-4"><p className="text-[10px] font-bold text-teal-600/60 mb-2">🔹 Forward</p><p className="font-mono text-sm text-teal-700" dir="ltr">{result.fwd}</p><div className="mt-2 flex gap-3 text-[10px] text-slate-400"><span>Tm: {result.tmFwd}°C</span><span>GC: {result.gcFwd.toFixed(1)}%</span></div></div>
+              <div className="rounded-xl bg-slate-50 p-4"><p className="text-[10px] font-bold text-rose-600/60 mb-2">🔸 Reverse</p><p className="font-mono text-sm text-rose-600" dir="ltr">{result.rev}</p><div className="mt-2 flex gap-3 text-[10px] text-slate-400"><span>Tm: {result.tmRev}°C</span><span>GC: {result.gcRev.toFixed(1)}%</span></div></div>
             </div>
-            {result.productLen > 0 && <div className="rounded-xl bg-white/[0.03] p-3 text-center"><p className="text-[10px] text-white/30">طول محصول</p><p className="text-lg font-black text-amber-300">{result.productLen} bp</p></div>}
+            {result.productLen > 0 && <div className="rounded-xl bg-slate-50 p-3 text-center"><p className="text-[10px] text-slate-400">طول محصول</p><p className="text-lg font-black text-amber-700">{result.productLen} bp</p></div>}
           </div>
         </>
       )}
