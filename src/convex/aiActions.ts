@@ -1241,3 +1241,51 @@ export const generateDictionaryTerms = action({
     }
   },
 });
+
+// ── Virtual Lab assistant ────────────────────────────────────────────────────
+/**
+ * Stateless ask endpoint for the public Virtual Lab page.
+ *
+ * Like `adminAssistantAsk` this keeps the conversation in component state and
+ * writes nothing to the database. It runs on the site default model (the same
+ * one the admin configured) and grounds the answer in whichever lab tool the
+ * visitor currently has open, so the replies stay about real bioinformatics
+ * work instead of generic biology chat.
+ */
+export const labAssistantAsk = action({
+  args: {
+    messages: v.array(
+      v.object({
+        role: v.union(v.literal("user"), v.literal("assistant")),
+        content: v.string(),
+      }),
+    ),
+    tool: v.optional(v.string()),
+  },
+  handler: async (_ctx, args) => {
+    const history = args.messages.slice(-10);
+    if (history.length === 0) throw new Error("پیامی ارسال نشده است.");
+
+    const rawConfig: any = await _ctx.runQuery(internal.aiChat.getAIConfigRaw, {});
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی هنوز توسط مدیر سایت پیکربندی نشده است.");
+    }
+
+    const toolLine = args.tool
+      ? `کاربر همین حالا در آزمایشگاه مجازی روی ابزار «${args.tool}» کار می‌کند.`
+      : "کاربر در صفحهٔ نمای کلی آزمایشگاه مجازی است.";
+
+    const systemPrompt = `تو دستیار تخصصی آزمایشگاه مجازی ژنوا هستی؛ یک ابزار بیوانفورماتیک برای تحلیل DNA، RNA، پروتئین، پرایمر و آنزیم‌های محدودکننده.
+${toolLine}
+پاسخ‌ها باید کوتاه، دقیق و فنی باشند. اگر کاربر روش یا پارامتری را پرسید، مراحل و فرمول را دقیق بنویس. اگر چیزی را نمی‌دانی صریح بگو و حدس نزن. هرگز منبع یا مقالهٔ جعلی نساز.`;
+
+    const responseText = await callAIProvider(
+      rawConfig,
+      systemPrompt,
+      history[history.length - 1].content,
+      2000,
+    );
+
+    return { text: responseText, model: rawConfig.model ?? "" };
+  },
+});

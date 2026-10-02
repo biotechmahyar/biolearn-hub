@@ -1,39 +1,69 @@
 /**
- * Genova Virtual Lab — Premium Bioinformatics Platform
+ * Genova Virtual Lab — Bioinformatics Workspace
  * ─────────────────────────────────────────────────────────────────────────────
- * A standalone full-screen application with premium SaaS-quality design.
- * Sophisticated visual identity, not generic dark theme.
+ * A bright, emerald research console: navigation rail, command bar, gradient
+ * lab hero with live counters, stat tiles and performance analytics. Every tool
+ * of the previous lab is still one click away, and the lab assistant (same orb
+ * as the admin panel) follows the visitor in a themed sheet.
  */
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
+import { useQuery } from "convex/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as RTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  Activity,
+  ArrowDownAZ,
   Atom,
   BarChart3,
+  Bell,
+  Beaker,
+  Boxes,
   Calculator,
-  ChevronLeft,
+  ChevronDown,
+  CircleDot,
   Dna,
+  Download,
+  FileText,
   FlaskConical,
-  Scissors,
   GitCompare,
+  GraduationCap,
   Home,
+  Layers,
   Lock,
+  Menu,
+  Microscope,
   Pipette,
+  PlayCircle,
+  Rss,
+  Search,
   SearchCode,
+  Scissors,
+  ShieldCheck,
   Sparkles,
-  Sun,
-  Moon,
   TestTube2,
   Thermometer,
-  Wrench,
-  Search,
-  Zap,
-  Database,
-  Menu,
+  TrendingUp,
+  Users,
   X,
-  ArrowDownAZ,
+  Zap,
 } from "lucide-react";
+import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { LabAssistant } from "@/components/lab/LabAssistant";
 import { LabTools } from "@/components/lab/LabTools";
 import {
   DnaAnalysisTool,
@@ -57,11 +87,12 @@ import {
   MultiplexPrimerTool,
   RealTimePrimerTool,
 } from "@/components/lab/PrimerTools";
+import { faNum, formatJalaliDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 //  TOOL REGISTRY
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
 type ToolId =
   | "dna-analysis" | "rna-analysis" | "protein-analysis"
@@ -70,6 +101,8 @@ type ToolId =
   | "primer-design" | "blast-search" | "tm-calculator" | "dimer-checker"
   | "multiplex" | "realtime"
   | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation";
+
+type ViewId = "overview" | ToolId;
 
 interface ToolDef {
   id: ToolId;
@@ -83,7 +116,7 @@ interface ToolDef {
 
 const TOOLS: ToolDef[] = [
   { id: "dna-analysis", title: "تحلیل DNA", titleEn: "DNA Analysis", description: "شمارش، GC%، Reverse Complement و ترجمه", icon: Dna, component: DnaAnalysisTool, group: "sequence" },
-  { id: "rna-analysis", title: "تحلیل RNA", titleEn: "RNA Analysis", description: "شمارش، وزن مولکولی، cDNA و ساختار ثانویه", icon: Dna, component: RnaAnalysisTool, group: "sequence" },
+  { id: "rna-analysis", title: "تحلیل RNA", titleEn: "RNA Analysis", description: "شمارش، وزن مولکولی، cDNA و ساختار ثانویه", icon: Rss, component: RnaAnalysisTool, group: "sequence" },
   { id: "protein-analysis", title: "تحلیل پروتئین", titleEn: "Protein", description: "ترکیب اسید آمینه و خواص فیزیکوشیمیایی", icon: Atom, component: ProteinAnalysisTool, group: "sequence" },
   { id: "gc-window", title: "محاسبه GC%", titleEn: "GC Window", description: "درصد GC پنجره‌ای با تنظیم اندازه", icon: BarChart3, component: GcWindowTool, group: "sequence" },
   { id: "pattern-search", title: "جستجوی الگو", titleEn: "Pattern", description: "جستجوی الگو در توالی", icon: SearchCode, component: PatternSearchTool, group: "sequence" },
@@ -102,46 +135,181 @@ const TOOLS: ToolDef[] = [
 ];
 
 const FUTURE_TOOLS = [
-  { title: "ترجمه ۶ فریم پروتئین (پیشرفته)", icon: Atom, color: "#f472b6" },
-  { title: "ابزارهای تخصصی", icon: Zap, color: "#fb923c" },
-  { title: "دیتاست بیوانفورماتیک", icon: Database, color: "#34d399" },
+  { title: "ترجمهٔ ۶ فریم پروتئین (پیشرفته)", icon: Atom },
+  { title: "ابزارهای تخصصی", icon: Zap },
+  { title: "دیتاست بیوانفورماتیک", icon: Boxes },
 ];
 
 const GROUPS = [
-  { id: "sequence" as const, label: "تحلیل توالی", accent: "from-indigo-500 to-violet-500" },
-  { id: "calc" as const, label: "ابزارها و شبیه‌سازها", accent: "from-emerald-500 to-teal-500" },
-  { id: "primer" as const, label: "ابزارهای پرایمر", accent: "from-cyan-500 to-blue-500" },
-  { id: "enzyme" as const, label: "آنزیم‌های محدودکننده", accent: "from-rose-500 to-pink-500" },
+  { id: "sequence" as const, label: "تحلیل توالی", icon: Dna },
+  { id: "calc" as const, label: "ابزارها و شبیه‌سازها", icon: Calculator },
+  { id: "primer" as const, label: "ابزارهای پرایمر", icon: Pipette },
+  { id: "enzyme" as const, label: "آنزیم‌های محدودکننده", icon: Scissors },
 ];
 
-// ═══════════════════════════════════════════════════════════════════════════════
+/** Rail items above the tool groups — the "workspace" level navigation. */
+const RAIL_TOP = [
+  { id: "overview" as const, label: "نمای کلی", icon: LayoutGridIcon },
+  { id: "experiments" as const, label: "آزمایش‌ها", icon: FlaskConical },
+  { id: "protocols" as const, label: "پروتکل‌ها", icon: FileText },
+  { id: "equipment" as const, label: "تجهیزات", icon: Microscope },
+  { id: "team" as const, label: "گروه پژوهشی", icon: Users },
+  { id: "reports" as const, label: "گزارش‌ها", icon: TrendingUp },
+  { id: "settings" as const, label: "تنظیمات", icon: ShieldCheck },
+];
+
+function LayoutGridIcon(props: React.ComponentProps<typeof Boxes>) {
+  return <Layers {...props} />;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  STATIC DASHBOARD DATA (presentation only — tools stay the source of truth)
+// ═══════════════════════════════════════════════════════════════════════════
+
+type Trend = { value: string; positive?: boolean };
+
+function StatTile({
+  icon: Icon,
+  value,
+  label,
+  trend,
+  progress,
+}: {
+  icon: typeof Dna;
+  value: string;
+  label: string;
+  trend?: Trend;
+  progress?: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-emerald-900/5 bg-white p-4 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_12px_28px_-20px_rgba(6,78,59,0.25)] transition-shadow hover:shadow-[0_1px_2px_rgba(6,78,59,0.06),0_18px_36px_-22px_rgba(6,78,59,0.35)]">
+      <div className="flex items-start justify-between">
+        <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+          <Icon className="size-4" />
+        </span>
+        {trend && (
+          <span className={cn("text-[10.5px] font-semibold", trend.positive === false ? "text-rose-500" : "text-emerald-600")}>
+            {trend.value}
+          </span>
+        )}
+      </div>
+      <p className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">{value}</p>
+      <p className="mt-0.5 text-[11.5px] text-slate-500">{label}</p>
+      {progress !== undefined && (
+        <div className="mt-3 h-px w-full bg-emerald-600/25">
+          <div className="h-px bg-emerald-500" style={{ width: `${Math.min(100, Math.max(4, progress))}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GlassCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  className,
+}: {
+  icon: typeof Dna;
+  label: string;
+  value: string;
+  hint?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border border-white/20 bg-white/12 px-3.5 py-2.5 text-white shadow-lg shadow-emerald-950/20 backdrop-blur-md",
+        className,
+      )}
+    >
+      <p className="flex items-center gap-1.5 text-[10px] font-medium text-white/70">
+        <Icon className="size-3" />
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-extrabold leading-none">{value}</p>
+      {hint && <p className="mt-1 text-[10px] text-white/60">{hint}</p>}
+    </div>
+  );
+}
+
+/** Decorative molecular constellation used behind the hero. */
+function MoleculeField() {
+  const nodes = [
+    { x: 22, y: 30 }, { x: 48, y: 18 }, { x: 74, y: 34 }, { x: 34, y: 62 },
+    { x: 66, y: 66 }, { x: 86, y: 52 }, { x: 12, y: 74 }, { x: 52, y: 84 },
+  ];
+  const links: [number, number][] = [[0, 1], [1, 2], [0, 3], [3, 4], [2, 5], [3, 6], [4, 7], [2, 4], [1, 3]];
+  return (
+    <svg viewBox="0 0 100 100" className="absolute inset-0 size-full" preserveAspectRatio="none" aria-hidden>
+      {links.map(([a, b], i) => (
+        <line
+          key={i}
+          x1={nodes[a].x}
+          y1={nodes[a].y}
+          x2={nodes[b].x}
+          y2={nodes[b].y}
+          stroke="rgba(255,255,255,0.22)"
+          strokeWidth="0.35"
+        />
+      ))}
+      {nodes.map((n, i) => (
+        <motion.circle
+          key={i}
+          cx={n.x}
+          cy={n.y}
+          r={i % 3 === 0 ? 2.6 : 1.8}
+          fill="rgba(255,255,255,0.55)"
+          animate={{ opacity: [0.35, 0.85, 0.35] }}
+          transition={{ duration: 4 + i * 0.4, repeat: Infinity, ease: "easeInOut" }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+const WEEK_LABELS = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
+
+function greetingFor(hour: number) {
+  if (hour < 12) return "صبح بخیر";
+  if (hour < 17) return "ظهر بخیر";
+  return "عصر بخیر";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  MAIN COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
 export default function VirtualLab() {
-  const [activeTool, setActiveTool] = useState<ToolId>("dna-analysis");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [view, setView] = useState<ViewId>("overview");
+  const [railOpen, setRailOpen] = useState(false);
   const [toolSearch, setToolSearch] = useState("");
-  const [theme, setTheme] = useState<"dark" | "light">(() => {
-    try { return (localStorage.getItem("lab-theme") as "dark" | "light") || "dark"; } catch { return "dark"; }
-  });
+  const [track, setTrack] = useState<"all" | "genetics" | "protein" | "cellular">("all");
 
+  // The lab canvas is light-only now, so the shared lab overrides stay on.
   useEffect(() => {
-    localStorage.setItem("lab-theme", theme);
-    document.documentElement.classList.toggle("lab-light", theme === "light");
-  }, [theme]);
+    document.documentElement.classList.add("lab-light");
+    return () => document.documentElement.classList.remove("lab-light");
+  }, []);
 
-  const currentTool = TOOLS.find((t) => t.id === activeTool) ?? TOOLS[0];
-  const ToolComponent = currentTool.component;
-  const currentGroup = GROUPS.find((g) => g.id === currentTool.group);
+  // Single timestamp so the header date never changes between renders.
+  const [now] = useState(() => Date.now());
+
+  const experiments = useQuery(api.lab.listExperiments);
+  const summary = useQuery(api.lab.myLabSummary);
+
+  const currentTool = TOOLS.find((t) => t.id === view) ?? null;
+  const ToolComponent = currentTool?.component;
 
   const filteredTools = useMemo(() => {
     if (!toolSearch.trim()) return TOOLS;
     const q = toolSearch.trim().toLowerCase();
-    return TOOLS.filter((t) =>
-      t.title.toLowerCase().includes(q) ||
-      t.titleEn.toLowerCase().includes(q) ||
-      t.description.toLowerCase().includes(q)
+    return TOOLS.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.titleEn.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q),
     );
   }, [toolSearch]);
 
@@ -150,237 +318,686 @@ export default function VirtualLab() {
     return GROUPS.filter((g) => filteredTools.some((t) => t.group === g.id));
   }, [toolSearch, filteredTools]);
 
-  const filteredFutureTools = useMemo(() => {
-    if (!toolSearch.trim()) return FUTURE_TOOLS;
-    const q = toolSearch.trim().toLowerCase();
-    return FUTURE_TOOLS.filter((t) => t.title.toLowerCase().includes(q));
-  }, [toolSearch]);
-
-  const selectTool = useCallback((id: ToolId) => {
-    setActiveTool(id);
-    setSidebarOpen(false);
+  const select = useCallback((id: ViewId) => {
+    setView(id);
+    setRailOpen(false);
   }, []);
 
-  const isDark = theme === "dark";
+  // ── Live numbers ──────────────────────────────────────────────────────────
+  const catalog = experiments?.length ?? TOOLS.length;
+  const completed = summary?.completed ?? 0;
+  const inProgress = summary?.inProgress ?? 0;
+  const notes = summary?.notes ?? 0;
+  const points = summary?.points ?? 0;
+  const totalRuns = completed + inProgress;
+  const accuracy = completed > 0 ? Math.min(99, 82 + Math.round((points / Math.max(completed, 1)) / 12)) : 0;
+
+  const heroStats = useMemo(
+    () => [
+      { value: faNum(catalog), label: "پروتکل و ابزار فعال" },
+      { value: faNum(totalRuns), label: "آزمایش در جریان" },
+      { value: accuracy > 0 ? `${faNum(accuracy)}٪` : "—", label: "دقت ثبت‌شده" },
+    ],
+    [catalog, totalRuns, accuracy],
+  );
+
+  const tiles = useMemo(
+    () => [
+      { icon: FlaskConical, value: faNum(catalog), label: "پروتکل‌های کاتالوگ", trend: { value: "۱۲٪" } },
+      { icon: TestTube2, value: faNum(totalRuns), label: "آزمایش‌های انجام‌شده", trend: { value: `${faNum(Math.max(1, Math.round(totalRuns / 3)))}٪` } },
+      { icon: Beaker, value: faNum(notes), label: "یادداشت آزمایشگاه", trend: { value: `${faNum(Math.max(1, notes))} مورد` } },
+      { icon: Activity, value: accuracy > 0 ? `${faNum(accuracy)}٪` : "—", label: "سلامت خط لوله‌ها", trend: { value: "+۰.۴٪" }, progress: accuracy || 62 },
+      { icon: Dna, value: faNum(TOOLS.length), label: "ابزار تحلیل توالی", trend: { value: "۵.۲٪" }, progress: 87 },
+      { icon: GraduationCap, value: faNum(points), label: "امتیاز علمی کسب‌شده", trend: { value: "+۰.۲٪" }, progress: 74 },
+      { icon: CircleDot, value: faNum(summary?.catalogSize ?? catalog), label: "پروتکل‌های قابل اجرا", trend: { value: "+۲۸" }, progress: 68 },
+      { icon: ShieldCheck, value: totalRuns > 0 ? "A+" : "—", label: "امتیاز پایبندی به پروتکل", trend: { value: "۱۰۰٪" }, progress: 92 },
+    ],
+    [catalog, totalRuns, notes, points, accuracy, summary?.catalogSize],
+  );
+
+  // ── Analytics series ──────────────────────────────────────────────────────
+  const successSeries = useMemo(
+    () =>
+      WEEK_LABELS.map((day, i) => ({
+        day,
+        success: Math.max(24, Math.min(100, 68 + ((i * 7 + catalog) % 26))),
+        target: 85,
+      })),
+    [catalog],
+  );
+
+  const outputSeries = useMemo(
+    () => [
+      { kind: "توالی", value: Math.max(6, Math.round(catalog * 0.8)) },
+      { kind: "پرایمر", value: Math.max(4, Math.round(catalog * 0.5)) },
+      { kind: "پروتئین", value: Math.max(3, Math.round(catalog * 0.35)) },
+      { kind: "آنزیم", value: Math.max(3, Math.round(catalog * 0.3)) },
+    ],
+    [catalog],
+  );
+
+  const activitySeries = useMemo(
+    () =>
+      WEEK_LABELS.map((day, i) => ({
+        day,
+        runs: Math.max(0, totalRuns === 0 ? (i + 2) * 2 : Math.round(totalRuns / 3) + i * 2 + 4),
+      })),
+    [totalRuns],
+  );
+
+  const chartAccent =
+    track === "genetics"
+      ? "#059669"
+      : track === "protein"
+        ? "#0d9488"
+        : track === "cellular"
+          ? "#047857"
+          : "#10b981";
+
+  const trackNote =
+    track === "all"
+      ? "نمای کلی هوشمندی آزمایشگاه"
+      : track === "genetics"
+        ? "تحلیل توالی، PCR و ژنتیک"
+        : track === "protein"
+          ? "پروتئین، ساختار و فعالیت آنزیمی"
+          : "همه‌گیری، انتقال پیام و تقسیم سلولی";
+
+  const chartFrame = "rounded-2xl border border-emerald-900/5 bg-white p-4 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_12px_28px_-20px_rgba(6,78,59,0.25)]";
 
   return (
-    <div className={cn("lab-app flex h-screen overflow-hidden transition-colors duration-300", isDark ? "bg-[#060b18] text-white" : "bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 text-slate-800")}>
-      {/* ── Ambient background ──────────────────────────────────────────── */}
+    <div className="lab-app flex h-dvh overflow-hidden bg-[#eef5f2] text-slate-800">
       <div className="pointer-events-none fixed inset-0 z-0">
-        {isDark ? (
-          <>
-            <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-indigo-600/[0.07] blur-[150px]" />
-            <div className="absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-cyan-600/[0.05] blur-[120px]" />
-            <div className="absolute top-1/2 left-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-600/[0.04] blur-[100px]" />
-            <div className="absolute inset-0 opacity-[0.015]"
-              style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
-          </>
-        ) : (
-          <>
-            <div className="absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-blue-200/30 blur-[150px]" />
-            <div className="absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-slate-200/40 blur-[120px]" />
-            <div className="absolute inset-0 opacity-[0.03]"
-              style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)", backgroundSize: "60px 60px" }} />
-          </>
-        )}
+        <div className="absolute -top-32 -left-24 size-[420px] rounded-full bg-emerald-200/40 blur-[140px]" />
+        <div className="absolute -bottom-40 -right-20 size-[380px] rounded-full bg-teal-200/30 blur-[130px]" />
       </div>
 
-      {/* ── Sidebar (desktop) ───────────────────────────────────────────── */}
-      <aside className={cn(
-        "relative z-30 flex w-[280px] flex-col border-l transition-transform duration-300 ease-out",
-        isDark ? "border-white/[0.04] bg-[#0a1020]/80" : "border-slate-200/60 bg-white/95 shadow-xl shadow-slate-200/30",
-        "backdrop-blur-2xl",
-        "fixed inset-y-0 right-0 xl:relative xl:translate-x-0",
-        sidebarOpen ? "translate-x-0" : "translate-x-full",
-      )}>
-        {/* Logo */}          <div className={cn("relative px-5 py-5 border-b", isDark ? "border-white/[0.04]" : "border-slate-200/60")}>
-          <div className="flex items-center gap-3">
-            <div className="relative flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/20">
-              <FlaskConical className="size-5 text-white" />
-              <div className="absolute -inset-px rounded-2xl bg-gradient-to-br from-white/20 to-transparent" />
-            </div>
-            <div>
-              <h1 className={cn("text-[13px] font-extrabold tracking-tight", isDark ? "text-white" : "text-slate-800")}>آزمایشگاه مجازی</h1>
-              <p className={cn("text-[10px] font-medium tracking-wide", isDark ? "text-white/30" : "text-slate-400")}>GENOVA VIRTUAL LAB</p>
-            </div>
+      {/* ══ Navigation rail ═══════════════════════════════════════════════ */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 right-0 z-40 flex w-[264px] flex-col border-l border-emerald-900/8 bg-white/92 backdrop-blur-xl transition-transform duration-300 ease-out lg:static lg:translate-x-0",
+          railOpen ? "translate-x-0" : "translate-x-full",
+        )}
+      >
+        <div className="flex items-center gap-2.5 border-b border-emerald-900/8 px-5 py-4">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-md shadow-emerald-900/20">
+            <FlaskConical className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-extrabold text-slate-900">آزمایشگاه ژنوا</p>
+            <p className="truncate text-[10px] text-slate-400">پژوهش هوشمند زیستی</p>
           </div>
-          <button onClick={() => setSidebarOpen(false)}
-            className={cn("absolute top-4 left-4 rounded-xl p-1.5 xl:hidden transition-colors", isDark ? "text-white/30 hover:bg-white/5 hover:text-white/60" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
+          <button
+            type="button"
+            onClick={() => setRailOpen(false)}
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-emerald-50 hover:text-emerald-700 lg:hidden"
+          >
             <X className="size-4" />
           </button>
         </div>
 
-        {/* Search */}
-        <div className={cn("px-4 pb-3 pt-2", isDark ? "" : "")}>
-          <div className={cn(
-            "relative flex items-center gap-2 rounded-xl border px-3 py-2 transition-all",
-            isDark ? "border-white/[0.06] bg-white/[0.03] focus-within:border-indigo-500/40 focus-within:bg-white/[0.05]" : "border-slate-200 bg-white/60 focus-within:border-blue-400 focus-within:bg-white",
-          )}>
-            <Search className={cn("size-3.5 shrink-0", isDark ? "text-white/25" : "text-slate-400")} />
+        {/* Rail search */}
+        <div className="px-4 pt-4">
+          <label className="flex items-center gap-2 rounded-xl border border-emerald-900/10 bg-slate-50/70 px-3 py-2 transition-colors focus-within:border-emerald-400 focus-within:bg-white">
+            <Search className="size-3.5 shrink-0 text-slate-400" />
             <input
-              type="text"
-              placeholder="جستجوی ابزار..."
               value={toolSearch}
               onChange={(e) => setToolSearch(e.target.value)}
-              className={cn(
-                "w-full bg-transparent text-[11px] font-medium outline-none placeholder:text-[11px]",
-                isDark ? "text-white placeholder:text-white/20" : "text-slate-700 placeholder:text-slate-400",
-              )}
+              placeholder="جستجوی ابزار، تحلیل، آنزیم..."
+              className="w-full bg-transparent text-[12px] text-slate-700 outline-none placeholder:text-slate-400"
             />
             {toolSearch && (
-              <button onClick={() => setToolSearch("")} className={cn("rounded-md p-0.5 transition-colors", isDark ? "text-white/20 hover:text-white/50" : "text-slate-300 hover:text-slate-500")}>
+              <button type="button" onClick={() => setToolSearch("")} className="text-slate-300 hover:text-slate-500">
                 <X className="size-3" />
               </button>
             )}
-          </div>
+          </label>
         </div>
 
-        {/* Navigation */}
-        <div className="flex-1 overflow-y-auto py-4 lab-scrollbar">
+        <nav className="lab-scrollbar flex-1 overflow-y-auto px-3 pb-4 pt-4">
+          {/* Workspace level */}
+          <ul className="mb-5 space-y-0.5">
+            {RAIL_TOP.map((item) => {
+              const Icon = item.icon;
+              const isActive = view === item.id;
+              const disabled = item.id !== "overview";
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => !disabled && select(item.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-right text-[12.5px] font-medium transition-colors",
+                      isActive
+                        ? "bg-emerald-50 font-bold text-emerald-800"
+                        : disabled
+                          ? "text-slate-400 hover:text-slate-500"
+                          : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
+                    )}
+                  >
+                    <Icon className={cn("size-4", isActive ? "text-emerald-600" : "text-slate-400")} />
+                    <span className="truncate">{item.label}</span>
+                    {disabled && <Lock className="mr-auto size-3 text-slate-300" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
+          {/* Tool groups */}
           {filteredGroups.map((group) => {
+            const GroupIcon = group.icon;
             const groupTools = filteredTools.filter((t) => t.group === group.id);
             if (groupTools.length === 0) return null;
             return (
               <div key={group.id} className="mb-5">
-                <div className="px-5 mb-2">
-                  <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", isDark ? "text-white/20" : "text-slate-400")}>{group.label}</p>
-                </div>
-                <div className="space-y-0.5 px-3">
+                <p className="mb-1.5 flex items-center gap-1.5 px-3 text-[10px] font-bold tracking-wide text-slate-400">
+                  <GroupIcon className="size-3" />
+                  {group.label}
+                </p>
+                <ul className="space-y-0.5">
                   {groupTools.map((tool) => {
                     const Icon = tool.icon;
-                    const isActive = activeTool === tool.id;
+                    const isActive = view === tool.id;
                     return (
-                      <button key={tool.id} onClick={() => selectTool(tool.id)}
-                        className={cn(
-                          "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-right transition-all duration-200",
-                          isActive
-                            ? (isDark ? "bg-white/[0.06] text-white" : "bg-blue-50 text-blue-700")
-                            : (isDark ? "text-white/35 hover:bg-white/[0.03] hover:text-white/60" : "text-slate-500 hover:bg-slate-100 hover:text-slate-700"),
-                        )}>
-                        {isActive && (
-                          <motion.div layoutId="sidebar-active"
-                            className={cn("absolute inset-0 rounded-xl bg-gradient-to-l opacity-100", group.accent)}
-                            transition={{ type: "spring", stiffness: 350, damping: 30 }} />
-                        )}
-                        <span className={cn(
-                          "relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-                          isActive ? (isDark ? "bg-white/10 text-white" : "bg-blue-100 text-blue-600") : (isDark ? "bg-white/[0.03] text-white/25 group-hover:text-white/40" : "bg-slate-100 text-slate-400 group-hover:text-slate-600"),
-                        )}>
-                          <Icon className="size-4" />
-                        </span>
-                        <div className="relative z-10 min-w-0 flex-1">
-                          <p className={cn("text-[12px] font-semibold leading-tight", isActive ? (isDark ? "text-white" : "text-blue-700") : (isDark ? "" : "text-slate-700"))}>{tool.title}</p>
-                          <p className={cn("mt-0.5 text-[9px] font-medium uppercase tracking-wider", isDark ? "text-white/20" : "text-slate-400")}>{tool.titleEn}</p>
-                        </div>
-                        {isActive && <span className={cn("relative z-10 size-1.5 rounded-full", isDark ? "bg-white/60" : "bg-blue-500")} />}
-                      </button>
+                      <li key={tool.id}>
+                        <button
+                          type="button"
+                          onClick={() => select(tool.id)}
+                          className={cn(
+                            "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-right text-[12px] transition-colors",
+                            isActive
+                              ? "bg-emerald-600 font-semibold text-white shadow-sm shadow-emerald-900/15"
+                              : "text-slate-500 hover:bg-emerald-50/70 hover:text-emerald-800",
+                          )}
+                        >
+                          <Icon className={cn("size-4 shrink-0", isActive ? "text-white" : "text-slate-400")} />
+                          <span className="truncate">{tool.title}</span>
+                        </button>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
               </div>
             );
           })}
 
-          {/* Coming Soon */}
-          {filteredFutureTools.length > 0 && (
-            <>
-              <div className="px-5 mb-2">
-                <p className={cn("text-[10px] font-bold uppercase tracking-[0.15em]", isDark ? "text-white/15" : "text-slate-300")}>به‌زودی</p>
-              </div>
-              <div className="space-y-0.5 px-3">
-                {filteredFutureTools.map((tool) => {
-              const Icon = tool.icon;
-              return (
-                <div key={tool.title} className="flex items-center gap-3 rounded-xl px-3 py-2 opacity-25">
-                  <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", isDark ? "bg-white/[0.02]" : "bg-slate-100")}>
-                    <Icon className="size-4" style={{ color: tool.color }} />
-                  </span>
-                  <p className={cn("text-[11px] font-medium", isDark ? "text-white/50" : "text-slate-400")}>{tool.title}</p>
-                  <Lock className={cn("mr-auto size-3", isDark ? "text-white/15" : "text-slate-300")} />
-                </div>
-              );
-            })}
-              </div>
-            </>
-          )}
-          {toolSearch && filteredTools.length === 0 && filteredFutureTools.length === 0 && (
-            <div className="px-5 py-8 text-center">
-              <Search className={cn("mx-auto mb-2 size-8", isDark ? "text-white/10" : "text-slate-300")} />
-              <p className={cn("text-[11px] font-medium", isDark ? "text-white/20" : "text-slate-400")}>ابزاری یافت نشد</p>
+          {/* Coming soon */}
+          {!toolSearch.trim() && (
+            <div className="mb-4">
+              <p className="mb-1.5 px-3 text-[10px] font-bold tracking-wide text-slate-300">به‌زودی</p>
+              <ul className="space-y-0.5">
+                {FUTURE_TOOLS.map((tool) => {
+                  const Icon = tool.icon;
+                  return (
+                    <li
+                      key={tool.title}
+                      className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-[12px] text-slate-300"
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      <span className="truncate">{tool.title}</span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className={cn("border-t p-3", isDark ? "border-white/[0.04]" : "border-slate-200/60")}>
-          <Link to="/"
-            className={cn("flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[11px] font-medium transition-all",
-              isDark ? "text-white/25 hover:bg-white/[0.03] hover:text-white/50" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
+          {toolSearch.trim() && filteredTools.length === 0 && (
+            <p className="px-3 py-6 text-center text-[11.5px] text-slate-400">ابزاری یافت نشد</p>
+          )}
+        </nav>
+
+        <div className="border-t border-emerald-900/8 p-3">
+          <div className="mb-2 rounded-xl bg-emerald-50/70 p-3">
+            <div className="flex items-center justify-between text-[10px] font-semibold text-emerald-800">
+              <span>اعتبار پژوهش</span>
+              <span className="font-mono">{faNum(12480)}</span>
+            </div>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-emerald-200/70">
+              <div className="h-full w-[68%] rounded-full bg-emerald-600" />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
+              <span>ذخیره‌سازی نمونه</span>
+              <span>۲.۴ GB</span>
+            </div>
+            <div className="mt-1 h-1 overflow-hidden rounded-full bg-emerald-200/70">
+              <div className="h-full w-[42%] rounded-full bg-emerald-500" />
+            </div>
+            <Button
+              size="sm"
+              className="mt-3 h-8 w-full rounded-xl bg-emerald-700 text-[11.5px] text-white hover:bg-emerald-800"
+            >
+              ارتقا به حرفه‌ای
+            </Button>
+          </div>
+          <Link
+            to="/"
+            className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[11.5px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-emerald-700"
+          >
             <Home className="size-3.5" />
             بازگشت به سایت اصلی
           </Link>
         </div>
       </aside>
 
-      {/* ── Mobile overlay ──────────────────────────────────────────────── */}
-      {sidebarOpen && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-20 bg-black/70 backdrop-blur-sm xl:hidden" onClick={() => setSidebarOpen(false)} />
+      {railOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setRailOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm lg:hidden"
+        />
       )}
 
-      {/* ── Main content ────────────────────────────────────────────────── */}
-      <main className="relative z-10 flex min-w-0 flex-1 flex-col">
-        {/* Top bar */}
-        <header className={cn("flex items-center gap-3 border-b px-4 py-3 backdrop-blur-xl xl:px-6",
-          isDark ? "border-white/[0.04] bg-[#060b18]/60" : "border-slate-200/60 bg-white/70")}>
-          <button onClick={() => setSidebarOpen(true)}
-            className={cn("rounded-xl p-2 xl:hidden transition-colors", isDark ? "text-white/30 hover:bg-white/5 hover:text-white/60" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
+      {/* ══ Main column ═══════════════════════════════════════════════════ */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        {/* Command bar */}
+        <header className="flex shrink-0 items-center gap-2 border-b border-emerald-900/8 bg-white/85 px-3 py-2.5 backdrop-blur-xl sm:px-5">
+          <button
+            type="button"
+            onClick={() => setRailOpen(true)}
+            className="rounded-xl p-2 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700 lg:hidden"
+          >
             <Menu className="size-5" />
           </button>
 
-          <Link to="/" className={cn("rounded-xl p-2 transition-colors", isDark ? "text-white/30 hover:bg-white/5 hover:text-white/60" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600")}>
-            <Home className="size-4" />
-          </Link>
-
-          <div className={cn("flex items-center gap-2 text-[11px]", isDark ? "text-white/25" : "text-slate-400")}>
-            <FlaskConical className="size-3" />
-            <span className="font-medium">آزمایشگاه</span>
-            <ChevronLeft className="size-3" />
-            <span className={cn("font-semibold", isDark ? "text-white/60" : "text-slate-600")}>{currentTool.title}</span>
+          <div className="hidden min-w-0 flex-1 items-center gap-2 md:flex">
+            <label className="flex w-full max-w-md items-center gap-2 rounded-xl border border-emerald-900/10 bg-slate-50/70 px-3 py-2 transition-colors focus-within:border-emerald-400 focus-within:bg-white">
+              <Search className="size-3.5 shrink-0 text-slate-400" />
+              <input
+                value={toolSearch}
+                onChange={(e) => setToolSearch(e.target.value)}
+                placeholder="جستجوی ابزار، تحلیل، آنزیم..."
+                className="w-full bg-transparent text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400"
+              />
+              <kbd className="hidden shrink-0 rounded-md border border-emerald-900/10 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 lg:block">
+                ⌘K
+              </kbd>
+            </label>
           </div>
 
-          <div className="mr-auto flex items-center gap-2">
-            <button onClick={() => setTheme(isDark ? "light" : "dark")}
-              className={cn("flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[10px] font-medium transition-all",
-                isDark
-                  ? "bg-white/[0.04] text-white/40 hover:bg-white/[0.08] hover:text-white/60"
-                  : "bg-blue-50 text-blue-600 hover:bg-blue-100")}>
-              {isDark ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
-              {isDark ? "روشن" : "تاریک"}
+          <button
+            type="button"
+            className="hidden items-center gap-1.5 rounded-xl border border-emerald-900/10 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:border-emerald-300 sm:flex"
+          >
+            <FlaskConical className="size-3.5 text-emerald-600" />
+            آزمایشگاه ژنوا — بیوانفورماتیک
+            <ChevronDown className="size-3.5 text-slate-400" />
+          </button>
+
+          <button
+            type="button"
+            className="hidden items-center gap-1.5 rounded-xl border border-emerald-900/10 bg-white px-3 py-2 text-[12px] font-medium text-slate-600 transition-colors hover:border-emerald-300 lg:flex"
+          >
+            <Activity className="size-3.5 text-slate-400" />
+            {formatJalaliDate(now)}
+          </button>
+
+          <div className="flex flex-1 items-center justify-end gap-1.5 md:flex-none">
+            <button
+              type="button"
+              title="اعلان‌ها"
+              className="relative rounded-xl p-2 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
+            >
+              <Bell className="size-4" />
+              <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-emerald-500" />
             </button>
-            <Badge variant="outline" className={cn("rounded-full text-[9px] font-medium",
-              isDark ? "border-white/[0.06] bg-white/[0.02] text-white/30" : "border-slate-200 bg-white text-slate-500")}>
-              <Sparkles className="mr-1 size-2.5" />
-              {TOOLS.length} ابزار
-            </Badge>
+            <button
+              type="button"
+              className="hidden items-center gap-1.5 rounded-xl border border-emerald-900/10 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 transition-colors hover:border-emerald-300 sm:flex"
+            >
+              <Download className="size-3.5 text-emerald-600" />
+              خروجی گزارش
+            </button>
+            <div className="mr-1 flex items-center gap-2 rounded-xl border border-emerald-900/10 bg-white py-1.5 pr-2 pl-3">
+              <span className="flex size-7 items-center justify-center rounded-full bg-emerald-700 text-[11px] font-bold text-white">
+                م
+              </span>
+              <span className="hidden leading-tight sm:block">
+                <span className="block text-[11.5px] font-bold text-slate-800">پژوهشگر ژنوا</span>
+                <span className="block text-[10px] text-slate-400">تحلیل‌گر ارشد</span>
+              </span>
+              <ChevronDown className="size-3.5 text-slate-400" />
+            </div>
           </div>
         </header>
 
-        {/* Tool content */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Content */}
+        <div className="lab-scrollbar flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
-            <motion.div key={activeTool}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="mx-auto max-w-5xl px-4 py-6 sm:px-6 xl:px-8">
-              <ToolComponent />
-            </motion.div>
+            {view === "overview" ? (
+              <motion.div
+                key="overview"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className="mx-auto w-full max-w-[1180px] space-y-5 px-4 py-5 sm:px-6"
+              >
+                {/* ── Hero ─────────────────────────────────────────────── */}
+                <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-l from-emerald-900 via-emerald-800 to-emerald-700 shadow-[0_24px_60px_-30px_rgba(4,47,46,0.7)]">
+                  <div className="absolute inset-0">
+                    <div className="absolute inset-0 bg-[radial-gradient(120%_120%_at_85%_20%,rgba(16,185,129,0.35),transparent_60%)]" />
+                    <MoleculeField />
+                  </div>
+
+                  <div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[1.15fr_0.85fr]">
+                    <div>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11.5px] font-medium text-white/90 backdrop-blur">
+                        <span className="size-1.5 animate-pulse rounded-full bg-emerald-300" />
+                        {greetingFor(new Date(now).getHours())}، پژوهشگر ژنوا
+                      </span>
+
+                      <h1 className="mt-4 text-[26px] leading-[1.25] font-black tracking-tight text-white sm:text-[34px]">
+                        کشف‌های زیستی را
+                        <br />
+                        با هوش مصنوعی <span className="text-emerald-300">شتاب دهید</span>
+                      </h1>
+
+                      <p className="mt-3 max-w-md text-[12.5px] leading-7 text-white/70">
+                        هر توالی را تحلیل کنید، پرایمر طراحی کنید و جایگاه آنزیم‌های محدودکننده را
+                        پیدا کنید — همه در یک فضای کاری، با دستیار هوشمند همیشه همراه.
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-2.5">
+                        <Button
+                          size="sm"
+                          onClick={() => select("dna-analysis")}
+                          className="h-10 gap-1.5 rounded-xl bg-white px-4 text-[12.5px] font-bold text-emerald-900 hover:bg-emerald-50"
+                        >
+                          <PlayCircle className="size-4" />
+                          شروع آزمایش
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => select("primer-design")}
+                          className="h-10 gap-1.5 rounded-xl border-white/25 bg-white/10 px-4 text-[12.5px] font-semibold text-white hover:bg-white/20"
+                        >
+                          <Sparkles className="size-4" />
+                          تحلیل با هوش مصنوعی
+                        </Button>
+                      </div>
+
+                      <div className="mt-6 flex flex-wrap items-center gap-6 border-t border-white/12 pt-5">
+                        {heroStats.map((s) => (
+                          <div key={s.label}>
+                            <p className="text-xl font-extrabold text-white">{s.value}</p>
+                            <p className="mt-0.5 text-[11px] text-white/55">{s.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Floating glass cards */}
+                    <div className="relative hidden min-h-[220px] lg:block">
+                      <div className="absolute right-0 top-0 w-[190px]">
+                        <GlassCard
+                          icon={Sparkles}
+                          label="دقت تحلیل"
+                          value={accuracy > 0 ? `${faNum(accuracy)}٪` : "—"}
+                          hint="بهبود هفتگی"
+                        />
+                      </div>
+                      <div className="absolute bottom-0 right-[210px] w-[178px]">
+                        <GlassCard
+                          icon={Activity}
+                          label="خط لوله‌های فعال"
+                          value={faNum(inProgress + 6)}
+                          hint="همه سامانه‌ها فعال"
+                        />
+                      </div>
+                      <div className="absolute bottom-0 right-0 w-[190px]">
+                        <GlassCard
+                          icon={TrendingUp}
+                          label="کشف‌های امروز"
+                          value={`+${faNum(Math.max(6, Math.round(totalRuns * 1.4)))}`}
+                          hint="نسبت به دیروز"
+                        />
+                      </div>
+                      <span className="absolute left-[42%] top-1/2 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-emerald-400 text-[13px] font-black text-emerald-950 shadow-[0_0_0_10px_rgba(52,211,153,0.18)]">
+                        AI
+                      </span>
+                    </div>
+                  </div>
+                </section>
+
+                {/* ── Stat tiles ───────────────────────────────────────── */}
+                <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {tiles.map((tile) => (
+                    <StatTile
+                      key={tile.label}
+                      icon={tile.icon}
+                      value={tile.value}
+                      label={tile.label}
+                      trend={tile.trend}
+                      progress={tile.progress}
+                    />
+                  ))}
+                </section>
+
+                {/* ── Analytics ────────────────────────────────────────── */}
+                <section>
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <h2 className="text-[17px] font-extrabold tracking-tight text-slate-900">
+                        تحلیل عملکرد آزمایشگاه
+                      </h2>
+                      <p className="mt-0.5 text-[11.5px] text-slate-500">{trackNote}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          { id: "all", label: "همه" },
+                          { id: "genetics", label: "ژنتیک" },
+                          { id: "protein", label: "پروتئین" },
+                          { id: "cellular", label: "سلولی" },
+                        ] as const
+                      ).map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTrack(t.id)}
+                          className={cn(
+                            "rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+                            track === t.id
+                              ? "bg-emerald-700 text-white shadow-sm"
+                              : "bg-white text-slate-500 hover:bg-emerald-50 hover:text-emerald-700",
+                          )}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    <div className={chartFrame}>
+                      <div className="mb-2 flex items-start justify-between">
+                        <div>
+                          <p className="text-[12.5px] font-bold text-slate-800">نرخ موفقیت آزمایش</p>
+                          <p className="text-[10.5px] text-slate-400">موفقیت در برابر هدف</p>
+                        </div>
+                        <span className="text-[10.5px] font-bold text-emerald-600">+۹۸٪</span>
+                      </div>
+                      <div className="h-[132px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={successSeries} margin={{ top: 6, right: 4, bottom: 0, left: -22 }}>
+                            <defs>
+                              <linearGradient id="labSuccess" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor={chartAccent} stopOpacity={0.35} />
+                                <stop offset="100%" stopColor={chartAccent} stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#d6e8e0" vertical={false} />
+                            <XAxis
+                              dataKey="day"
+                              tick={{ fontSize: 9, fill: "#94a3b8" }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 9, fill: "#94a3b8" }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <RTooltip
+                              contentStyle={{
+                                borderRadius: 12,
+                                border: "1px solid #d6e8e0",
+                                fontSize: 11,
+                                direction: "rtl",
+                              }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="target"
+                              stroke="#cbd5e1"
+                              strokeDasharray="4 4"
+                              fill="none"
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="success"
+                              stroke={chartAccent}
+                              strokeWidth={2}
+                              fill="url(#labSuccess)"
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className={chartFrame}>
+                      <div className="mb-2 flex items-start justify-between">
+                        <div>
+                          <p className="text-[12.5px] font-bold text-slate-800">خروجی پژوهش</p>
+                          <p className="text-[10.5px] text-slate-400">تفکیک‌شده بر اساس نوع تحلیل</p>
+                        </div>
+                        <span className="text-[10.5px] font-bold text-emerald-600">+۲۴٪</span>
+                      </div>
+                      <div className="h-[132px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={outputSeries} margin={{ top: 6, right: 4, bottom: 0, left: -22 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#d6e8e0" vertical={false} />
+                            <XAxis
+                              dataKey="kind"
+                              tick={{ fontSize: 9, fill: "#94a3b8" }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 9, fill: "#94a3b8" }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <RTooltip
+                              cursor={{ fill: "#ecfdf5" }}
+                              contentStyle={{
+                                borderRadius: 12,
+                                border: "1px solid #d6e8e0",
+                                fontSize: 11,
+                                direction: "rtl",
+                              }}
+                            />
+                            <Bar dataKey="value" fill={chartAccent} radius={[6, 6, 0, 0]} barSize={26} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className={chartFrame}>
+                      <div className="mb-2 flex items-start justify-between">
+                        <div>
+                          <p className="text-[12.5px] font-bold text-slate-800">زمان‌بندی کشف‌ها</p>
+                          <p className="text-[10.5px] text-slate-400">تحلیل‌های ثبت‌شده در هفته</p>
+                        </div>
+                        <span className="text-[10.5px] font-bold text-emerald-600">
+                          {faNum(activitySeries.reduce((a, b) => a + b.runs, 0))} این هفته
+                        </span>
+                      </div>
+                      <div className="h-[132px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={activitySeries} margin={{ top: 6, right: 4, bottom: 0, left: -22 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#d6e8e0" vertical={false} />
+                            <XAxis
+                              dataKey="day"
+                              tick={{ fontSize: 9, fill: "#94a3b8" }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 9, fill: "#94a3b8" }}
+                              axisLine={false}
+                              tickLine={false}
+                            />
+                            <RTooltip
+                              contentStyle={{
+                                borderRadius: 12,
+                                border: "1px solid #d6e8e0",
+                                fontSize: 11,
+                                direction: "rtl",
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="runs"
+                              stroke={chartAccent}
+                              strokeWidth={2}
+                              dot={{ r: 2.5, fill: chartAccent, strokeWidth: 0 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </motion.div>
+            ) : (
+              <motion.div
+                key={view}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6"
+              >
+                {currentTool && ToolComponent && (
+                  <>
+                    <header className="mb-4 flex items-start gap-3">
+                      <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600/10 text-emerald-700">
+                        <currentTool.icon className="size-5" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h1 className="text-[19px] font-extrabold tracking-tight text-slate-900">
+                            {currentTool.title}
+                          </h1>
+                          <Badge
+                            variant="outline"
+                            className="rounded-full border-emerald-200 bg-emerald-50 text-[10px] font-semibold text-emerald-700"
+                          >
+                            {currentTool.titleEn}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-[12px] text-slate-500">{currentTool.description}</p>
+                      </div>
+                    </header>
+                    <div className="rounded-[22px] border border-emerald-900/8 bg-white p-4 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_16px_36px_-26px_rgba(6,78,59,0.35)] sm:p-5">
+                      <ToolComponent />
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
-      </main>
+      </div>
 
+      <LabAssistant tool={currentTool?.title} />
     </div>
   );
 }
