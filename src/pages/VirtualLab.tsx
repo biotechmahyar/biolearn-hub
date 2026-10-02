@@ -295,7 +295,15 @@ const ACCENT: Record<
   },
 };
 
-type WorkspaceView = "overview" | "experiments" | "protocols" | "equipment" | "team" | "reports" | "settings";
+type WorkspaceView =
+  | "overview"
+  | "experiments"
+  | "run"
+  | "protocols"
+  | "equipment"
+  | "team"
+  | "reports"
+  | "settings";
 type ViewId = WorkspaceView | ToolId;
 
 const WORKSPACE_ITEMS: { id: WorkspaceView; label: string; icon: typeof Dna }[] = [
@@ -307,6 +315,9 @@ const WORKSPACE_ITEMS: { id: WorkspaceView; label: string; icon: typeof Dna }[] 
   { id: "reports", label: "گزارش‌ها", icon: TrendingUp },
   { id: "settings", label: "تنظیمات", icon: Settings2 },
 ];
+
+/** Rail entry shown while a guided experiment is open (see the rail below). */
+const RUN_VIEW: WorkspaceView = "run";
 
 /** Research fields — switching one filters the whole workspace. */
 const FIELDS: { id: string; label: string; groups: GroupId[] }[] = [
@@ -484,6 +495,9 @@ export default function VirtualLab() {
   const [periodId, setPeriodId] = useState(initialPeriod);
   const [readNotifications, setReadNotifications] = useState(() => readStored(READ_NOTIF_KEY, "") === "1");
 
+  // One stable timestamp for the whole session (header date + greeting).
+  const [now] = useState(() => Date.now());
+
   const field = FIELDS.find((f) => f.id === fieldId) ?? FIELDS[0];
   const period = PERIODS.find((p) => p.id === periodId) ?? PERIODS[1];
 
@@ -506,7 +520,132 @@ export default function VirtualLab() {
   const experiments = useQuery(api.lab.listExperiments);
   const summary = useQuery(api.lab.myLabSummary);
   const progress = useQuery(api.lab.listMyProgress);
+  const notebook = useQuery(api.lab.myNotes);
   const startExperimentMut = useMutation(api.lab.startExperiment);
+  const recordStepMut = useMutation(api.lab.recordStep);
+  const resetExperimentMut = useMutation(api.lab.resetExperiment);
+  const addNoteMut = useMutation(api.lab.addNote);
+  const deleteNoteMut = useMutation(api.lab.deleteNote);
+
+  // ── Guided experiment runner ──────────────────────────────────────────────
+  const select = useCallback((id: ViewId) => {
+    setView(id);
+    setRailOpen(false);
+  }, []);
+
+  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [choice, setChoice] = useState<number | null>(null);
+  const [stepBusy, setStepBusy] = useState(false);
+  const [stepFeedback, setStepFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [answeredFor, setAnsweredFor] = useState<string | null>(null);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteBody, setNoteBody] = useState("");
+
+  const activeExperiment = useMemo(
+    () => (experiments ?? []).find((e: { slug: string }) => e.slug === activeSlug) ?? null,
+    [experiments, activeSlug],
+  );
+  const activeRow = useMemo(
+    () => (progress ?? []).find((p: { experimentSlug: string }) => p.experimentSlug === activeSlug) ?? null,
+    [progress, activeSlug],
+  );
+  const doneCount = activeRow?.stepsDone?.length ?? 0;
+  const totalSteps = activeExperiment?.stepCount ?? 0;
+  const currentStepIndex = Math.min(doneCount, Math.max(totalSteps - 1, 0));
+  const currentStep = activeExperiment?.steps?.[currentStepIndex] ?? null;
+  const isFinished = totalSteps > 0 && doneCount >= totalSteps;
+
+  // The answer box belongs to one specific step: derive what is shown from the
+  // step identity instead of resetting it from an effect.
+  const stepKey = activeSlug ? `${activeSlug}#${currentStepIndex}` : null;
+  const choiceForStep = stepKey && answeredFor === stepKey ? choice : null;
+  const feedbackForStep = stepKey && answeredFor === stepKey ? stepFeedback : null;
+
+  const clearStepState = useCallback(() => {
+    setChoice(null);
+    setStepFeedback(null);
+    setAnsweredFor(null);
+  }, []);
+
+  const submitStep = useCallback(async () => {
+    if (!activeExperiment || !currentStep || stepBusy) return;
+    if (!isAuthenticated) {
+      toast.error("برای ثبت مرحله ابتدا وارد حساب شوید.");
+      return;
+    }
+    if (currentStep.check && choiceForStep === null) {
+      toast.error("برای این مرحله یک گزینه را انتخاب کنید.");
+      return;
+    }
+    setStepBusy(true);
+    setAnsweredFor(stepKey);
+    try {
+      const res = await recordStepMut({
+        slug: activeExperiment.slug,
+        stepIndex: currentStepIndex,
+        ...(choiceForStep !== null ? { choice: choiceForStep } : {}),
+      });
+      if (res && res.ok === false) {
+        setStepFeedback({ ok: false, message: "پاسخ درست نیست. راهنمای این مرحله را بخوانید و دوباره تلاش کنید." });
+      } else if (res && res.finished) {
+        setStepFeedback({ ok: true, message: "آزمایش کامل شد. امتیاز پایانی به حساب شما اضافه شد." });
+        toast.success("آزمایش با موفقیت کامل شد");
+      } else {
+        setStepFeedback({ ok: true, message: "درست بود. مرحلهٔ بعدی باز شد." });
+      }
+    } catch (e) {
+      setStepFeedback({
+        ok: false,
+        message: e instanceof Error ? e.message : "ثبت مرحله ناموفق بود",
+      });
+    } finally {
+      setStepBusy(false);
+    }
+  }, [activeExperiment, currentStep, currentStepIndex, choiceForStep, stepKey, isAuthenticated, recordStepMut, stepBusy]);
+
+  const restartExperiment = useCallback(async () => {
+    if (!activeExperiment) return;
+    try {
+      await resetExperimentMut({ slug: activeExperiment.slug });
+      clearStepState();
+      toast.success("آزمایش از مرحلهٔ اول شروع می‌شود");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "بازنشانی ناموفق بود");
+    }
+  }, [activeExperiment, resetExperimentMut, clearStepState]);
+
+  const saveNote = useCallback(async () => {
+    if (!noteTitle.trim() || !noteBody.trim()) {
+      toast.error("عنوان و متن یادداشت لازم است.");
+      return;
+    }
+    try {
+      await addNoteMut({
+        title: noteTitle.trim(),
+        body: noteBody.trim(),
+        ...(activeSlug ? { experimentSlug: activeSlug } : {}),
+      });
+      setNoteTitle("");
+      setNoteBody("");
+      toast.success("یادداشت در دفترچهٔ آزمایشگاه ثبت شد");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "ثبت یادداشت ناموفق بود");
+    }
+  }, [noteTitle, noteBody, activeSlug, addNoteMut]);
+
+  const openExperiment = useCallback(
+    async (slug: string, title: string) => {
+      setActiveSlug(slug);
+      select(RUN_VIEW);
+      try {
+        await startExperimentMut({ slug });
+        toast.success(`آزمایش «${title}» شروع شد`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "شروع آزمایش ناموفق بود");
+      }
+    },
+    [startExperimentMut, select],
+  );
 
   const currentTool = TOOLS.find((t) => t.id === view) ?? null;
   const ToolComponent = currentTool?.component;
@@ -536,10 +675,7 @@ export default function VirtualLab() {
     );
   }, [toolSearch, filteredTools, field.groups]);
 
-  const select = useCallback((id: ViewId) => {
-    setView(id);
-    setRailOpen(false);
-  }, []);
+
 
   // ⌘K / Ctrl+K focuses the workspace search.
   useEffect(() => {
@@ -706,14 +842,10 @@ export default function VirtualLab() {
         toast.error("برای شروع آزمایش ابتدا وارد حساب شوید.");
         return;
       }
-      try {
-        await startExperimentMut({ slug });
-        toast.success(`آزمایش «${title}» شروع شد`);
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "شروع آزمایش ناموفق بود");
-      }
+      // Register it and drop the visitor straight into the runner.
+      await openExperiment(slug, title);
     },
-    [isAuthenticated, startExperimentMut],
+    [isAuthenticated, openExperiment],
   );
 
   const savePref = useCallback((key: string, value: string) => {
@@ -892,6 +1024,18 @@ export default function VirtualLab() {
 
         <nav className="lab-scrollbar flex-1 overflow-y-auto px-3 pb-4 pt-4">
           <ul className="mb-5 space-y-0.5">
+            {activeExperiment && (
+              <li className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => select(RUN_VIEW)}
+                  className="flex w-full items-center gap-2.5 rounded-xl bg-emerald-50 px-3 py-2.5 text-right text-[12.5px] font-bold text-emerald-800 ring-1 ring-emerald-200 transition-colors hover:bg-emerald-100"
+                >
+                  <PlayCircle className="size-4 text-emerald-600" />
+                  <span className="truncate">در حال اجرا: {activeExperiment.title}</span>
+                </button>
+              </li>
+            )}
             {WORKSPACE_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = view === item.id;
@@ -1077,35 +1221,11 @@ export default function VirtualLab() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Reporting window — really changes the charts */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="hidden items-center gap-1.5 rounded-xl border border-emerald-900/10 bg-white px-3 py-2 text-[12px] font-medium text-slate-600 transition-colors hover:border-emerald-300 lg:flex"
-              >
-                <Activity className="size-3.5 text-slate-400" />
-                {period.label}
-                <ChevronDown className="size-3.5 text-slate-400" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-52">
-              <DropdownMenuLabel className="text-[11px]">بازهٔ گزارش</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {PERIODS.map((p) => (
-                <DropdownMenuItem
-                  key={p.id}
-                  onClick={() => {
-                    setPeriodId(p.id);
-                    savePref(DEFAULT_PERIOD_KEY, p.id);
-                  }}
-                >
-                  <span className="flex-1">{p.label}</span>
-                  {p.id === periodId && <Check className="size-3.5 text-emerald-600" />}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Today’s date — the second command-bar pill, exactly like the reference */}
+          <div className="hidden items-center gap-1.5 rounded-xl border border-emerald-900/10 bg-white px-3 py-2 text-[12px] font-medium text-slate-600 lg:flex">
+            <Activity className="size-3.5 text-slate-400" />
+            {formatJalaliDate(now)}
+          </div>
 
           <div className="flex flex-1 items-center justify-end gap-1.5 md:flex-none">
             {/* Notifications */}
@@ -1258,7 +1378,7 @@ export default function VirtualLab() {
                       <div>
                         <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/15 px-3 py-1.5 text-[11.5px] font-semibold text-white">
                           <span className="size-1.5 animate-pulse rounded-full bg-emerald-200" />
-                          {greetingFor(new Date().getHours())}، {displayName}
+                          {greetingFor(new Date(now).getHours())}، {displayName}
                         </span>
 
                         <h1 className="mt-4 text-[26px] leading-[1.25] font-black tracking-tight text-white sm:text-[34px]">
@@ -1396,6 +1516,345 @@ export default function VirtualLab() {
                 </section>
               )}
 
+              {/* ───────────── RUN A GUIDED EXPERIMENT ───────────── */}
+              {view === "run" && (
+                <section className="space-y-3">
+                  {!activeExperiment ? (
+                    <>
+                      <div>
+                        <h2 className="text-[19px] font-extrabold tracking-tight text-slate-900">اجرای آزمایش</h2>
+                        <p className="mt-1 text-[12px] text-slate-500">
+                          یکی از آزمایش‌های هدایت‌شده را انتخاب کنید؛ مراحل روی سرور نمره‌گذاری می‌شود.
+                        </p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {(experiments ?? []).map((e) => {
+                          const row = (progress ?? []).find((p: { experimentSlug: string }) => p.experimentSlug === e.slug);
+                          const done = row?.stepsDone?.length ?? 0;
+                          return (
+                            <button
+                              key={e.slug}
+                              type="button"
+                              onClick={() => void openExperiment(e.slug, e.title)}
+                              className="rounded-2xl border border-emerald-900/5 bg-white p-4 text-right shadow-[0_1px_2px_rgba(6,78,59,0.04),0_12px_28px_-20px_rgba(6,78,59,0.25)] transition-all hover:-translate-y-0.5 hover:border-emerald-300"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="text-[13.5px] font-bold text-slate-800">{e.title}</h3>
+                                {row && (
+                                  <span
+                                    className={cn(
+                                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                      row.status === "completed"
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-amber-100 text-amber-700",
+                                    )}
+                                  >
+                                    {row.status === "completed" ? "تکمیل‌شده" : "در حال اجرا"}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-5 text-slate-500">{e.summary}</p>
+                              <div className="mt-3 flex items-center gap-2">
+                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-emerald-100">
+                                  <div
+                                    className="h-full rounded-full bg-emerald-600 transition-all"
+                                    style={{ width: `${Math.min(100, (done / Math.max(e.stepCount, 1)) * 100)}%` }}
+                                  />
+                                </div>
+                                <span className="shrink-0 text-[10.5px] font-semibold text-slate-500">
+                                  {faNum(done)}/{faNum(e.stepCount)} مرحله
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                        {!experiments && (
+                          <p className="col-span-full py-10 text-center text-[12px] text-slate-400">در حال بارگذاری…</p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {!isAuthenticated && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                          <p className="text-[12px] leading-6 text-amber-800">
+                            برای ثبت مراحل و ذخیرهٔ امتیاز باید وارد حساب کاربری شوید؛ تا آن زمان می‌توانید
+                            متن هر مرحله را بخوانید.
+                          </p>
+                          <Button asChild size="sm" className="h-9 rounded-xl bg-amber-600 px-4 text-[12px] text-white hover:bg-amber-700">
+                            <Link to="/auth?returnTo=/lab">ورود به حساب</Link>
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Header + progress */}
+                      <div className="rounded-[22px] border border-emerald-900/5 bg-white p-5 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_16px_36px_-26px_rgba(6,78,59,0.35)]">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-start gap-3">
+                            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                              <FlaskConical className="size-6" />
+                            </span>
+                            <div className="min-w-0">
+                              <h1 className="text-[19px] font-extrabold tracking-tight text-slate-900">
+                                {activeExperiment.title}
+                              </h1>
+                              <p className="mt-1 max-w-xl text-[12px] leading-6 text-slate-500">
+                                {activeExperiment.summary}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => assistantRef.current?.open()}
+                              className="h-9 gap-1.5 rounded-xl bg-emerald-700 text-[12px] text-white hover:bg-emerald-800"
+                            >
+                              <Sparkles className="size-3.5" />
+                              راهنمای هوشمند این مرحله
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void restartExperiment()}
+                              className="h-9 gap-1.5 rounded-xl border-emerald-900/10 bg-white text-[12px] text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                            >
+                              <Beaker className="size-3.5" />
+                              شروع دوباره
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="mt-4">
+                          <div className="flex items-center justify-between text-[11.5px]">
+                            <span className="font-semibold text-slate-600">
+                              مرحله {faNum(Math.min(doneCount + (isFinished ? 0 : 1), totalSteps))} از {faNum(totalSteps)}
+                            </span>
+                            <span className="text-slate-500">
+                              امتیاز: {faNum(activeRow?.score ?? 0)} · {faNum(activeExperiment.durationMin)} دقیقه
+                            </span>
+                          </div>
+                          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-emerald-100">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-l from-emerald-600 to-teal-500 transition-all"
+                              style={{ width: `${Math.min(100, (doneCount / Math.max(totalSteps, 1)) * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Current step */}
+                      {isFinished ? (
+                        <div className="rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-6 text-center">
+                          <GraduationCap className="mx-auto size-8 text-emerald-600" />
+                          <h3 className="mt-2 text-[16px] font-extrabold text-slate-900">آزمایش کامل شد</h3>
+                          <p className="mt-1 text-[12px] text-slate-600">
+                            امتیاز نهایی شما: {faNum(activeRow?.score ?? 0)}
+                          </p>
+                          <div className="mt-4 flex flex-wrap justify-center gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => select("team")}
+                              className="h-9 rounded-xl bg-emerald-700 px-4 text-[12px] text-white hover:bg-emerald-800"
+                            >
+                              دیدن پیشرفت من
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                clearStepState();
+                                setActiveSlug(null);
+                              }}
+                              className="h-9 rounded-xl border-emerald-900/10 bg-white px-4 text-[12px] text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                            >
+                              انتخاب آزمایش دیگر
+                            </Button>
+                          </div>
+                        </div>
+                      ) : currentStep ? (
+                        <div className="rounded-[22px] border border-emerald-900/5 bg-white p-5 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_16px_36px_-26px_rgba(6,78,59,0.35)]">
+                          <p className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700">
+                            <Target className="size-3.5" />
+                            مرحلهٔ {faNum(currentStepIndex + 1)}
+                          </p>
+                          <h2 className="mt-1.5 text-[16px] font-extrabold text-slate-900">{currentStep.title}</h2>
+                          <p className="mt-2 text-[12.5px] leading-7 text-slate-600">{currentStep.detail}</p>
+
+                          {currentStep.check && (
+                            <div className="mt-4 rounded-2xl bg-emerald-50/70 p-4">
+                              <p className="text-[12.5px] font-bold text-slate-800">{currentStep.check.question}</p>
+                              <div className="mt-3 space-y-2">
+                                {currentStep.check.options.map((opt: string, i: number) => (
+                                  <label
+                                    key={`${opt}-${i}`}
+                                    className={cn(
+                                      "flex cursor-pointer items-center gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-[12.5px] transition-colors",
+                                      choiceForStep === i
+                                        ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                                        : "border-slate-200 text-slate-700 hover:border-emerald-300",
+                                    )}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="lab-step-check"
+                                      checked={choiceForStep === i}
+                                      onChange={() => {
+                                        setChoice(i);
+                                        setStepFeedback(null);
+                                        setAnsweredFor(stepKey);
+                                      }}
+                                      className="size-4 accent-emerald-600"
+                                    />
+                                    <span>{opt}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {feedbackForStep && (
+                            <p
+                              className={cn(
+                                "mt-3 rounded-xl px-3 py-2.5 text-[12px] font-medium",
+                                feedbackForStep.ok
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-rose-50 text-rose-700",
+                              )}
+                            >
+                              {feedbackForStep.message}
+                            </p>
+                          )}
+
+                          <Button
+                            size="sm"
+                            onClick={() => void submitStep()}
+                            disabled={stepBusy}
+                            className="mt-4 h-10 gap-1.5 rounded-xl bg-emerald-700 px-5 text-[12.5px] font-bold text-white hover:bg-emerald-800"
+                          >
+                            <Check className="size-4" />
+                            {isFinished ? "پایان" : doneCount > 0 ? "ثبت و مرحلهٔ بعد" : "شروع مرحلهٔ اول"}
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="rounded-2xl bg-white p-6 text-center text-[12px] text-slate-400">
+                          برای شروع، یک آزمایش انتخاب کنید.
+                        </p>
+                      )}
+
+                      {/* Step timeline */}
+                      <div className="rounded-[22px] border border-emerald-900/5 bg-white p-5 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_16px_36px_-26px_rgba(6,78,59,0.35)]">
+                        <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-slate-800">
+                          <ListChecks className="size-4 text-emerald-600" />
+                          مراحل آزمایش
+                        </p>
+                        <ol className="mt-3 space-y-2">
+                          {(activeExperiment.steps ?? []).map((s: { title: string; detail: string }, i: number) => {
+                            const done = i < doneCount;
+                            const active = i === currentStepIndex && !isFinished;
+                            return (
+                              <li
+                                key={`${s.title}-${i}`}
+                                className={cn(
+                                  "flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors",
+                                  active
+                                    ? "border-emerald-300 bg-emerald-50/70"
+                                    : done
+                                      ? "border-emerald-100 bg-emerald-50/40"
+                                      : "border-slate-200 bg-white",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                                    done
+                                      ? "bg-emerald-600"
+                                      : active
+                                        ? "bg-gradient-to-l from-emerald-600 to-teal-500"
+                                        : "bg-slate-300",
+                                  )}
+                                >
+                                  {done ? <Check className="size-3" /> : faNum(i + 1)}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-[12.5px] font-semibold text-slate-800">{s.title}</span>
+                                  <span className="mt-0.5 block text-[11.5px] leading-5 text-slate-500">{s.detail}</span>
+                                </span>
+                                {active && (
+                                  <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                                    در حال اجرا
+                                  </span>
+                                )}
+                                {done && (
+                                  <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                    انجام شد
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      </div>
+
+                      {/* Lab notebook */}
+                      <div className="rounded-[22px] border border-emerald-900/5 bg-white p-5 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_16px_36px_-26px_rgba(6,78,59,0.35)]">
+                        <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-slate-800">
+                          <FileText className="size-4 text-emerald-600" />
+                          دفترچهٔ آزمایش
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          <input
+                            value={noteTitle}
+                            onChange={(e) => setNoteTitle(e.target.value)}
+                            placeholder="عنوان یادداشت…"
+                            className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-[12px] text-slate-700 outline-none focus:border-emerald-400"
+                          />
+                          <textarea
+                            value={noteBody}
+                            onChange={(e) => setNoteBody(e.target.value)}
+                            rows={3}
+                            placeholder="مشاهده، نتیجه یا سؤالت از این مرحله…"
+                            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-[12px] leading-6 text-slate-700 outline-none focus:border-emerald-400"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => void saveNote()}
+                            className="h-9 gap-1.5 rounded-xl bg-emerald-700 px-4 text-[12px] text-white hover:bg-emerald-800"
+                          >
+                            <FileText className="size-3.5" />
+                            ثبت یادداشت
+                          </Button>
+                        </div>
+
+                        {(notebook ?? []).filter((n: { experimentSlug?: string }) => n.experimentSlug === activeExperiment.slug).length === 0 ? (
+                          <p className="mt-3 text-[11.5px] text-slate-400">برای این آزمایش هنوز یادداشتی ثبت نشده.</p>
+                        ) : (
+                          <ul className="mt-3 space-y-2">
+                            {(notebook ?? [])
+                              .filter((n: { experimentSlug?: string }) => n.experimentSlug === activeExperiment.slug)
+                              .map((n: { _id: string; title: string; body: string }) => (
+                                <li key={n._id} className="rounded-xl bg-slate-50 px-3 py-2.5">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <p className="text-[12.5px] font-semibold text-slate-800">{n.title}</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteNoteMut({ id: n._id as never })}
+                                      className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                      title="حذف یادداشت"
+                                    >
+                                      <X className="size-3.5" />
+                                    </button>
+                                  </div>
+                                  <p className="mt-1 whitespace-pre-wrap text-[11.5px] leading-6 text-slate-600">{n.body}</p>
+                                </li>
+                              ))}
+                          </ul>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
+
               {/* ───────────── PROTOCOLS / TOOLS ───────────── */}
               {view === "protocols" && (
                 <section>
@@ -1472,18 +1931,27 @@ export default function VirtualLab() {
                         ) : (
                           <ul className="mt-2 space-y-1.5">
                             {(progress ?? []).slice(0, 8).map((p: { _id: string; experimentSlug: string; status: string; score?: number }) => (
-                              <li key={p._id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                                <span className="truncate text-[12px] text-slate-700">{p.experimentSlug}</span>
-                                <span
-                                  className={cn(
-                                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                                    p.status === "completed"
-                                      ? "bg-emerald-100 text-emerald-700"
-                                      : "bg-amber-100 text-amber-700",
-                                  )}
+                              <li key={p._id}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveSlug(p.experimentSlug);
+                                    select(RUN_VIEW);
+                                  }}
+                                  className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-right transition-colors hover:bg-emerald-50"
                                 >
-                                  {p.status === "completed" ? "تکمیل‌شده" : "در حال اجرا"}
-                                </span>
+                                  <span className="truncate text-[12px] text-slate-700">{p.experimentSlug}</span>
+                                  <span
+                                    className={cn(
+                                      "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                      p.status === "completed"
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-amber-100 text-amber-700",
+                                    )}
+                                  >
+                                    {p.status === "completed" ? "تکمیل‌شده" : "ادامهٔ آزمایش"}
+                                  </span>
+                                </button>
                               </li>
                             ))}
                           </ul>
@@ -1497,19 +1965,43 @@ export default function VirtualLab() {
               {/* ───────────── REPORTS ───────────── */}
               {view === "reports" && (
                 <>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <h2 className="text-[19px] font-extrabold tracking-tight text-slate-900">گزارش‌های آزمایشگاه</h2>
-                      <p className="mt-1 text-[12px] text-slate-500">بازهٔ گزارش از نوار بالا تغییر می‌کند.</p>
+                      <p className="mt-1 text-[12px] text-slate-500">
+                        بازهٔ گزارش را انتخاب کنید؛ نمودارها و مجموعه‌ها دوباره محاسبه می‌شوند.
+                      </p>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={exportReport}
-                      className="h-9 gap-1.5 rounded-xl bg-emerald-700 text-[12px] text-white hover:bg-emerald-800"
-                    >
-                      <Download className="size-3.5" />
-                      دریافت فایل CSV
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1 rounded-xl border border-emerald-900/10 bg-white p-1">
+                        {PERIODS.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setPeriodId(p.id);
+                              savePref(DEFAULT_PERIOD_KEY, p.id);
+                            }}
+                            className={cn(
+                              "rounded-lg px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+                              period.id === p.id
+                                ? "bg-emerald-700 text-white"
+                                : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-700",
+                            )}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={exportReport}
+                        className="h-9 gap-1.5 rounded-xl bg-emerald-700 text-[12px] text-white hover:bg-emerald-800"
+                      >
+                        <Download className="size-3.5" />
+                        دریافت فایل CSV
+                      </Button>
+                    </div>
                   </div>
                   {analyticsBlock}
                 </>
@@ -1692,7 +2184,18 @@ export default function VirtualLab() {
         </div>
       </div>
 
-      <LabAssistant ref={assistantRef} tool={currentTool?.title} />
+      <LabAssistant
+        ref={assistantRef}
+        tool={
+          currentTool
+            ? currentTool.title
+            : activeExperiment && currentStep
+              ? `آزمایش «${activeExperiment.title}» — مرحلهٔ ${currentStepIndex + 1}: ${currentStep.title}. راهنمای کاربر را بده: چه کاری باید انجام دهد، چه چیزی را اندازه بگیرد و چگونه به مرحلهٔ بعد برسد.`
+              : activeExperiment
+                ? `آزمایش «${activeExperiment.title}»`
+                : undefined
+        }
+      />
     </div>
   );
 }
