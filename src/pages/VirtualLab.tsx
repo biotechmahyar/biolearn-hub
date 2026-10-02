@@ -25,9 +25,11 @@ import {
 } from "recharts";
 import {
   Activity,
+  AlertTriangle,
   ArrowDownAZ,
   ArrowLeft,
   Atom,
+  Copy,
   BarChart3,
   Bell,
   Beaker,
@@ -62,6 +64,7 @@ import {
   Target,
   TestTube2,
   Thermometer,
+  Trash2,
   TrendingUp,
   User,
   Users,
@@ -471,6 +474,106 @@ function ToolCard({ tool, onOpen }: { tool: ToolDef; onOpen: () => void }) {
 const WEEK_LABELS = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"];
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  LEARN → DIAGNOSE
+//  A tool is pedagogical the first time you open it, and turns into a
+//  diagnostic bench afterwards. Both modes talk to the same assistant.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const VISITED_KEY = "lab-visited-tools";
+
+type CoachMode = "learn" | "diagnose";
+
+type Finding = {
+  level: "error" | "warn" | "ok";
+  title: string;
+  detail: string;
+};
+
+/** Example sequence per tool family so the tutorial has something to copy. */
+const SAMPLE_BY_GROUP: Record<GroupId, string> = {
+  sequence: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGGCTAGCTAGGCATCGATCGATT",
+  calc: "5",
+  primer: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGG",
+  enzyme: "GAATTCGGATCCATGCTAGCGGTACCAAGCTTGCATGCCTGCAGGTCGAC",
+};
+
+const DNA_ALPHABET = /^[ATGCatgc]*$/;
+
+/** Client-side QC — the same checks a lab would run before ordering oligos. */
+function diagnoseSequence(raw: string): Finding[] {
+  const seq = raw.replace(/\s+/g, "").toUpperCase();
+  const findings: Finding[] = [];
+
+  if (!seq) {
+    return [{ level: "error", title: "توالی وارد نشده", detail: "یک توالی DNA یا پروتئین را در کادر بالا وارد کنید." }];
+  }
+
+  const bad = [...new Set(seq.split("").filter((c) => !/[ATGCURYKMSWBDHVN-]/.test(c)))];
+  if (bad.length > 0) {
+    findings.push({
+      level: "error",
+      title: "نوکلئوتید نامعتبر",
+      detail: `کاراکترهای غیرمجاز: ${bad.join("، ")} — فقط حروف انگلیسی توالی مجاز است.`,
+    });
+  }
+
+  if (DNA_ALPHABET.test(seq)) {
+    const gc = ((seq.match(/[GC]/g) ?? []).length / seq.length) * 100;
+    const at = 100 - gc;
+    if (gc < 30 || gc > 70) {
+      findings.push({
+        level: "warn",
+        title: "درصد GC خارج از محدودهٔ بهینه",
+        detail: `GC این توالی ${gc.toFixed(1)}٪ است؛ برای PCR و پرایمر محدودهٔ ۴۰ تا ۶۰ درصد پیشنهاد می‌شود.`,
+      });
+    }
+    if (at > 85) {
+      findings.push({
+        level: "warn",
+        title: "ناحیهٔ پیریده (AT-rich)",
+        detail: "بخش‌های بسیار AT-rich می‌توانند اتصال پرایمر را ضعیف کنند؛ طول پرایمر را افزایش دهید.",
+      });
+    }
+
+    const run = seq.match(/(A{6,}|T{6,}|G{6,}|C{6,})/);
+    if (run) {
+      findings.push({
+        level: "warn",
+        title: "تکرار پشت‌سرهم نوکلئوتید",
+        detail: `ناحیهٔ ${run[0]} یکنواخت است و می‌تواند باعث لغزش پلیمراز شود.`,
+      });
+    }
+
+    if (seq.length < 20) {
+      findings.push({
+        level: "warn",
+        title: "توالی برای پرایمر کوتاه است",
+        detail: `طول فعلی ${seq.length} نوکلئوتید است؛ حداقل ۲۰ نوکلئوتید برای طراحی پرایمر لازم است.`,
+      });
+    }
+  }
+
+  const looksLikeProtein = /^[ACDEFGHIKLMNPQRSTVWY]+$/.test(seq);
+  if (looksLikeProtein && !DNA_ALPHABET.test(seq)) {
+    findings.push({
+      level: "ok",
+      title: "دنبالهٔ پروتئین معتبر است",
+      detail: `طول ${seq.length} اسیدآمینه — با ابزار تحلیل پروتئین می‌توانید ترکیب و pI را ببینید.`,
+    });
+  }
+
+  if (findings.length === 0) {
+    findings.push({
+      level: "ok",
+      title: "توالی سالم به نظر می‌رسد",
+      detail: "مشکلی در نوکلئوتیدها، درصد GC یا تکرارهای پیاپی دیده نشد. می‌توانید تحلیل را ادامه دهید.",
+    });
+  }
+
+  return findings;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -494,6 +597,34 @@ export default function VirtualLab() {
   const [fieldId, setFieldId] = useState(FIELDS[0].id);
   const [periodId, setPeriodId] = useState(initialPeriod);
   const [readNotifications, setReadNotifications] = useState(() => readStored(READ_NOTIF_KEY, "") === "1");
+
+  // ── Learn → diagnose ──────────────────────────────────────────────────────
+  const [visitedTools, setVisitedTools] = useState<string[]>(() => {
+    try {
+      const raw = JSON.parse(readStored(VISITED_KEY, "[]"));
+      return Array.isArray(raw) ? (raw as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [modeOverride, setModeOverride] = useState<Partial<Record<string, CoachMode>>>({});
+  const [probeSeq, setProbeSeq] = useState("");
+  const [findings, setFindings] = useState<Finding[] | null>(null);
+  const [assistantContext, setAssistantContext] = useState<string | null>(null);
+
+  const markVisited = useCallback((id: string) => {
+    setVisitedTools((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      try {
+        window.localStorage.setItem(VISITED_KEY, JSON.stringify(next));
+      } catch {
+        // storage unavailable
+      }
+      return next;
+    });
+  }, []);
+
 
   // One stable timestamp for the whole session (header date + greeting).
   const [now] = useState(() => Date.now());
@@ -648,6 +779,10 @@ export default function VirtualLab() {
   );
 
   const currentTool = TOOLS.find((t) => t.id === view) ?? null;
+  // First visit is a tutorial; after that the tool turns into a diagnostic bench.
+  const coachMode: CoachMode | null = currentTool
+    ? modeOverride[currentTool.id] ?? (visitedTools.includes(currentTool.id) ? "diagnose" : "learn")
+    : null;
   const ToolComponent = currentTool?.component;
   const accent = currentTool ? ACCENT[currentTool.group] : ACCENT.sequence;
 
@@ -691,6 +826,11 @@ export default function VirtualLab() {
 
   // ── Live numbers ──────────────────────────────────────────────────────────
   const catalog = experiments?.length ?? 0;
+  // Real ceiling: every catalog experiment hands out its full `totalPoints`.
+  const maxScore = useMemo(
+    () => (experiments ?? []).reduce((acc: number, e: { totalPoints?: number }) => acc + (e.totalPoints ?? 0), 0),
+    [experiments],
+  );
   const completed = summary?.completed ?? 0;
   const inProgress = summary?.inProgress ?? 0;
   const notes = summary?.notes ?? 0;
@@ -835,6 +975,22 @@ export default function VirtualLab() {
     URL.revokeObjectURL(url);
     toast.success("گزارش آزمایشگاه دانلود شد");
   }, [catalog, visibleTools, completed, inProgress, notes, points, accuracy, period]);
+
+  const runDiagnostics = useCallback(() => {
+    setFindings(diagnoseSequence(probeSeq));
+  }, [probeSeq]);
+
+  const askAiAboutFindings = useCallback(() => {
+    if (!currentTool) return;
+    const list = (findings ?? [])
+      .map((f) => `- [${f.level === "error" ? "خطا" : f.level === "warn" ? "هشدار" : "مناسب"}] ${f.title}: ${f.detail}`)
+      .join("\n");
+    setAssistantContext(
+      `ابزار «${currentTool.title}» — کاربر نتایج عیب‌یابی این توالی را برایت می‌فرستد:\n${list}\n` +
+        `توضیح بده مشکل از چیست، چه کاری انجام دهد و اگر لازم است کدام ابزار دیگر آزمایشگاه را اجرا کند.`,
+    );
+    assistantRef.current?.open();
+  }, [currentTool, findings]);
 
   const startExperiment = useCallback(
     async (slug: string, title: string) => {
@@ -1128,18 +1284,33 @@ export default function VirtualLab() {
         <div className="border-t border-emerald-900/8 p-3">
           <div className="mb-2 rounded-xl bg-emerald-50/70 p-3">
             <div className="flex items-center justify-between text-[10px] font-semibold text-emerald-800">
-              <span>اعتبار پژوهش</span>
-              <span className="font-mono">{faNum(12480)}</span>
+              <span>امتیاز پژوهش شما</span>
+              <span className="font-mono">
+                {faNum(points)}
+                <span className="text-slate-400"> / {faNum(maxScore)}</span>
+              </span>
             </div>
             <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-emerald-200/70">
-              <div className="h-full w-[68%] rounded-full bg-emerald-600" />
+              <div
+                className="h-full rounded-full bg-emerald-600 transition-all"
+                style={{ width: `${Math.min(100, maxScore ? (points / maxScore) * 100 : 0)}%` }}
+              />
             </div>
             <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
-              <span>ذخیره‌سازی نمونه</span>
-              <span>۲.۴ GB</span>
+              <span>آزمایش‌های تکمیل‌شده</span>
+              <span>
+                {faNum(completed)} / {faNum(catalog)}
+              </span>
             </div>
             <div className="mt-1 h-1 overflow-hidden rounded-full bg-emerald-200/70">
-              <div className="h-full w-[42%] rounded-full bg-emerald-500" />
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: `${Math.min(100, catalog ? (completed / catalog) * 100 : 0)}%` }}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500">
+              <span>یادداشت‌های دفترچه</span>
+              <span>{faNum(notebook?.length ?? 0)}</span>
             </div>
             <Button asChild size="sm" className="mt-3 h-8 w-full rounded-xl bg-emerald-700 text-[11.5px] text-white hover:bg-emerald-800">
               <Link to="/pricing">ارتقا به حرفه‌ای</Link>
@@ -1930,15 +2101,15 @@ export default function VirtualLab() {
                           <p className="mt-2 text-[11.5px] text-slate-500">هنوز آزمایشی شروع نکرده‌اید.</p>
                         ) : (
                           <ul className="mt-2 space-y-1.5">
-                            {(progress ?? []).slice(0, 8).map((p: { _id: string; experimentSlug: string; status: string; score?: number }) => (
-                              <li key={p._id}>
+                            {(progress ?? []).slice(0, 12).map((p: { _id: string; experimentSlug: string; status: string; score?: number }) => (
+                              <li key={p._id} className="group flex items-center gap-1 rounded-xl bg-slate-50 px-2 py-1.5 transition-colors hover:bg-emerald-50">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setActiveSlug(p.experimentSlug);
                                     select(RUN_VIEW);
                                   }}
-                                  className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-right transition-colors hover:bg-emerald-50"
+                                  className="flex min-w-0 flex-1 items-center justify-between rounded-lg px-1 py-1 text-right"
                                 >
                                   <span className="truncate text-[12px] text-slate-700">{p.experimentSlug}</span>
                                   <span
@@ -1951,6 +2122,23 @@ export default function VirtualLab() {
                                   >
                                     {p.status === "completed" ? "تکمیل‌شده" : "ادامهٔ آزمایش"}
                                   </span>
+                                </button>
+                                {/* Remove it from the visitor's records — the row is
+                                    deleted server-side, not just hidden. */}
+                                <button
+                                  type="button"
+                                  title="حذف از سوابق"
+                                  onClick={() => {
+                                    if (activeSlug === p.experimentSlug) clearStepState();
+                                    void resetExperimentMut({ slug: p.experimentSlug })
+                                      .then(() => toast.success("آزمایش از سوابق شما حذف شد"))
+                                      .catch((e) =>
+                                        toast.error(e instanceof Error ? e.message : "حذف ناموفق بود"),
+                                      );
+                                  }}
+                                  className="shrink-0 rounded-md p-1.5 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                >
+                                  <Trash2 className="size-3.5" />
                                 </button>
                               </li>
                             ))}
@@ -2084,7 +2272,10 @@ export default function VirtualLab() {
               {/* ───────────── TOOL VIEW ───────────── */}
               {currentTool && ToolComponent && (
                 <section>
-                  <header className={cn("rounded-[22px] border border-emerald-900/5 bg-white p-5 shadow-[0_1px_2px_rgba(6,78,59,0.04),0_16px_36px_-26px_rgba(6,78,59,0.35)]", accent.ring)}>
+                  <header
+                    dir="ltr"
+                    className={cn("rounded-[22px] border border-emerald-900/5 bg-white p-5 text-left shadow-[0_1px_2px_rgba(6,78,59,0.04),0_16px_36px_-26px_rgba(6,78,59,0.35)]", accent.ring)}
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
                         <span className={cn("flex size-12 shrink-0 items-center justify-center rounded-2xl", accent.soft, accent.text)}>
@@ -2143,7 +2334,193 @@ export default function VirtualLab() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Learn ⇄ diagnose switch — a tool is taught once, then
+                        it becomes a diagnostic bench. */}
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                      <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+                        {(
+                          [
+                            { id: "learn", label: "آموزش", icon: GraduationCap },
+                            { id: "diagnose", label: "عیب‌یابی", icon: Wrench },
+                          ] as const
+                        ).map((m) => {
+                          const Icon = m.icon;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => {
+                                setModeOverride((prev) => ({ ...prev, [currentTool.id]: m.id }));
+                                setFindings(null);
+                                setAssistantContext(null);
+                                if (m.id === "diagnose") markVisited(currentTool.id);
+                              }}
+                              className={cn(
+                                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11.5px] font-semibold transition-colors",
+                                coachMode === m.id
+                                  ? "bg-white text-emerald-700 shadow-sm"
+                                  : "text-slate-500 hover:text-emerald-700",
+                              )}
+                            >
+                              <Icon className="size-3.5" />
+                              {m.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {coachMode === "learn" && !visitedTools.includes(currentTool.id) && (
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10.5px] font-semibold text-emerald-700">
+                          اولین بازدید شما از این ابزار
+                        </span>
+                      )}
+                    </div>
                   </header>
+
+                  {/* ── Tutorial (first visit) ── */}
+                  {coachMode === "learn" && (
+                    <div className="mt-3 rounded-[22px] border border-emerald-200 bg-emerald-50/70 p-5">
+                      <p className="flex items-center gap-1.5 text-[12.5px] font-extrabold text-emerald-800">
+                        <GraduationCap className="size-4" />
+                        آموزش {currentTool.title}
+                      </p>
+                      <p className="mt-1.5 text-[12px] leading-7 text-slate-700">
+                        {currentTool.description}. سه قدم زیر را طی کنید؛ بعد از این، هر بار که این ابزار را
+                        باز کنید مستقیم در حالت <strong>عیب‌یابی</strong> بالا می‌آید.
+                      </p>
+
+                      <ol className="mt-3 space-y-2">
+                        {currentTool.steps.map((step, i) => (
+                          <li key={step} className="flex items-start gap-2.5 rounded-xl bg-white/80 px-3 py-2.5">
+                            <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white", `bg-gradient-to-l ${accent.bar}`)}>
+                              {faNum(i + 1)}
+                            </span>
+                            <span className="text-[12px] leading-6 text-slate-700">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold text-slate-600">نمونه آماده:</span>
+                        <code
+                          dir="ltr"
+                          className="max-w-full truncate rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-mono text-[11px] text-emerald-800"
+                        >
+                          {currentTool.group === "calc" ? `${SAMPLE_BY_GROUP.calc} (مقدار نمونه)` : SAMPLE_BY_GROUP[currentTool.group]}
+                        </code>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(
+                              currentTool.group === "calc" ? SAMPLE_BY_GROUP.calc : SAMPLE_BY_GROUP[currentTool.group],
+                            );
+                            toast.success("نمونه کپی شد — آن را در کادر ابزار بچسبانید");
+                          }}
+                          className="h-8 rounded-lg border-emerald-900/10 bg-white text-[11.5px] text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                        >
+                          <Copy className="size-3.5" />
+                          کپی نمونه
+                        </Button>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            markVisited(currentTool.id);
+                            setModeOverride((prev) => ({ ...prev, [currentTool.id]: "diagnose" }));
+                            toast.success("از این به بعد این ابزار در حالت عیب‌یابی باز می‌شود");
+                          }}
+                          className="h-9 gap-1.5 rounded-xl bg-emerald-700 px-4 text-[12px] font-bold text-white hover:bg-emerald-800"
+                        >
+                          <ArrowLeft className="size-3.5" />
+                          آموزش را خواندم، برو عیب‌یابی
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => assistantRef.current?.open()}
+                          className="h-9 gap-1.5 rounded-xl border-emerald-900/10 bg-white px-4 text-[12px] font-semibold text-emerald-800 hover:border-emerald-300"
+                        >
+                          <Sparkles className="size-3.5" />
+                          آموزش گفت‌وگویی
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Diagnostics bench ── */}
+                  {coachMode === "diagnose" && (
+                    <div className="mt-3 rounded-[22px] border border-amber-200 bg-amber-50/50 p-5">
+                      <p className="flex items-center gap-1.5 text-[12.5px] font-extrabold text-amber-800">
+                        <Wrench className="size-4" />
+                        عیب‌یابی {currentTool.title}
+                      </p>
+                      <p className="mt-1 text-[11.5px] leading-6 text-slate-600">
+                        توالی یا داده را بچسبانید تا نوکلئوتیدهای نامعتبر، درصد GC، تکرارهای یکنواخت و
+                        طول نامناسب را قبل از اجرای ابزار پیدا کنیم.
+                      </p>
+
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <input
+                          dir="ltr"
+                          value={probeSeq}
+                          onChange={(e) => setProbeSeq(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") runDiagnostics();
+                          }}
+                          placeholder="ATGGCTAGCTAGGCTAGGCATCGATCGATT..."
+                          className="h-10 flex-1 rounded-xl border border-amber-200 bg-white px-3 font-mono text-[12px] text-slate-700 outline-none focus:border-emerald-400"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={runDiagnostics}
+                          className="h-10 gap-1.5 rounded-xl bg-emerald-700 px-4 text-[12px] font-bold text-white hover:bg-emerald-800"
+                        >
+                          <Search className="size-3.5" />
+                          تشخیص مشکل
+                        </Button>
+                      </div>
+
+                      {findings && (
+                        <div className="mt-3 space-y-2">
+                          {findings.map((f) => (
+                            <div
+                              key={f.title}
+                              className={cn(
+                                "flex items-start gap-2.5 rounded-xl border px-3 py-2.5",
+                                f.level === "error"
+                                  ? "border-rose-200 bg-rose-50"
+                                  : f.level === "warn"
+                                    ? "border-amber-200 bg-amber-50"
+                                    : "border-emerald-200 bg-emerald-50",
+                              )}
+                            >
+                              {f.level === "ok" ? (
+                                <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                              ) : (
+                                <AlertTriangle className={cn("mt-0.5 size-4 shrink-0", f.level === "error" ? "text-rose-600" : "text-amber-600")} />
+                              )}
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-[12px] font-bold text-slate-800">{f.title}</span>
+                                <span className="mt-0.5 block text-[11.5px] leading-6 text-slate-600">{f.detail}</span>
+                              </span>
+                            </div>
+                          ))}
+
+                          <Button
+                            size="sm"
+                            onClick={askAiAboutFindings}
+                            className="h-9 gap-1.5 rounded-xl bg-slate-800 px-4 text-[12px] font-semibold text-white hover:bg-slate-900"
+                          >
+                            <Sparkles className="size-3.5" />
+                            توضیح دستیار برای این نتایج
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Tool surface: a soft green canvas so every result block,
                       chart and table inside stays readable. */}
@@ -2187,8 +2564,10 @@ export default function VirtualLab() {
       <LabAssistant
         ref={assistantRef}
         tool={
-          currentTool
-            ? currentTool.title
+          assistantContext
+            ? assistantContext
+            : currentTool
+              ? currentTool.title
             : activeExperiment && currentStep
               ? `آزمایش «${activeExperiment.title}» — مرحلهٔ ${currentStepIndex + 1}: ${currentStep.title}. راهنمای کاربر را بده: چه کاری باید انجام دهد، چه چیزی را اندازه بگیرد و چگونه به مرحلهٔ بعد برسد.`
               : activeExperiment
