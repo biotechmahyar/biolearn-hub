@@ -217,7 +217,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   };
 
   return (
-    <div className="rounded-3xl border border-border bg-card p-3 shadow-sm transition-colors focus-within:border-primary/40">
+    <div className="rounded-3xl border border-border bg-card p-2.5 shadow-sm transition-colors focus-within:border-primary/40 sm:p-3">
       <Textarea
         ref={areaRef}
         autoFocus={autoFocus}
@@ -232,7 +232,8 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
         placeholder={placeholder}
         disabled={disabled}
         rows={2}
-        className="resize-none border-0 bg-transparent p-2 text-[14px] leading-7 shadow-none focus-visible:ring-0"
+        // 16px on phones so iOS Safari does not zoom the whole page on focus.
+        className="max-h-36 resize-none border-0 bg-transparent p-2 text-[16px] leading-7 shadow-none focus-visible:ring-0 sm:max-h-none sm:text-[14px]"
       />
 
       {attachment && (
@@ -259,14 +260,16 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 px-1 pt-1">
+      {/* Controls wrap onto a second line below `sm` instead of squeezing
+          the deep-research and attach buttons off the edge of a phone. */}
+      <div className="flex flex-wrap items-center gap-1.5 px-1 pt-1">
         {/* Send / mic / model stay pinned to the far right of the composer. */}
         <Button
           type="button"
           size="icon"
           onClick={submit}
           disabled={!canSend}
-          className="size-10 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-colors hover:bg-emerald-600 disabled:opacity-40"
+          className="size-10 shrink-0 rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-colors hover:bg-emerald-600 disabled:opacity-40"
           title="ارسال"
         >
           {isSending ? (
@@ -338,7 +341,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
           </PopoverContent>
         </Popover>
 
-        <div className="flex-1" />
+        <div className="hidden flex-1 sm:block" />
 
         <Button
           type="button"
@@ -346,7 +349,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
           size="sm"
           onClick={() => onToggleDeep(!deepResearch)}
           className={cn(
-            "h-9 rounded-full px-3.5 text-[12.5px]",
+            "h-9 shrink-0 rounded-full px-3 text-[11.5px] sm:px-3.5 sm:text-[12.5px]",
             deepResearch && "border-primary bg-primary/10 text-primary",
           )}
         >
@@ -354,7 +357,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
           پژوهش عمیق
         </Button>
 
-        <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[12.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+        <label className="inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[11.5px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:text-[12.5px]">
           {reading ? (
             <Loader2 className="size-3.5 animate-spin" />
           ) : (
@@ -445,15 +448,18 @@ const SavedPromptsRows = memo(function SavedPromptsRows({
 const EmptyHero = memo(function EmptyHero({ firstName }: { firstName: string }) {
   return (
     <>
-      <AssistantOrb thinking={false} compact />
+      {/* Scaled down on phones so the composer below stays above the fold. */}
+      <div className="scale-80 sm:scale-100">
+        <AssistantOrb thinking={false} compact />
+      </div>
       <div className="-mt-1 text-center">
-        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
+        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-2xl font-black text-transparent sm:text-4xl">
           سلام، {firstName}
         </h2>
-        <p className="mt-2 text-lg font-bold text-foreground sm:text-xl">
+        <p className="mt-2 text-base font-bold text-foreground sm:text-xl">
           چطور می‌توانم کمکت کنم؟
         </p>
-        <p className="mx-auto mt-2.5 max-w-md text-[13px] leading-7 text-muted-foreground">
+        <p className="mx-auto mt-2.5 max-w-md text-[12.5px] leading-7 text-muted-foreground sm:text-[13px]">
           دربارهٔ زیست‌شناسی، ژنتیک، میکروبیولوژی و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها همراه با
           توضیح مرحله‌به‌مرحله و منابع پیشنهادی ارائه می‌شود.
         </p>
@@ -475,7 +481,7 @@ const MessageThread = memo(function MessageThread({
   endRef: RefObject<HTMLDivElement | null>;
 }) {
   return (
-    <div className="space-y-6 py-2">
+    <div className="space-y-4 py-2 sm:space-y-6">
       {messages === undefined && (
         <div className="flex justify-center py-12">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -484,14 +490,16 @@ const MessageThread = memo(function MessageThread({
       {messages?.map((m: any) => (
         <div
           key={m._id}
-          className={cn("flex gap-3", m.role === "user" ? "flex-row-reverse" : "")}
+          className={cn("flex gap-2 sm:gap-3", m.role === "user" ? "flex-row-reverse" : "")}
         >
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-            {m.role === "user" ? <User className="size-4" /> : <Bot className="size-4" />}
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-8">
+            {m.role === "user" ? <User className="size-3.5 sm:size-4" /> : <Bot className="size-3.5 sm:size-4" />}
           </div>
           <div
             className={cn(
-              "max-w-[80%] whitespace-pre-wrap rounded-3xl px-4 py-3 text-[13.5px] leading-7",
+              // `break-words` keeps long tokens (FBbt ids, URLs, Latin gene
+              // names) from pushing the bubble past the phone viewport.
+              "max-w-[86%] break-words whitespace-pre-wrap rounded-3xl px-3.5 py-2.5 text-[14px] leading-7 sm:max-w-[80%] sm:px-4 sm:py-3 sm:text-[13.5px]",
               m.role === "user"
                 ? "rounded-ee-md bg-primary text-primary-foreground"
                 : "rounded-es-md border border-border bg-card text-foreground",
@@ -502,11 +510,11 @@ const MessageThread = memo(function MessageThread({
         </div>
       ))}
       {(isSending || isWaiting) && (
-        <div className="flex gap-3">
-          <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Bot className="size-4" />
+        <div className="flex gap-2 sm:gap-3">
+          <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-8">
+            <Bot className="size-3.5 sm:size-4" />
           </div>
-          <div className="flex items-center gap-2 rounded-3xl border border-border bg-card px-4 py-3 text-[13px] text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-3xl border border-border bg-card px-3.5 py-2.5 text-[12.5px] text-muted-foreground sm:px-4 sm:py-3 sm:text-[13px]">
             <span className="flex gap-1">
               <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
               <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
@@ -870,17 +878,17 @@ export default function AIChat() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background" dir="rtl">
+    <div className="flex h-screen [@supports(height:100dvh)]:h-dvh overflow-hidden bg-background" dir="rtl">
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside
         className={cn(
-          "z-40 flex w-[300px] shrink-0 flex-col border-l border-border bg-card transition-[width,transform] duration-300",
+          "z-40 flex w-[300px] max-w-[88vw] shrink-0 flex-col border-l border-border bg-card transition-[width,transform] duration-300",
           "lg:static lg:z-auto lg:translate-x-0",
           sidebarOpen ? "fixed inset-y-0 right-0 translate-x-0 shadow-2xl" : "fixed inset-y-0 right-0 translate-x-full",
           collapsed && "lg:w-0 lg:overflow-hidden lg:border-l-0",
         )}
       >
-        <div className="flex w-[300px] items-center gap-2.5 px-4 py-4">
+        <div className="flex w-full items-center gap-2.5 px-4 py-4">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
             <Sparkles className="size-4" />
           </span>
@@ -908,7 +916,7 @@ export default function AIChat() {
           </button>
         </div>
 
-        <div className="w-[300px] px-4">
+        <div className="w-full px-4">
           {deleteMode ? (
             <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-2">
               <p className="px-1 pb-2 text-[11.5px] font-bold text-destructive">
@@ -946,7 +954,7 @@ export default function AIChat() {
           )}
         </div>
 
-        <div className="w-[300px] px-4 pt-3">
+        <div className="w-full px-4 pt-3">
           <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2 focus-within:border-primary/50">
             <Search className="size-4 shrink-0 text-muted-foreground" />
             <input
@@ -954,7 +962,7 @@ export default function AIChat() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="جست‌وجوی گفتگوها"
-              className="w-full bg-transparent text-[12.5px] outline-none placeholder:text-muted-foreground"
+              className="w-full bg-transparent text-[16px] outline-none placeholder:text-muted-foreground sm:text-[12.5px]"
             />
             <kbd className="hidden shrink-0 rounded-md border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground sm:block">
               ⌘K
@@ -962,7 +970,7 @@ export default function AIChat() {
           </div>
         </div>
 
-        <nav className="w-[300px] space-y-0.5 px-4 pt-3">
+        <nav className="w-full space-y-0.5 px-4 pt-3">
           {navItem(Search, "کاوش", focusSearch)}
           {navItem(
             Library,
@@ -973,8 +981,8 @@ export default function AIChat() {
           {navItem(History, "امروز", () => setHistoryFilter("today"), historyFilter === "today")}
         </nav>
 
-        <ScrollArea className="mt-3 min-h-0 flex-1 px-4">
-          <div className="w-[276px] space-y-4 pb-3">
+        <ScrollArea className="mt-3 min-h-0 flex-1 overscroll-contain px-4">
+          <div className="w-[276px] max-w-full space-y-4 pb-3">
             {conversations === undefined && (
               <div className="flex justify-center py-6">
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -1033,7 +1041,7 @@ export default function AIChat() {
           </div>
         </ScrollArea>
 
-        <div className="w-[300px] space-y-2 border-t border-border p-4">
+        <div className="w-full space-y-2 border-t border-border p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="rounded-2xl border border-border bg-muted/40 p-3">
             <div className="flex items-center justify-between text-[11.5px] text-muted-foreground">
               <span className="flex items-center gap-1.5">
@@ -1109,7 +1117,7 @@ export default function AIChat() {
 
       {/* ── Main ────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-3 sm:px-4">
+        <header className="flex h-14 shrink-0 items-center gap-1.5 border-b border-border px-2.5 sm:h-16 sm:gap-2 sm:px-4">
           <Button
             variant="ghost"
             size="icon"
@@ -1129,13 +1137,13 @@ export default function AIChat() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-10 gap-2 rounded-2xl px-3">
-                <Sparkles className="size-4 text-primary" />
-                <span className="max-w-[140px] truncate">
+              <Button variant="outline" className="h-10 min-w-0 gap-1.5 rounded-2xl px-2.5 sm:gap-2 sm:px-3">
+                <Sparkles className="size-4 shrink-0 text-primary" />
+                <span className="max-w-[84px] truncate text-[12px] sm:max-w-[140px] sm:text-sm">
                   {effectiveModel?.name ?? "مدل پیش‌فرض"}
                   {!activeModel && effectiveModel ? " (پیش‌فرض)" : ""}
                 </span>
-                <ChevronDown className="size-3.5 opacity-70" />
+                <ChevronDown className="size-3.5 shrink-0 opacity-70" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
@@ -1171,11 +1179,29 @@ export default function AIChat() {
 
           <div className="flex-1" />
 
+          {/* Remaining quota: the wide pill from md up, a compact dot below it
+              so a phone still shows the budget before it runs out. */}
           {usage && (
-            <div className="hidden items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1.5 text-[11.5px] text-muted-foreground md:flex">
-              <Zap className="size-3 text-amber-500" />
-              {faNum(Math.max(remaining, 0))} پیام باقی‌مانده
-            </div>
+            <>
+              <div className="hidden items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1.5 text-[11.5px] text-muted-foreground md:flex">
+                <Zap className="size-3 text-amber-500" />
+                {faNum(Math.max(remaining, 0))} پیام باقی‌مانده
+              </div>
+              <span
+                dir="ltr"
+                title={`${faNum(Math.max(effectiveRemaining, 0))} پیام باقی‌مانده`}
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-xl md:hidden",
+                  hasReachedLimit
+                    ? "bg-destructive/10 text-destructive"
+                    : effectiveRemaining <= 1
+                      ? "bg-amber-500/15 text-amber-600"
+                      : "bg-muted/60 text-muted-foreground",
+                )}
+              >
+                <Zap className="size-3.5" />
+              </span>
+            </>
           )}
 
           <DropdownMenu>
@@ -1212,17 +1238,22 @@ export default function AIChat() {
           </Button>
 
           <Button
-            className="h-10 rounded-2xl bg-foreground text-background hover:bg-foreground/90"
+            className="h-10 shrink-0 whitespace-nowrap rounded-2xl bg-foreground px-2.5 text-[11.5px] text-background hover:bg-foreground/90 sm:px-4 sm:text-sm"
             onClick={() => navigate("/pricing")}
             disabled={!!sub}
           >
-            {sub ? sub.label : "ارتقای اشتراک"}
+            {sub ? sub.label : (
+              <>
+                <span className="hidden sm:inline">ارتقای اشتراک</span>
+                <span className="sm:hidden">ارتقا</span>
+              </>
+            )}
           </Button>
         </header>
 
         {/* Messages / hero */}
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
+        <ScrollArea className="min-h-0 flex-1 overscroll-contain">
+          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-3 py-5 sm:px-6 sm:py-6">
             {!selectedConvo ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
                 <EmptyHero firstName={firstName} />
@@ -1262,7 +1293,7 @@ export default function AIChat() {
 
         {/* Composer (docked when a conversation is open) */}
         {selectedConvo && (
-          <div className="shrink-0 border-t border-border bg-card/60 p-3 backdrop-blur sm:p-4">
+          <div className="shrink-0 border-t border-border bg-card/60 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4">
             <div className="mx-auto w-full max-w-4xl">
               {hasReachedLimit && (
                 <div className="mb-3 flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-[13px] text-amber-600">
@@ -1288,7 +1319,7 @@ export default function AIChat() {
           </div>
         )}
 
-        <footer className="shrink-0 px-4 pb-3 text-center text-[11.5px] text-muted-foreground">
+        <footer className="shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-[11px] text-muted-foreground sm:text-[11.5px]">
           برای بینش‌های بیشتر به جامعهٔ ژنوا بپیوندید —{" "}
           <button
             type="button"

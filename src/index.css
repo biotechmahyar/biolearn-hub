@@ -693,6 +693,26 @@
   animation-play-state: paused;
 }
 
+/* Phones: two infinite marquees are hard to tap and burn battery, so the
+   prompt rows become a plain swipeable strip instead. Desktop is untouched. */
+@media (max-width: 639px) {
+  .genova-marquee {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-mask-image: none;
+    mask-image: none;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .genova-marquee::-webkit-scrollbar {
+    display: none;
+  }
+  .genova-marquee__row,
+  .genova-marquee__track {
+    animation: none !important;
+  }
+}
+
 /* Cards inside the admin canvas: white, hairline border, soft lift. */
 .admin-scope [data-slot="card"] {
   border-color: var(--border);
