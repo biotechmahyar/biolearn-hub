@@ -2,9 +2,27 @@ import { useMode } from "@/hooks/useMode";
 import { Button } from "@/components/ui/button";
 import { Globe, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { IRAN_API_CONFIGURED } from "@/lib/modeStore";
 
 export function ModeSwitcher() {
   const { mode, setMode } = useMode();
+
+  // The Iran mirror is not deployed: offering the toggle would only switch the
+  // app to an unreachable REST server and blank every list.
+  if (!IRAN_API_CONFIGURED) {
+    return (
+      <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-background/50 p-0.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1.5 bg-primary px-2.5 text-xs font-medium text-primary-foreground shadow-sm"
+        >
+          <Globe className="size-3" />
+          <span className="hidden sm:inline">سرور اصلی</span>
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-1 rounded-lg border border-border/50 bg-background/50 p-0.5">
