@@ -44,49 +44,10 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { VFB_SOURCE } from "@/services/vfb/types";
 import { DataKindBadge } from "./dataKind";
+import { FlyBrainSnapshot } from "./FlyBrainSnapshot";
+import { FlyViewer } from "./FlyViewer";
+import { SEX_LABEL, STATUS_CHIP, STATUS_LABEL, type FlyRow, type FlySex, type FlyStatus } from "./types";
 import { VfbAnchorPicker, type VfbAnchor } from "./VfbAnchorPicker";
-
-// ── Local shapes ────────────────────────────────────────────────────────────
-
-type FlySex = "female" | "male" | "unknown";
-type FlyStatus = "healthy" | "experimental" | "modified";
-
-interface FlyBrainModel {
-  vfbId: string;
-  label: string;
-  entityType?: string;
-  source: string;
-  accessedAt: number;
-}
-
-interface FlyRow {
-  _id: string;
-  genovaFlyId: string;
-  name: string;
-  species: string;
-  sex: FlySex;
-  ageDays: number;
-  genotype?: string;
-  phenotype?: string;
-  notes?: string;
-  status: FlyStatus;
-  brainModel?: FlyBrainModel;
-  archived: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
-const SEX_LABEL: Record<FlySex, string> = { female: "ماده", male: "نر", unknown: "نامشخص" };
-const STATUS_LABEL: Record<FlyStatus, string> = {
-  healthy: "سالم",
-  experimental: "آزمایشی",
-  modified: "دستکاری‌شده",
-};
-const STATUS_CHIP: Record<FlyStatus, string> = {
-  healthy: "bg-emerald-100 text-emerald-800",
-  experimental: "bg-sky-100 text-sky-800",
-  modified: "bg-amber-100 text-amber-800",
-};
 
 const FRAME =
   "rounded-2xl border border-emerald-900/5 bg-white shadow-[0_1px_2px_rgba(6,78,59,0.04),0_12px_28px_-20px_rgba(6,78,59,0.25)]";
@@ -534,13 +495,21 @@ function FlyDetail({
           </Button>
         </section>
 
+        {/* Live brain status — real VFB data, read on demand. */}
+        {fly.brainModel && <FlyBrainSnapshot fly={fly} onOpenBrain={onOpenBrain} />}
+
+        {/* Fly viewer — simulated behaviour, never presented as biology. */}
+        <section className="border-t border-emerald-900/5 pt-4">
+          <FlyViewer fly={fly} />
+        </section>
+
         {/* Roadmap — honest about what does not exist yet. */}
         <section className="rounded-xl border border-emerald-900/5 bg-slate-50 px-3 py-3">
           <p className="text-[11.5px] font-bold text-slate-700">مراحل بعدی این مگس</p>
           <ul className="mt-2 space-y-1.5">
             {[
-              { icon: Eye, label: "مشاهدهٔ مگس و رفتار شبیه‌سازی‌شده", tag: "Phase B / G" },
-              { icon: FlaskConical, label: "تعریف آزمایش و شبیه‌سازی محرک", tag: "Phase C" },
+              { icon: FlaskConical, label: "تعریف آزمایش و اتصال محرک به رفتار", tag: "Phase C" },
+              { icon: Eye, label: "ثبت مشاهده و نتیجهٔ آزمایش", tag: "Phase D" },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -555,7 +524,8 @@ function FlyDetail({
             })}
           </ul>
           <p className="mt-2 text-[10.5px] leading-5 text-slate-500">
-            تا آن زمان هیچ رفتاری برای این مگس شبیه‌سازی یا گزارش نمی‌شود؛ چیزی که وجود ندارد ادعا نمی‌شود.
+            رفتار بالا یک شبیه‌سازی محاسباتی است. تا وقتی مدل علمی واقعی جایگزین نشود، هیچ‌جای سایت به‌عنوان
+            دادهٔ تجربی گزارش نخواهد شد.
           </p>
         </section>
       </div>

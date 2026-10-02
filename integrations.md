@@ -251,3 +251,52 @@ A persistent cache is deliberately out of scope for the MVP.
 NBLAST, 3D/neuPrint viewer, CATMAID, full scRNA-seq analysis UI, offline/persistent cache, per-user
 experiment history (kept separate from VFB source data), and a Convex-backed query log — none of
 which are implemented yet.
+
+---
+
+# Behaviour Simulation Engine (Drosophila Virtual Lab)
+
+A **Genova-side computational model**, not VFB data. It exists so a fly can move on screen, and
+every surface that shows it is labelled `SIMULATION`.
+
+| File | Role |
+|---|---|
+| `src/services/behavior/engine.ts` | `BehaviorEngine` interface + `SimpleLocomotionEngine` v1 + `deriveDrive()` + seeded RNG |
+| `src/components/lab/VirtualFly/FlyViewer.tsx` | Canvas renderer (2 camera modes), controls, stimulus, telemetry |
+
+## Pipeline
+
+```
+Stimulus ──► deriveDrive() ──► behavioural mode ──► movement
+```
+
+`BehaviorEngine` has exactly three members — `initialState()`, `step(state, stimulus, dt, rng)` and
+the provenance fields `id / label / version / biologicalBasis`. A future `NeuralCircuitModel` or
+`PhysiologicalModel` implements the same interface and the viewer, experiment workspace and report
+generator keep working unchanged.
+
+## Scientific status — read this before reusing the output
+
+- `SimpleLocomotionEngine.biologicalBasis === null`. There is **no** citation because there is no
+  published model behind it.
+- Every constant (`WALK_SPEED`, `TURN_RATE`, `RESPOND_GAIN`, …) is a hand-picked UI parameter.
+  Nothing is calibrated against electrophysiology, connectomics or kinematic data.
+- The run is **reproducible**: `createRng(seed)` means the same seed replays the same trajectory,
+  which is what makes a simulation reportable. The seed is shown in the UI.
+- The viewer label reads “Simulated behavior.” and telemetry is headed “خروجی محاسباتی ژنوا”.
+  Never rename these to imply experimental data.
+
+## Behaviour modes
+
+`walk`, `stop`, `turn`, `explore`, `respond` — all reachable and all observable in the UI.
+
+## Stimuli
+
+`light`, `odor`, `temperature`, `mechanical` with a 0–1 intensity slider. The stimulus → drive
+mapping is monotonic and heuristic; `mechanical` is modelled as an immediate stop then re-orientation.
+
+## Performance
+
+One `requestAnimationFrame` loop drawing straight to a 2D canvas; React state is refreshed only
+~5×/s for the telemetry panel, so frame rate is independent of the React tree. The loop pauses when
+the tab is hidden and cancels on unmount. `dt` is clamped so a stalled frame cannot teleport the fly.
