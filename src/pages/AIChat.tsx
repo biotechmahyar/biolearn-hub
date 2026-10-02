@@ -297,6 +297,19 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
                 مدل فعال{models.length === 1 ? " · تنها مدل تنظیم‌شده" : ""}
               </p>
             <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => onSelectModel("default")}
+                className={cn(
+                  "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-[12.5px] transition-colors",
+                  !selectedModelId
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                مدل پیش‌فرض سایت
+                {!selectedModelId && <Check className="size-3.5" />}
+              </button>
               {models.length === 0 && (
                 <p className="px-2 py-3 text-[12px] text-muted-foreground">
                   مدلی برای این حساب فعال نشده است.
@@ -318,6 +331,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
                   <span className="text-[10px] text-muted-foreground">
                     {m.isFree ? "رایگان" : m.dailyLimit ? `${faNum(m.dailyLimit)} پیام/روز` : ""}
                   </span>
+                  {selectedModelId === m._id && <Check className="size-3.5" />}
                 </button>
               ))}
             </div>
@@ -433,11 +447,15 @@ const EmptyHero = memo(function EmptyHero({ firstName }: { firstName: string }) 
     <>
       <AssistantOrb thinking={false} compact />
       <div className="-mt-1 text-center">
-        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-2xl font-black text-transparent sm:text-3xl">
+        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
           سلام، {firstName}
         </h2>
-        <p className="mt-1.5 text-[12.5px] leading-6 text-muted-foreground">
-          دربارهٔ زیست‌شناسی، ژنتیک و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها مرحله‌به‌مرحله ارائه می‌شود.
+        <p className="mt-2 text-lg font-bold text-foreground sm:text-xl">
+          چطور می‌توانم کمکت کنم؟
+        </p>
+        <p className="mx-auto mt-2.5 max-w-md text-[13px] leading-7 text-muted-foreground">
+          دربارهٔ زیست‌شناسی، ژنتیک، میکروبیولوژی و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها همراه با
+          توضیح مرحله‌به‌مرحله و منابع پیشنهادی ارائه می‌شود.
         </p>
       </div>
     </>
@@ -597,14 +615,13 @@ export default function AIChat() {
   }, [selectedConvo]);
 
   const setConvoModelMut = useMutation(api.aiChat.setConversationModel);
+  // "default" / empty = the site default model. Selecting is idempotent (no
+  // toggle) so clicking the same model twice can never silently drop back to
+  // the default and make the pick look like it "did not register".
   const handleModelSelect = useCallback(
     (rawId: string) => {
-      // "default" / empty = the site default model; clicking the active model
-      // again clears the override.
       const modelId = rawId && rawId !== "default" ? rawId : null;
-      setSelectedModelId((prev: string | null) =>
-        prev === modelId ? null : modelId,
-      );
+      setSelectedModelId(modelId);
       if (selectedConvo) {
         setConvoModelMut({
           conversationId: selectedConvo as any,
@@ -629,8 +646,10 @@ export default function AIChat() {
   );
 
   // With no explicit pick the first configured (active) model is the one that
-  // answers, so the UI shows that same name instead of a vague placeholder.
+  // answers, so the UI shows — and highlights — that same model everywhere
+  // instead of a vague placeholder that looks like "nothing selected".
   const effectiveModel = activeModel ?? activeModels[0] ?? null;
+  const isDefaultPicked = !activeModel;
 
   const filteredConversations = useMemo(() => {
     const list = [...((conversations ?? []) as any[])].sort(
@@ -1120,15 +1139,33 @@ export default function AIChat() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuItem onClick={() => handleModelSelect("default")}>مدل پیش‌فرض سایت</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => handleModelSelect("default")}
+                className={cn(isDefaultPicked && "bg-primary/10 text-primary")}
+              >
+                <span className="min-w-0 flex-1 truncate">مدل پیش‌فرض سایت</span>
+                {isDefaultPicked && <Check className="size-3.5" />}
+              </DropdownMenuItem>
               {activeModels.map((m: any) => (
-                <DropdownMenuItem key={m._id} onClick={() => handleModelSelect(m._id)}>
+                <DropdownMenuItem
+                  key={m._id}
+                  onClick={() => handleModelSelect(m._id)}
+                  className={cn(
+                    activeModel?._id === m._id && "bg-primary/10 text-primary",
+                  )}
+                >
                   <span className="min-w-0 flex-1 truncate">{m.name}</span>
                   <span className="mr-auto text-[10px] text-muted-foreground">
                     {m.isFree ? "رایگان" : m.dailyLimit ? `${faNum(m.dailyLimit)} پیام/روز` : ""}
                   </span>
+                  {activeModel?._id === m._id && <Check className="size-3.5" />}
                 </DropdownMenuItem>
               ))}
+              {activeModels.length === 0 && (
+                <p className="px-2 py-3 text-[12px] text-muted-foreground">
+                  مدلی برای این حساب فعال نشده است.
+                </p>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 

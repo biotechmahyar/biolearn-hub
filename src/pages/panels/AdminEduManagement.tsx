@@ -12,16 +12,17 @@ import { toast } from "sonner";
 
 const SITE_URL = "https://nibrc.ir";
 
-/** Generate a short slug from workshop title (max 128 chars, Latin-safe) */
+/** Generate a short slug from workshop title (max 128 chars, Latin-safe).
+ *  SkyrRoom only accepts underscores as separators, so no dashes are emitted. */
 function shortSlug(title: string): string {
   const slug = title
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")
+    .replace(/[^a-z0-9\s_]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "")
     .slice(0, 80);
-  return slug || `ws-${Date.now().toString(36)}`;
+  return slug || `ws_${Date.now().toString(36)}`;
 }
 
 /** Generate SkyrRoom-compatible username from Latin names + phone */
@@ -29,7 +30,7 @@ function makeUsername(firstNameLatin: string, lastNameLatin: string, phone: stri
   const first = (firstNameLatin || "").toLowerCase().replace(/[^a-z]/g, "");
   const last = (lastNameLatin || "").toLowerCase().replace(/[^a-z]/g, "");
   const phoneSuffix = (phone || "").replace(/\D/g, "").slice(-4);
-  return `${first}${last}${phoneSuffix}` || `user-${Date.now().toString(36)}`;
+  return `${first}${last}${phoneSuffix}` || `user_${Date.now().toString(36)}`;
 }
 
 /** Generate a display password from Latin names + phone */
@@ -97,7 +98,7 @@ export function AdminEduManagement() {
       ws["!cols"] = [{ wch: 30 }, { wch: 20 }, { wch: 30 }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Users");
-      const filename = `skyrroom-${shortSlug(workshop.title)}-users`;
+      const filename = `skyrroom_${shortSlug(workshop.title)}_users`;
       XLSX.writeFile(wb, `${filename}.xlsx`);
       toast.success(`فایل ${filename}.xlsx دانلود شد (${faNum(rows.length)} کاربر)`);
     } catch (e) {
@@ -186,7 +187,7 @@ export function AdminEduManagement() {
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-[11px] text-muted-foreground">
               <p className="font-bold mb-1">فرمت خروجی SkyrRoom:</p>
-              <p>ستون A: slug کارگاه (فقط نام لاتین) — ستون B: عنوان (حداکثر ۱۲۸ کاراکتر) — ستون C: no — ستون D: yes — ستون E: yes</p>
+              <p>ستون A: slug کارگاه (فقط حروف لاتین و عدد، جداکننده فقط زیرخط _) — ستون B: عنوان (حداکثر ۱۲۸ کاراکتر) — ستون C: no — ستون D: yes — ستون E: yes</p>
             </div>
           </CardContent>
         </Card>
