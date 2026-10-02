@@ -192,7 +192,7 @@ export const saveConfig = mutation({
     provider: v.string(),
     model: v.string(),
     baseUrl: v.string(),
-    apiKey: v.string(), // Plaintext from admin, stored encrypted (here we just store as-is for simplicity)
+    apiKey: v.optional(v.string()), // Plaintext from admin; omit/empty = keep the stored key
     maxTokensPerRequest: v.number(),
     temperature: v.number(),
     systemPrompt: v.string(),
@@ -205,7 +205,9 @@ export const saveConfig = mutation({
       provider: args.provider,
       model: args.model,
       baseUrl: args.baseUrl,
-      apiKeyEncrypted: args.apiKey, // In production, encrypt this
+      // An empty key means "keep the one already stored" — saving the form
+      // without re-typing the secret must never wipe a working key.
+      apiKeyEncrypted: args.apiKey?.trim() || existing?.apiKeyEncrypted || "", // In production, encrypt this
       maxTokensPerRequest: args.maxTokensPerRequest,
       temperature: args.temperature,
       systemPrompt: args.systemPrompt,
@@ -426,7 +428,7 @@ export const updateModel = mutation({
     provider: v.string(),
     model: v.string(),
     baseUrl: v.string(),
-    apiKey: v.string(),
+    apiKey: v.optional(v.string()), // omit = keep the stored key
     isFree: v.boolean(),
     dailyLimit: v.number(),
     pricePerMessage: v.number(),
@@ -439,8 +441,15 @@ export const updateModel = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
-    const { modelId, ...data } = args;
-    await ctx.db.patch(modelId, data);
+    const { modelId, apiKey, ...data } = args;
+    // Editing a model in the admin panel leaves the key field blank on purpose;
+    // only write it back when a new one was actually typed.
+    const key = apiKey?.trim();
+    if (key) {
+      await ctx.db.patch(modelId, { ...data, apiKey: key });
+    } else {
+      await ctx.db.patch(modelId, data);
+    }
     return { success: true };
   },
 });

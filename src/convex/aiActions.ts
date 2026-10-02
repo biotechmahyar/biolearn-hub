@@ -24,6 +24,24 @@ function openaiBase(url: string): string {
 }
 
 /**
+ * Admin rows can be saved without a base URL (or with a blank one). Instead of
+ * requesting "/v1/chat/completions" and failing with an opaque fetch error we
+ * fall back to each provider's official endpoint.
+ */
+function providerBase(provider: string, baseUrl: string): string {
+  const trimmed = (baseUrl || "").trim().replace(/\/+$/, "");
+  if (trimmed) return trimmed;
+  switch (provider) {
+    case "anthropic":
+      return "https://api.anthropic.com";
+    case "google":
+      return "https://generativelanguage.googleapis.com";
+    default:
+      return "https://api.openai.com";
+  }
+}
+
+/**
  * Call the configured AI provider and save the response to the conversation.
  * This action runs server-side (Node.js) so the API key never reaches the browser.
  */
@@ -45,9 +63,14 @@ type ProviderConfig = {
  * Throws with the provider's own message so callers can surface it.
  */
 async function requestCompletion(config: ProviderConfig, turns: ChatTurn[]): Promise<string> {
-  const { apiKey, baseUrl, model, provider, temperature, maxTokensPerRequest } = config;
+  const { apiKey, model, provider, temperature, maxTokensPerRequest } = config;
+  const baseUrl = providerBase(provider, config.baseUrl);
   const system = turns.find((t) => t.role === "system")?.content ?? "";
   const rest = turns.filter((t) => t.role !== "system");
+
+  if (!apiKey || !apiKey.trim()) {
+    throw new Error("کلید API برای این مدل ثبت نشده است.");
+  }
 
   if (provider === "anthropic") {
     const resp = await fetch(`${baseUrl}/v1/messages`, {

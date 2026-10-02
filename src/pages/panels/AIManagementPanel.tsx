@@ -155,7 +155,8 @@ export default function AIManagementPanel() {
         provider,
         model,
         baseUrl,
-        apiKey: apiKey || "",
+        // Blank means “keep the stored key” — never wipe a working secret.
+        apiKey: apiKey.trim() || undefined,
         maxTokensPerRequest: Number(maxTokens),
         temperature: Number(temperature),
         systemPrompt,
@@ -572,14 +573,28 @@ function ModelsManagement() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.apiKey.trim()) return;
+    if (!form.name.trim()) {
+      toast.error("نام نمایشی مدل را وارد کنید.");
+      return;
+    }
+    // A key is only mandatory when creating; when editing, an empty field means
+    // “keep the stored key” (that used to silently block the whole save).
+    if (!editingModel && !form.apiKey.trim()) {
+      toast.error("کلید API را وارد کنید.");
+      return;
+    }
     setBusy(true);
     try {
       if (editingModel) {
-        await updateModel({ modelId: editingModel._id, ...form });
+        const { apiKey, ...rest } = form;
+        await updateModel({
+          modelId: editingModel._id,
+          ...rest,
+          ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+        });
         toast.success("مدل بروزرسانی شد.");
       } else {
-        await createModel({ ...form });
+        await createModel({ ...form, apiKey: form.apiKey.trim() });
         toast.success("مدل جدید اضافه شد.");
       }
       setDialogOpen(false);
@@ -662,7 +677,19 @@ function ModelsManagement() {
               <Input placeholder="شناسه مدل (gpt-4o-mini)" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
             </div>
             <Input placeholder="آدرس API (baseUrl)" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} />
-            <Input type="password" placeholder="کلید API" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} />
+            <div>
+              <Input
+                type="password"
+                placeholder={editingModel ? "کلید API (خالی = کلید فعلی حفظ می‌شود)" : "کلید API"}
+                value={form.apiKey}
+                onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+              />
+              {editingModel && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  اگر کلید جدیدی وارد نکنید، کلید ذخیره‌شده دست‌نخورده باقی می‌ماند.
+                </p>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">نوع</label>

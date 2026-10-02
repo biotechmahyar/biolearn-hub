@@ -28,10 +28,12 @@ const MAX_CONVERSATIONS = 10;
 export const getAIConfigRaw = internalQuery({
   args: { modelId: v.optional(v.id("aiModels")) },
   handler: async (ctx, args) => {
-    // If modelId is provided, use that specific model
+    // If modelId is provided, use that specific model — but only when it is
+    // actually usable (active AND has a key). A model row without a key would
+    // otherwise answer every request with "AI is not configured".
     if (args.modelId) {
       const model = await ctx.db.get(args.modelId);
-      if (model && model.active) {
+      if (model && model.active && model.apiKey) {
         return {
           apiKey: model.apiKey,
           baseUrl: model.baseUrl,
@@ -63,7 +65,7 @@ export const getAIConfigRaw = internalQuery({
 
     // Fallback to legacy single config
     const config = await ctx.db.query("aiConfig").first();
-    if (!config) return null;
+    if (!config || !config.apiKeyEncrypted) return null;
     return {
       apiKey: config.apiKeyEncrypted,
       baseUrl: config.baseUrl,
@@ -360,8 +362,6 @@ export const sendMessage = mutation({
 
     // Trigger AI response asynchronously via action
     // The action will read the config and messages, call the API, and save the response
-    // Look up modelId from the conversation to pass to the action
-    const convoModel = convo.modelId ? await ctx.db.get(convo.modelId) : null;
     await ctx.scheduler.runAfter(0, api.aiActions.callAI, {
       conversationId: args.conversationId,
       modelId: convo.modelId ?? undefined,

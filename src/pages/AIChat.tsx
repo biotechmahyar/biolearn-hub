@@ -32,7 +32,6 @@ import {
   FolderOpen,
   History,
   Library,
-  Lightbulb,
   Loader2,
   LogOut,
   MessageSquare,
@@ -63,11 +62,26 @@ import { cn } from "@/lib/utils";
 import { faNum } from "@/lib/format";
 
 const SAVED_PROMPTS = [
-  "یک چرخهٔ زیستی را با مثال گیاهی توضیح بده و نمودار مراحلش را بنویس.",
-  "تفاوت میتوز و میوز را در یک جدول مقایسه کن.",
-  "برای شروع کار آزمایشگاه میکروبیولوژی چه وسایلی لازم دارم؟",
-  "یک خلاصهٔ ساختاری از DNA و نقش آن در وراثت بنویس.",
-  "سوالات پرتکرار آزمون زیست‌شناسی کنکور را با پاسخ کوتاه فهرست کن.",
+  {
+    label: "چرخهٔ زیستی",
+    prompt: "یک چرخهٔ زیستی را با مثال گیاهی توضیح بده و نمودار مراحلش را بنویس.",
+  },
+  {
+    label: "میتوز و میوز",
+    prompt: "تفاوت میتوز و میوز را در یک جدول مقایسه کن.",
+  },
+  {
+    label: "آزمایشگاه میکروبیولوژی",
+    prompt: "برای شروع کار آزمایشگاه میکروبیولوژی چه وسایلی لازم دارم؟",
+  },
+  {
+    label: "ساختار DNA",
+    prompt: "یک خلاصهٔ ساختاری از DNA و نقش آن در وراثت بنویس.",
+  },
+  {
+    label: "سوالات کنکور",
+    prompt: "سوالات پرتکرار آزمون زیست‌شناسی کنکور را با پاسخ کوتاه فهرست کن.",
+  },
 ];
 
 type Range = "today" | "week" | "older";
@@ -328,7 +342,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   );
 });
 
-// ── Saved prompt cards, arranged in two or three rows under the orb ──────
+// ── Saved prompts: two compact rows of chips right under the orb ──────────
 const SavedPromptsGrid = memo(function SavedPromptsGrid({
   onPick,
 }: {
@@ -336,43 +350,26 @@ const SavedPromptsGrid = memo(function SavedPromptsGrid({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.12, ease: "easeOut" }}
-      className="w-full max-w-3xl"
+      transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
+      className="w-full max-w-xl"
     >
-      <p className="mb-2.5 flex items-center justify-center gap-1.5 text-[11.5px] font-semibold text-muted-foreground">
-        <Lightbulb className="size-3.5" />
-        پرامپت‌های آماده
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
         {SAVED_PROMPTS.map((p, i) => (
           <motion.button
-            key={p}
+            key={p.label}
             type="button"
-            onClick={() => onPick(p)}
-            title={p}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: [0, -4, 0] }}
-            transition={{
-              opacity: { duration: 0.4, delay: 0.1 + i * 0.05 },
-              y: { duration: 4.5 + (i % 3) * 0.6, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 },
-            }}
-            whileHover={{ y: -6, scale: 1.02 }}
-            className="group flex items-start gap-2.5 rounded-2xl border border-border bg-card/80 p-3 text-right shadow-sm backdrop-blur transition-colors hover:border-primary/40 hover:bg-primary/5"
+            onClick={() => onPick(p.prompt)}
+            title={p.prompt}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.12 + i * 0.04 }}
+            whileHover={{ y: -2 }}
+            className="flex h-8 items-center gap-1.5 truncate rounded-full border border-border bg-card/70 px-3 text-right text-[11.5px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
           >
-            <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Sparkles className="size-3.5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="line-clamp-2 block text-[12px] leading-5 text-foreground/90">
-                {p}
-              </span>
-              <span className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                <Send className="size-3" />
-                استفاده در چت
-              </span>
-            </span>
+            <Sparkles className="size-3 shrink-0 text-primary/70" />
+            <span className="truncate">{p.label}</span>
           </motion.button>
         ))}
       </div>
@@ -381,24 +378,8 @@ const SavedPromptsGrid = memo(function SavedPromptsGrid({
 });
 
 // ── Empty hero (memoised so typing never re-runs the orb animation) ───────
-const EmptyHero = memo(function EmptyHero({ firstName }: { firstName: string }) {
-  return (
-    <>
-      <AssistantOrb thinking={false} />
-      <div>
-        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-3xl font-black text-transparent sm:text-4xl">
-          سلام، {firstName}
-        </h2>
-        <p className="mt-3 text-xl font-bold text-foreground sm:text-2xl">
-          چطور می‌توانم کمکت کنم؟
-        </p>
-        <p className="mx-auto mt-3 max-w-lg text-[13px] leading-7 text-muted-foreground">
-          دربارهٔ زیست‌شناسی، ژنتیک، میکروبیولوژی و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها همراه با
-          توضیح مرحله‌به‌مرحله و منابع پیشنهادی ارائه می‌شود.
-        </p>
-      </div>
-    </>
-  );
+const EmptyHero = memo(function EmptyHero() {
+  return <AssistantOrb thinking={false} compact />;
 });
 
 // ── Message thread (memoised) ─────────────────────────────────────────────
@@ -506,7 +487,7 @@ export default function AIChat() {
   // "پرامپت‌های آماده" in the sidebar drops a starter prompt into the composer.
   useEffect(() => {
     if (promptFillTick === 0) return;
-    const prompt = SAVED_PROMPTS[promptFillTick % SAVED_PROMPTS.length];
+    const prompt = SAVED_PROMPTS[promptFillTick % SAVED_PROMPTS.length].prompt;
     composerRef.current?.setText(prompt);
   }, [promptFillTick]);
 
@@ -540,12 +521,6 @@ export default function AIChat() {
   const sub = isIran ? null : subConvex;
   const usage = isIran ? usageIran : usageConvex;
   const messages = isIran ? messagesIran : messagesConvex;
-
-  useEffect(() => {
-    if (!selectedModelId && activeModels.length === 1) {
-      setSelectedModelId(activeModels[0]._id);
-    }
-  }, [activeModels, selectedModelId]);
 
   const selectedConvoDoc = useMemo(
     () => (conversations ?? []).find((c: any) => c._id === selectedConvo),
@@ -788,7 +763,6 @@ export default function AIChat() {
 
   const lastMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
   const isWaitingForAI = !!lastMessage && lastMessage.role === "user";
-  const firstName = (user?.name || "دوست عزیز").split(" ")[0];
   const userName = user?.name || user?.email || "کاربر ژنوا";
 
   const navItem = (
@@ -1150,10 +1124,10 @@ export default function AIChat() {
         <ScrollArea className="min-h-0 flex-1">
           <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
             {!selectedConvo ? (
-              <div className="flex flex-1 flex-col items-center gap-5 py-6">
-                <EmptyHero firstName={firstName} />
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
+                <EmptyHero />
 
-                {/* Two or three rows of saved prompts, right under the orb */}
+                {/* Two compact rows of saved prompts, right under the orb */}
                 <SavedPromptsGrid
                   onPick={(prompt) => composerRef.current?.setText(prompt)}
                 />
