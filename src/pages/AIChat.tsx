@@ -32,6 +32,7 @@ import {
   FolderOpen,
   History,
   Library,
+  Lightbulb,
   Loader2,
   LogOut,
   MessageSquare,
@@ -63,24 +64,44 @@ import { faNum } from "@/lib/format";
 
 const SAVED_PROMPTS = [
   {
-    label: "چرخهٔ زیستی",
+    label: "چرخهٔ زیستی با مثال گیاهی",
     prompt: "یک چرخهٔ زیستی را با مثال گیاهی توضیح بده و نمودار مراحلش را بنویس.",
   },
   {
-    label: "میتوز و میوز",
+    label: "مقایسهٔ میتوز و میوز در جدول",
     prompt: "تفاوت میتوز و میوز را در یک جدول مقایسه کن.",
   },
   {
-    label: "آزمایشگاه میکروبیولوژی",
+    label: "وسایل آزمایشگاه میکروبیولوژی",
     prompt: "برای شروع کار آزمایشگاه میکروبیولوژی چه وسایلی لازم دارم؟",
   },
   {
-    label: "ساختار DNA",
+    label: "ساختار DNA و نقش آن در وراثت",
     prompt: "یک خلاصهٔ ساختاری از DNA و نقش آن در وراثت بنویس.",
   },
   {
-    label: "سوالات کنکور",
+    label: "سوالات پرتکرار زیست کنکور",
     prompt: "سوالات پرتکرار آزمون زیست‌شناسی کنکور را با پاسخ کوتاه فهرست کن.",
+  },
+  {
+    label: "تنظیم عصبی و انتقال پیام",
+    prompt: "تنظیم عصبی و مراحل انتقال پیام در سیناپس را کامل توضیح بده.",
+  },
+  {
+    label: "دورهٔ کربس و تولید انرژی",
+    prompt: "دورهٔ کربس را مرحله‌به‌مرحله با تولید ATP توضیح بده.",
+  },
+  {
+    label: "گروه‌های خونی و ناسازگاری",
+    prompt: "انواع گروه‌های خونی و ناسازگاری Rh را با جدول توضیح بده.",
+  },
+  {
+    label: "قوانین ژنتیک مندل و جهش",
+    prompt: "قوانین ژنتیک مندل را با مثال و تفاوت آن با جهش توضیح بده.",
+  },
+  {
+    label: "ایمنی بدن و سلول‌های دفاعی",
+    prompt: "سازوکار ایمنی بدن و نقش سلول‌های دفاعی را خلاصه کن.",
   },
 ];
 
@@ -342,44 +363,85 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   );
 });
 
-// ── Saved prompts: two compact rows of chips right under the orb ──────────
-const SavedPromptsGrid = memo(function SavedPromptsGrid({
+// ── Saved prompts: two slow RTL marquee rows right under the greeting ─────
+function PromptChips({
+  items,
+  onPick,
+}: {
+  items: { label: string; prompt: string }[];
+  onPick: (prompt: string) => void;
+}) {
+  // The list is rendered twice so the -50%/+50% loop never shows a gap.
+  const track = [...items, ...items];
+  return (
+    <div className="genova-marquee">
+      <div className="genova-marquee__track flex w-max items-center gap-1.5 py-0.5">
+        {track.map((p, i) => (
+          <button
+            key={`${p.label}-${i}`}
+            type="button"
+            onClick={() => onPick(p.prompt)}
+            title={p.prompt}
+            className="flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 text-[11.5px] text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+          >
+            <Sparkles className="size-3 shrink-0 text-primary/70" />
+            {p.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const SavedPromptsRows = memo(function SavedPromptsRows({
   onPick,
 }: {
   onPick: (prompt: string) => void;
 }) {
+  const half = Math.ceil(SAVED_PROMPTS.length / 2);
+  const rows = [SAVED_PROMPTS.slice(0, half), SAVED_PROMPTS.slice(half)];
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.1, ease: "easeOut" }}
-      className="w-full max-w-xl"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, delay: 0.12 }}
+      className="w-full max-w-2xl space-y-1"
     >
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-        {SAVED_PROMPTS.map((p, i) => (
-          <motion.button
-            key={p.label}
-            type="button"
-            onClick={() => onPick(p.prompt)}
-            title={p.prompt}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.12 + i * 0.04 }}
-            whileHover={{ y: -2 }}
-            className="flex h-8 items-center gap-1.5 truncate rounded-full border border-border bg-card/70 px-3 text-right text-[11.5px] text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-foreground"
-          >
-            <Sparkles className="size-3 shrink-0 text-primary/70" />
-            <span className="truncate">{p.label}</span>
-          </motion.button>
-        ))}
-      </div>
+      <p className="flex items-center justify-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+        <Lightbulb className="size-3.5" />
+        پرامپت‌های آماده — روی هرکدام کلیک کن
+      </p>
+      {rows.map((row, i) => (
+        <div
+          key={i}
+          className={cn(
+            "genova-marquee__row",
+            i === 0 ? "genova-marquee__row--a" : "genova-marquee__row--b",
+          )}
+          style={{ animationDelay: i === 0 ? "0s" : "-2.5s" }}
+        >
+          <PromptChips items={row} onPick={onPick} />
+        </div>
+      ))}
     </motion.div>
   );
 });
 
 // ── Empty hero (memoised so typing never re-runs the orb animation) ───────
-const EmptyHero = memo(function EmptyHero() {
-  return <AssistantOrb thinking={false} compact />;
+const EmptyHero = memo(function EmptyHero({ firstName }: { firstName: string }) {
+  return (
+    <>
+      <AssistantOrb thinking={false} compact />
+      <div className="-mt-1 text-center">
+        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-2xl font-black text-transparent sm:text-3xl">
+          سلام، {firstName}
+        </h2>
+        <p className="mt-1.5 text-[12.5px] leading-6 text-muted-foreground">
+          دربارهٔ زیست‌شناسی، ژنتیک و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها مرحله‌به‌مرحله ارائه می‌شود.
+        </p>
+      </div>
+    </>
+  );
 });
 
 // ── Message thread (memoised) ─────────────────────────────────────────────
@@ -763,6 +825,7 @@ export default function AIChat() {
 
   const lastMessage = messages && messages.length > 0 ? messages[messages.length - 1] : null;
   const isWaitingForAI = !!lastMessage && lastMessage.role === "user";
+  const firstName = (user?.name || "دوست عزیز").split(" ")[0];
   const userName = user?.name || user?.email || "کاربر ژنوا";
 
   const navItem = (
@@ -1125,10 +1188,10 @@ export default function AIChat() {
           <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-4 py-6 sm:px-6">
             {!selectedConvo ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
-                <EmptyHero />
+                <EmptyHero firstName={firstName} />
 
-                {/* Two compact rows of saved prompts, right under the orb */}
-                <SavedPromptsGrid
+                {/* Two slow RTL rows of saved prompts, right under the greeting */}
+                <SavedPromptsRows
                   onPick={(prompt) => composerRef.current?.setText(prompt)}
                 />
 

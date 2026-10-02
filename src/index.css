@@ -653,6 +653,46 @@
   animation: genova-toast-drain 10s linear forwards;
 }
 
+/* ── AI chat: slow RTL prompt marquee ───────────────────────────────────── */
+/* The track holds the same chip list twice, so shifting it by exactly half its
+   width lands copy 2 where copy 1 started — a seamless, endless scroll. */
+@keyframes genova-marquee-forward {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(50%, 0, 0); }
+}
+
+@keyframes genova-marquee-backward {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes genova-marquee-bob {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -3px, 0); }
+}
+
+.genova-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to left, transparent, #000 6%, #000 94%, transparent);
+}
+
+.genova-marquee__row {
+  animation: genova-marquee-bob 6s ease-in-out infinite;
+}
+
+.genova-marquee__row--a .genova-marquee__track {
+  animation: genova-marquee-forward 46s linear infinite;
+}
+
+.genova-marquee__row--b .genova-marquee__track {
+  animation: genova-marquee-backward 54s linear infinite;
+}
+
+.genova-marquee__row:hover .genova-marquee__track {
+  animation-play-state: paused;
+}
+
 /* Cards inside the admin canvas: white, hairline border, soft lift. */
 .admin-scope [data-slot="card"] {
   border-color: var(--border);
