@@ -42,11 +42,13 @@ import {
   CircleDot,
   Dna,
   Download,
+  FileSearch,
   FileText,
   FlaskConical,
   GitCompare,
   GraduationCap,
   Home,
+  Languages,
   Layers,
   ListChecks,
   Lock,
@@ -55,6 +57,7 @@ import {
   Microscope,
   Pipette,
   PlayCircle,
+  Repeat,
   Rss,
   Search,
   SearchCode,
@@ -110,6 +113,8 @@ import {
   MultiplexPrimerTool,
   RealTimePrimerTool,
 } from "@/components/lab/PrimerTools";
+import { OrfFinderTool, TranslateTool } from "@/components/lab/OrfTranslateTools";
+import { CodonAnalysisTool, BackTranslationTool } from "@/components/lab/CodonTools";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatJalaliDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -125,9 +130,10 @@ type ToolId =
   | "calculators"
   | "primer-design" | "blast-search" | "tm-calculator" | "dimer-checker"
   | "multiplex" | "realtime"
-  | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation";
+  | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation"
+  | "orf-finder" | "translate" | "codon-analysis" | "back-translation";
 
-type GroupId = "sequence" | "calc" | "primer" | "enzyme";
+type GroupId = "sequence" | "calc" | "primer" | "enzyme" | "protein";
 
 interface ToolDef {
   id: ToolId;
@@ -236,6 +242,34 @@ const TOOLS: ToolDef[] = [
     outputs: ["پرایمر + پروب", "فاصلهٔ پروب", "هشدارهای کیفیت"],
   },
   {
+    id: "orf-finder", title: "یابندهٔ ORF", titleEn: "ORF Finder",
+    description: "هر شش چارچوب خواند و ترجمهٔ پروتئینی",
+    icon: FileSearch, component: OrfFinderTool, group: "protein",
+    steps: ["توالی DNA را وارد کنید", "حداقل طول ORF را مشخص کنید", "فهرست چارچوب‌های باز را ببینید"],
+    outputs: ["جدول ORFها", "نمودار طول", "توالی پروتئین", "خروجی FASTA"],
+  },
+  {
+    id: "translate", title: "ترجمهٔ DNA به پروتئین", titleEn: "DNA → Protein",
+    description: "ترجمه در چارچوب و رشتهٔ دلخواه با جدول کدون",
+    icon: Languages, component: TranslateTool, group: "protein",
+    steps: ["توالی DNA را وارد کنید", "چارچوب خواند و رشته را انتخاب کنید", "ترجمه را تا کدون پایان دنبال کنید"],
+    outputs: ["توالی پروتئین", "جدول کدون به کدون", "گزارش TXT"],
+  },
+  {
+    id: "codon-analysis", title: "تحلیل کدون", titleEn: "Codon Analysis",
+    description: "ترکیب کدونی، GC هر موقعیت و CpG",
+    icon: BarChart3, component: CodonAnalysisTool, group: "protein",
+    steps: ["توالی DNA را وارد کنید", "چارچوب خواند را انتخاب کنید", "جدول و نمودار کدونها را بررسی کنید"],
+    outputs: ["جدول کدونها", "نمودار GC1/GC2/GC3", "نسبت CpG", "خروجی CSV"],
+  },
+  {
+    id: "back-translation", title: "ترجمهٔ برعکس", titleEn: "Back-translation",
+    description: "پروتئین به DNA با هدف‌گیری GC میزبان",
+    icon: Repeat, component: BackTranslationTool, group: "protein",
+    steps: ["توالی پروتئین را وارد کنید", "میزبان را انتخاب کنید", "DNA تولیدشده را بررسی کنید"],
+    outputs: ["توالی DNA", "فایل FASTA", "جدول کدون انتخابی", "ترکیب پروتئین"],
+  },
+  {
     id: "restriction-mapper", title: "نقشهٔ محدودیت", titleEn: "Restriction Mapper",
     description: "یافتن همهٔ جایگاه‌های برش در توالی",
     icon: Scissors, component: RestrictionMapperTool, group: "enzyme",
@@ -276,6 +310,7 @@ const GROUPS: { id: GroupId; label: string; icon: typeof Dna }[] = [
   { id: "calc", label: "ابزارها و شبیه‌سازها", icon: Calculator },
   { id: "primer", label: "ابزارهای پرایمر", icon: Pipette },
   { id: "enzyme", label: "آنزیم‌های محدودکننده", icon: Scissors },
+  { id: "protein", label: "پروتئین و کدون", icon: Atom },
 ];
 
 /** Specialised visual identity per tool family. */
@@ -294,6 +329,10 @@ const ACCENT: Record<
   primer: {
     soft: "bg-teal-50", text: "text-teal-700", chip: "bg-teal-100 text-teal-800",
     bar: "from-teal-500 to-emerald-500", ring: "ring-teal-200", hex: "#0d9488",
+  },
+  protein: {
+    soft: "bg-violet-50", text: "text-violet-700", chip: "bg-violet-100 text-violet-800",
+    bar: "from-violet-500 to-indigo-500", ring: "ring-violet-200", hex: "#7c3aed",
   },
   enzyme: {
     soft: "bg-amber-50", text: "text-amber-700", chip: "bg-amber-100 text-amber-800",
@@ -331,9 +370,9 @@ const RUN_VIEW: WorkspaceView = "run";
 
 /** Research fields — switching one filters the whole workspace. */
 const FIELDS: { id: string; label: string; groups: GroupId[] }[] = [
-  { id: "bioinformatics", label: "آزمایشگاه ژنوا — بیوانفورماتیک", groups: ["sequence", "calc", "primer", "enzyme"] },
-  { id: "genetics", label: "ژنتیک پزشکی", groups: ["sequence", "primer"] },
-  { id: "microbiology", label: "میکروبیولوژی", groups: ["sequence", "enzyme"] },
+  { id: "bioinformatics", label: "آزمایشگاه ژنوا — بیوانفورماتیک", groups: ["sequence", "calc", "primer", "enzyme", "protein"] },
+  { id: "genetics", label: "ژنتیک پزشکی", groups: ["sequence", "primer", "protein"] },
+  { id: "microbiology", label: "میکروبیولوژی", groups: ["sequence", "enzyme", "protein"] },
   { id: "botany", label: "علوم گیاهی", groups: ["sequence", "calc"] },
 ];
 
@@ -502,6 +541,7 @@ const SAMPLE_BY_GROUP: Record<GroupId, string> = {
   calc: "5",
   primer: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGG",
   enzyme: "GAATTCGGATCCATGCTAGCGGTACCAAGCTTGCATGCCTGCAGGTCGAC",
+  protein: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGGCTAGCTAGGCATCGATCGATT",
 };
 
 const DNA_ALPHABET = /^[ATGCatgc]*$/;

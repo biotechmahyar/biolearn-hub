@@ -561,3 +561,74 @@ summary, exactly as in Phase D.
 - ontology-only readouts → not anchored, identity scales
 - newer observation supersedes an older one for the same key
 - `biologicalBasis === null` in every profile
+
+# Protein & Codon Tools — Genova Virtual Lab
+
+Four new tools in a dedicated **پروژتن و کدون** group (violet accent), available in the
+bioinformatics, genetics and microbiology research fields.
+
+| Tool | Input | What it outputs |
+|---|---|---|
+| **ORF Finder** | DNA | ORF table (strand, frame, start, end, bp, aa, complete), length bar chart, per-ORF protein + nucleotide view, FASTA, TXT report |
+| **DNA → Protein** | DNA + frame + strand | protein sequence, codon-by-codon table with Persian amino-acid names, TXT report |
+| **Codon Analysis** | DNA + frame | codon usage table, GC1/GC2/GC3 chart, most-used codons chart, CpG ratio, homopolymer run, degenerate amino acids, CSV, save to lab notebook |
+| **Back-translation** | protein + host | DNA, FASTA, chosen-codon table, GC chart, amino-acid composition, CSV, save to lab notebook |
+
+## Files
+
+| File | Role |
+|---|---|
+| `src/components/lab/proteinCore.ts` | pure sequence logic — genetic code, ORFs, translation, codon stats, back-translation |
+| `src/components/lab/proteinUi.tsx` | shared shell, inputs, charts, tables, download/save buttons |
+| `src/components/lab/OrfTranslateTools.tsx` | `OrfFinderTool`, `TranslateTool` |
+| `src/components/lab/CodonTools.tsx` | `CodonAnalysisTool`, `BackTranslationTool` |
+
+Everything runs client-side. No sequence is sent to the server except when the student
+explicitly presses «ذخیره در آزمایشگاه», which writes to `labNotes` via `api.lab.addNote`.
+
+## Scientific integrity — the important part
+
+Only **two** kinds of fact are encoded:
+
+1. The standard genetic code (NCBI translation table 1). A definition, not a measurement.
+2. Approximate genome GC levels: *E. coli* 50.8%, *S. cerevisiae* 38.3%,
+   *D. melanogaster* 43.0%, *Homo sapiens* 41.0%. Used **only** as a GC target.
+
+**No codon usage frequency table is bundled.** Therefore:
+
+- Codon Analysis never says a codon is "preferred" or "rare" for an organism. It reports what
+  is actually in the pasted sequence.
+- Back-translation is a **GC-targeting heuristic**, not codon optimisation: for each residue
+  it picks the synonym whose GC keeps the running sequence closest to the host's genome GC,
+  tie-breaking towards a GC-ending codon and then alphabetically. A synonym is also chosen
+  whenever the previous codon would repeat more than 3 times. Both limitations are printed
+  inside the tool.
+- ORF Finder does not claim anything about genes, introns or CDSs — only the structure of the
+  sequence it was given.
+
+## Algorithms
+
+- **ORF** — textbook rule per reading frame: first start codon after a stop opens the ORF, the
+  next in-frame stop closes it. An ORF that runs off the end is still reported and flagged
+  `complete: false` rather than being padded or closed artificially. `ATG` by default, with an
+  opt-in for `GTG`/`TTG`. Both strands scanned.
+- **Translation** — stops at the first stop codon, exactly as a ribosome does. Unknown
+  codons become `X`; they are never silently dropped, so a translation can never be shorter
+  than the sequence implies.
+- **Codon Analysis** — GC computed per codon position, CpG observed/expected ratio, longest
+  homopolymer run, and amino acids encoded by a single synonym in this sequence.
+
+## Verified by test (47 assertions, all passing)
+
+- genetic code: 64 codons, 21 symbols, every synonym maps back to its amino acid, Leu = 6,
+  Met = 1
+- reverse complement is an involution
+- translation stops at the stop codon; frame and strand changes give different results;
+  unknown codon → `X`
+- ORF: `ATGGCTAACCGGGTTTAAA` → one complete ORF `+1:1-18` = `MANRV`; `ATG`+12×`GCT` → 13 aa
+  and `complete: false`; min-length filter works; `GTG` accepted only when enabled
+- codon stats: counts sum to the total, frequencies sum to 1, homopolymer counted correctly
+- back-translation: exact round-trip through the translator for all four hosts; a protein that
+  already starts with Met gets no extra `ATG`; one that does not gets exactly one; hosts
+  produce different sequences; the function is deterministic; every chosen codon encodes its
+  residue
