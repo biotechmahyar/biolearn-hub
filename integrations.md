@@ -564,7 +564,7 @@ summary, exactly as in Phase D.
 
 # Protein & Codon Tools — Genova Virtual Lab
 
-Four new tools in a dedicated **پروژتن و کدون** group (violet accent), available in the
+Four new tools in a dedicated **پروتئین و کدون** group (violet accent), available in the
 bioinformatics, genetics and microbiology research fields.
 
 | Tool | Input | What it outputs |
@@ -632,3 +632,127 @@ Only **two** kinds of fact are encoded:
   already starts with Met gets no extra `ATG`; one that does not gets exactly one; hosts
   produce different sequences; the function is deterministic; every chosen codon encodes its
   residue
+
+# Alignment & Format Conversion Tools — Genova Virtual Lab
+
+Two new tool groups: **«همترازی»** (`alignment`, cyan accent) and **«تبدیل فرمت»** (`format`,
+fuchsia accent). Five tools, all running in the browser, registered in
+`src/pages/VirtualLab.tsx` with their own `steps` / `outputs` briefs.
+
+| Tool | Input | What it outputs |
+|---|---|---|
+| **همترازی دو توالی** (`pairwise-align`) | 2 sequences, method, score scheme | three-line alignment viewer (60-col blocks) with a match ruler, score, columns, covered range, identity, TXT download + save |
+| **محاسبه‌گر شباهت توالی** (`sequence-similarity`) | 2 sequences, DNA/RNA, score scheme | side-by-side global + local cards, detailed stat grids, method comparison table, bar chart, TXT report + save |
+| **FASTA ↔ CSV** (`fasta-csv`) | FASTA or CSV, drag-drop | CSV/FASTA text output, record table, record-length distribution chart, rejected-record list + warnings, copy / download / reset / save |
+| **FASTA ↔ JSON** (`fasta-json`) | FASTA or JSON, drag-drop | pretty or minified JSON, record table, length chart, structure warnings |
+| **FASTA ↔ GenBank** (`fasta-genbank`) | FASTA or GenBank, drag-drop | flat GenBank with LOCUS/DEFINITION/ACCESSION/VERSION/SOURCE/ORGANISM/FEATURES/ORIGIN, record table, length chart |
+
+## Files
+
+| File | Role |
+|---|---|
+| `src/components/lab/alignmentCore.ts` | IUPAC tables, scoring scheme, Needleman–Wunsch + Smith–Waterman, similarity statistics |
+| `src/components/lab/AlignmentTools.tsx` | `PairwiseAlignTool`, `SimilarityCalculatorTool` |
+| `src/components/lab/formatCore.ts` | FASTA / CSV / JSON / GenBank parsers and serialisers |
+| `src/components/lab/FormatConvertTools.tsx` | `FastaCsvTool`, `FastaJsonTool`, `FastaGenBankTool` sharing one `SequenceConverter` + `FileDrop` |
+
+## Scientific integrity — the important part
+
+**The scoring scheme is a declared parameter, not biology.** No substitution matrix ships with
+the app. There is no BLOSUM62, no PAM, and no nucleotide matrix derived from observed
+replacements. `ScoreScheme` is a user-editable parameter:
+
+```
+match          +2   (default)
+mismatch       -1
+gap            -2
+allowAmbiguity true  → an IUPAC-compatible but non-identical pair scores 0, not the mismatch
+```
+
+Every printed number is labelled as the output of that scheme. Both tools render an
+`integrityNote()` panel stating this in plain language, and the downloaded reports carry the
+scheme on their header line (`matrix: match=2 mismatch=-1 gap=-2 ambiguity=true`) so a report
+that leaves the app cannot be misread as an evolutionary distance. The note also says plainly
+that a similarity percentage is **not** a database match and that BLAST is needed for that.
+
+### Identity and similarity are two numbers, never one
+
+- `identity` — positions where both sides hold the **same unambiguous** base.
+- `positives` / `similarity` — positions compatible under the IUPAC ambiguity codes
+  (e.g. `A` vs `M`, where `M` means "A or C").
+
+They are reported as separate cards. Collapsing them is the most common way a similarity score
+gets misreported.
+
+### Transitions and transversions are counted only where the class is defined
+
+A substitution class is only meaningful when both sides are a single unambiguous base and the
+two differ. `isTransition` returns `false` for any ambiguity code, because `M` (A or C) spans
+both the purine and the pyrimidine class — calling it either way would be an invented claim.
+For unambiguous input the invariant `transitions + transversions === mismatches` holds, and
+ambiguity pairs land in `positives` with neither counter touched.
+
+## Algorithms and implementation notes
+
+- Needleman–Wunsch and Smith–Waterman share one DP. A `Float64Array` score matrix plus a
+  `Uint8Array` traceback (1 = diagonal, 2 = up, 3 = left) keeps a 3000 × 3000 cell affordable in
+  the browser. Gap cost is linear.
+- `MAX_ALIGNMENT_LENGTH = 3000`. Past it, both tools refuse with an explanation rather than
+  locking the tab.
+- The alignment renders as a three-line block viewer at 60 columns with a ruler: `|` exact
+  match, `:` IUPAC-compatible, `-` gap. Columns keep the start index of each 60-column block.
+- `complement()` is exposed as «مکمل معکوس هر دو» for checking the other strand; it is an
+  involution and is tested as one.
+- CSV parsing is RFC-4180 (quoted fields, embedded commas, `""` escapes) with **delimiter
+  sniffing** on the header line: `,`, `;` and tab are counted outside quotes and the majority
+  wins, so a semicolon inside a description cannot hijack a comma-separated file. The detected
+  delimiter is reported as a warning, never applied silently.
+- The sequence column is found by header (`sequence` / `seq` / `توالی`, else column 2); the
+  description by `description` / `desc` / `note` / `comment` / `توضیح`.
+- GenBank support covers what a FASTA round-trip needs: `LOCUS`, `DEFINITION`, `ACCESSION`,
+  `VERSION`, `KEYWORDS`, `SOURCE`/`ORGANISM`/taxonomy, `FEATURES` with qualifiers, and `ORIGIN`.
+  Content outside that is not modelled, and the tool does not pretend otherwise.
+- **Nothing is uploaded.** The drop zone reads with `File.text()` in the page.
+- **No silent data loss.** Every record that fails validation is listed by id with a reason, and
+  every character removed by `stripNonNucleotides` is reported as a warning. A conversion that
+  loses data always says so on screen.
+- `AlphabetPicker` (DNA / RNA / protein / none) exists because "sequence" means nucleotides in a
+  `.fna` and amino acids in a `.faa`; the default (DNA) would otherwise reject every protein
+  file.
+- The three converter configs (`CSV_CONFIG`, `JSON_CONFIG`, `GENBANK_CONFIG`) are module-scope
+  constants on purpose: a config built inside the component would be a fresh object every
+  render and would invalidate the serialisation memo on every keystroke.
+- All five tools save a summary to the lab notebook via `api.lab.addNote`, matching the existing
+  protein/codon tools. The saved note repeats the score scheme, because a notebook entry that
+  outlives the session must not be read as a biological measurement either.
+
+## Verified by test (84 assertions, all passing)
+
+Alignment:
+
+- identical sequences → 100% identity, no gaps, score `= n × match`
+- local alignment drops flanking non-homologous sequence; global keeps the full length, and
+  `global.score < local.score`
+- a harsher gap penalty never buys gratuitous gaps and scores ≤ a lenient one
+- `A` vs `M` is a positive, `A` vs `G` is not, `N` vs `T` is; `N` vs `N` is **not** identical
+- `T→C` is a transition (both pyrimidines), `A→C` is a transversion, an ambiguity pair is
+  neither; `transitions + transversions === mismatches`
+- stats sum to the column count: `identical + positives + mismatches + gaps === columns`
+- both methods can be compared on the same input; `complement` is an involution
+- a 3001 nt paste does not crash the DP
+
+Formats:
+
+- FASTA round-trips id, description and sequence, including the 60-column wrap
+- CSV quoted fields, embedded commas, `""` escapes, and `,` / `;` / tab delimiter sniffing
+- JSON pretty vs min, bare-string arrays, the `{sequences: [...]}` wrapper, and an invalid
+  document producing a warning instead of throwing
+- GenBank parse → serialise round-trip preserves sequence, id and feature count;
+  `includeFeatures: false` drops the FEATURES block; a manual LOCUS id overrides the record id;
+  two records separated by `//` parse as two
+- validation rejects letters outside the chosen alphabet and empty sequences
+- orphan data before the first `>` header, and removed characters, are both reported
+
+Known limitation carried forward from the protein/codon group: back-translation still affects
+codon choice only through approximate genome GC. No codon-usage table is bundled, and the tool
+says so.

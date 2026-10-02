@@ -25,9 +25,11 @@ import {
 } from "recharts";
 import {
   Activity,
+  AlignLeft,
   AlertTriangle,
   ArrowDownAZ,
   ArrowLeft,
+  ArrowLeftRight,
   Atom,
   Copy,
   BarChart3,
@@ -44,6 +46,7 @@ import {
   Download,
   FileSearch,
   FileText,
+  FileType2,
   FlaskConical,
   GitCompare,
   GraduationCap,
@@ -65,6 +68,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Table2,
   Target,
   TestTube2,
   Thermometer,
@@ -115,6 +119,8 @@ import {
 } from "@/components/lab/PrimerTools";
 import { OrfFinderTool, TranslateTool } from "@/components/lab/OrfTranslateTools";
 import { CodonAnalysisTool, BackTranslationTool } from "@/components/lab/CodonTools";
+import { PairwiseAlignTool, SimilarityCalculatorTool } from "@/components/lab/AlignmentTools";
+import { FastaCsvTool, FastaJsonTool, FastaGenBankTool } from "@/components/lab/FormatConvertTools";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatJalaliDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -131,9 +137,11 @@ type ToolId =
   | "primer-design" | "blast-search" | "tm-calculator" | "dimer-checker"
   | "multiplex" | "realtime"
   | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation"
-  | "orf-finder" | "translate" | "codon-analysis" | "back-translation";
+  | "orf-finder" | "translate" | "codon-analysis" | "back-translation"
+  | "pairwise-align" | "sequence-similarity"
+  | "fasta-csv" | "fasta-json" | "fasta-genbank";
 
-type GroupId = "sequence" | "calc" | "primer" | "enzyme" | "protein";
+type GroupId = "sequence" | "calc" | "primer" | "enzyme" | "protein" | "alignment" | "format";
 
 interface ToolDef {
   id: ToolId;
@@ -291,6 +299,41 @@ const TOOLS: ToolDef[] = [
     outputs: ["ماتریس سازگاری", "بافر پیشنهادی", "ایزوشیزومرها"],
   },
   {
+    id: "pairwise-align", title: "همترازی دو توالی", titleEn: "Pairwise Alignment",
+    description: "همترازی سراسری (Needleman-Wunsch) و محلی (Smith-Waterman)",
+    icon: AlignLeft, component: PairwiseAlignTool, group: "alignment",
+    steps: ["توالی اول و دوم را بچسبانید", "روش همترازی و امتیازدهی را انتخاب کنید", "بلوک‌های همترازی و شمارهٔ ستون را بخوانید"],
+    outputs: ["همترازی سه‌خطی", "امتیاز و شناسهٔ همسانی", "نمودار امتیاز هر بلوک", "گزارش TXT"],
+  },
+  {
+    id: "sequence-similarity", title: "محاسبه شباهت توالی‌ها", titleEn: "Sequence Similarity Calculator",
+    description: "همسانی، شباهت IUPAC، ترنزیشن/ترنسورژن و جابجایی توالی",
+    icon: GitCompare, component: SimilarityCalculatorTool, group: "alignment",
+    steps: ["توالی A و B را وارد کنید", "نوع توالی و روش محاسبه را انتخاب کنید", "جدول هماری و درصدها را بررسی کنید"],
+    outputs: ["کارت درصد همسانی/شباهت", "جدول هماری پایه‌به‌پایه", "نمودار میله‌ای شمارش", "گزارش دانلودی"],
+  },
+  {
+    id: "fasta-csv", title: "تبدیل FASTA ↔ CSV", titleEn: "FASTA ↔ CSV Converter",
+    description: "هر رکورد FASTA به یک سطر CSV و برعکس",
+    icon: Table2, component: FastaCsvTool, group: "format",
+    steps: ["فایل را بکشید یا متن را بچسبانید", "هدر، جداکننده و ستون توضیح را انتخاب کنید", "خروجی را کپی یا دانلود کنید"],
+    outputs: ["متن خروجی CSV/FASTA", "جدول رکوردها", "نمودار توزیع طول", "لیست رکوردهای ردشده"],
+  },
+  {
+    id: "fasta-json", title: "تبدیل FASTA ↔ JSON", titleEn: "FASTA ↔ JSON Converter",
+    description: "آرایهٔ JSON با کلیدهای id و sequence",
+    icon: FileType2, component: FastaJsonTool, group: "format",
+    steps: ["ورودی را بارگذاری کنید", "قالب Pretty یا فشرده را انتخاب کنید", "نتیجه را کپی یا دانلود کنید"],
+    outputs: ["متن خروجی JSON", "جدول رکوردها", "نمودار توزیع طول", "هشدارهای ساختار"],
+  },
+  {
+    id: "fasta-genbank", title: "تبدیل FASTA ↔ GenBank", titleEn: "FASTA ↔ GenBank Converter",
+    description: "فرمت فلت GenBank با بلوک FEATURES و ORIGIN",
+    icon: FileText, component: FastaGenBankTool, group: "format",
+    steps: ["رکورد GenBank یا FASTA را بارگذاری کنید", "خروجی کامل یا حداقلی و LOCUS را تعیین کنید", "فایل را دانلود کنید"],
+    outputs: ["متن GenBank/FASTA", "جدول رکوردها", "نمودار توزیع طول", "هشدارهای ساختار"],
+  },
+  {
     id: "methylation", title: "آنالیز متیلاسیون", titleEn: "Methylation Analysis",
     description: "شناسایی جزایر CpG در توالی",
     icon: Atom, component: DnaMethylationTool, group: "enzyme",
@@ -311,6 +354,8 @@ const GROUPS: { id: GroupId; label: string; icon: typeof Dna }[] = [
   { id: "primer", label: "ابزارهای پرایمر", icon: Pipette },
   { id: "enzyme", label: "آنزیم‌های محدودکننده", icon: Scissors },
   { id: "protein", label: "پروتئین و کدون", icon: Atom },
+  { id: "alignment", label: "همترازی", icon: AlignLeft },
+  { id: "format", label: "تبدیل فرمت", icon: ArrowLeftRight },
 ];
 
 /** Specialised visual identity per tool family. */
@@ -337,6 +382,14 @@ const ACCENT: Record<
   enzyme: {
     soft: "bg-amber-50", text: "text-amber-700", chip: "bg-amber-100 text-amber-800",
     bar: "from-amber-500 to-orange-500", ring: "ring-amber-200", hex: "#d97706",
+  },
+  alignment: {
+    soft: "bg-cyan-50", text: "text-cyan-700", chip: "bg-cyan-100 text-cyan-800",
+    bar: "from-cyan-500 to-blue-500", ring: "ring-cyan-200", hex: "#0891b2",
+  },
+  format: {
+    soft: "bg-fuchsia-50", text: "text-fuchsia-700", chip: "bg-fuchsia-100 text-fuchsia-800",
+    bar: "from-fuchsia-500 to-purple-500", ring: "ring-fuchsia-200", hex: "#c026d3",
   },
 };
 
@@ -370,9 +423,9 @@ const RUN_VIEW: WorkspaceView = "run";
 
 /** Research fields — switching one filters the whole workspace. */
 const FIELDS: { id: string; label: string; groups: GroupId[] }[] = [
-  { id: "bioinformatics", label: "آزمایشگاه ژنوا — بیوانفورماتیک", groups: ["sequence", "calc", "primer", "enzyme", "protein"] },
-  { id: "genetics", label: "ژنتیک پزشکی", groups: ["sequence", "primer", "protein"] },
-  { id: "microbiology", label: "میکروبیولوژی", groups: ["sequence", "enzyme", "protein"] },
+  { id: "bioinformatics", label: "آزمایشگاه ژنوا — بیوانفورماتیک", groups: ["sequence", "calc", "primer", "enzyme", "protein", "alignment", "format"] },
+  { id: "genetics", label: "ژنتیک پزشکی", groups: ["sequence", "primer", "protein", "alignment"] },
+  { id: "microbiology", label: "میکروبیولوژی", groups: ["sequence", "enzyme", "protein", "alignment", "format"] },
   { id: "botany", label: "علوم گیاهی", groups: ["sequence", "calc"] },
 ];
 
@@ -542,6 +595,8 @@ const SAMPLE_BY_GROUP: Record<GroupId, string> = {
   primer: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGG",
   enzyme: "GAATTCGGATCCATGCTAGCGGTACCAAGCTTGCATGCCTGCAGGTCGAC",
   protein: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGGCTAGCTAGGCATCGATCGATT",
+  alignment: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGGCTAGCTAGGCATCGATCGATT",
+  format: ">seq1\nATGGATTTATCTGCTCTTCGCGTTGAAGAAGTACAAA\n>seq2\nATGGAGGAGCCGCAGTCAGATCCTAGCGTCGAGCC",
 };
 
 const DNA_ALPHABET = /^[ATGCatgc]*$/;
