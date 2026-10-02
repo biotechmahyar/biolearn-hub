@@ -34,6 +34,7 @@ import {
   Bell,
   Beaker,
   Boxes,
+  Brain,
   Calculator,
   Check,
   ChevronDown,
@@ -92,6 +93,7 @@ import {
   PatternSearchTool,
   NucleotideCounterTool,
 } from "@/components/lab/BioAnalysisTools";
+import { VirtualFlyBrain } from "@/components/lab/VirtualFlyBrain";
 import {
   RestrictionMapperTool,
   EnzymeSearchTool,
@@ -302,6 +304,7 @@ type WorkspaceView =
   | "experiments"
   | "run"
   | "protocols"
+  | "vfb"
   | "equipment"
   | "team"
   | "reports"
@@ -312,6 +315,7 @@ const WORKSPACE_ITEMS: { id: WorkspaceView; label: string; icon: typeof Dna }[] 
   { id: "overview", label: "نمای کلی", icon: Layers },
   { id: "experiments", label: "آزمایش‌ها", icon: FlaskConical },
   { id: "protocols", label: "پروتکل‌ها و ابزارها", icon: ListChecks },
+  { id: "vfb", label: "Virtual Fly Brain", icon: Brain },
   { id: "equipment", label: "تجهیزات", icon: Microscope },
   { id: "team", label: "پیشرفت من", icon: Users },
   { id: "reports", label: "گزارش‌ها", icon: TrendingUp },
@@ -2066,6 +2070,23 @@ export default function VirtualLab() {
                       <ToolCard key={tool.id} tool={tool} onOpen={() => select(tool.id)} />
                     ))}
                   </div>
+                </section>
+              )}
+
+              {/* ───────────── VIRTUAL FLY BRAIN ───────────── */}
+              {view === "vfb" && (
+                <section>
+                  <div className="mb-3">
+                    <h2 className="text-[19px] font-extrabold tracking-tight text-slate-900">
+                      Virtual Fly Brain
+                    </h2>
+                    <p className="mt-1 text-[12px] text-slate-500">
+                      Drosophila melanogaster Neurobiology Explorer — داده‌ها به‌صورت زنده از{" "}
+                      <span dir="ltr" className="font-mono text-[11.5px]">v3-cached.virtualflybrain.org</span>{" "}
+                      خوانده می‌شود.
+                    </p>
+                  </div>
+                  <VirtualFlyBrain />
                 </section>
               )}
 
