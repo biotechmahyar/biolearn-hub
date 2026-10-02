@@ -33,7 +33,6 @@ import {
   BarChart3,
   Bell,
   Beaker,
-  BellOff,
   Boxes,
   Calculator,
   Check,
@@ -1411,7 +1410,7 @@ export default function VirtualLab() {
                   title="اعلان‌ها"
                   className="relative rounded-xl p-2 text-slate-500 transition-colors hover:bg-emerald-50 hover:text-emerald-700"
                 >
-                  {unreadCount > 0 ? <Bell className="size-4" /> : <BellOff className="size-4" />}
+                  <Bell className="size-4" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 flex min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-bold text-white">
                       {faNum(unreadCount)}
