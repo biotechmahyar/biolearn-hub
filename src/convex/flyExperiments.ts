@@ -118,6 +118,7 @@ export const createExperiment = mutation({
     ),
     durationMin: v.optional(v.number()),
     params: v.optional(v.string()),
+    projectId: v.optional(v.id("flyProjects")),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -155,6 +156,7 @@ export const createExperiment = mutation({
         : undefined,
       durationMin: clampDuration(args.durationMin ?? 5),
       params: clean(args.params, MAX_TEXT),
+      ...(args.projectId ? { projectId: args.projectId } : {}),
       status: "draft" as ExperimentStatus,
       createdAt: now,
       updatedAt: now,
@@ -187,6 +189,7 @@ export const updateExperiment = mutation({
     ),
     durationMin: v.optional(v.number()),
     params: v.optional(v.string()),
+    projectId: v.optional(v.id("flyProjects")),
     status: v.optional(
       v.union(v.literal("draft"), v.literal("in_progress"), v.literal("completed")),
     ),
@@ -213,6 +216,15 @@ export const updateExperiment = mutation({
     if (args.params !== undefined) patch.params = clean(args.params, MAX_TEXT);
     if (args.durationMin !== undefined) patch.durationMin = clampDuration(args.durationMin);
     if (args.stimulusKind !== undefined) patch.stimulusKind = args.stimulusKind;
+    if (args.projectId !== undefined) {
+      // The project must belong to the caller and to the same fly, so a
+      // project can never be used to smuggle cross-fly grouping.
+      const project = await ctx.db.get(args.projectId);
+      if (!project) throw new Error("پروژه یافت نشد.");
+      if (project.userId !== user._id) throw new Error("دسترسی غیرمجاز.");
+      if (project.flyId !== row.flyId) throw new Error("این پروژه به مگس دیگری تعلق دارد.");
+      patch.projectId = args.projectId;
+    }
     if (args.stimulusIntensity !== undefined) {
       patch.stimulusIntensity = clampIntensity(args.stimulusIntensity);
     }

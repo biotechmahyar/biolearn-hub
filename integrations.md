@@ -465,3 +465,99 @@ Two changes keep model output out of the analysis:
 - `runVfbReadout` does 3–4 sequential HTTP calls. It is behind an explicit button, never automatic.
 - Connectivity only works between neuron **classes**; anatomy regions legitimately return 0 edges,
   and VFB says so in `notes`.
+
+# Research Projects & Anchored Simulation (Phase E) — Genova Virtual Lab
+
+## Anchored simulation — what "real" can honestly mean here
+
+The fly viewer used to ignore everything the student configured. Phase E makes the
+simulation actually consume their recorded VFB data, while keeping the three layers
+strictly separate:
+
+| Layer | What it is | Where |
+|---|---|---|
+| **REAL INPUT** | numbers VFB returned, stored with `entityId` + `accessedAt` in Phase D | `flyObservations.evidence` |
+| **MODEL MAPPING** | how Genova turns that number into a movement gain — hand-picked constants | `src/services/behavior/profile.ts` |
+| **OUTPUT** | movement on a canvas, permanently badged SIMULATION | `FlyViewer` |
+
+`SimulationProfile.biologicalBasis` is still `null`. **No amount of real input makes
+the movement biological** — the mapping is a declared heuristic, and the UI says so.
+
+### Which real readouts may drive movement
+
+Only **connectivity evidence for the target**:
+
+- `connections` — edges VFB reports for target → the chosen downstream type
+- `synapseWeightSum` — total synaptic weight VFB returned for those edges
+
+Ontology counts (`synonyms`, `descendants`, `images`, …) are real but say nothing
+about motor output, so they are deliberately **not** allowed to move the fly.
+Verified by test: a profile built only from `descendants` + `images` returns
+`anchored: false` and identity scales.
+
+If no connectivity readout exists, the profile falls back to the Phase B defaults and
+states that no neural readout is available. It never substitutes a plausible number.
+
+### Declared model constants
+
+```
+WEIGHT_LOW  = 100          WEIGHT_HIGH = 100_000
+driveGain   = 0.70 + 0.90 × norm(log10(synapseWeightSum))
+turnRate    = 0.85 + 0.40 × norm(…)
+```
+
+These are Genova's own choice, surfaced in the UI under every `MODEL` badge. They are
+not thresholds from any dataset and no dataset is cited, because none backs them.
+
+## Engine change
+
+`BehaviorEngine.step(state, stimulus, dt, rng, context?)` gained an optional fifth
+argument. `context` is `{ driveGain, turnRate, respondGain }`, all `1` by default, so
+omitting it reproduces the Phase B model **bit-for-bit** (verified: identical `x`,
+`y` and `distance` over 3600 steps). The viewer holds the context in a ref so a profile
+change never restarts the animation loop mid-run.
+
+## Files
+
+| File | Role |
+|---|---|
+| `src/services/behavior/profile.ts` | `buildProfile()`, `toRealMeasurements()`, `defaultProfile()` |
+| `src/convex/flyProjects.ts` | project CRUD + count-only `projectSummary` |
+| `src/components/lab/VirtualFly/FlyProjects.tsx` | project builder, list, project view |
+| `FlyViewer.tsx` | new `profile` prop + `ModelProvenancePanel` |
+
+## Schema
+
+`flyProjects`: `userId`, `flyId`, `title`, `question`, `hypothesis`,
+`status` (`draft|active|completed`), timestamps. Indexes `by_user`, `by_fly`,
+`by_user_status`.
+
+`flyExperiments.projectId: OPT(ID("flyProjects"))` + `by_project` index.
+
+## Endpoints
+
+| Function | Notes |
+|---|---|
+| `listMyProjects({ flyId? })` | `[]` when anonymous |
+| `projectSummary({ projectId })` | **counts + measurement keys only**; zeros for an id that is not the caller's |
+| `createProject(...)` | verifies fly ownership; caps 12 projects/fly; title + question + hypothesis all required |
+| `updateProject(...)` | ownership re-checked |
+| `deleteProject(...)` | detaches member experiments before deleting |
+| `flyExperiments.updateExperiment({ projectId })` | project must belong to the caller **and the same fly** |
+
+## Why there are no statistics
+
+`projectSummary` returns counts and the measurement keys that were read. It does not
+compute a p-value, a correlation, or "significant difference". With a handful of
+student observations any such number would look rigorous and mean nothing, and the
+panel says this on screen. Simulation telemetry stays excluded from every project
+summary, exactly as in Phase D.
+
+## Live verification
+
+- no-context run identical to the default model (3600 steps)
+- strong anchored profile (80 000 weights) → `driveGain` 1.571; weak (120) → 0.724
+- anchored run travels 3.099 vs 1.407 arena units over 1800 steps
+- ontology-only readouts → not anchored, identity scales
+- newer observation supersedes an older one for the same key
+- `biologicalBasis === null` in every profile

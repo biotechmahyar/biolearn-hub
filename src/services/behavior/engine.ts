@@ -79,6 +79,24 @@ export interface BehaviorStep {
 }
 
 /**
+ * Optional multipliers handed to the engine. Produced by
+ * `buildProfile()` in `profile.ts` from real Virtual Fly Brain readouts.
+ * Omitting it (or passing `undefined`) reproduces the plain model exactly,
+ * which is why the default keeps every Phase B behaviour test valid.
+ */
+export interface SimulationContext {
+  driveGain: number;
+  turnRate: number;
+  respondGain: number;
+}
+
+export const DEFAULT_CONTEXT: SimulationContext = {
+  driveGain: 1,
+  turnRate: 1,
+  respondGain: 1,
+};
+
+/**
  * The contract every future model implements. Keep it small on purpose: the UI
  * only needs to advance a state, and the experiment/report layers only need a
  * human-readable provenance string.
@@ -95,6 +113,7 @@ export interface BehaviorEngine {
     stimulus: BehaviorStimulus,
     dt: number,
     rng: () => number,
+    context?: SimulationContext,
   ): BehaviorStep;
 }
 
@@ -211,9 +230,17 @@ export const SimpleLocomotionEngine: BehaviorEngine = {
     };
   },
 
-  step(state, stimulus, dt, rng): BehaviorStep {
+  step(state, stimulus, dt, rng, context): BehaviorStep {
     const step = Math.min(dt, 0.05); // never integrate a huge frame
-    const drive = deriveDrive(stimulus);
+    const ctx = context ?? DEFAULT_CONTEXT;
+    const baseDrive = deriveDrive(stimulus);
+    // A profile scales the drive; with the default context this is identical to
+    // `baseDrive`, so behaviour without an anchor is unchanged.
+    const drive: NeuralDrive = {
+      driveGain: baseDrive.driveGain * ctx.driveGain,
+      turnBoost: baseDrive.turnBoost * ctx.turnRate,
+      respondProbability: baseDrive.respondProbability * ctx.respondGain,
+    };
     let { x, y, heading, mode, modeFor, exploreTarget, speed } = state;
     const t = state.t + step;
     let event: BehaviorEvent | undefined;
@@ -248,7 +275,7 @@ export const SimpleLocomotionEngine: BehaviorEngine = {
     // 3. Rotation.
     if (mode === "turn") {
       const sign = rng() < 0.5 ? -1 : 1;
-      heading += sign * TURN_RATE * step;
+      heading += sign * TURN_RATE * ctx.turnRate * step;
     } else if (mode === "respond") {
       heading += (rng() - 0.5) * (drive.turnBoost + 0.6) * step * 2;
     } else if (mode === "explore") {

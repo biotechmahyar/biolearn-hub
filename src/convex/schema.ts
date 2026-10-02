@@ -1786,7 +1786,27 @@ const schema = defineSchema(
       ),
       durationMin: NUM(),
       params: OPT(STR()),
+      // Phase E — which research project this experiment belongs to.
+      projectId: OPT(ID("flyProjects")),
       status: UN(L("draft"), L("in_progress"), L("completed")),
+      createdAt: NUM(),
+      updatedAt: NUM(),
+      completedAt: OPT(NUM()),
+    })
+      .index("by_user", ["userId"])
+      .index("by_fly", ["flyId"])
+      .index("by_user_status", ["userId", "status"])
+      .index("by_project", ["projectId"]),
+    // Phase E — a research project groups several experiments under one
+    // question and one hypothesis. Both are the student's own words and are
+    // badged HYPOTHESIS in the UI; nothing here is a result.
+    flyProjects: defineTable({
+      userId: ID("users"),
+      flyId: ID("virtualFlies"),
+      title: STR(),
+      question: STR(),
+      hypothesis: STR(),
+      status: UN(L("draft"), L("active"), L("completed")),
       createdAt: NUM(),
       updatedAt: NUM(),
       completedAt: OPT(NUM()),

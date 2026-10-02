@@ -48,6 +48,7 @@ import { DataKindBadge } from "./dataKind";
 import { FlyBrainSnapshot } from "./FlyBrainSnapshot";
 import { FlyViewer } from "./FlyViewer";
 import { FlyExperiments } from "./FlyExperiments";
+import FlyProjects from "./FlyProjects";
 import { SEX_LABEL, STATUS_CHIP, STATUS_LABEL, type FlyRow, type FlySex, type FlyStatus } from "./types";
 import { VfbAnchorPicker, type VfbAnchor } from "./VfbAnchorPicker";
 
@@ -509,6 +510,11 @@ function FlyDetail({
         {/* Live brain status — real VFB data, read on demand. */}
         {fly.brainModel && <FlyBrainSnapshot fly={fly} onOpenBrain={onOpenBrain} />}
 
+        {/* Phase E — research project (question + hypothesis + experiments). */}
+        <section className="border-t border-emerald-900/5 pt-4">
+          <FlyProjects fly={fly} />
+        </section>
+
         {/* Experiments — builder + workspace, scoped to this fly. */}
         <section className="border-t border-emerald-900/5 pt-4">
           <FlyExperiments fly={fly} onOpenBrain={onOpenBrain} />
@@ -535,7 +541,8 @@ function FlyDetail({
             {[
               { icon: FlaskConical, label: "تعریف آزمایش و اتصال محرک به رفتار", tag: "Phase C ✓" },
               { icon: Eye, label: "ثبت مشاهده و نتیجهٔ آزمایش", tag: "Phase D ✓" },
-              { icon: FlaskConical, label: "پروژهٔ پژوهشی چند-آزمایشی", tag: "Phase E" },
+              { icon: FlaskConical, label: "پروژهٔ پژوهشی چند-آزمایشی", tag: "Phase E ✓" },
+              { icon: FlaskConical, label: "گزارش پژوهشی", tag: "Phase F" },
             ].map((item) => {
               const Icon = item.icon;
               return (

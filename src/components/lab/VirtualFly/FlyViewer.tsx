@@ -16,20 +16,23 @@
  * canvas; React state is only refreshed a few times per second for the
  * telemetry panel, so the frame rate does not depend on the React tree.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Gauge, Pause, Play, RotateCcw, Sparkles, Zap } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Gauge, Pause, Play, RotateCcw, SlidersHorizontal, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { faNum } from "@/lib/format";
+import { faNum, formatJalaliDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  DEFAULT_CONTEXT,
   MODE_LABEL,
   STIMULUS_LABEL,
   SimpleLocomotionEngine,
   createRng,
   type BehaviorEvent,
   type BehaviorState,
+  type SimulationContext,
   type StimulusKind,
 } from "@/services/behavior/engine";
+import { defaultProfile, type SimulationProfile } from "@/services/behavior/profile";
 import { DataKindBadge } from "./dataKind";
 import type { FlyRow } from "./types";
 
@@ -204,17 +207,84 @@ function drawArena(
   paintFly(ctx, state.x * w, floor - height, 0, state.t * (state.speed > 0 ? 40 : 6), Math.max(10, h * 0.08));
 }
 
+// ── Model provenance ────────────────────────────────────────────────────────
+
+/**
+ * Shows, parameter by parameter, whether a value came from the Virtual Fly
+ * Brain or from a hand-picked Genova constant. Without this panel an anchored
+ * simulation would look exactly as trustworthy as the un-anchored one.
+ */
+function ModelProvenancePanel({ profile }: { profile?: SimulationProfile }) {
+  const active = profile ?? defaultProfile();
+
+  return (
+    <div className="rounded-xl border border-emerald-900/5 bg-white px-3 py-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+          <SlidersHorizontal className="size-3.5 text-emerald-600" />
+          ورودی‌های همین اجرا
+        </p>
+        <span
+          dir="ltr"
+          className="rounded-md bg-slate-50 px-1.5 py-0.5 font-mono text-[9.5px] text-slate-500"
+        >
+          {active.id} / v{active.version}
+        </span>
+      </div>
+
+      {active.parameters.length === 0 ? (
+        <p className="text-[10.5px] leading-5 text-slate-500">{active.basis}</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {active.parameters.map((p) => (
+            <li
+              key={p.key}
+              className="rounded-lg bg-slate-50 px-2.5 py-2"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-[11px] text-slate-600">{p.label}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <DataKindBadge kind={p.origin === "real" ? "real" : "simulation"} />
+                  <span dir="ltr" className="font-mono text-[11px] font-bold text-slate-700">
+                    {p.value}
+                  </span>
+                </span>
+              </div>
+              {p.source && (
+                <p className="mt-1 text-[9.5px] leading-4 text-slate-500">
+                  <span dir="ltr" className="font-mono">{p.source.vfbId}</span> ·{" "}
+                  <span dir="ltr">{p.source.source}</span> · خوانش{" "}
+                  {formatJalaliDate(p.source.accessedAt)}
+                </p>
+              )}
+              {p.note && <p className="mt-1 text-[9.5px] leading-4 text-slate-500">{p.note}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-2 text-[10px] leading-5 text-slate-500">{active.basis}</p>
+    </div>
+  );
+}
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function FlyViewer({
   fly,
   stimulus,
   locked,
+  profile,
 }: {
   fly: FlyRow;
   /** When set, the stimulus comes from an experiment and the controls lock. */
   stimulus?: { kind: StimulusKind; intensity: number };
   locked?: boolean;
+  /**
+   * Phase E: multipliers derived from the experiment's real VFB readouts.
+   * Omitted ⇒ the plain Phase B model, unchanged.
+   */
+  profile?: SimulationProfile;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<BehaviorState>(SimpleLocomotionEngine.initialState());
@@ -266,6 +336,24 @@ export function FlyViewer({
     if (stimulus) stimRef.current = { kind: stimulus.kind, intensity: stimulus.intensity };
   }, [stimulus]);
 
+  // The animation loop is mounted once and reads the scales through this ref,
+  // so changing the profile never restarts the loop mid-run.
+  const contextRef = useRef<SimulationContext>(DEFAULT_CONTEXT);
+  const context = useMemo<SimulationContext>(
+    () =>
+      profile
+        ? {
+            driveGain: profile.scales.driveGain,
+            turnRate: profile.scales.turnRate,
+            respondGain: profile.scales.respondGain,
+          }
+        : DEFAULT_CONTEXT,
+    [profile],
+  );
+  useEffect(() => {
+    contextRef.current = context;
+  }, [context]);
+
   const reset = useCallback(() => {
     const next = (seedRef.current % 9999) + 1;
     seedRef.current = next;
@@ -289,7 +377,13 @@ export function FlyViewer({
 
       if (runningRef.current) {
         const dt = Math.min(dtRaw, 0.1) * speedRef.current;
-        const step = SimpleLocomotionEngine.step(stateRef.current, stimRef.current, dt, rngRef.current);
+        const step = SimpleLocomotionEngine.step(
+            stateRef.current,
+            stimRef.current,
+            dt,
+            rngRef.current,
+            contextRef.current,
+          );
         stateRef.current = step.state;
         trailRef.current.push({ x: step.state.x, y: step.state.y });
         if (trailRef.current.length > TRAIL_MAX) trailRef.current.shift();
@@ -373,8 +467,11 @@ export function FlyViewer({
         <strong>Simulated behavior.</strong> این حرکت خروجی یک مدل محاسباتی ساده در ژنوا است (
         <span dir="ltr" className="font-mono">{SimpleLocomotionEngine.id}</span> /
         <span dir="ltr" className="font-mono">v{SimpleLocomotionEngine.version}</span>)، نه رفتار ثبت‌شدهٔ یک مگس
-        واقعی و نه دادهٔ تجربی. هیچ عددی در این پنل منبع زیستی ندارد.
+        واقعی و نه دادهٔ تجربی. حرکت فقط یک خروجی بصری است و هیچ عددی از آن به‌عنوان نتیجه استخراج نمی‌شود.
       </p>
+
+      {/* Phase E — what actually feeds the model, and what does not. */}
+      <ModelProvenancePanel profile={profile} />
 
       {/* Stage */}
       <div className="overflow-hidden rounded-2xl border border-emerald-900/5 bg-white">

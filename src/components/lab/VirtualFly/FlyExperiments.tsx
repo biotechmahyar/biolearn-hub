@@ -39,6 +39,7 @@ import { faNum, formatJalaliDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { STIMULUS_LABEL, type StimulusKind } from "@/services/behavior/engine";
+import { buildProfile, toRealMeasurements } from "@/services/behavior/profile";
 import { VFB_SOURCE } from "@/services/vfb/types";
 import { DataKindBadge } from "./dataKind";
 import FlyObservations from "./FlyObservations";
@@ -61,6 +62,7 @@ interface ExperimentTarget {
 interface ExperimentRow {
   _id: string;
   flyId: string;
+  projectId?: string;
   name: string;
   objective?: string;
   condition?: string;
@@ -73,6 +75,11 @@ interface ExperimentRow {
   createdAt: number;
   updatedAt: number;
   completedAt?: number;
+}
+
+interface ProjectRow {
+  _id: string;
+  title: string;
 }
 
 const STATUS_LABEL: Record<ExperimentStatus, string> = {
@@ -246,6 +253,26 @@ interface WorkspaceProps {
   onOpenBrain: (term: { id: string; label: string }) => void;
 }
 
+/** Build the simulation profile from the experiment's real VFB observations. */
+function useExperimentProfile(fly: FlyRow, experiment: ExperimentRow) {
+  const observations = useQuery(api.flyObservations.listMyObservations, {
+    experimentId: experiment._id as Id<"flyExperiments">,
+  });
+  return useMemo(
+    () =>
+      buildProfile({
+        anchor: fly.brainModel
+          ? { vfbId: fly.brainModel.vfbId, label: fly.brainModel.label }
+          : null,
+        target: experiment.target
+          ? { vfbId: experiment.target.vfbId, label: experiment.target.label }
+          : null,
+        real: toRealMeasurements((observations ?? []) as never[]),
+      }),
+    [observations, fly.brainModel, experiment.target],
+  );
+}
+
 function ExperimentWorkspace({
   fly,
   experiment,
@@ -276,6 +303,18 @@ function ExperimentWorkspace({
         ...(experiment.target.entityType ? { entityType: experiment.target.entityType } : {}),
       }
     : null;
+
+  // Phase E — the simulation consumes this experiment's real VFB readouts.
+  const profile = useExperimentProfile(fly, experiment);
+
+  // Phase E — which research project (if any) this experiment belongs to.
+  const projectsQuery = useQuery(api.flyProjects.listMyProjects, {
+    flyId: fly._id as Id<"virtualFlies">,
+  });
+  const projects: ProjectRow[] = useMemo(
+    () => (projectsQuery ?? []) as unknown as ProjectRow[],
+    [projectsQuery],
+  );
 
   const saveFields = useCallback(async () => {
     const durationMin = Number.parseInt(duration, 10);
@@ -384,6 +423,23 @@ function ExperimentWorkspace({
                 className="h-9 text-[12px]"
               />
             </label>
+            <label className="block min-w-[200px] flex-1">
+              <span className="mb-1 block text-[10.5px] text-slate-500">پروژهٔ پژوهش</span>
+              <select
+                value={experiment.projectId ?? ""}
+                onChange={(e) =>
+                  onUpdate({ projectId: e.target.value || undefined })
+                }
+                className="h-9 w-full rounded-lg border border-emerald-900/10 bg-white px-2 text-[12px] text-slate-700 outline-none focus:border-emerald-300"
+              >
+                <option value="">بدون پروژه</option>
+                {projects.map((p) => (
+                  <option key={p._id} value={p._id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+            </label>
             <Button
               type="button"
               size="sm"
@@ -484,6 +540,7 @@ function ExperimentWorkspace({
               <FlyViewer
                 fly={fly}
                 locked
+                profile={profile}
                 stimulus={{ kind: experiment.stimulusKind, intensity: experiment.stimulusIntensity }}
               />
             </div>
