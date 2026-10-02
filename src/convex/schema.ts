@@ -1728,6 +1728,38 @@ const schema = defineSchema(
       createdAt: v.number(),
       updatedAt: v.number(),
     }).index("by_user", ["userId"]),
+    // ── Drosophila Virtual Flies ─────────────────────────────────────────
+    // A "virtual fly" is Genova's own research object: a small piece of
+    // student-owned metadata that may be anchored to a real Virtual Fly Brain
+    // entity. VFB is NEVER mirrored here — only the identifier + the label and
+    // the access timestamp, so the fly can be traced back to its source.
+    virtualFlies: defineTable({
+      userId: ID("users"),
+      genovaFlyId: STR(),              // FLY-001 … (sequential per student)
+      name: STR(),                     // display name, e.g. "Fly #001"
+      species: STR(),                  // lab metadata (not a VFB value)
+      sex: UN(L("female"), L("male"), L("unknown")),
+      ageDays: NUM(),
+      genotype: OPT(STR()),
+      phenotype: OPT(STR()),
+      notes: OPT(STR()),
+      status: UN(L("healthy"), L("experimental"), L("modified")),
+      // Provenance block — populated ONLY from a real VFBquery response.
+      brainModel: OPT(
+        OBJ({
+          vfbId: STR(),
+          label: STR(),
+          entityType: OPT(STR()),
+          source: STR(),                // "Virtual Fly Brain"
+          accessedAt: NUM(),
+        }),
+      ),
+      archived: BOOL(),
+      createdAt: NUM(),
+      updatedAt: NUM(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_archived", ["userId", "archived"]),
     // ── Genova Compute Game (blockchain-style token economy) ──────────────
     // Per-user wallet with a pseudo address plus an append-only hash-chained
     // ledger. Token amounts are integers (1 GVA = 1 unit).

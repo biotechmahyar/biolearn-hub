@@ -1280,7 +1280,7 @@ function DetailPanel({
 
 // ── Module shell ─────────────────────────────────────────────────────────────
 
-export function VirtualFlyBrain() {
+export function VirtualFlyBrain({ initialTerm }: { initialTerm?: { id: string; label: string } | null }) {
   const [query, setQuery] = useState("");
   const [searchState, setSearchState] = useState<{ q: string; offset: number } | null>(null);
   const [searchNonce, setSearchNonce] = useState(0);
@@ -1288,6 +1288,22 @@ export function VirtualFlyBrain() {
   const [searchError, setSearchError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<VFBEntitySummary | null>(null);
+
+  // A fly can hand its VFB anchor to this explorer. The hand-off is applied
+  // during render (not in an effect) so the term is already selected on the
+  // very first paint after the switch.
+  const incomingId = initialTerm?.id ?? "";
+  const [lastHandoff, setLastHandoff] = useState(incomingId);
+  if (incomingId && incomingId !== lastHandoff) {
+    setLastHandoff(incomingId);
+    setSelected({
+      id: incomingId,
+      label: initialTerm?.label ?? incomingId,
+      rawLabel: initialTerm?.label ?? incomingId,
+      facets: [],
+      entityType: null,
+    });
+  }
 
   const searchLoader = useCallback(
     (signal: AbortSignal) => {

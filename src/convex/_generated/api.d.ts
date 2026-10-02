@@ -71,6 +71,7 @@ import type * as tickets from "../tickets.js";
 import type * as upload from "../upload.js";
 import type * as userAuthActions from "../userAuthActions.js";
 import type * as users from "../users.js";
+import type * as virtualFlies from "../virtualFlies.js";
 
 import type {
   ApiFromModules,
@@ -142,6 +143,7 @@ declare const fullApi: ApiFromModules<{
   upload: typeof upload;
   userAuthActions: typeof userAuthActions;
   users: typeof users;
+  virtualFlies: typeof virtualFlies;
 }>;
 
 /**

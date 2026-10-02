@@ -35,6 +35,7 @@ import {
   Beaker,
   Boxes,
   Brain,
+  Bug,
   Calculator,
   Check,
   ChevronDown,
@@ -94,6 +95,7 @@ import {
   NucleotideCounterTool,
 } from "@/components/lab/BioAnalysisTools";
 import { VirtualFlyBrain } from "@/components/lab/VirtualFlyBrain";
+import { MyFlies } from "@/components/lab/VirtualFly/MyFlies";
 import {
   RestrictionMapperTool,
   EnzymeSearchTool,
@@ -304,6 +306,7 @@ type WorkspaceView =
   | "experiments"
   | "run"
   | "protocols"
+  | "flies"
   | "vfb"
   | "equipment"
   | "team"
@@ -315,6 +318,7 @@ const WORKSPACE_ITEMS: { id: WorkspaceView; label: string; icon: typeof Dna }[] 
   { id: "overview", label: "نمای کلی", icon: Layers },
   { id: "experiments", label: "آزمایش‌ها", icon: FlaskConical },
   { id: "protocols", label: "پروتکل‌ها و ابزارها", icon: ListChecks },
+  { id: "flies", label: "مگس‌های من", icon: Bug },
   { id: "vfb", label: "Virtual Fly Brain", icon: Brain },
   { id: "equipment", label: "تجهیزات", icon: Microscope },
   { id: "team", label: "پیشرفت من", icon: Users },
@@ -674,6 +678,14 @@ export default function VirtualLab() {
   const [answeredFor, setAnsweredFor] = useState<string | null>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteBody, setNoteBody] = useState("");
+
+  // A virtual fly hands its VFB anchor to the Brain Explorer when the student
+  // presses "باز کردن مغز". Stored here so the hand-off survives the view switch.
+  const [vfbInitialTerm, setVfbInitialTerm] = useState<{ id: string; label: string } | null>(null);
+  const openBrainForTerm = useCallback((term: { id: string; label: string }) => {
+    setVfbInitialTerm(term);
+    select("vfb");
+  }, [select]);
 
   const activeExperiment = useMemo(
     () => (experiments ?? []).find((e: { slug: string }) => e.slug === activeSlug) ?? null,
@@ -2073,6 +2085,20 @@ export default function VirtualLab() {
                 </section>
               )}
 
+              {/* ───────────── MY FLIES ───────────── */}
+              {view === "flies" && (
+                <section>
+                  <div className="mb-3">
+                    <h2 className="text-[19px] font-extrabold tracking-tight text-slate-900">آزمایشگاه مگس‌های من</h2>
+                    <p className="mt-1 text-[12px] text-slate-500">
+                      مگس‌ها روی حساب شما ذخیره می‌شوند؛ داده‌های اعصابی هر مگس از{" "}
+                      <span dir="ltr" className="font-mono text-[11.5px]">Virtual Fly Brain</span> خوانده می‌شود.
+                    </p>
+                  </div>
+                  <MyFlies onOpenBrain={openBrainForTerm} />
+                </section>
+              )}
+
               {/* ───────────── VIRTUAL FLY BRAIN ───────────── */}
               {view === "vfb" && (
                 <section>
@@ -2086,7 +2112,7 @@ export default function VirtualLab() {
                       خوانده می‌شود.
                     </p>
                   </div>
-                  <VirtualFlyBrain />
+                  <VirtualFlyBrain initialTerm={vfbInitialTerm} />
                 </section>
               )}
 
