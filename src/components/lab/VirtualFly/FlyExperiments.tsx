@@ -18,12 +18,15 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
+  BarChart3,
   Brain,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   FlaskConical,
   Loader2,
   Play,
+  Radar,
   Save,
   Trash2,
 } from "lucide-react";
@@ -38,6 +41,7 @@ import { toast } from "sonner";
 import { STIMULUS_LABEL, type StimulusKind } from "@/services/behavior/engine";
 import { VFB_SOURCE } from "@/services/vfb/types";
 import { DataKindBadge } from "./dataKind";
+import FlyObservations from "./FlyObservations";
 import { FlyViewer } from "./FlyViewer";
 import type { FlyRow } from "./types";
 import { VfbAnchorPicker, type VfbAnchor } from "./VfbAnchorPicker";
@@ -253,6 +257,7 @@ function ExperimentWorkspace({
   const [objective, setObjective] = useState(experiment.objective ?? "");
   const [condition, setCondition] = useState(experiment.condition ?? "");
   const [duration, setDuration] = useState(String(experiment.durationMin));
+  const [showSimulation, setShowSimulation] = useState(false);
 
   // Adopt external changes (autosave / another tab) without clobbering typing.
   const signature = `${experiment.updatedAt}:${experiment.name}`;
@@ -286,7 +291,8 @@ function ExperimentWorkspace({
       [
         { id: "brain", label: "مغز", icon: Brain },
         { id: "stimulus", label: "محرک", icon: FlaskConical },
-        { id: "behaviour", label: "رفتار", icon: Play },
+        { id: "data", label: "داده", icon: Radar },
+        { id: "result", label: "نتیجه", icon: BarChart3 },
       ] as const,
     [],
   );
@@ -434,7 +440,7 @@ function ExperimentWorkspace({
         {/* Workspace steps */}
         <section>
           <p className="mb-2 text-[11.5px] font-bold text-slate-700">گام‌های فضای کار</p>
-          <div className="grid gap-1.5 sm:grid-cols-3">
+          <div className="grid gap-1.5 sm:grid-cols-4">
             {sections.map((s, i) => {
               const Icon = s.icon;
               return (
@@ -449,19 +455,53 @@ function ExperimentWorkspace({
             })}
           </div>
           <p className="mt-1.5 text-[10.5px] text-slate-500">
-            گام‌های «داده» و «نتیجه» در فاز بعدی (ثبت مشاهده و نتیجه) اضافه می‌شوند؛ اینجا چیزی نمایش داده
-            نمی‌شود که ذخیره یا تولید نشده باشد.
+            گام «داده» فقط چیزی را نشان می‌دهد که واقعاً از{" "}
+            <span dir="ltr">{VFB_SOURCE.name}</span> خوانده شده باشد. بدون خوانش، جدول نتایج خالی می‌ماند.
           </p>
         </section>
 
-        {/* Behaviour under this experiment's stimulus */}
+        {/* Behaviour under this experiment's stimulus.
+            Kept collapsed by default: the results panel is built from real VFB
+            readouts, and an open simulation next to it invites the student to
+            read model output as if it were measured. */}
         <section className="border-t border-emerald-900/5 pt-4">
-          <FlyViewer
-            fly={fly}
-            locked
-            stimulus={{ kind: experiment.stimulusKind, intensity: experiment.stimulusIntensity }}
-          />
+          <button
+            type="button"
+            onClick={() => setShowSimulation((v) => !v)}
+            aria-expanded={showSimulation}
+            className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-right transition-colors hover:bg-slate-100"
+          >
+            <span className="flex items-center gap-1.5 text-[11.5px] font-bold text-slate-700">
+              <Play className="size-3.5 text-amber-500" />
+              شبیه‌سازی رفتار (خارج از نتایج)
+            </span>
+            <ChevronDown
+              className={cn("size-4 text-slate-400 transition-transform", showSimulation && "rotate-180")}
+            />
+          </button>
+          {showSimulation ? (
+            <div className="mt-3">
+              <FlyViewer
+                fly={fly}
+                locked
+                stimulus={{ kind: experiment.stimulusKind, intensity: experiment.stimulusIntensity }}
+              />
+            </div>
+          ) : (
+            <p className="mt-2 px-1 text-[10.5px] leading-5 text-slate-500">
+              این بخش فقط یک مدل محاسباتی است و در جدول نتایج بالا حساب نمی‌شود. برای دیدنش بازش
+              کنید.
+            </p>
+          )}
         </section>
+
+        {/* Observations + results — the real-data half of the workspace. */}
+        <FlyObservations
+          fly={fly}
+          experimentId={experiment._id}
+          target={target}
+          onOpenBrain={onOpenBrain}
+        />
       </div>
     </div>
   );

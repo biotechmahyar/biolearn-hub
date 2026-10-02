@@ -367,3 +367,101 @@ gap.
 `target` is the only field carrying scientific source data, and it holds nothing except what the
 VFB API returned plus the moment it was read. Binding an experiment to `FBbt_00003748` (medulla)
 records provenance — it does **not** claim the simulation is driven by that brain region.
+
+# Observations & Results (Phase D) — Genova Virtual Lab
+
+## The rule this phase is built around
+
+> **A result may only contain numbers that came out of the Virtual Fly Brain API.**
+
+The simulated fly still exists, but its telemetry is deliberately excluded from the results table.
+A results panel that quietly averages a heuristic model's output produces fabricated science, so
+the exclusion is enforced in the UI (the viewer is collapsed inside the experiment workspace and
+carries a "خارج از نتایج" label) and stated in the panel itself.
+
+## Files
+
+| File | Role |
+|---|---|
+| `src/services/vfb/labReadout.ts` | Runs the live VFB endpoints and returns provenance-stamped measurements |
+| `src/convex/flyObservations.ts` | Owner-scoped observation CRUD + `experimentEvidenceSummary` |
+| `src/components/lab/VirtualFly/FlyObservations.tsx` | Readout button, preview, recorder, results table |
+
+## `runVfbReadout` — what it reads
+
+For the experiment's neural target it calls, in order:
+
+| Endpoint | Measurements recorded |
+|---|---|
+| `get_term_info` | `synonyms`, `publications`, `crossRefs`, `superTypes`, `namedQueries` |
+| `get_term_hierarchy` (depth 1) | `ancestors`, `descendants` |
+| `ListAllAvailableImages` | `images` |
+| `get_connivity` *(only when the student names a downstream type)* | `connections`, `synapseWeightSum` |
+
+Every returned row also carries `entityId`, `source` (`"Virtual Fly Brain"`, **fixed
+server-side**), `accessedAt`, `found`, `datasets[]` (exactly as VFB returned them, e.g.
+`JRC 2018 templates & ROIs`) and `notes[]`.
+
+## Behaviour rules
+
+- **Never fabricates.** An id VFB does not know returns `found: false` with zero measurements. The
+  readout UI then refuses to save it, and the backend rejects a `vfb_readout` observation whose
+  evidence has no measurements.
+- **Deterministic.** Repeating the same readout returns identical values (verified live).
+- **Uses ids, not names, for connectivity.** `get_connivity` is queried with the FBbt id. Verified
+  live: querying `medulla` by name makes VFB report it as ambiguous and match
+  `transmedullary neuron`, `medulla columnar neuron`, … — a silently wrong answer. With the id,
+  VFB's own message is `Neuron class not found for ID 'FBbt_00003748'…` because medulla is an
+  anatomy region, not a neuron class. Both are surfaced in `notes` instead of being smoothed over.
+- **No rounding or filling.** Values are stored as returned. `synapseWeightSum` is emitted only
+  when VFB actually returned weights; otherwise a note says so instead of substituting 0.
+- **VFB warnings are first-class data.** `warnings[]` and `excluded_dbs[]` are stored with the
+  observation, so "which datasets did VFB drop for this query?" stays answerable later.
+
+Live values on `FBbt_00003748` (medulla), for reference: 13 synonyms, 9 publications, 1 crossRef,
+8 superTypes, 10 namedQueries, 3 ancestors, 14 descendants, 4 images.
+
+## Schema — `flyObservations`
+
+| Field | Meaning |
+|---|---|
+| `userId`, `experimentId`, `flyId` | ownership chain, re-verified on every write |
+| `method` | `vfb_readout` / `lab` / `import` |
+| `evidence` | REAL DATA blob: `entityId`, `entityLabel`, `source`, `accessedAt`, `found`, `measurements[]`, `datasets[]`, `notes[]` |
+| `note` | the student's own observation text |
+| `result` | the student's conclusion — badged HYPOTHESIS everywhere |
+
+Indexes: `by_user`, `by_experiment`, `by_user_experiment`.
+
+## Endpoints
+
+| Function | Notes |
+|---|---|
+| `listMyObservations({ experimentId? })` | `[]` when anonymous |
+| `myObservationSummary()` | zeros when anonymous |
+| `experimentEvidenceSummary({ experimentId })` | returns counts + measurement keys seen; silently returns zeros for an id that is not the caller's, so existence is never leaked |
+| `createObservation(...)` | verifies experiment → fly ownership; enforces `vfb_readout ⇒ ≥1 measurement` |
+| `updateObservation(...)` / `deleteObservation(...)` | ownership re-checked |
+
+`normaliseEvidence()` re-validates the whole client-supplied evidence blob: unknown measurement
+keys are dropped, non-finite values dropped, duplicate keys dropped, lists capped, and `source` is
+overwritten with the canonical name so a client cannot claim a different origin.
+
+## Simulation containment
+
+Two changes keep model output out of the analysis:
+
+1. Inside the experiment workspace the `FlyViewer` is **collapsed by default** behind a
+   «شبیه‌سازی رفتار (خارج از نتایج)» toggle.
+2. In the fly detail panel the default bottom simulation is **hidden entirely** once the fly has
+   at least one experiment, with a note explaining that behaviour now runs inside the experiment
+   workspace.
+
+## Known limitations
+
+- The VFB call happens in the browser, so the evidence blob is untrusted input. That is why
+  `normaliseEvidence` re-validates everything; it cannot, however, prove the numbers really came
+  from VFB.
+- `runVfbReadout` does 3–4 sequential HTTP calls. It is behind an explicit button, never automatic.
+- Connectivity only works between neuron **classes**; anatomy regions legitimately return 0 edges,
+  and VFB says so in `notes`.

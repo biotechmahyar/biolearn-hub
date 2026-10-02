@@ -1794,6 +1794,47 @@ const schema = defineSchema(
       .index("by_user", ["userId"])
       .index("by_fly", ["flyId"])
       .index("by_user_status", ["userId", "status"]),
+    // Phase D — one observation recorded under one experiment.
+    //
+    // `evidence` holds numbers the student *read from the Virtual Fly Brain at a
+    // recorded moment*. The server never computes, averages or invents them; it
+    // only validates their shape. `result` is the student's own written claim
+    // and is explicitly NOT a measurement — the UI badges it as HYPOTHESIS.
+    flyObservations: defineTable({
+      userId: ID("users"),
+      experimentId: ID("flyExperiments"),
+      flyId: ID("virtualFlies"),
+      note: OPT(STR()),
+      // REAL DATA — verbatim VFB readout, stored with its provenance.
+      evidence: OPT(
+        OBJ({
+          entityId: STR(),
+          entityLabel: STR(),
+          source: STR(),
+          accessedAt: NUM(),
+          found: v.boolean(),
+          measurements: ARR(
+            OBJ({
+              key: STR(),
+              label: STR(),
+              value: NUM(),
+              unit: OPT(STR()),
+            }),
+          ),
+          datasets: ARR(STR()),
+          notes: ARR(STR()),
+        }),
+      ),
+      // Where the observation was made. `lab` = the student read it themselves.
+      method: UN(L("vfb_readout"), L("lab"), L("import")),
+      // Student-written outcome claim — labelled HYPOTHESIS everywhere.
+      result: OPT(STR()),
+      createdAt: NUM(),
+      updatedAt: NUM(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_experiment", ["experimentId"])
+      .index("by_user_experiment", ["userId", "experimentId"]),
     // ── Genova Compute Game (blockchain-style token economy) ──────────────
     // Per-user wallet with a pseudo address plus an append-only hash-chained
     // ledger. Token amounts are integers (1 GVA = 1 unit).

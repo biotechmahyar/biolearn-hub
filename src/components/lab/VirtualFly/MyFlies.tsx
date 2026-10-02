@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -338,6 +339,15 @@ function FlyDetail({
   onDelete: () => void;
   onClose: () => void;
 }) {
+  // The default simulation viewer is only shown while this fly has no
+  // experiments. Once a protocol exists, behaviour belongs inside that
+  // experiment's workspace — a second, unrelated simulation at the bottom of
+  // the panel invites the student to mix model output into the results.
+  const experiments = useQuery(api.flyExperiments.listMyExperiments, {
+    flyId: fly._id as Id<"virtualFlies">,
+  });
+  const hasExperiments = (experiments?.length ?? 0) > 0;
+
   const rows: { label: string; value: string }[] = [
     { label: "Genova Fly ID", value: fly.genovaFlyId },
     { label: "گونه", value: fly.species },
@@ -504,9 +514,18 @@ function FlyDetail({
           <FlyExperiments fly={fly} onOpenBrain={onOpenBrain} />
         </section>
 
-        {/* Fly viewer — simulated behaviour, never presented as biology. */}
+        {/* Fly viewer — simulated behaviour, never presented as biology.
+            Suppressed once this fly has an experiment: the workspace below owns
+            the behaviour view from then on. */}
         <section className="border-t border-emerald-900/5 pt-4">
-          <FlyViewer fly={fly} />
+          {hasExperiments ? (
+            <p className="rounded-xl bg-slate-50 px-3 py-2.5 text-[10.5px] leading-5 text-slate-500">
+              شبیه‌سازی پیش‌فرض این مگس پنهان شد، چون برای این مگس آزمایش تعریف شده است. رفتار تحت
+              محرک آزمایش، داخل فضای کار همان آزمایش اجرا می‌شود تا با نتایج آن مخلوط نشود.
+            </p>
+          ) : (
+            <FlyViewer fly={fly} />
+          )}
         </section>
 
         {/* Roadmap — honest about what does not exist yet. */}
@@ -514,8 +533,9 @@ function FlyDetail({
           <p className="text-[11.5px] font-bold text-slate-700">مراحل بعدی این مگس</p>
           <ul className="mt-2 space-y-1.5">
             {[
-              { icon: FlaskConical, label: "تعریف آزمایش و اتصال محرک به رفتار", tag: "Phase C" },
-              { icon: Eye, label: "ثبت مشاهده و نتیجهٔ آزمایش", tag: "Phase D" },
+              { icon: FlaskConical, label: "تعریف آزمایش و اتصال محرک به رفتار", tag: "Phase C ✓" },
+              { icon: Eye, label: "ثبت مشاهده و نتیجهٔ آزمایش", tag: "Phase D ✓" },
+              { icon: FlaskConical, label: "پروژهٔ پژوهشی چند-آزمایشی", tag: "Phase E" },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -530,8 +550,9 @@ function FlyDetail({
             })}
           </ul>
           <p className="mt-2 text-[10.5px] leading-5 text-slate-500">
-            رفتار بالا یک شبیه‌سازی محاسباتی است. تا وقتی مدل علمی واقعی جایگزین نشود، هیچ‌جای سایت به‌عنوان
-            دادهٔ تجربی گزارش نخواهد شد.
+            نتایج آزمایش فقط از داده‌ای ساخته می‌شود که واقعاً از <span dir="ltr">{VFB_SOURCE.name}</span>{" "}
+            خوانده شده است. شبیه‌سازی رفتار یک مدل محاسباتی با پارامترهای دستی است و تا وقتی مدل علمی
+            واقعی جایگزین نشود، هیچ‌جای سایت به‌عنوان دادهٔ تجربی گزارش نخواهد شد.
           </p>
         </section>
       </div>
