@@ -1338,7 +1338,8 @@ export default function VirtualLab() {
 
       {/* ══ Main column ═══════════════════════════════════════════════════ */}
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        {/* Command bar */}
+        {/* Command bar — the search group sits on the right (RTL start) and the
+            action cluster is pinned to the far left, exactly like the reference. */}
         <header className="flex shrink-0 items-center gap-2 border-b border-emerald-900/8 bg-white/85 px-3 py-2.5 backdrop-blur-xl sm:px-5">
           <button
             type="button"
@@ -1348,25 +1349,26 @@ export default function VirtualLab() {
             <Menu className="size-5" />
           </button>
 
-          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-emerald-900/10 bg-slate-50/70 px-3 py-2 transition-colors focus-within:border-emerald-400 focus-within:bg-white md:max-w-md">
-            <Search className="size-3.5 shrink-0 text-slate-400" />
-            <input
-              ref={searchRef}
-              value={toolSearch}
-              onChange={(e) => setToolSearch(e.target.value)}
-              placeholder="جستجوی ابزار، تحلیل، آنزیم..."
-              className="w-full bg-transparent text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400"
-            />
-            {toolSearch ? (
-              <button type="button" onClick={() => setToolSearch("")} className="text-slate-300 hover:text-slate-500">
-                <X className="size-3" />
-              </button>
-            ) : (
-              <kbd className="hidden shrink-0 rounded-md border border-emerald-900/10 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 lg:block">
-                ⌘K
-              </kbd>
-            )}
-          </label>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-emerald-900/10 bg-slate-50/70 px-3 py-2 transition-colors focus-within:border-emerald-400 focus-within:bg-white md:max-w-md">
+              <Search className="size-3.5 shrink-0 text-slate-400" />
+              <input
+                ref={searchRef}
+                value={toolSearch}
+                onChange={(e) => setToolSearch(e.target.value)}
+                placeholder="جستجوی ابزار، تحلیل، آنزیم..."
+                className="w-full bg-transparent text-[12.5px] text-slate-700 outline-none placeholder:text-slate-400"
+              />
+              {toolSearch ? (
+                <button type="button" onClick={() => setToolSearch("")} className="text-slate-300 hover:text-slate-500">
+                  <X className="size-3" />
+                </button>
+              ) : (
+                <kbd className="hidden shrink-0 rounded-md border border-emerald-900/10 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 lg:block">
+                  ⌘K
+                </kbd>
+              )}
+            </label>
 
           {/* Field selector — really filters the workspace */}
           <DropdownMenu>
@@ -1393,12 +1395,14 @@ export default function VirtualLab() {
           </DropdownMenu>
 
           {/* Today’s date — the second command-bar pill, exactly like the reference */}
-          <div className="hidden items-center gap-1.5 rounded-xl border border-emerald-900/10 bg-white px-3 py-2 text-[12px] font-medium text-slate-600 lg:flex">
+          <div className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-emerald-900/10 bg-white px-3 py-2 text-[12px] font-medium text-slate-600 lg:flex">
             <Activity className="size-3.5 text-slate-400" />
             {formatJalaliDate(now)}
           </div>
+          </div>
 
-          <div className="flex flex-1 items-center justify-end gap-1.5 md:flex-none">
+          {/* Action cluster — pinned to the far left of the bar */}
+          <div className="flex shrink-0 items-center gap-1.5">
             {/* Notifications */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1692,8 +1696,19 @@ export default function VirtualLab() {
                 <section className="space-y-3">
                   {!activeExperiment ? (
                     <>
-                      <div>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
                         <h2 className="text-[19px] font-extrabold tracking-tight text-slate-900">اجرای آزمایش</h2>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => select("experiments")}
+                          className="h-9 gap-1.5 rounded-xl border-emerald-900/10 bg-white text-[12px] font-semibold text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                        >
+                          <ArrowLeft className="size-3.5" />
+                          بازگشت به فهرست آزمایش‌ها
+                        </Button>
+                      </div>
+                      <div>
                         <p className="mt-1 text-[12px] text-slate-500">
                           یکی از آزمایش‌های هدایت‌شده را انتخاب کنید؛ مراحل روی سرور نمره‌گذاری می‌شود.
                         </p>
@@ -1775,6 +1790,20 @@ export default function VirtualLab() {
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                clearStepState();
+                                setActiveSlug(null);
+                                select("experiments");
+                              }}
+                              title="بستن آزمایش و بازگشت به فهرست"
+                              className="h-9 gap-1.5 rounded-xl border-emerald-900/10 bg-white text-[12px] font-semibold text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+                            >
+                              <X className="size-3.5" />
+                              بستن و خروج
+                            </Button>
                             <Button
                               size="sm"
                               onClick={() => assistantRef.current?.open()}
