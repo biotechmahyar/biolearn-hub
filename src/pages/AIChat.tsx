@@ -448,20 +448,21 @@ const SavedPromptsRows = memo(function SavedPromptsRows({
 const EmptyHero = memo(function EmptyHero({ firstName }: { firstName: string }) {
   return (
     <>
-      {/* Scaled down on phones so the composer below stays above the fold. */}
-      <div className="scale-80 sm:scale-100">
+      {/* `scale-75` is a real Tailwind step; the previous `scale-80` was not,
+          so the orb never actually shrank on phones and got clipped. */}
+      <div className="scale-[0.62] sm:scale-75 md:scale-100">
         <AssistantOrb thinking={false} compact />
       </div>
-      <div className="-mt-1 text-center">
-        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-2xl font-black text-transparent sm:text-4xl">
+      <div className="-mt-2 text-center sm:-mt-1">
+        <h2 className="bg-gradient-to-l from-primary via-primary to-primary/60 bg-clip-text text-xl font-black text-transparent sm:text-4xl">
           سلام، {firstName}
         </h2>
-        <p className="mt-2 text-base font-bold text-foreground sm:text-xl">
+        <p className="mt-1.5 text-[15px] font-bold text-foreground sm:mt-2 sm:text-xl">
           چطور می‌توانم کمکت کنم؟
         </p>
-        <p className="mx-auto mt-2.5 max-w-md text-[12.5px] leading-7 text-muted-foreground sm:text-[13px]">
+        <p className="mx-auto mt-2 max-w-md text-[12px] leading-6 text-muted-foreground sm:mt-2.5 sm:text-[13px] sm:leading-7">
           دربارهٔ زیست‌شناسی، ژنتیک، میکروبیولوژی و برنامهٔ درسی‌ات بپرس؛ پاسخ‌ها همراه با
-          توضیح مرحله‌به‌مرحله و منابع پیشنهادی ارائه می‌شود.
+          توضیح مرحله‌به‌مرحبه و منابع پیشنهادی ارائه می‌شود.
         </p>
       </div>
     </>
@@ -1253,15 +1254,22 @@ export default function AIChat() {
 
         {/* Messages / hero */}
         <ScrollArea className="min-h-0 flex-1 overscroll-contain">
-          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-3 py-5 sm:px-6 sm:py-6">
+          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-3 py-4 sm:px-6 sm:py-6">
             {!selectedConvo ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
-                <EmptyHero firstName={firstName} />
+              /* `my-auto` instead of `justify-center`: when the hero is taller
+                 than a phone viewport, `justify-center` pushes the top (the orb
+                 and the greeting) outside the scroll area where it cannot be
+                 reached. Auto margins collapse to 0 in exactly that case, so the
+                 whole hero stays scrollable. */
+              <div className="flex flex-1 flex-col items-center gap-3 sm:justify-center sm:gap-4">
+                <div className="my-auto flex flex-col items-center gap-3 py-2 sm:gap-4">
+                  <EmptyHero firstName={firstName} />
 
-                {/* Two slow RTL rows of saved prompts, right under the greeting */}
-                <SavedPromptsRows
-                  onPick={(prompt) => composerRef.current?.setText(prompt)}
-                />
+                  {/* Two slow RTL rows of saved prompts, right under the greeting */}
+                  <SavedPromptsRows
+                    onPick={(prompt) => composerRef.current?.setText(prompt)}
+                  />
+                </div>
 
                 <div className="w-full max-w-2xl">
                   <Composer

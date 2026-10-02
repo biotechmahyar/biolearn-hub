@@ -756,3 +756,113 @@ Formats:
 Known limitation carried forward from the protein/codon group: back-translation still affects
 codon choice only through approximate genome GC. No codon-usage table is bundled, and the tool
 says so.
+
+---
+
+## Wet-Lab Tools — Virtual Microscope, Protein Lab, Fermentation, Colony Counting
+
+Four new instrument-style tool groups for `/lab`, plus the mobile fix on the site AI chat.
+Every group ships a pure, deterministic core with its own test suite and a thin UI layer.
+
+### 1. `microscopeCore.ts` — 🔬 میکروسکوپ مجازی
+
+Optics are computed, never drawn and guessed:
+
+- Abbe limit `d = λ / (2·NA)` at a declared `λ = 550 nm` (green, peak eye sensitivity).
+- Field of view `D = fieldNumber / totalMag`, using the standard 20 mm field number.
+- Useful-magnification window: roughly `500·NA` to `1000·NA`. Outside it the eye gains no
+  resolvable detail and the tool says so instead of quietly zooming.
+- `checkResolution()` compares a feature against the limit and returns
+  `resolvable` / `marginal` / `below-limit` with the multiple printed.
+
+Eight specimens across cell / bacteria / tissue, each with a declared size and range. The SVG
+field is generated from a seeded LCG, so a specimen renders identically every time — a field
+that redraws differently cannot be measured against. The scale bar is the specimen's own
+length against the real field diameter.
+
+Honesty notes surfaced on screen: the field is a schematic cartoon, not microscopy data and
+not any patient slide; the Abbe limit is theoretical and ignores aberration and lamp quality.
+
+### 2. `proteinLabCore.ts` — 🧪 آزمایشگاه پروتئین
+
+- **SDS-PAGE** — Rf per ladder band, a log–linear standard curve, per-band prediction and
+  per-band % error, MAPE, and a fit verdict. Migration order is validated: a non-monotonic
+  ladder is called out rather than silently fitted. Three ladder presets, four gel presets.
+  The log-linear assumption is stated as an approximation and the R² is always shown.
+- **Western Blot** — band IOD, lane-load normalisation (`band / lane`), optional
+  housekeeping control, and ratio-to-reference. Missing control values are reported per lane
+  rather than defaulting silently.
+- **Protein Assay** — blank-corrected Bradford-style curve by least squares, dilution
+  handling, out-of-range detection, and a blank-tolerance check (|A₀| > 0.05 warns).
+  Beer–Lambert is offered as a *separate* path and explicitly labelled as not a substitute,
+  because Bradford binds cooperatively and is not strictly linear.
+
+No reference measurement is baked in: the ladder is a catalogue of stated band positions, and
+every intensity and absorbance comes from the user.
+
+### 3. `fermentationCore.ts` — 🧫 آزمایشگاه تخمیر
+
+Both classical models are fitted independently and shown side by side:
+
+- **Logistic** linearises to `logit(X/Xmax) = µ·t − ln A`, so the regression slope *is* µmax.
+- **Gompertz** linearises to `ln ln(Xmax/X) = −µ·t + µ·t₀`; lag is the classic back-intercept
+  of the tangent at t₀, reported with that definition.
+
+Xmax is found by scanning above the observed maximum — a coarse pass plus a fine pass near
+1.0, because a series approaching its asymptote has `maxObserved` within a fraction of a percent
+of the true Xmax and a scan starting at 1.02 would pin Xmax to the top of the series. Points in
+saturation are excluded from the linearised regression (the logit and the log-log both diverge
+there) but included when scoring the candidate curve. A coordinate-descent refinement on the
+curve SSE then removes the linearisation bias.
+
+Reported: X0, Xmax, µmax, doubling time, lag, R², RMSE, t-at-half-Xmax, qP, observed µmax,
+specific productivity, yield on biomass, growth-associated fraction, Yx/S and Yp/S.
+
+Fits are labelled as fits. Warnings fire for poor R², non-positive µmax, too few points, and —
+importantly — when the series ends before a visible plateau, which makes Xmax unidentifiable.
+
+### 4. `colonyCore.ts` — 🔢 شمارش کلنی (image vision, deterministic)
+
+**Deliberately not a generative/vision model.** The plate photo is analysed by classical
+image processing: Rec.709 luma → Otsu threshold → two-pass union-find labelling with
+8-connectivity → area filtering → merge-split heuristic. This choice is intentional and is
+stated on screen: a vision model returns a plausible number that varies run to run and cannot
+be audited, whereas this pipeline is reproducible and, when it is wrong, the reason is visible
+in the controls (threshold, polarity, size floor, merge splitting).
+
+- Otsu returns −1 on a flat field, and the tool explains itself instead of counting the plate.
+- Merge splitting keys on **elongation ≥ 1.45**, not bounding-box fill: a disc fills only
+  π/4 ≈ 0.785 of its box, and a pair of touching discs fills ~0.607, so fill cannot separate them.
+- CFU/mL applies the ISO 4833 countable range of 30–300, excludes out-of-range plates from the
+  mean, reports SD/CV across replicates, and formats to two significant figures.
+- Overlays every detected colony as a box so the count can be audited visually.
+
+Limits printed on screen: colonies below the size floor are discarded (and counted as such),
+two touching colonies may merge, and uneven lighting defeats a global threshold — use the
+manual slider.
+
+A search of the Gravity catalog for a computer-vision/image-analysis service returned **no
+options**, so no integration is reported here. The deterministic pipeline above is the
+delivered capability.
+
+### Verification
+
+`bunx tsc -b --noEmit` clean; `bunx eslint` clean on all new files. The temporary test scripts
+were run and then deleted:
+
+- `microscopeCore` + `proteinLabCore` + `fermentationCore` — **96 assertions pass**
+- `colonyCore` — **18 assertions pass**
+
+Bugs the tests caught and that were fixed in the cores: an inverted logit sign in the logistic
+fitter, an Xmax scan that could not reach the true asymptote, Gompertz instability near
+saturation, `substrateYields` receiving only one substrate value so `consumed` was always zero,
+and luma truncation. Several test expectations were themselves wrong and were corrected rather
+than bending the maths to match them — e.g. the tool correctly warns that a series ending at
+97.8 % of its asymptote has no visible stationary phase.
+
+### AI chat mobile fix
+
+Two real bugs on phones: `EmptyHero` used `scale-80`, which is not a valid Tailwind class, so
+the orb never shrank (now `scale-[0.62] sm:scale-75 md:scale-100`); and the hero wrapper used
+`justify-center`, which pushed the top of an over-tall hero out of the scroll area and clipped
+the circle (now `my-auto` inside, `sm:justify-center` outside). Desktop unchanged.

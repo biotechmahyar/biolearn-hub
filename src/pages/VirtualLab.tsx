@@ -121,6 +121,10 @@ import { OrfFinderTool, TranslateTool } from "@/components/lab/OrfTranslateTools
 import { CodonAnalysisTool, BackTranslationTool } from "@/components/lab/CodonTools";
 import { PairwiseAlignTool, SimilarityCalculatorTool } from "@/components/lab/AlignmentTools";
 import { FastaCsvTool, FastaJsonTool, FastaGenBankTool } from "@/components/lab/FormatConvertTools";
+import { VirtualMicroscopeTool } from "@/components/lab/VirtualMicroscope";
+import { SdsPageTool, WesternBlotTool, ProteinAssayTool } from "@/components/lab/ProteinLabTools";
+import { FermentationTool } from "@/components/lab/FermentationTools";
+import { ColonyCountTool } from "@/components/lab/ColonyCountTool";
 import { useAuth } from "@/hooks/use-auth";
 import { faNum, formatJalaliDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -139,9 +143,15 @@ type ToolId =
   | "restriction-mapper" | "enzyme-search" | "enzyme-compat" | "methylation"
   | "orf-finder" | "translate" | "codon-analysis" | "back-translation"
   | "pairwise-align" | "sequence-similarity"
-  | "fasta-csv" | "fasta-json" | "fasta-genbank";
+  | "fasta-csv" | "fasta-json" | "fasta-genbank"
+  | "virtual-microscope"
+  | "sds-page" | "western-blot" | "protein-assay"
+  | "fermentation"
+  | "colony-count";
 
-type GroupId = "sequence" | "calc" | "primer" | "enzyme" | "protein" | "alignment" | "format";
+type GroupId =
+  | "sequence" | "calc" | "primer" | "enzyme" | "protein" | "alignment" | "format"
+  | "microscope" | "proteinLab" | "fermentation" | "colony";
 
 interface ToolDef {
   id: ToolId;
@@ -340,6 +350,48 @@ const TOOLS: ToolDef[] = [
     steps: ["توالی DNA را وارد کنید", "ناحیهٔ مورد نظر را مشخص کنید", "جایگاه‌های CpG را ببینید"],
     outputs: ["تعداد CpG", "درصد GC", "نقشهٔ جزایر CpG"],
   },
+  {
+    id: "virtual-microscope", title: "میکروسکوپ مجازی", titleEn: "Virtual Microscope",
+    description: "مشاهدهٔ سلول، باکتری و بافت با محاسبهٔ واقعی اپتیک",
+    icon: Microscope, component: VirtualMicroscopeTool, group: "microscope",
+    steps: ["نوع نمونه و اندازهٔ آن را انتخاب کنید", "عدسی هدف و چشمی را تنظیم کنید", "حد تفکیک و امکان دیدن ساختار را ببینید", "اندازهٔ نمونه را با خط‌کش اندازه بگیرید"],
+    outputs: ["حد تفکیک آبه", "قطر میدان دید", "بازهٔ بزرگ‌نمایی مفید", "خطای اندازه‌گیری"],
+  },
+  {
+    id: "sds-page", title: "SDS-PAGE", titleEn: "SDS-PAGE Standard Curve",
+    description: "منحنی استاندارد و تخمین وزن مولکولی",
+    icon: TestTube2, component: SdsPageTool, group: "proteinLab",
+    steps: ["مارکر مولکولی را انتخاب کنید", "فاصلهٔ مهاجرت هر باند را وارد کنید", "منحنی استاندارد را بررسی کنید", "فاصلهٔ باند نمونه را وارد کنید"],
+    outputs: ["شیب و عرض از مبدأ", "جدول خطای هر باند", "وزن مولکولی تخمینی", "R² برازش"],
+  },
+  {
+    id: "western-blot", title: "Western Blot", titleEn: "Western Blot Densitometry",
+    description: "کمّی‌سازی شدت باند و نرمال‌سازی",
+    icon: TestTube2, component: WesternBlotTool, group: "proteinLab",
+    steps: ["بانک کنترل بارگذاری را انتخاب کنید", "شدت باند و شدت کل لین هر نمونه را وارد کنید", "نسبت‌ها را با لین مرجع مقایسه کنید"],
+    outputs: ["IOD نرمال‌شده", "نسبت به بانک کنترل", "نسبت به لین مرجع", "هشدار نرمال‌سازی"],
+  },
+  {
+    id: "protein-assay", title: "آزمون پروتئین (Assay)", titleEn: "Protein Assay",
+    description: "منحنی استاندارد برادفورد و بیر-لامبرت",
+    icon: Beaker, component: ProteinAssayTool, group: "proteinLab",
+    steps: ["جذب نمونهٔ صفر را ثبت کنید", "غلظت و جذب استانداردها را وارد کنید", "غلظت نمونهٔ مجهول را محاسبه کنید", "در صورت نیاز مسیر بیر-لامبرت را هم ببینید"],
+    outputs: ["شیب و R² منحنی", "غلظت نمونه", "غلظت پس از رقیق‌سازی", "غلظت مولار و جرمی"],
+  },
+  {
+    id: "fermentation", title: "آزمایشگاه تخمیر", titleEn: "Fermentation Lab",
+    description: "برازش منحنی رشد و شاخص‌های تولید محصول",
+    icon: Beaker, component: FermentationTool, group: "fermentation",
+    steps: ["داده‌های زمانی رشد و محصول را وارد کنید", "مدل لجستیک و گامپرتز را مقایسه کنید", "µmax و Xmax و qP را بخوانید", "مصرف ساب‌استرات و بازده را محاسبه کنید"],
+    outputs: ["µmax و Xmax و lag", "مقایسهٔ دو مدل با R²", "qP و بازده ویژه", "Yx/S و Yp/S"],
+  },
+  {
+    id: "colony-count", title: "شمارش کلنی", titleEn: "Colony Counting",
+    description: "شمارش خودکار کلنی و CFU/mL از روی تصویر",
+    icon: CircleDot, component: ColonyCountTool, group: "colony",
+    steps: ["تصویر پلیت را بارگذاری کنید", "آستانه و کف اندازه را تنظیم کنید", "کلنی‌های شمرده‌شده را بازبینی کنید", "CFU/mL را با ضریب رقیق‌سازی محاسبه کنید"],
+    outputs: ["تعداد کلنی", "CFU/mL با دو رقم معنادار", "پوشش و آمار اندازه", "تصویر شمارش‌شده"],
+  },
 ];
 
 const FUTURE_TOOLS = [
@@ -356,6 +408,10 @@ const GROUPS: { id: GroupId; label: string; icon: typeof Dna }[] = [
   { id: "protein", label: "پروتئین و کدون", icon: Atom },
   { id: "alignment", label: "همترازی", icon: AlignLeft },
   { id: "format", label: "تبدیل فرمت", icon: ArrowLeftRight },
+  { id: "microscope", label: "میکروسکوپ مجازی", icon: Microscope },
+  { id: "proteinLab", label: "آزمایشگاه پروتئین", icon: TestTube2 },
+  { id: "fermentation", label: "آزمایشگاه تخمیر", icon: Beaker },
+  { id: "colony", label: "شمارش کلنی", icon: CircleDot },
 ];
 
 /** Specialised visual identity per tool family. */
@@ -391,6 +447,22 @@ const ACCENT: Record<
     soft: "bg-fuchsia-50", text: "text-fuchsia-700", chip: "bg-fuchsia-100 text-fuchsia-800",
     bar: "from-fuchsia-500 to-purple-500", ring: "ring-fuchsia-200", hex: "#c026d3",
   },
+  microscope: {
+    soft: "bg-indigo-50", text: "text-indigo-700", chip: "bg-indigo-100 text-indigo-800",
+    bar: "from-indigo-500 to-sky-500", ring: "ring-indigo-200", hex: "#4f46e5",
+  },
+  proteinLab: {
+    soft: "bg-blue-50", text: "text-blue-700", chip: "bg-blue-100 text-blue-800",
+    bar: "from-blue-500 to-cyan-500", ring: "ring-blue-200", hex: "#2563eb",
+  },
+  fermentation: {
+    soft: "bg-lime-50", text: "text-lime-700", chip: "bg-lime-100 text-lime-800",
+    bar: "from-lime-500 to-emerald-500", ring: "ring-lime-200", hex: "#65a30d",
+  },
+  colony: {
+    soft: "bg-orange-50", text: "text-orange-700", chip: "bg-orange-100 text-orange-800",
+    bar: "from-orange-500 to-amber-500", ring: "ring-orange-200", hex: "#ea580c",
+  },
 };
 
 type WorkspaceView =
@@ -423,10 +495,11 @@ const RUN_VIEW: WorkspaceView = "run";
 
 /** Research fields — switching one filters the whole workspace. */
 const FIELDS: { id: string; label: string; groups: GroupId[] }[] = [
-  { id: "bioinformatics", label: "آزمایشگاه ژنوا — بیوانفورماتیک", groups: ["sequence", "calc", "primer", "enzyme", "protein", "alignment", "format"] },
+  { id: "bioinformatics", label: "آزمایشگاه ژنوا — بیوانفورماتیک", groups: ["sequence", "calc", "primer", "enzyme", "protein", "alignment", "format", "microscope", "proteinLab", "fermentation", "colony"] },
   { id: "genetics", label: "ژنتیک پزشکی", groups: ["sequence", "primer", "protein", "alignment"] },
-  { id: "microbiology", label: "میکروبیولوژی", groups: ["sequence", "enzyme", "protein", "alignment", "format"] },
-  { id: "botany", label: "علوم گیاهی", groups: ["sequence", "calc"] },
+  { id: "microbiology", label: "میکروبیولوژی", groups: ["sequence", "enzyme", "protein", "alignment", "format", "microscope", "fermentation", "colony"] },
+  { id: "botany", label: "علوم گیاهی", groups: ["sequence", "calc", "microscope"] },
+  { id: "cellbiology", label: "زیست‌شناسی سلولی و مولکولی", groups: ["sequence", "protein", "alignment", "microscope", "proteinLab"] },
 ];
 
 const PERIODS: { id: string; label: string; days: number }[] = [
@@ -597,6 +670,10 @@ const SAMPLE_BY_GROUP: Record<GroupId, string> = {
   protein: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGGCTAGCTAGGCATCGATCGATT",
   alignment: "ATGGCTAGCTAGGCTAGGCATCGATCGATTACGGCATCGATCGGCTAGCTAGGCATCGATCGATT",
   format: ">seq1\nATGGATTTATCTGCTCTTCGCGTTGAAGAAGTACAAA\n>seq2\nATGGAGGAGCCGCAGTCAGATCCTAGCGTCGAGCC",
+  microscope: "",
+  proteinLab: "",
+  fermentation: "",
+  colony: "",
 };
 
 const DNA_ALPHABET = /^[ATGCatgc]*$/;
@@ -2570,29 +2647,41 @@ export default function VirtualLab() {
                         ))}
                       </ol>
 
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className="text-[11px] font-semibold text-slate-600">نمونه آماده:</span>
-                        <code
-                          dir="ltr"
-                          className="max-w-full truncate rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-mono text-[11px] text-emerald-800"
-                        >
-                          {currentTool.group === "calc" ? `${SAMPLE_BY_GROUP.calc} (مقدار نمونه)` : SAMPLE_BY_GROUP[currentTool.group]}
-                        </code>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            void navigator.clipboard.writeText(
-                              currentTool.group === "calc" ? SAMPLE_BY_GROUP.calc : SAMPLE_BY_GROUP[currentTool.group],
-                            );
-                            toast.success("نمونه کپی شد — آن را در کادر ابزار بچسبانید");
-                          }}
-                          className="h-8 rounded-lg border-emerald-900/10 bg-white text-[11.5px] text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
-                        >
-                          <Copy className="size-3.5" />
-                          کپی نمونه
-                        </Button>
-                      </div>
+                      {/* Tools that take an image, a number or a parameter set have
+                          no text sample to offer, so the block is omitted. */}
+                      {currentTool.group !== "microscope" &&
+                      currentTool.group !== "proteinLab" &&
+                      currentTool.group !== "fermentation" &&
+                      currentTool.group !== "colony" ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] font-semibold text-slate-600">نمونه آماده:</span>
+                          <code
+                            dir="ltr"
+                            className="max-w-full truncate rounded-lg border border-emerald-200 bg-white px-2.5 py-1 font-mono text-[11px] text-emerald-800"
+                          >
+                            {currentTool.group === "calc" ? `${SAMPLE_BY_GROUP.calc} (مقدار نمونه)` : SAMPLE_BY_GROUP[currentTool.group]}
+                          </code>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(
+                                currentTool.group === "calc" ? SAMPLE_BY_GROUP.calc : SAMPLE_BY_GROUP[currentTool.group],
+                              );
+                              toast.success("نمونه کپی شد — آن را در کادر ابزار بچسبانید");
+                            }}
+                            className="h-8 rounded-lg border-emerald-900/10 bg-white text-[11.5px] text-slate-700 hover:border-emerald-300 hover:text-emerald-700"
+                          >
+                            <Copy className="size-3.5" />
+                            کپی نمونه
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="mt-3 rounded-xl bg-emerald-50/70 px-3 py-2 text-[11px] leading-5 text-slate-600">
+                          این ابزار داده‌ی عددی یا تصویری می‌گیرد، نه توالی متنی — پس نمونهٔ آمادهٔ
+                          متنی ندارد. دادهٔ خودتان را وارد کنید تا نتیجه واقعی و قابل استناد باشد.
+                        </p>
+                      )}
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Button
@@ -2628,30 +2717,60 @@ export default function VirtualLab() {
                         عیب‌یابی {currentTool.title}
                       </p>
                       <p className="mt-1 text-[11.5px] leading-6 text-slate-600">
-                        توالی یا داده را بچسبانید تا نوکلئوتیدهای نامعتبر، درصد GC، تکرارهای یکنواخت و
-                        طول نامناسب را قبل از اجرای ابزار پیدا کنیم.
+                        {currentTool.group === "microscope" ||
+                        currentTool.group === "proteinLab" ||
+                        currentTool.group === "fermentation" ||
+                        currentTool.group === "colony" ? (
+                          <>
+                            این ابزار با توالی DNA کار نمی‌کند، پس بررسی نوکلئوتیدی روی آن معنا ندارد.
+                            به‌جای آن، همین ابزار خودش اعتبار داده را بررسی می‌کند: هشدارهای مربوط به
+                            ترتیب مهاجرت و کیفیت برازش در SDS-PAGE، هشدار R² و شناسایی‌نشدن Xmax در
+                            تخمیر، و بازهٔ قابل شمارش و کف اندازه در شمارش کلنی.
+                          </>
+                        ) : (
+                          <>
+                            توالی یا داده را بچسبانید تا نوکلئوتیدهای نامعتبر، درصد GC، تکرارهای یکنواخت و
+                            طول نامناسب را قبل از اجرای ابزار پیدا کنیم.
+                          </>
+                        )}
                       </p>
 
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                        <input
-                          dir="ltr"
-                          value={probeSeq}
-                          onChange={(e) => setProbeSeq(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") runDiagnostics();
-                          }}
-                          placeholder="ATGGCTAGCTAGGCTAGGCATCGATCGATT..."
-                          className="h-10 flex-1 rounded-xl border border-amber-200 bg-white px-3 font-mono text-[12px] text-slate-700 outline-none focus:border-emerald-400"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={runDiagnostics}
-                          className="h-10 gap-1.5 rounded-xl bg-emerald-700 px-4 text-[12px] font-bold text-white hover:bg-emerald-800"
-                        >
-                          <Search className="size-3.5" />
-                          تشخیص مشکل
-                        </Button>
-                      </div>
+                      {currentTool.group !== "microscope" &&
+                      currentTool.group !== "proteinLab" &&
+                      currentTool.group !== "fermentation" &&
+                      currentTool.group !== "colony" && (
+                        <>
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <input
+                              dir="ltr"
+                              value={probeSeq}
+                              onChange={(e) => setProbeSeq(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") runDiagnostics();
+                              }}
+                              placeholder="ATGGCTAGCTAGGCTAGGCATCGATCGATT..."
+                              className="h-10 flex-1 rounded-xl border border-amber-200 bg-white px-3 font-mono text-[12px] text-slate-700 outline-none focus:border-emerald-400"
+                            />
+                            <Button
+                              size="sm"
+                              onClick={runDiagnostics}
+                              className="h-10 gap-1.5 rounded-xl bg-emerald-700 px-4 text-[12px] font-bold text-white hover:bg-emerald-800"
+                            >
+                              <Search className="size-3.5" />
+                              تشخیص مشکل
+                            </Button>
+                          </div>
+                        </>
+                      )}
+
+                      {(currentTool.group === "microscope" ||
+                        currentTool.group === "proteinLab" ||
+                        currentTool.group === "fermentation" ||
+                        currentTool.group === "colony") && (
+                        <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[11px] leading-5 text-slate-600">
+                          پس از وارد کردن داده، هشدارهای اعتبار سنجی را در همان بخش نتیجه ببینید.
+                        </p>
+                      )}
 
                       {findings && (
                         <div className="mt-3 space-y-2">
