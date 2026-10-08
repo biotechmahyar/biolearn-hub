@@ -1752,6 +1752,11 @@ const schema = defineSchema(
       abstract: v.optional(v.string()),
       // Short AI-assisted summary, clearly labelled in UI.
       genovaSummary: v.optional(v.string()),
+      // Concatenated lowercase text used by the search index
+      // (title + authors + journal + keywords + topics + identifiers + abstract).
+      searchText: v.optional(v.string()),
+      // Ingestion pipeline state: "new" | "processed" | "failed".
+      ingestStatus: v.optional(v.string()),
       // Key findings / topics / keywords are optional arrays; when omitted the
       // document field is undefined rather than an empty array.
       keyFindings: v.optional(ARR(v.string())),
@@ -1785,7 +1790,7 @@ const schema = defineSchema(
       .index("by_source", ["source"])
       .index("by_created", ["createdAt"])
       .searchIndex("search", {
-        searchField: "normalizedTitle",
+        searchField: "searchText",
         filterFields: ["source", "isOpenAccess", "articleType", "publicationDate"],
       }),
 
