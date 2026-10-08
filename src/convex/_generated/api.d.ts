@@ -49,6 +49,7 @@ import type * as offlinePayments from "../offlinePayments.js";
 import type * as popups from "../popups.js";
 import type * as profiles from "../profiles.js";
 import type * as promotions from "../promotions.js";
+import type * as research from "../research.js";
 import type * as resumes from "../resumes.js";
 import type * as seed from "../seed.js";
 import type * as seedBioDiagnostic from "../seedBioDiagnostic.js";
@@ -124,6 +125,7 @@ declare const fullApi: ApiFromModules<{
   popups: typeof popups;
   profiles: typeof profiles;
   promotions: typeof promotions;
+  research: typeof research;
   resumes: typeof resumes;
   seed: typeof seed;
   seedBioDiagnostic: typeof seedBioDiagnostic;

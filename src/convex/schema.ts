@@ -1728,6 +1728,90 @@ const schema = defineSchema(
       createdAt: v.number(),
       updatedAt: v.number(),
     }).index("by_user", ["userId"]),
+
+    // ── Research Library ──────────────────────────────────────────────────
+    // Genova does not host full copyrighted article text. We store only
+    // metadata, a short Genova-generated summary, identifiers (DOI/PMID/PMCID)
+    // and the official source URL. Full-text is only shown when the source is
+    // Open Access and the licence allows it.
+    researchPapers: defineTable({
+      // Stable external id (first non-empty of doi/pmid/pmcid/sourceId).
+      externalId: v.optional(v.string()),
+      title: v.string(),
+      normalizedTitle: v.string(),
+      authors: v.optional(v.string()),
+      journal: v.optional(v.string()),
+      journalId: v.optional(v.string()),
+      publisher: v.optional(v.string()),
+      articleType: v.optional(v.string()),
+      publicationDate: v.optional(v.number()),
+      doi: v.optional(v.string()),
+      pmid: v.optional(v.string()),
+      pmcid: v.optional(v.string()),
+      // Original abstract (when licensed) — never derived/embellished.
+      abstract: v.optional(v.string()),
+      // Short AI-assisted summary, clearly labelled in UI.
+      genovaSummary: v.optional(v.string()),
+      // Key findings / topics / keywords are optional arrays; when omitted the
+      // document field is undefined rather than an empty array.
+      keyFindings: v.optional(ARR(v.string())),
+      // Canonical topics (canonical slugs, not free text).
+      topics: v.optional(ARR(v.string())),
+      // Free-text keywords from the source.
+      keywords: v.optional(ARR(v.string())),
+      // Primary source type for the row.
+      source: v.string(),
+      sourceUrl: v.optional(v.string()),
+      // All sources that contributed to this deduplicated row.
+      sources: ARR(
+        v.object({
+          type: v.string(),
+          id: v.optional(v.string()),
+          url: v.optional(v.string()),
+        }),
+      ),
+      isOpenAccess: v.optional(v.boolean()),
+      license: v.optional(v.string()),
+      imageUrl: v.optional(v.string()),
+      imageLicense: v.optional(v.string()),
+      citationCount: v.optional(v.number()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_externalId", ["externalId"])
+      .index("by_doi", ["doi"])
+      .index("by_pmid", ["pmid"])
+      .index("by_pmcid", ["pmcid"])
+      .index("by_source", ["source"])
+      .index("by_created", ["createdAt"])
+      .searchIndex("search", {
+        searchField: "normalizedTitle",
+        filterFields: ["source", "isOpenAccess", "articleType", "publicationDate"],
+      }),
+
+    // Per-user saved/bookmarked research papers.
+    savedPapers: defineTable({
+      userId: ID("users"),
+      paperId: ID("researchPapers"),
+      source: v.optional(v.string()),
+      createdAt: v.number(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_paper", ["userId", "paperId"]),
+
+    // Periodic ingestion sync log (one row per source per run).
+    researchSyncLogs: defineTable({
+      source: v.string(),
+      status: v.string(),
+      message: v.optional(v.string()),
+      count: v.optional(v.number()),
+      errorCode: v.optional(v.string()),
+      runBy: v.optional(ID("users")),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    })
+      .index("by_source", ["source"])
+      .index("by_created", ["createdAt"]),
     // ── Drosophila Virtual Flies ─────────────────────────────────────────
     // A "virtual fly" is Genova's own research object: a small piece of
     // student-owned metadata that may be anchored to a real Virtual Fly Brain
