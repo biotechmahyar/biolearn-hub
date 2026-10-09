@@ -1,20 +1,23 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { motion } from "framer-motion";
-import { useParams, Link } from "react-router";
+import { useParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
+import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import { SOURCE_LABELS } from "@/convex/researchAdapters";
-import { BookOpen, Bookmark, BookmarkCheck, ExternalLink, Link as LinkIcon, FileText, Globe, Users, Calendar, Tag, SdDoubleCol } from "lucide-react";
+import { BookOpen, Bookmark, BookmarkCheck, ExternalLink, Link as LinkIcon, FileText, Globe, Users, Calendar, Tag, Columns } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export default function ResearchArticle() {
   const { id } = useParams<{ id: string }>();
-  const { paper, isSaved } = useQuery(api.research.getPaper, { id }) ?? {};
+  const idId = useMemo(() => (typeof id === "string" && id ? (id as Id<"researchPapers">) : null), [id]);
+  const { paper, isSaved } = useQuery(api.research.getPaper, idId ? { id: idId } : "skip") ?? {};
   const toggle = useMutation(api.research.toggleSavedPaper);
 
   if (!paper) {
@@ -33,29 +36,30 @@ export default function ResearchArticle() {
   const year = publicationDate ? new Date(publicationDate).getUTCFullYear() : null;
 
   const handleToggle = async () => {
-    const res = await toggle({ paperId: id, source: "research" });
+    if (!idId) return;
+    const res = await toggle({ paperId: idId, source: "research" });
     toast.success(res.saved ? "مقاله ذخیره شد" : "از ذخیره حذف شد");
   };
 
-  const sourceEntries = sources ?? [];
-  const pmcSource = sourceEntries.find((s: any) => s.type === "pmc");
-  const pubmedSource = sourceEntries.find((s: any) => s.type === "pubmed");
-  const elsevierSource = sourceEntries.find((s: any) => s.type === "elsevier");
+  const sourceEntries = Array.isArray(sources) ? sources : [];
+  const pmcSource = (sourceEntries.find((s) => s.type === "pmc") ?? null) as { url?: string; id?: string; type?: string } | null;
+  const pubmedSource = (sourceEntries.find((s) => s.type === "pubmed") ?? null) as { url?: string; id?: string; type?: string } | null;
+  const elsevierSource = (sourceEntries.find((s) => s.type === "elsevier") ?? null) as { url?: string; id?: string; type?: string } | null;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef5f2] px-4 py-6 lg:px-8">
       <ScrollArea className="flex-1">
         <div className="mx-auto max-w-3xl">
           {/* Back */}
-          <Link
-            to="/virtual-lab/research"
+          <a
+            href="/virtual-lab/research"
             className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-emerald-700"
           >
             <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
             </svg>
             بازگشت به کتابخانه
-          </Link>
+          </a>
 
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -66,7 +70,7 @@ export default function ResearchArticle() {
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
               {journal && (
                 <span className="flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-3 py-1">
-                  <SdDoubleCol className="size-3.5" />
+                  <Columns className="size-3.5" />
                   {journal}
                 </span>
               )}
@@ -94,10 +98,10 @@ export default function ResearchArticle() {
             {/* Source badges */}
             <div className="mt-3 flex flex-wrap gap-2">
               {sourceEntries.map((s: any, i: number) => (
-                <Badge key={i} variant="secondary" className="cursor-pointer gap-1.5 transition-colors hover:bg-slate-100">
-                  {SOURCE_LABELS[s.type as keyof typeof SOURCE_LABELS] ?? s.type}
-                  <ExternalLink className="size-3" />
-                </Badge>
+            <Badge key={`${s.type}-${i}`} variant="secondary" className="cursor-pointer gap-1.5 transition-colors hover:bg-slate-100">
+              {SOURCE_LABELS[s.type as keyof typeof SOURCE_LABELS] ?? s.type}
+              <ExternalLink className="size-3" />
+            </Badge>
               ))}
             </div>
 
@@ -281,7 +285,7 @@ export default function ResearchArticle() {
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-800">PMC</p>
-                        <p className="text-xs text-slate-500">{pmcSource.id}</p>
+                        <p className="text-xs text-slate-500">{pmcSource.id ?? "PMC"}</p>
                         <p className="mt-1 text-[10.5px] text-slate-400">
                           <ExternalLink className="inline size-3 mr-0.5" />
                           متن کامل (Open Access)
@@ -291,7 +295,7 @@ export default function ResearchArticle() {
                   )}
                   {elsevierSource && (
                     <a
-                      href={elsevierSource.url ?? `https://doi.org/${elsevierSource.doi ?? ""}`}
+                      href={elsevierSource.url ?? `https://doi.org/${elsevierSource.id ?? ""}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-start gap-3 rounded-lg bg-slate-50 p-3 transition-colors hover:bg-emerald-50"

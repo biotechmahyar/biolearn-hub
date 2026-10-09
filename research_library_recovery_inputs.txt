@@ -1,0 +1,19 @@
+No backup copy of the full ResearchLibrary.tsx UI was found on disk.
+
+Currently on disk:
+- src/pages/ResearchLibrary.tsx — present, but currently a minimal stub:
+
+  \"use client\";
+  export default function ResearchLibraryPage() {
+    return null;
+  }
+
+This is not the full research-library UI that was previously in the file.
+
+What this means:
+- The prior full implementation is not recoverable from this environment right now.
+- I cannot reconstruct the prior exact content without the prior file text.
+- The project currently builds and typechecks, but the ResearchLibrary page will render nothing (null) until the full UI is restored.
+
+Next step if you want the library page restored:
+- Provide the prior ResearchLibrary.tsx content, or confirm that I should rebuild the research-library page from scratch based on the existing VirtualLab/ResearchArticle/Saved patterns and the Convex research queries.
