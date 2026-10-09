@@ -2,8 +2,9 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+
 import { motion } from "framer-motion";
-import { useNavigate } from "react-router";
 import { ExternalLink, Filter, ChevronDown, RefreshCw, FileText as Citation, Clock, Tag, Download, BookmarkCheck, Search, BookOpen, Bookmark, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +23,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useMemo, useState } from "react";
+import { Link } from "react-router";
 import { formatJalaliDate, faNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
- from "@/components/ui/dialog";
 
 // ─── فیلد لجستیک ─────────────────────────────────────────────────────────────
 type Source = "all" | "pubmed" | "pmc" | "elsevier";
@@ -43,12 +44,12 @@ interface PaperRow {
   pmid?: string;
   pmcid?: string;
   topics: string[];
-  summary?: string;
+  summary?: string | null;
   // prefetched for the detail view (only on the row we open)
-  abstract?: string;
-  fullTextUrl?: string;
-  pdfUrl?: string;
-  relatedIds?: string[];
+  abstract?: string | null;
+  fullTextUrl?: string | null;
+  pdfUrl?: string | null;
+  relatedIds?: string[] | null;
 }
 
 // ─── کامپوننت‌ها ──────────────────────────────────────────────────────────────
@@ -93,7 +94,7 @@ function PaperCard({
 }) {
   const isOpen = paper._id === openId;
   const published = useMemo(
-    () => formatJalaliDate(paper.publishedAtTimestamp, { month: "short" }),
+    () => formatJalaliDate(paper.publishedAtTimestamp),
     [paper.publishedAtTimestamp]
   );
 
@@ -397,7 +398,7 @@ function StatCard({
   sub,
   accent,
 }: {
-  icon: typeof BookOpen;
+  icon: React.ComponentType<Record<string, unknown>>;
   label: string;
   value: string | number;
   sub?: string;
@@ -427,15 +428,14 @@ function StatCard({
 }
 
 // ─── صفحه اصلی ───────────────────────────────────────────────────────────────
-function SourceIcon({ source }: { source: PaperRow["source"] }) {
-  return (
-    <span className={cn(
-      "inline-flex size-3.5 items-center justify-center rounded-full",
-      source === "pubmed" && "bg-blue-500",
-      source === "pmc" && "bg-emerald-500",
-      source === "elsevier" && "bg-violet-500"
-    )} />
-  );
+function PubMedIcon() {
+  return <span className="inline-flex size-3.5 items-center justify-center rounded-full bg-blue-500" />;
+}
+function PmcIcon() {
+  return <span className="inline-flex size-3.5 items-center justify-center rounded-full bg-emerald-500" />;
+}
+function ElsevierIcon() {
+  return <span className="inline-flex size-3.5 items-center justify-center rounded-full bg-violet-500" />;
 }
 
 export default function ResearchLibraryPage() {
@@ -443,13 +443,12 @@ export default function ResearchLibraryPage() {
   const [sortKey, setSortKey] = useState<SortKey>("newest");
   const [openPaperId, setOpenPaperId] = useState<string | null>(null);
 
-  // لیست مقالات (شاید pages باشد و نه آرایه خالی) 
+  // لیست مقالات
   const listResult = useQuery(api.research.listPapers, {
     limit: 120,
   });
-
-  const allPapers = listResult?.items ?? [];
-  const totalCount = listResult?.items.length ?? 0;
+  const allPapers = (listResult?.items ?? []) as PaperRow[];
+  const totalCount = allPapers.length;
 
   // آمار کلی از listPapers به جای query جداگانه
   const stats = useMemo(() => {
@@ -482,36 +481,38 @@ export default function ResearchLibraryPage() {
   // Prefetch one paper for the detail dialog (only when an id is selected)
   const prefetched = useQuery(
     api.research.getPaper,
-    openPaperId ? { id: openPaperId } : "skip"
+    openPaperId ? { id: openPaperId as Id<"researchPapers"> } : "skip"
   );
 
 
   const openPaper = useMemo((): PaperRow | null => {
     if (!openPaperId || !prefetched) return null;
+    const paper = prefetched.paper;
     return {
       _id: openPaperId,
-      title: prefetched.title ?? "",
-      authors: prefetched.authors ?? [],
-      journal: prefetched.journal,
-      citationCount: prefetched.citationCount ?? 0,
-      publishedAtTimestamp: prefetched.publishedAtTimestamp ?? 0,
-      source: (prefetched.source ?? "pubmed") as PaperRow["source"],
-      isOpenAccess: prefetched.isOpenAccess ?? false,
-      doi: prefetched.doi,
-      pmid: prefetched.pmid,
-      pmcid: prefetched.pmcid,
-      topics: prefetched.topics ?? [],
-      summary: prefetched.summary,
-      abstract: prefetched.abstract,
-      fullTextUrl: prefetched.fullTextUrl,
-      pdfUrl: prefetched.pdfUrl,
-      relatedIds: prefetched.relatedIds,
+      title: paper?.title ?? "",
+      authors: Array.isArray(paper?.authors) ? paper.authors : [],
+      journal: paper?.journal,
+      citationCount: paper?.citationCount ?? 0,
+      publishedAtTimestamp: paper?.publishedAtTimestamp ? Number(paper.publishedAtTimestamp) : 0,
+
+      source: (paper?.source ?? "pubmed") as PaperRow["source"],
+      isOpenAccess: paper?.isOpenAccess ?? false,
+      doi: paper?.doi,
+      pmid: paper?.pmid,
+      pmcid: paper?.pmcid,
+      topics: Array.isArray(paper?.topics) ? paper.topics : [],
+      summary: paper?.summary ?? null,
+      abstract: paper?.abstract ?? null,
+      fullTextUrl: paper?.fullTextUrl ?? null,
+      pdfUrl: paper?.pdfUrl ?? null,
+      relatedIds: paper?.relatedIds ?? null,
     };
   }, [openPaperId, prefetched]);
 
 
   const filtered = useMemo(() => {
-    if (!allPapers) return [];
+    if (!Array.isArray(allPapers)) return [];
     let list: PaperRow[] = allPapers;
 
     if (sourceFilter !== "all") {
@@ -528,7 +529,6 @@ export default function ResearchLibraryPage() {
     return list;
   }, [allPapers, sourceFilter, sortKey]);
 
-  const totalCount = allPapers?.length ?? 0;
   const shownCount = filtered.length;
 
   return (
@@ -537,13 +537,13 @@ export default function ResearchLibraryPage() {
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-muted/40 bg-card/70 backdrop-blur-lg">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <Link
+          <a
             href="/virtual-lab"
             className="inline-flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-4" />
             بازگشت به آزمایشگاه مجازی
-          </Link>
+          </a>
 
           <div className="flex items-center gap-3">
             <a
@@ -589,24 +589,25 @@ export default function ResearchLibraryPage() {
                 icon={BookOpen}
                 label="تعداد کل"
                 value={faNum(stats.totalCount)}
+                sub="مقالات لیست‌شده"
                 accent="primary"
               />
               <StatCard
-                icon={SourceIcon}
+                icon={PubMedIcon}
                 label="PubMed"
                 value={faNum(stats.pubmedCount)}
                 sub={`شامل ${faNum(stats.recent30Count)} مقالهٔ ۳۰ روز اخیر`}
                 accent="pubmed"
               />
               <StatCard
-                icon={SourceIcon}
+                icon={PmcIcon}
                 label="PMC"
                 value={faNum(stats.pmcCount)}
                 sub="متن کامل در دسترس"
                 accent="pmc"
               />
               <StatCard
-                icon={SourceIcon}
+                icon={ElsevierIcon}
                 label="Elsevier"
                 value={faNum(stats.elsevierCount)}
                 sub="در صورتinisialisasi کلید API"
@@ -659,7 +660,7 @@ export default function ResearchLibraryPage() {
 
             {/* Result count */}
             <span className="text-[11px] text-muted-foreground">
-              نمایش {shownCount} از {totalCount} مقاله
+              نمایش {shownCount} از {allPapers.length} مقاله
             </span>
             <button
               type="button"

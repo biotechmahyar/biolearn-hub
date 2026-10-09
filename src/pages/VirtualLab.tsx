@@ -44,7 +44,6 @@ import {
   CircleDot,
   Dna,
   Download,
-  FileSearch,
   FileText,
   FileType2,
   FlaskConical,
@@ -80,12 +79,13 @@ import {
   X,
   Zap,
 } from "lucide-react";
+import { BookOpen, Bookmark, ExternalLink, FileSearch } from "lucide-react";
+import ResearchLibrary from "@/pages/ResearchLibrary";
+import ResearchArticle from "@/pages/ResearchArticle";
+import ResearchSaved from "@/pages/ResearchSaved";
+
 import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
-import { ResearchLibrary } from "@/pages/ResearchLibrary";
-import { ResearchArticle } from "@/pages/ResearchArticle";
-import { ResearchSaved } from "@/pages/ResearchSaved";
-import { BookOpen, Bookmark, ExternalLink, FileSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -493,22 +493,15 @@ const WORKSPACE_ITEMS: { id: WorkspaceView; label: string; icon: typeof Dna }[] 
   { id: "team", label: "پیشرفت من", icon: Users },
   { id: "reports", label: "گزارش‌ها", icon: TrendingUp },
   { id: "settings", label: "تنظیمات", icon: Settings2 },
-  { id: "research", label: "کتابخانهٔ پژوهشی", icon: BookOpen },
 ];
 
+/** Research sub-items shown inside the research library rail. */
 const RESEARCH_ITEMS: { id: "library" | "saved"; label: string; icon: typeof Dna }[] = [
   { id: "library", label: "کتابخانهٔ پژوهشی", icon: BookOpen },
   { id: "saved", label: "ذخیره‌شده", icon: Bookmark },
 ];
 
-const RESEARCH_FIELDS: { id: string; label: string }[] = [
-  { id: "bioinformatics", label: "بیوانفورماتیک" },
-  { id: "genetics", label: "ژنتیک پزشکی" },
-  { id: "microbiology", label: "میکروبیولوژی" },
-  { id: "botany", label: "علوم گیاهی" },
-  { id: "cellbiology", label: "زیست‌شناسی سلولی و مولکولی" },
-];
-
+/** Research fields — switching one filters the whole workspace. */
 const RESEARCH_FIELDS: { id: string; label: string }[] = [
   { id: "bioinformatics", label: "بیوانفورماتیک" },
   { id: "genetics", label: "ژنتیک پزشکی" },
@@ -557,34 +550,7 @@ function greetingFor(hour: number) {
 //  RESEARCH LIBRARY CARD (rail entry)
 // ═══════════════════════════════════════════════════════════════════════════
 
-function ResearchCard({ id, label, onOpen }: { id: string; label: string; onOpen: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="group flex items-start gap-3 rounded-2xl border border-emerald-900/5 bg-white p-4 text-right shadow-[0_1px_2px_rgba(6,78,59,0.04),0_12px_28px_-20px_rgba(6,78,59,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_1px_2px_rgba(6,78,59,0.06),0_18px_36px_-22px_rgba(6,78,59,0.35)]"
-    >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-        <BookOpen className="size-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="truncate text-[13px] font-bold text-slate-800">{label}</span>
-        </span>
-        <span className="mt-1 flex items-center gap-1 text-[10.5px] font-semibold text-emerald-600 opacity-0 transition-opacity group-hover:opacity-100">
-          <ArrowLeft className="size-3" />
-          ورود به کتابخانه
-        </span>
-      </span>
-    </button>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  RESEARCH LIBRARY CARD (rail entry)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function ResearchCard({ id, label, onOpen }: { id: string; label: string; onOpen: () => void }) {
+function ResearchCard({ label, onOpen }: { id?: string; label: string; onOpen: () => void }) {
   return (
     <button
       type="button"
