@@ -1447,6 +1447,18 @@ export default function VirtualLab() {
                 </li>
               );
             })}
+
+            {/* Research Library entry — navigates to the dedicated library routes */}
+            <li className="mt-2 border-t border-emerald-900/8 pt-3">
+              <a
+                href="/virtual-lab/research"
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-right text-[12.5px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-emerald-800"
+              >
+                <BookOpen className="size-4 text-slate-400" />
+                <span className="truncate">کتابخانهٔ پژوهشی</span>
+                <ExternalLink className="mr-auto size-3 text-slate-300" />
+              </a>
+            </li>
           </ul>
 
           <p className="mb-1.5 flex items-center gap-1.5 px-3 text-[10px] font-bold tracking-wide text-slate-400">

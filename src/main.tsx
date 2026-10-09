@@ -71,6 +71,9 @@ const SellerPanel = lazy(() => import("./pages/SellerPanel.tsx"));
 const CartPage = lazy(() => import("./pages/CartPage.tsx"));
 const AdminMarketplacePanel = lazy(() => import("./pages/panels/AdminMarketplacePanel.tsx"));
 const DemoPreview = lazy(() => import("./pages/DemoPreview.tsx"));
+const ResearchLibrary = lazy(() => import("./pages/ResearchLibrary.tsx"));
+const ResearchArticle = lazy(() => import("./pages/ResearchArticle.tsx"));
+const ResearchSaved = lazy(() => import("./pages/ResearchSaved.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -156,6 +159,15 @@ createRoot(document.getElementById("root")!).render(
 
               {/* New experiences (public) */}
               <Route path="/lab" element={<VirtualLab />} />
+
+              {/* Research Library — inside Virtual Lab (spec §23) */}
+              <Route path="/virtual-lab/research" element={<ResearchLibrary />} />
+              <Route path="/virtual-lab/research/articles" element={<ResearchLibrary />} />
+              <Route
+                path="/virtual-lab/research/article/:id"
+                element={<ResearchArticle />}
+              />
+              <Route path="/virtual-lab/research/saved" element={<ResearchSaved />} />
               <Route path="/game" element={<GenovaGame />} />
               <Route path="/game/disabled" element={<GameDisabled />} />
 
