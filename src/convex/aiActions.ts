@@ -1252,6 +1252,72 @@ export const generateDictionaryTerms = action({
  * visitor currently has open, so the replies stay about real bioinformatics
  * work instead of generic biology chat.
  */
+// ── Research Library: Persian translation of one paper ─────────────────────
+/**
+ * Translates a paper's title/summary/abstract into Persian using the site's
+ * configured AI provider. Nothing is stored — the result is returned to the
+ * client and cached client-side per session. Strictly faithful: no invented
+ * science, unchanged numbers/identifiers, and an explicit note when the
+ * abstract is too short to translate meaningfully (spec §17 rules).
+ */
+export const translatePaperToPersian = action({
+  args: {
+    title: v.string(),
+    abstract: v.optional(v.string()),
+    genovaSummary: v.optional(v.string()),
+    keyFindings: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const rawConfig: any = await ctx.runQuery(internal.aiChat.getAIConfigRaw, {});
+    if (!rawConfig || !rawConfig.apiKey) {
+      throw new Error("هوش مصنوعی هنوز توسط مدیر سایت پیکربندی نشده است.");
+    }
+
+    const parts: string[] = [`TITLE: ${args.title}`];
+    if (args.genovaSummary) parts.push(`GENOVA_SUMMARY: ${args.genovaSummary.slice(0, 1500)}`);
+    if (args.abstract) parts.push(`ABSTRACT: ${args.abstract.slice(0, 4500)}`);
+    if (args.keyFindings && args.keyFindings.length > 0) {
+      parts.push(`KEY_FINDINGS:\n${args.keyFindings.map((f, i) => `${i + 1}. ${f}`).join("\n")}`);
+    }
+
+    const systemPrompt =
+      "تو مترجم تخصصی متن‌های علمی حوزهٔ علوم زیستی به زبان فارسی هستی. " +
+      "فقط متن داده‌شده را ترجمه کن؛ هیچ اطلاعات علمی جدیدی اضافه نکن و هیچ نتیجه‌گیری نساز. " +
+      "اصطلاحات تخصصی را در کنار معادل فارسی، به انگلیسی داخل پرانتز نگه دار (مثال: کریسپر (CRISPR)). " +
+      "اعداد، نام ژن‌ها، DOIها و شناسه‌ها را دست‌نخورده باقی بگذار. " +
+      "اگر بخشی از متن برای ترجمهٔ معنادار بیش از حد کوتاه یا نامفهوم است، صریح بگو. " +
+      "خروجی را دقیقاً در این قالب JSON بده و هیچ چیز دیگری ننویس:\n" +
+      '{"title":"...","summary":"...","abstract":"...","findings":["..."]}';
+
+    const responseText = await callAIProvider(rawConfig, systemPrompt, parts.join("\n\n"), 4096);
+
+    // Parse leniently — models sometimes wrap JSON in code fences.
+    const jsonText = responseText.replace(/^```(?:json)?\s*/m, "").replace(/```\s*$/m, "").trim();
+    const start = jsonText.indexOf("{");
+    const end = jsonText.lastIndexOf("}");
+    if (start === -1 || end === -1) {
+      throw new Error("پاسخ هوش مصنوعی قابل تفسیر نبود؛ دوباره تلاش کنید.");
+    }
+    try {
+      const parsed = JSON.parse(jsonText.slice(start, end + 1)) as {
+        title?: string;
+        summary?: string;
+        abstract?: string;
+        findings?: string[];
+      };
+      return {
+        title: parsed.title ?? "",
+        summary: parsed.summary ?? "",
+        abstract: parsed.abstract ?? "",
+        findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+        model: rawConfig.model ?? "",
+      };
+    } catch {
+      throw new Error("پاسخ هوش مصنوعی قابل تفسیر نبود؛ دوباره تلاش کنید.");
+    }
+  },
+});
+
 export const labAssistantAsk = action({
   args: {
     messages: v.array(

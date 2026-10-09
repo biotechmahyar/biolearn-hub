@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { motion } from "framer-motion";
 import { useParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useMemo } from "react";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/convex/_generated/api";
 import { SOURCE_LABELS } from "@/convex/researchAdapters";
-import { BookOpen, Bookmark, BookmarkCheck, ExternalLink, Link as LinkIcon, FileText, Globe, Users, Calendar, Tag, Columns } from "lucide-react";
+import { BookOpen, Bookmark, BookmarkCheck, ChevronDown, ExternalLink, Languages, Link as LinkIcon, FileText, Globe, Users, Calendar, Tag, Columns, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -19,6 +20,31 @@ export default function ResearchArticle() {
   const idId = useMemo(() => (typeof id === "string" && id ? (id as Id<"researchPapers">) : null), [id]);
   const { paper, isSaved } = useQuery(api.research.getPaper, idId ? { id: idId } : "skip") ?? {};
   const toggle = useMutation(api.research.toggleSavedPaper);
+  const translate = useAction(api.aiActions.translatePaperToPersian);
+
+  // ── Persian translation state (client-side, per visit) ───────────────────
+  type Translation = { title: string; summary: string; abstract: string; findings: string[] };
+  const [translation, setTranslation] = useState<Translation | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [trOpen, setTrOpen] = useState(false);
+
+  const handleTranslate = async () => {
+    if (!paper || translation || translating) return;
+    setTranslating(true);
+    try {
+      const res = await translate({
+        title: paper.title,
+        abstract: paper.abstract,
+        genovaSummary: paper.genovaSummary,
+        keyFindings: paper.keyFindings,
+      });
+      setTranslation(res);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "ترجمه ناموفق بود؛ بعداً تلاش کنید.");
+    } finally {
+      setTranslating(false);
+    }
+  };
 
   if (!paper) {
     return (
@@ -154,6 +180,75 @@ export default function ResearchArticle() {
               </a>
             )}
           </div>
+
+          {/* Persian translation (collapsible, on-demand) */}
+          <Collapsible
+            open={trOpen}
+            onOpenChange={(open) => {
+              setTrOpen(open);
+              if (open && !translation) void handleTranslate();
+            }}
+            className="mb-6 overflow-hidden rounded-2xl border border-blue-900/10 bg-blue-50/40"
+          >
+            <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-5 py-4 text-right transition-colors hover:bg-blue-50/80">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+                  <Languages className="size-4.5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-900">ترجمهٔ فارسی مقاله</p>
+                  <p className="text-[10.5px] text-slate-500">
+                    {translating ? "در حال ترجمه با هوش مصنوعی…" : translation ? "ترجمهٔ آماده است" : "برای ترجمهٔ خودکار باز کنید"}
+                  </p>
+                </div>
+              </div>
+              {translating ? (
+                <Loader2 className="size-4 animate-spin text-blue-500" />
+              ) : (
+                <ChevronDown className={cn("size-4 text-slate-400 transition-transform", trOpen && "rotate-180")} />
+              )}
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-4 border-t border-blue-900/8 px-5 py-4">
+                {translation && (
+                  <>
+                    <div>
+                      <p className="mb-1 text-[10.5px] font-bold text-slate-400">عنوان</p>
+                      <p className="text-sm font-bold leading-6 text-slate-800" dir="rtl">{translation.title}</p>
+                    </div>
+                    {translation.summary && (
+                      <div>
+                        <p className="mb-1 text-[10.5px] font-bold text-slate-400">خلاصهٔ ژنوا (ترجمه)</p>
+                        <p className="text-sm leading-7 text-slate-700" dir="rtl">{translation.summary}</p>
+                      </div>
+                    )}
+                    {translation.findings.length > 0 && (
+                      <div>
+                        <p className="mb-1.5 text-[10.5px] font-bold text-slate-400">یافته‌های کلیدی (ترجمه)</p>
+                        <ul className="space-y-1.5">
+                          {translation.findings.map((f, i) => (
+                            <li key={i} className="flex gap-2 text-sm text-slate-700">
+                              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
+                              <span className="leading-6" dir="rtl">{f}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {translation.abstract && (
+                      <div>
+                        <p className="mb-1 text-[10.5px] font-bold text-slate-400">چکیده (ترجمه)</p>
+                        <p className="text-sm leading-7 text-slate-600" dir="rtl">{translation.abstract}</p>
+                      </div>
+                    )}
+                    <p className="rounded-lg bg-amber-50 px-3 py-2 text-[10.5px] leading-5 text-amber-700">
+                      ترجمه با هوش مصنوعی انجام شده و ممکن است خطا داشته باشد. برای استناد علمی حتماً به متن اصلی انگلیسی مراجعه کنید.
+                    </p>
+                  </>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
 
           <div className="grid gap-6 sm:grid-cols-2">
             {/* Left column: summary + abstract */}

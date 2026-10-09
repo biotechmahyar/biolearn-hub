@@ -215,9 +215,24 @@ export default function ResearchLibrary() {
       const res = await sync({ query: query || "antibiotic resistance", limit: 10 });
       const ok = res.results.filter((r) => r.status === "processed").length;
       const total = res.results.reduce((a, r) => a + r.inserted + r.merged, 0);
-      toast.success(`همگام‌سازی انجام شد: ${faNum(ok)} منبع فعال، ${faNum(total)} مقالهٔ جدید/ادغام‌شده`);
-    } catch {
-      toast.error("همگام‌سازی ناموفق بود؛ بعداً دوباره تلاش کنید.");
+      const failed = res.results.filter((r) => r.status === "failed");
+      if (ok === 0 && failed.length > 0) {
+        // Surface the real reason (e.g. missing API key) instead of a generic message.
+        const first = failed[0];
+        toast.error(`همگام‌سازی ناموفق بود: ${first.message ?? first.errorCode ?? "خطای ناشناخته در منبع"}`);
+      } else if (total === 0 && ok > 0) {
+        toast.info("منابع پاسخ دادند اما مقالهٔ جدیدی پیدا نشد. عبارت دیگری را امتحان کنید.");
+      } else {
+        const notes = failed
+          .map((r) => `${SOURCE_LABELS[r.source as SourceId] ?? r.source}: ${r.errorCode === "missing_api_key" ? "بدون کلید API" : "در دسترس نیست"}`)
+          .join(" · ");
+        toast.success(
+          `همگام‌سازی انجام شد: ${faNum(ok)} منبع فعال، ${faNum(total)} مقالهٔ جدید/ادغام‌شده${notes ? ` (${notes})` : ""}`,
+        );
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : undefined;
+      toast.error(`همگام‌سازی ناموفق بود${msg ? `: ${msg}` : "؛ بعداً دوباره تلاش کنید."}`);
     } finally {
       setSyncing(false);
     }
