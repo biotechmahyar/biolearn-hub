@@ -74,6 +74,7 @@ const DemoPreview = lazy(() => import("./pages/DemoPreview.tsx"));
 const ResearchLibrary = lazy(() => import("./pages/ResearchLibrary.tsx"));
 const ResearchArticle = lazy(() => import("./pages/ResearchArticle.tsx"));
 const ResearchSaved = lazy(() => import("./pages/ResearchSaved.tsx"));
+const BioNetworkExplorer = lazy(() => import("./pages/BioNetworkExplorer.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -168,6 +169,9 @@ createRoot(document.getElementById("root")!).render(
                 element={<ResearchArticle />}
               />
               <Route path="/virtual-lab/research/saved" element={<ResearchSaved />} />
+              {/* BioNetwork Explorer — interactive biological networks (spec §7) */}
+              <Route path="/virtual-lab/network" element={<BioNetworkExplorer />} />
+              <Route path="/virtual-lab/bio-network" element={<BioNetworkExplorer />} />
               <Route path="/game" element={<GenovaGame />} />
               <Route path="/game/disabled" element={<GameDisabled />} />
 

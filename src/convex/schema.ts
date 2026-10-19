@@ -2011,6 +2011,20 @@ const schema = defineSchema(
       .index("by_status", ["status"])
       .index("by_seller", ["sellerId"]),
 
+    // ── Genova BioNetwork Explorer ───────────────────────────────────────
+    // Server-side cache of live responses from STRING / Reactome / KEGG /
+    // UniProt / NCBI Gene / Open Targets, so repeat searches never re-hit
+    // external APIs. `payload` is JSON-safe (normalized at write time).
+    bioNetworkCache: defineTable({
+      key: v.string(), // stable hash of kind + params
+      kind: v.string(), // search | network | expand | enrichment
+      payload: v.any(),
+      fetchedAt: v.number(),
+      expiresAt: v.number(),
+    })
+      .index("by_key", ["key"])
+      .index("by_expiry", ["expiresAt"]),
+
   },
   {
     schemaValidation: false,

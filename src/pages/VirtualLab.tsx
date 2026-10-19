@@ -79,7 +79,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { BookOpen, Bookmark, ExternalLink, FileSearch } from "lucide-react";
+import { BookOpen, Bookmark, ExternalLink, FileSearch, Network } from "lucide-react";
 import ResearchLibrary from "@/pages/ResearchLibrary";
 import ResearchArticle from "@/pages/ResearchArticle";
 import ResearchSaved from "@/pages/ResearchSaved";
@@ -1456,6 +1456,18 @@ export default function VirtualLab() {
               >
                 <BookOpen className="size-4 text-slate-400" />
                 <span className="truncate">کتابخانهٔ پژوهشی</span>
+                <ExternalLink className="mr-auto size-3 text-slate-300" />
+              </a>
+            </li>
+
+            {/* BioNetwork Explorer — interactive biological networks */}
+            <li className="mt-1">
+              <a
+                href="/virtual-lab/network"
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-right text-[12.5px] font-medium text-slate-500 transition-colors hover:bg-slate-50 hover:text-emerald-800"
+              >
+                <Network className="size-4 text-slate-400" />
+                <span className="truncate">شبکه‌های زیستی (Explorer)</span>
                 <ExternalLink className="mr-auto size-3 text-slate-300" />
               </a>
             </li>
