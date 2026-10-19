@@ -278,6 +278,10 @@ export interface GraphFilters {
   sources: Set<string>;
   /** Visible edge kinds (protein_interaction / gene_pathway / …). */
   edgeKinds: Set<string>;
+  /** Evidence channels required on an edge (spec §5 «نوع شواهد»).
+   *  Empty set = no evidence filter. Edges without an evidence breakdown
+   *  (non-STRING relations) always pass — their type is already visible. */
+  evidenceKinds: Set<string>;
   /** STRING / Open Targets confidence floor (0–1). Edges without a score pass. */
   minScore: number;
   /** Explicitly hidden node ids (and their edges). */
@@ -295,6 +299,7 @@ export function defaultFilters(): GraphFilters {
       "gene_protein",
       "pathway_hierarchy",
     ]),
+    evidenceKinds: new Set<string>(),
     minScore: 0,
     hiddenNodes: new Set(),
   };
@@ -313,6 +318,9 @@ export function filterGraph(
       ids.has(e.target) &&
       f.sources.has(e.sourceDb) &&
       f.edgeKinds.has(e.kind) &&
+      (f.evidenceKinds.size === 0 ||
+        !e.evidence?.length ||
+        e.evidence.some((ev) => f.evidenceKinds.has(ev.kind))) &&
       (typeof e.score !== "number" || e.score >= f.minScore),
   );
   return { nodes: visibleNodes, edges: visibleEdges };

@@ -297,14 +297,15 @@ interface StringEdgeRow {
   tscore?: number;
 }
 
-/** STRING evidence channels with their exact meaning (sub-scores are STRING's). */
+/** STRING evidence channels with their exact meaning (sub-scores are STRING's:
+ *  nscore=neighborhood, fscore=fusion, pscore=co-occurrence, ascore=
+ *  co-expression, escore=experimental, dscore=database, tscore=textmining). */
 function stringEvidence(row: StringEdgeRow): EdgeEvidence[] {
   const channels: [keyof StringEdgeRow, string, string][] = [
     ["escore", "experimental", "شواهد تجربی"],
     ["dscore", "database", "پایگاه‌داده‌های curated"],
     ["tscore", "textmining", "کاوش متنی"],
-    ["ascore", "coexpression", "هم‌بیانی (چیدمان ژن آرایه‌ای)"],
-    ["pscore", "prediction", "پیش‌بینی هم‌ریختی/چینش"],
+    ["ascore", "coexpression", "هم‌بیانی"],
     ["nscore", "neighborhood", "همسایگی ژنومی"],
     ["fscore", "fusion", "ادغام ژن‌ها"],
     ["pscore", "cooccurrence", "هم‌روی‌دادن ژن‌ها"],
@@ -549,7 +550,17 @@ export async function keggFind(
   query: string,
   limit = 8,
 ): Promise<{ id: string; name: string }[]> {
-  const url = `${KEGG_BASE}/find/${db}/${encodeURIComponent(query)}`;
+  // rest.kegg.jp answers HTTP 400 for comma-joined terms ("TP53,MDM2" — the
+  // default query built from several seeds) and for non-Latin text: its index
+  // holds Latin entries only. Drop separators/punctuation and any non-Latin
+  // run, and skip requests that provably cannot return a match.
+  const term = query
+    .replace(/[^A-Za-z0-9 ._:'()\-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+  if (!term) return [];
+  const url = `${KEGG_BASE}/find/${db}/${encodeURIComponent(term)}`;
   const text = await fetchText(url, "kegg");
   return text
     .split("\n")
@@ -575,15 +586,23 @@ function symbolOfKeggName(name: string): string | undefined {
 /** Flat-file entry parser: KEY → value lines (NAME / DEFINITION / PATHWAY…). */
 function parseKeggEntry(flat: string): Record<string, string> {
   const out: Record<string, string> = {};
-  const lines = flat.split("\n");
   let key = "";
-  for (const line of lines) {
+  for (const line of flat.split("\n")) {
     if (/^\/\/\/$/.test(line)) break;
-    const m = line.match(/^([A-Z]+)\s+(.*)$/);
-    if (m) {
-      key = m[1];
-      out[key] = m[2];
-    } else if (key) {
+    // Field keys sit at column 0 or appear as embedded ALL-CAPS sub-fields
+    // (e.g. SUBGROUP inside a disease NAME); anything else continues the
+    // previous value. Without this, NAME labels swallow nested blocks.
+    // Column-0 field: KEY padded to 12 chars (DESCRIPTION = 11 + ONE space,
+    // so requiring two spaces would mis-parse it), or an embedded ALL-CAPS
+    // sub-field (SUBGROUP…) that is indented by two or more spaces.
+    const field =
+      line.match(/^([A-Z][A-Z0-9_-]*)\s+(.*)$/) ??
+      line.match(/^\s{2,}([A-Z][A-Z0-9_-]{2,})\s{2,}(.*)$/);
+    if (field) {
+      key = field[1];
+      const val = field[2].trim();
+      out[key] = out[key] ? `${out[key]} ${val}` : val;
+    } else if (key && line.trim()) {
       out[key] = `${out[key]} ${line.trim()}`;
     }
   }
@@ -1211,6 +1230,24 @@ function drugNodeId(id: string) {
 }
 
 /**
+ * Clean a KEGG NAME field into a display label: drop a swallowed DESCRIPTION
+ * block, the " - Homo sapiens (human)" organism tail (pathways), and any
+ * alias list after the first semicolon.
+ */
+function cleanKeggName(raw: string, fallback: string): string {
+  return (
+    raw
+      .replace(/\s+DESCRIPTION\s[\s\S]*$/, "")
+      .replace(
+        /\s+-\s+(Homo sapiens|Mus musculus|Rattus norvegicus|Drosophila melanogaster|Danio rerio)\s*\([^)]*\)/g,
+        "",
+      )
+      .split(";")[0]
+      .trim() || fallback
+  );
+}
+
+/**
  * Build a unified network from the enabled sources. Sources are independent:
  * one failing source is reported in `statuses` and the rest still build.
  */
@@ -1264,7 +1301,14 @@ export async function assembleNetwork(params: BuildParams): Promise<NetworkGraph
   const unresolvedSeeds = seeds.filter((s) => !resolvedQueries.has(s.toUpperCase()));
   const rawQuery = params.query.trim();
   /** Text queries fed to KEGG disease search + Reactome pathway search. */
-  const textSeeds = [...new Set([...unresolvedSeeds, rawQuery])]
+  // The query may be a comma-joined identifier list ("TP53,MDM2" — the default
+  // when several seeds are built). Split it and drop parts STRING already
+  // resolved: the remaining parts are free-text phrases worth searching.
+  const rawQueryParts = rawQuery
+    .split(/[,،;]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3 && !resolvedQueries.has(t.toUpperCase()));
+  const textSeeds = [...new Set([...unresolvedSeeds, ...rawQueryParts])]
     .filter((q) => q.length >= 3 && q.length <= 200)
     .slice(0, 3);
 
@@ -1356,10 +1400,16 @@ export async function assembleNetwork(params: BuildParams): Promise<NetworkGraph
         unresolvedNodeIds.push({ seed, nodeId });
         count++;
       }
+      const attemptedUniprot =
+        seedNodes.some((s) => !!s.symbol) || unresolvedSeeds.some((s) => looksLikeAccession(s));
       statuses.push({
         source: "uniprot",
-        status: count ? "ok" : unresolvedSeeds.length || seedNodes.length ? "empty" : "skipped",
-        message: count ? undefined : "هیچ پروتئینی برای عبارت‌ها در UniProt پیدا نشد",
+        status: count ? "ok" : attemptedUniprot ? "empty" : "skipped",
+        message: count
+          ? undefined
+          : attemptedUniprot
+            ? "هیچ پروتئینی برای عبارت‌ها در UniProt پیدا نشد"
+            : "عبارت ورودی، ژن/پروتئین نبود — UniProt بررسی نشد",
         count,
       });
     } catch (e) {
@@ -1400,7 +1450,11 @@ export async function assembleNetwork(params: BuildParams): Promise<NetworkGraph
       statuses.push({
         source: "ncbi",
         status: count ? "ok" : seedNodes.length ? "empty" : "skipped",
-        message: count ? undefined : "ژنی در NCBI Gene پیدا نشد",
+        message: count
+          ? undefined
+          : seedNodes.length
+            ? "ژنی در NCBI Gene پیدا نشد"
+            : "عبارت ورودی، نماد ژن نبود — NCBI Gene بررسی نشد",
         count,
       });
     } catch (e) {
@@ -1445,7 +1499,7 @@ export async function assembleNetwork(params: BuildParams): Promise<NetworkGraph
         if (pathIds.length) {
           const entries = await keggGetMany(pathIds);
           for (const pid of pathIds) {
-            const label = entries[pid]?.NAME ?? pid;
+            const label = cleanKeggName(entries[pid]?.NAME ?? "", pid);
             const nodeId = pathwayNodeId(pid);
             if (!builder.addNode({
               id: nodeId,
@@ -1478,7 +1532,7 @@ export async function assembleNetwork(params: BuildParams): Promise<NetworkGraph
           const entries = await keggGetMany(disIds.map((d) => `ds:${d}`));
           for (const did of disIds) {
             const raw = entries[`ds:${did}`];
-            const label = raw?.NAME?.split(";")[0]?.trim() ?? did;
+            const label = cleanKeggName(raw?.NAME ?? "", did);
             const nodeId = diseaseNodeId(did);
             if (!builder.addNode({
               id: nodeId,
@@ -1512,7 +1566,7 @@ export async function assembleNetwork(params: BuildParams): Promise<NetworkGraph
           const entries = await keggGetMany(drugIds.map((d) => `dr:${d}`));
           for (const did of drugIds) {
             const raw = entries[`dr:${did}`];
-            const label = raw?.NAME?.split(",")[0]?.trim() ?? did;
+            const label = cleanKeggName(raw?.NAME ?? "", did).split(",")[0]?.trim() || did;
             const nodeId = drugNodeId(did);
             if (!builder.addNode({
               id: nodeId,
@@ -2020,7 +2074,7 @@ export async function expandNode(params: ExpandParams): Promise<{
           const id = pathwayNodeId(pid);
           pushNode({
             id,
-            label: entries[pid]?.NAME ?? pid,
+            label: cleanKeggName(entries[pid]?.NAME ?? "", pid),
             kind: "pathway",
             source: "kegg",
             sources: ["kegg"],
@@ -2046,7 +2100,7 @@ export async function expandNode(params: ExpandParams): Promise<{
           const id = diseaseNodeId(did);
           pushNode({
             id,
-            label: disEntries[`ds:${did}`]?.NAME?.split(";")[0]?.trim() ?? did,
+            label: cleanKeggName(disEntries[`ds:${did}`]?.NAME ?? "", did),
             kind: "disease",
             source: "kegg",
             sources: ["kegg"],

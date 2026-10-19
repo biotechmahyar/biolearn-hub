@@ -102,6 +102,17 @@ const EDGE_KIND_CHIPS = [
   "pathway_hierarchy",
 ] as const;
 
+/** STRING evidence channels — filter edges by their supporting evidence (spec §5). */
+const EVIDENCE_CHIPS: [string, string][] = [
+  ["experimental", "تجربی"],
+  ["database", "پایگاه‌داده"],
+  ["textmining", "کاوش متنی"],
+  ["coexpression", "هم‌بیانی"],
+  ["cooccurrence", "هم‌روی‌دادن"],
+  ["neighborhood", "همسایگی ژنومی"],
+  ["fusion", "ادغام ژن‌ها"],
+];
+
 const SAVE_KEY = "genova-bionetwork-save";
 
 /**
@@ -508,6 +519,11 @@ export default function BioNetworkExplorer() {
   // ── render ───────────────────────────────────────────────────────────────
   const statuses = graph?.statuses ?? [];
   const score = confidence / 100;
+  // proportional bar scales (guard against empty lists → division by zero)
+  const maxHub = analysis ? Math.max(1, ...analysis.hubs.map((h) => h.degree)) : 1;
+  const maxBridge = analysis
+    ? Math.max(1, ...analysis.bridges.map((b) => b.betweenness))
+    : 1;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#eef5f2] text-slate-800" dir="rtl">
@@ -901,6 +917,39 @@ export default function BioNetworkExplorer() {
                   })}
                 </div>
 
+                {/* evidence channels */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="ml-1 text-[10.5px] font-extrabold text-slate-400">
+                    نوع شواهد:
+                  </span>
+                  {EVIDENCE_CHIPS.map(([kind, label]) => {
+                    const on = filters.evidenceKinds.has(kind);
+                    return (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() =>
+                          setFilters((f) => {
+                            const evidenceKinds = new Set(f.evidenceKinds);
+                            if (on) evidenceKinds.delete(kind);
+                            else evidenceKinds.add(kind);
+                            return { ...f, evidenceKinds };
+                          })
+                        }
+                        title={`نمایش یال‌هایی که شواهد «${label}» دارند`}
+                        className={cn(
+                          "cursor-pointer rounded-full border px-2 py-0.5 text-[10px] font-bold transition-colors",
+                          on
+                            ? "border-sky-600 bg-sky-600 text-white"
+                            : "border-slate-200 bg-white text-slate-300",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {/* in-network search */}
                 <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1">
                   <Search className="size-3.5 text-slate-400" />
@@ -1118,22 +1167,31 @@ export default function BioNetworkExplorer() {
                         key={h.id}
                         type="button"
                         onClick={() => setSelectedNodeId(h.id)}
-                        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-right transition-colors hover:border-emerald-300 hover:bg-emerald-50/60"
+                        className="w-full cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-right transition-colors hover:border-emerald-300 hover:bg-emerald-50/60"
                       >
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span className="w-4 text-[10px] font-bold text-slate-300">
-                            {faNum(i + 1)}
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span className="w-4 text-[10px] font-bold text-slate-300">
+                              {faNum(i + 1)}
+                            </span>
+                            <span
+                              className="size-2 shrink-0 rounded-full"
+                              style={{ background: KIND_COLORS[h.kind] ?? "#64748b" }}
+                            />
+                            <span className="truncate text-[11.5px] font-bold text-slate-700">
+                              {h.label}
+                            </span>
                           </span>
-                          <span
-                            className="size-2 shrink-0 rounded-full"
-                            style={{ background: KIND_COLORS[h.kind] ?? "#64748b" }}
-                          />
-                          <span className="truncate text-[11.5px] font-bold text-slate-700">
-                            {h.label}
+                          <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                            {faNum(h.degree)}° · {h.weightedDegree.toFixed(1)}w
                           </span>
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-slate-400">
-                          {faNum(h.degree)}° · {h.weightedDegree.toFixed(1)}w
+                        {/* degree bar (real values, proportional) */}
+                        <span className="mt-1 block h-1 overflow-hidden rounded-full bg-slate-100">
+                          <span
+                            className="block h-full rounded-full bg-emerald-500"
+                            style={{ width: `${Math.round((h.degree / maxHub) * 100)}%` }}
+                          />
                         </span>
                       </button>
                     ))}
@@ -1150,19 +1208,30 @@ export default function BioNetworkExplorer() {
                         key={b.id}
                         type="button"
                         onClick={() => setSelectedNodeId(b.id)}
-                        className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-slate-200 px-2.5 py-1.5 text-right transition-colors hover:border-sky-300 hover:bg-sky-50/60"
+                        className="w-full cursor-pointer rounded-lg border border-slate-200 px-2.5 py-1.5 text-right transition-colors hover:border-sky-300 hover:bg-sky-50/60"
                       >
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          <span
-                            className="size-2 shrink-0 rounded-full"
-                            style={{ background: KIND_COLORS[b.kind] ?? "#64748b" }}
-                          />
-                          <span className="truncate text-[11.5px] font-bold text-slate-700">
-                            {b.label}
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span
+                              className="size-2 shrink-0 rounded-full"
+                              style={{ background: KIND_COLORS[b.kind] ?? "#64748b" }}
+                            />
+                            <span className="truncate text-[11.5px] font-bold text-slate-700">
+                              {b.label}
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                            {b.betweenness.toFixed(2)}
                           </span>
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-slate-400">
-                          {b.betweenness.toFixed(2)}
+                        {/* betweenness bar (Brandes, real values) */}
+                        <span className="mt-1 block h-1 overflow-hidden rounded-full bg-slate-100">
+                          <span
+                            className="block h-full rounded-full bg-sky-500"
+                            style={{
+                              width: `${Math.round((b.betweenness / maxBridge) * 100)}%`,
+                            }}
+                          />
                         </span>
                       </button>
                     ))}

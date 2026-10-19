@@ -55,7 +55,7 @@ function speciesOf(n: number | undefined): number {
 
 function cacheKey(kind: string, params: unknown): string {
   // Version bump invalidates entries written by older adapter code.
-  return `${kind}:v2:${JSON.stringify(params)}`;
+  return `${kind}:v5:${JSON.stringify(params)}`;
 }
 
 /** JSON round-trip guarantees a Convex-serializable payload (drops undefined). */
