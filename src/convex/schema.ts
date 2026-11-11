@@ -2025,6 +2025,94 @@ const schema = defineSchema(
       .index("by_key", ["key"])
       .index("by_expiry", ["expiresAt"]),
 
+    // ── ژن‌آموز (Genotab) — Duolingo-style biology learning ───────────────
+    // The curriculum itself lives in versioned code (convex/genotab/*), keyed
+    // by stable string ids. Only per-student state is persisted here. Nothing
+    // in these tables grants content: lesson access is checked server-side.
+    genotabProgress: defineTable({
+      userId: ID("users"),
+      courseSlug: STR(),
+      lessonId: STR(),
+      chapterId: STR(),
+      status: UN(L("started"), L("completed")),
+      cardIndex: NUM(), // resume point inside the learning cards
+      completedExerciseIds: ARR(STR()),
+      assessmentScore: OPT(NUM()),
+      assessmentTotal: OPT(NUM()),
+      attempts: NUM(),
+      xpEarned: NUM(),
+      startedAt: NUM(),
+      completedAt: OPT(NUM()),
+      updatedAt: NUM(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_lesson", ["userId", "lessonId"])
+      .index("by_user_course", ["userId", "courseSlug"]),
+    /** Every XP grant is an immutable ledger row (weekly/monthly boards). */
+    genotabXp: defineTable({
+      userId: ID("users"),
+      amount: NUM(),
+      reason: UN(
+        L("exercise"),
+        L("lesson"),
+        L("perfect_assessment"),
+        L("chapter"),
+        L("course"),
+        L("daily_challenge"),
+      ),
+      lessonId: OPT(STR()),
+      chapterId: OPT(STR()),
+      courseSlug: OPT(STR()),
+      dayKey: STR(), // YYYY-MM-DD in Tehran time (streak / daily caps)
+      createdAt: NUM(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_day", ["userId", "dayKey"])
+      .index("by_created", ["createdAt"]),
+    /** Aggregate row per student: total XP, streak, hearts. */
+    genotabStats: defineTable({
+      userId: ID("users"),
+      totalXp: NUM(),
+      streak: NUM(),
+      longestStreak: NUM(),
+      lastActiveDay: STR(), // YYYY-MM-DD (Tehran)
+      hearts: NUM(),
+      heartsDay: STR(), // day the hearts counter belongs to
+      dailyGoal: NUM(), // XP target for the daily challenge
+      createdAt: NUM(),
+      updatedAt: NUM(),
+    }).index("by_user", ["userId"]),
+    /** Missed questions, kept for the review queue (spec §7). */
+    genotabWrongAnswers: defineTable({
+      userId: ID("users"),
+      courseSlug: STR(),
+      chapterId: STR(),
+      lessonId: STR(),
+      exerciseId: STR(),
+      prompt: STR(),
+      correctAnswer: STR(),
+      explanation: STR(),
+      reviewCount: NUM(),
+      resolvedAt: OPT(NUM()),
+      createdAt: NUM(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_lesson", ["userId", "lessonId"])
+      .index("by_user_exercise", ["userId", "exerciseId"]),
+    /** Chapter and final-exam attempts (graded on the server). */
+    genotabExamAttempts: defineTable({
+      userId: ID("users"),
+      courseSlug: STR(),
+      kind: UN(L("chapter"), L("course")),
+      chapterId: OPT(STR()),
+      score: NUM(),
+      total: NUM(),
+      passed: BOOL(),
+      createdAt: NUM(),
+    })
+      .index("by_user", ["userId"])
+      .index("by_user_course", ["userId", "courseSlug"]),
+
   },
   {
     schemaValidation: false,
