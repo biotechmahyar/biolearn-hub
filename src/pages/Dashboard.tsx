@@ -88,7 +88,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 
-type TabKey = "overview" | "courses" | "workshops" | "studyPlan" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate" | "academyPath" | "orders";
+type TabKey = "overview" | "courses" | "workshops" | "studyPlan" | "tests" | "progress" | "flashcards" | "downloads" | "bookmarks" | "support" | "live" | "announcements" | "inbox" | "profile" | "certificate" | "academyPath" | "orders" | "genotab";
 
 const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "overview", label: "نمای کلی", icon: LayoutDashboard },
@@ -96,6 +96,7 @@ const TABS: { key: TabKey; label: string; icon: typeof LayoutDashboard }[] = [
   { key: "workshops", label: "کارگاه‌ها", icon: GraduationCap },
   { key: "studyPlan", label: "برنامه‌ریزی مطالعه", icon: CalendarDays },
   { key: "academyPath", label: "مسیر آکادمی", icon: Route },
+  { key: "genotab", label: "ژن‌آموز", icon: Sparkles },
   { key: "tests", label: "آزمون‌ها", icon: ClipboardList },
   { key: "live", label: "کلاس‌های زنده", icon: Radio },
   { key: "inbox", label: "صندوق ورودی", icon: Inbox },
@@ -119,7 +120,7 @@ type NavGroup = {
 
 const NAV_GROUPS: NavGroup[] = [
   { id: "overview", label: "خانه", icon: LayoutDashboard, tabs: ["overview"] },
-  { id: "learning", label: "یادگیری من", icon: BookOpen, tabs: ["courses", "workshops", "studyPlan", "academyPath", "progress"] },
+  { id: "learning", label: "یادگیری من", icon: BookOpen, tabs: ["courses", "workshops", "studyPlan", "academyPath", "genotab", "progress"] },
   { id: "practice", label: "تمرین و آزمون", icon: ClipboardList, tabs: ["tests", "flashcards"] },
   { id: "activity", label: "فعالیت‌ها", icon: Radio, tabs: ["live", "announcements", "inbox", "support"] },
   { id: "profile", label: "پروفایل من", icon: User, tabs: ["profile", "certificate", "orders", "downloads", "bookmarks"] },
@@ -151,7 +152,14 @@ export default function Dashboard() {
   const tab = (searchParams.get("tab") as TabKey) || "overview";
   const activeGroup = groupForTab(tab);
 
-  const setTab = (t: TabKey) => setSearchParams(t === "overview" ? {} : { tab: t });
+  const setTab = (t: TabKey) => {
+    // ژن‌آموز is a focused full-screen experience on its own route.
+    if (t === "genotab") {
+      navigate("/genotab");
+      return;
+    }
+    setSearchParams(t === "overview" ? {} : { tab: t });
+  };
 
   useEffect(() => {
     window.localStorage.setItem("genova-dashboard-theme", dashboardTheme);
@@ -324,6 +332,7 @@ export default function Dashboard() {
           {tab === "workshops" && <MyWorkshops />}
           {tab === "studyPlan" && <StudyPlanner />}
           {tab === "academyPath" && <AcademyPathTabRedesigned />}
+          {tab === "genotab" && <Navigate to="/genotab" replace />}
           {tab === "tests" && <TestsTab />}
           {tab === "progress" && <ProgressTab />}
           {tab === "flashcards" && <FlashcardsTab />}

@@ -75,6 +75,7 @@ const ResearchLibrary = lazy(() => import("./pages/ResearchLibrary.tsx"));
 const ResearchArticle = lazy(() => import("./pages/ResearchArticle.tsx"));
 const ResearchSaved = lazy(() => import("./pages/ResearchSaved.tsx"));
 const BioNetworkExplorer = lazy(() => import("./pages/BioNetworkExplorer.tsx"));
+const GenotabPage = lazy(() => import("./pages/Genotab.tsx"));
 
 // Simple loading fallback for route transitions
 function RouteLoading() {
@@ -214,6 +215,15 @@ createRoot(document.getElementById("root")!).render(
                 element={
                   <RequireAuth>
                     <Dashboard />
+                  </RequireAuth>
+                }
+              />
+              {/* ژن‌آموز (Genotab) — Duolingo-style biology learning */}
+              <Route
+                path="/genotab"
+                element={
+                  <RequireAuth>
+                    <GenotabPage />
                   </RequireAuth>
                 }
               />

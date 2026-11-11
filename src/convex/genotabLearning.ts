@@ -273,8 +273,9 @@ export const lessonView = query({
           .withIndex("by_user_lesson", (q) => q.eq("userId", user._id).eq("lessonId", lesson.id))
           .unique()
       : null;
-    // A fresh, seeded sample of the bank keeps repeat attempts varied.
-    const seed = (Date.now() % 100000) + lesson.order * 31;
+    // Deterministic per attempt: queries re-run on every subscription update,
+    // so a time-based seed would reshuffle the assessment mid-lesson.
+    const seed = lesson.order * 977 + (progress?.attempts ?? 0) * 131 + 7;
     const assessment = sampleExercises(lesson.bank, 5, seed);
     return {
       id: lesson.id,
@@ -318,8 +319,6 @@ export const examView = query({
     if (args.kind === "chapter" && !chapter) return null;
     const pool = chapter ? chapterExamPool(chapter.id) : courseExamPool(COURSES[0].slug);
     const count = chapter ? 15 : 30;
-    const seed = (Date.now() % 90000) + (chapter?.order ?? 9) * 17;
-    const questions = sampleExercises(pool, count, seed);
     const attempts = user
       ? await ctx.db
           .query("genotabExamAttempts")
@@ -327,6 +326,9 @@ export const examView = query({
           .collect()
       : [];
     const relevant = attempts.filter((a) => a.kind === args.kind && (args.kind === "course" || a.chapterId === chapter?.id));
+    // Stable for a given attempt count so the question set never reshuffles.
+    const seed = (chapter?.order ?? 5) * 733 + relevant.length * 149 + 11;
+    const questions = sampleExercises(pool, count, seed);
     return {
       kind: args.kind,
       titleFa: chapter ? `آزمون فصل — ${chapter.titleFa}` : "آزمون جامع دورهٔ زیست‌شناسی سلولی",
@@ -547,7 +549,10 @@ export const completeLesson = mutation({
       })
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
-    if (graded.length === 0) throw new Error("پاسخ‌های آزمون خالی است.");
+    // Every assessment question must be answered (no partial submissions for XP).
+    if (new Set(graded.map((row) => row.exerciseId)).size < 5) {
+      throw new Error("پاسخ‌های آزمون ناقص است.");
+    }
     const score = graded.filter((row) => row.correct).length;
     const total = graded.length;
     const perfect = score === total;
@@ -646,7 +651,11 @@ export const submitExam = mutation({
       })
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
-    if (graded.length < 5) throw new Error("پاسخ‌های آزمون ناقص است.");
+    // A full exam: 15 questions for a chapter, 30 for the final — distinct answers only.
+    const requiredAnswers = chapter ? 15 : 30;
+    if (new Set(graded.map((row) => row.exerciseId)).size < requiredAnswers) {
+      throw new Error("پاسخ‌های آزمون ناقص است.");
+    }
     const score = graded.filter((row) => row.correct).length;
     const total = graded.length;
     const passCount = Math.ceil(total * PASS_RATIO);
