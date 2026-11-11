@@ -49,7 +49,7 @@ export function Diagram({ kind, className }: { kind: DiagramKey; className?: str
   const Component = REGISTRY[kind];
   if (!Component) return null;
   return (
-    <div className={className ?? "overflow-hidden rounded-2xl border border-emerald-900/10 bg-white"}>
+    <div className={className ?? "overflow-hidden rounded-2xl border border-slate-100 bg-white"}>
       <Component />
     </div>
   );

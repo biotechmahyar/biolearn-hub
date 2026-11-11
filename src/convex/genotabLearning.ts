@@ -94,6 +94,26 @@ export const home = query({
       : [];
     const stats = await statsSnapshot(ctx, user?._id ?? null);
 
+    // Seven-day XP series (Tehran days) for the progress chart.
+    const today = dayKey();
+    const dayKeys: string[] = [];
+    let cursor = today;
+    for (let i = 0; i < 7; i += 1) {
+      dayKeys.unshift(cursor);
+      cursor = previousDayKey(cursor);
+    }
+    const weekdayFmt = new Intl.DateTimeFormat("fa-IR", { weekday: "short", timeZone: "Asia/Tehran" });
+    const weekly = dayKeys.map((key) => ({
+      dayKey: key,
+      label: weekdayFmt.format(new Date(`${key}T12:00:00.000Z`)),
+      xp: xpRows.filter((row) => row.dayKey === key).reduce((sum, row) => sum + row.amount, 0),
+    }));
+
+    // Honest social comparison: how many real learners have less XP than you.
+    const allStats = await ctx.db.query("genotabStats").collect();
+    const peers = allStats.filter((row) => row.userId !== user?._id);
+    const below = peers.filter((row) => (row.totalXp ?? 0) < stats.totalXp).length;
+
     const chapterSummary = CHAPTERS.map((chapter) => {
       const lessonIds = lessonsOfChapter(chapter.id).map((lesson) => lesson.id);
       const done = lessonIds.filter((id) => completed.has(id)).length;
@@ -128,6 +148,9 @@ export const home = query({
       signedIn: Boolean(user),
       userName: user?.name ?? null,
       stats,
+      weekly,
+      weeklyTotal: weekly.reduce((sum, row) => sum + row.xp, 0),
+      percentile: peers.length > 0 ? Math.round((below / peers.length) * 100) : null,
       reviewCount: wrong.filter((row) => !row.resolvedAt).length,
       chapters: chapterSummary,
       course: {

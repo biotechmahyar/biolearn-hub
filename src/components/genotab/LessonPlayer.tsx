@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { faNum } from "@/lib/format";
 import { Diagram } from "./Diagrams";
+import { Confetti } from "./ui";
 import { ExerciseView, type AnswerFeedback, type GenotabExercise } from "./ExerciseView";
 
 type Phase = "cards" | "practice" | "assessmentIntro" | "assessment" | "result";
@@ -169,37 +170,38 @@ export function LessonPlayer({
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f9fbfa]" dir="rtl">
-      <header className="sticky top-0 z-20 border-b border-emerald-900/8 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5">
+    <div className="flex min-h-screen flex-col bg-[#F2F7F3]" dir="rtl">
+      <header className="sticky top-0 z-20 bg-gradient-to-l from-[#16B364] via-[#119C55] to-[#0B7A43] text-white shadow-[0_14px_30px_-24px_rgba(11,122,67,0.9)]">
+        <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-2.5">
           <button
             type="button"
             onClick={onExit}
-            className="flex cursor-pointer items-center gap-1 rounded-full px-2 py-1 text-[11.5px] font-bold text-slate-500 hover:bg-slate-100"
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25"
+            title="خروج از درس"
           >
             <ChevronRight className="size-4" />
-            خروج
           </button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-extrabold text-slate-500">{view.titleFa}</p>
-            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${Math.round((doneSteps / totalSteps) * 100)}%` }} />
+            <p className="truncate text-[11px] font-extrabold text-white">{view.titleFa}</p>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/25">
+              <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${Math.round((doneSteps / totalSteps) * 100)}%` }} />
             </div>
           </div>
-          <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[10px] font-extrabold text-rose-600">
-            <Heart className="size-3" /> {faNum(view.stats.hearts)}
+          <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1.5 text-[10px] font-extrabold text-rose-600 shadow-sm">
+            <Heart className="size-3.5 fill-rose-500 text-rose-500" /> {faNum(view.stats.hearts)}
           </span>
-          <span className="hidden items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-700 sm:inline-flex">
-            <Sparkles className="size-3" /> {faNum(view.stats.totalXp)} XP
+          <span className="hidden items-center gap-1 rounded-full bg-white/15 px-2.5 py-1.5 text-[10px] font-extrabold text-white sm:inline-flex">
+            <Sparkles className="size-3.5" /> {faNum(view.stats.totalXp)} XP
           </span>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-4">
         {phase === "cards" && card ? (
           <div className="space-y-4">
             {cardIndex === 0 ? (
-              <section className="rounded-3xl border border-emerald-900/10 bg-gradient-to-l from-emerald-700 to-teal-600 p-5 text-white">
+              <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-l from-[#16B364] via-[#119C55] to-[#0B7A43] p-5 text-white shadow-[0_20px_40px_-26px_rgba(11,122,67,0.9)]">
+                <Confetti />
                 <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold">
                   <span className="rounded-full bg-white/15 px-2 py-1">درس {faNum(view.order)}</span>
                   <span className="rounded-full bg-white/15 px-2 py-1">{LEVEL_LABELS[view.level] ?? view.level}</span>
@@ -223,7 +225,7 @@ export function LessonPlayer({
               </section>
             ) : null}
 
-            <section className="rounded-3xl border border-emerald-900/10 bg-white p-4 shadow-sm sm:p-5">
+            <section className="rounded-[26px] border border-white bg-white p-4 shadow-[0_16px_34px_-28px_rgba(6,60,40,0.7)] sm:p-5">
               <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700">
                 کارت {faNum(cardIndex + 1)} از {faNum(view.cards.length)}
               </span>
@@ -259,7 +261,7 @@ export function LessonPlayer({
                   type="button"
                   onClick={() => setCardIndex(Math.max(0, cardIndex - 1))}
                   disabled={cardIndex === 0}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 px-3 py-2 text-[11.5px] font-bold text-slate-500 disabled:opacity-40"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-full border-2 border-slate-200 px-3.5 py-2 text-[11.5px] font-extrabold text-slate-500 disabled:opacity-40"
                 >
                   <ChevronRight className="size-3.5" />
                   قبلی
@@ -267,7 +269,7 @@ export function LessonPlayer({
                 <button
                   type="button"
                   onClick={nextCard}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-emerald-700 px-5 py-2 text-[12px] font-extrabold text-white hover:bg-emerald-800"
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border-b-4 border-emerald-800 bg-[#12B76A] px-6 py-2.5 text-[12.5px] font-extrabold text-white transition-transform hover:-translate-y-0.5"
                 >
                   {cardIndex === view.cards.length - 1 ? "شروع تمرین" : "ادامه"}
                   <ChevronLeft className="size-3.5" />
@@ -276,7 +278,7 @@ export function LessonPlayer({
             </section>
 
             {view.practical ? (
-              <section className="rounded-2xl border border-slate-200 bg-white p-4">
+              <section className="rounded-[26px] border border-white bg-white p-4 shadow-[0_16px_34px_-28px_rgba(6,60,40,0.7)]">
                 <p className="flex items-center gap-1.5 text-[12px] font-extrabold text-slate-800">
                   <BookOpen className="size-3.5 text-emerald-700" /> {view.practical.title}
                 </p>
@@ -302,7 +304,7 @@ export function LessonPlayer({
 
         {phase === "practice" && practice ? (
           <div className="space-y-3">
-            <div className="rounded-2xl bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-[22px] bg-white px-4 py-3 shadow-[0_12px_26px_-24px_rgba(6,60,40,0.7)]">
               <p className="flex items-center gap-1.5 text-[12px] font-extrabold text-slate-800">
                 <Lightbulb className="size-4 text-amber-500" /> تمرین تعاملی
               </p>
@@ -328,8 +330,8 @@ export function LessonPlayer({
         ) : null}
 
         {phase === "assessmentIntro" ? (
-          <section className="rounded-3xl border border-emerald-900/10 bg-white p-5 text-center shadow-sm">
-            <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-emerald-50">
+          <section className="rounded-[26px] border border-white bg-white p-5 text-center shadow-[0_16px_34px_-28px_rgba(6,60,40,0.7)]">
+            <span className="mx-auto flex size-14 items-center justify-center rounded-[20px] bg-gradient-to-b from-emerald-100 to-emerald-50">
               <Target className="size-7 text-emerald-600" />
             </span>
             <h2 className="mt-3 text-[15px] font-extrabold text-slate-900">آزمون درس: ۵ سؤال</h2>
@@ -345,7 +347,7 @@ export function LessonPlayer({
                 setFeedback(null);
                 setPhase("assessment");
               }}
-              className="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-emerald-700 px-6 py-2.5 text-[12.5px] font-extrabold text-white hover:bg-emerald-800"
+              className="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-full border-b-4 border-emerald-800 bg-[#12B76A] px-6 py-2.5 text-[12.5px] font-extrabold text-white transition-transform hover:-translate-y-0.5"
             >
               شروع آزمون
               <ChevronLeft className="size-4" />
@@ -355,7 +357,7 @@ export function LessonPlayer({
 
         {phase === "assessment" && assessment ? (
           <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-2xl bg-white px-4 py-2.5 shadow-sm">
+            <div className="flex items-center justify-between rounded-[22px] bg-white px-4 py-2.5 shadow-[0_12px_26px_-24px_rgba(6,60,40,0.7)]">
               <p className="text-[12px] font-extrabold text-slate-800">آزمون درس</p>
               <p className="text-[10.5px] font-bold text-slate-400">
                 {faNum(assessmentIndex + 1)} / {faNum(view.assessment.length)}
@@ -385,8 +387,9 @@ export function LessonPlayer({
 
         {phase === "result" && result ? (
           <div className="space-y-4">
-            <section className="rounded-3xl border border-emerald-900/10 bg-white p-5 text-center shadow-sm">
-              <span className={cn("mx-auto flex size-16 items-center justify-center rounded-full", result.percent >= 80 ? "bg-emerald-50" : "bg-amber-50")}>
+            <section className="relative overflow-hidden rounded-[28px] border border-white bg-white p-5 text-center shadow-[0_18px_38px_-28px_rgba(6,60,40,0.75)]">
+              <Confetti className="opacity-40" />
+              <span className={cn("relative mx-auto flex size-16 items-center justify-center rounded-full", result.percent >= 80 ? "bg-emerald-50" : "bg-amber-50")}>
                 {result.percent >= 80 ? <CheckCircle2 className="size-8 text-emerald-600" /> : <RotateCcw className="size-8 text-amber-600" />}
               </span>
               <h2 className="mt-2 text-[16px] font-extrabold text-slate-900">{result.percent >= 80 ? "درس کامل شد" : "آزمون ثبت شد"}</h2>
@@ -408,7 +411,7 @@ export function LessonPlayer({
                   <button
                     type="button"
                     onClick={() => restart(result.nextLessonId)}
-                    className="flex-1 cursor-pointer rounded-full bg-emerald-700 px-4 py-2.5 text-[12.5px] font-extrabold text-white hover:bg-emerald-800"
+                    className="flex-1 cursor-pointer rounded-full border-b-4 border-emerald-800 bg-[#12B76A] px-4 py-2.5 text-[12.5px] font-extrabold text-white transition-transform hover:-translate-y-0.5"
                   >
                     درس بعدی
                   </button>
@@ -423,7 +426,7 @@ export function LessonPlayer({
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-4">
+            <section className="rounded-[26px] border border-white bg-white p-4 shadow-[0_16px_34px_-28px_rgba(6,60,40,0.7)]">
               <p className="text-[12px] font-extrabold text-slate-800">جمع‌بندی درس</p>
               <ul className="mt-2 space-y-1">
                 {view.summary.takeaways.map((takeaway) => (
@@ -445,7 +448,7 @@ export function LessonPlayer({
               </p>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <section className="rounded-[26px] border border-white bg-white/70 p-4">
               <p className="text-[11px] font-extrabold text-slate-700">منابع علمی این درس</p>
               <ul className="mt-1.5 space-y-1">
                 {view.refs.map((ref) => (

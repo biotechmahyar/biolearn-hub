@@ -116,23 +116,23 @@ export function ExerciseView({
 
   const optionClass = (active: boolean, isCorrect?: boolean) =>
     cn(
-      "w-full rounded-xl border px-3 py-2.5 text-right text-[12.5px] font-semibold leading-6 transition-colors",
+      "w-full rounded-2xl border-2 px-3.5 py-3 text-right text-[12.5px] font-bold leading-6 transition-all",
       feedback
         ? isCorrect
-          ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+          ? "border-[#12B76A] bg-emerald-50 text-emerald-900"
           : active
-            ? "border-rose-300 bg-rose-50 text-rose-700"
-            : "border-slate-200 bg-white text-slate-500"
+            ? "border-rose-400 bg-rose-50 text-rose-700"
+            : "border-slate-200 bg-white text-slate-400"
         : active
-          ? "border-emerald-500 bg-emerald-50 text-emerald-900"
+          ? "border-[#12B76A] bg-emerald-50 text-emerald-900"
           : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/40",
     );
 
   return (
-    <div className="rounded-3xl border border-emerald-900/10 bg-white p-4 shadow-sm sm:p-5">
+    <div className="rounded-[26px] border border-white bg-white p-4 shadow-[0_18px_38px_-30px_rgba(6,60,40,0.8)] sm:p-5">
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-extrabold text-slate-500">
-          {faNum(index + 1)} از {faNum(total)}
+          سؤال {faNum(index + 1)} از {faNum(total)}
         </span>
         <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700">
           {exercise.kind === "single"
@@ -149,7 +149,7 @@ export function ExerciseView({
         </span>
       </div>
 
-      <p className="mb-4 text-[14px] font-extrabold leading-7 text-slate-900">{exercise.prompt}</p>
+      <p className="mb-4 text-[15px] font-black leading-8 text-slate-900">{exercise.prompt}</p>
 
       {exercise.kind === "single" && exercise.options ? (
         <div className="space-y-2">
@@ -204,7 +204,7 @@ export function ExerciseView({
               type="button"
               disabled={Boolean(feedback)}
               onClick={() => setBool(value)}
-              className={optionClass(bool === value, Boolean(feedback) && bool === value && feedback?.correct)}
+              className={optionClass(bool === value, Boolean(feedback) && feedback?.correctAnswer === (value ? "درست" : "نادرست"))}
             >
               {value ? "درست" : "نادرست"}
             </button>
@@ -218,14 +218,14 @@ export function ExerciseView({
           onChange={(event) => setText(event.target.value)}
           disabled={Boolean(feedback)}
           placeholder="پاسخ را بنویسید…"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-[13px] font-semibold text-slate-800 outline-none focus:border-emerald-400"
+          className="w-full rounded-2xl border-2 border-slate-200 bg-white px-3.5 py-3 text-[13px] font-bold text-slate-800 outline-none focus:border-[#12B76A]"
         />
       ) : null}
 
       {exercise.kind === "order" ? (
         <div className="space-y-1.5">
           {order.map((item, at) => (
-            <div key={`${item}-${at}`} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2">
+            <div key={`${item}-${at}`} className="flex items-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-2.5 py-2.5">
               <span className="w-4 text-[10px] font-bold text-slate-300">{faNum(at + 1)}</span>
               <span className="min-w-0 flex-1 text-[12px] font-semibold text-slate-700">{item}</span>
               <button
@@ -255,7 +255,7 @@ export function ExerciseView({
         <div className="space-y-2">
           {exercise.lefts.map((left, at) => (
             <div key={left} className="flex items-center gap-2">
-              <span className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] font-bold text-slate-700">
+              <span className="min-w-0 flex-1 rounded-2xl border-2 border-slate-200 bg-slate-50 px-2.5 py-2 text-[12px] font-bold text-slate-700">
                 {left}
               </span>
               <select
@@ -279,8 +279,8 @@ export function ExerciseView({
       {feedback ? (
         <div
           className={cn(
-            "mt-4 rounded-2xl border px-3 py-3",
-            feedback.correct ? "border-emerald-200 bg-emerald-50/70" : "border-rose-200 bg-rose-50/70",
+            "mt-4 rounded-[22px] border-2 px-3.5 py-3",
+            feedback.correct ? "border-emerald-200 bg-emerald-50/80" : "border-rose-200 bg-rose-50/80",
           )}
         >
           <p className={cn("flex items-center gap-1.5 text-[12px] font-extrabold", feedback.correct ? "text-emerald-700" : "text-rose-700")}>
@@ -300,8 +300,7 @@ export function ExerciseView({
           <p className="mt-1 text-[11.5px] leading-6 text-slate-600">{feedback.explain}</p>
           <button
             type="button"
-            onClick={onNext}
-            className="mt-3 inline-flex w-full cursor-pointer items-center justify-center rounded-full bg-emerald-700 px-4 py-2.5 text-[12.5px] font-extrabold text-white transition-colors hover:bg-emerald-800"
+            onClick={onNext}                className="mt-3 inline-flex w-full cursor-pointer items-center justify-center rounded-full border-b-4 border-emerald-800 bg-[#12B76A] px-4 py-3 text-[12.5px] font-extrabold text-white transition-transform hover:-translate-y-0.5"
           >
             {nextLabel}
           </button>
@@ -311,7 +310,7 @@ export function ExerciseView({
           type="button"
           onClick={submit}
           disabled={!canSubmit || pending}
-          className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-full bg-emerald-700 px-4 py-2.5 text-[12.5px] font-extrabold text-white transition-colors hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          className="mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-full border-b-4 border-emerald-800 bg-[#12B76A] px-4 py-3 text-[12.5px] font-extrabold text-white transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-400 disabled:hover:translate-y-0"
         >
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
           بررسی پاسخ
