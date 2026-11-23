@@ -165,6 +165,15 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
   const [reading, setReading] = useState(false);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Grow the textarea with its content (and shrink back after sending)
+  // instead of showing an inner scrollbar on a phone.
+  useEffect(() => {
+    const el = areaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+  }, [text]);
+
   useImperativeHandle(ref, () => ({
     setText: (value: string) => {
       setText(value);
@@ -234,7 +243,7 @@ const Composer = forwardRef<ComposerHandle, ComposerProps>(function Composer(
         disabled={disabled}
         rows={2}
         // 16px on phones so iOS Safari does not zoom the whole page on focus.
-        className="max-h-36 resize-none border-0 bg-transparent p-2 text-[16px] leading-7 shadow-none focus-visible:ring-0 sm:max-h-none sm:text-[14px]"
+        className="min-h-[56px] max-h-[168px] w-full resize-none overflow-y-auto border-0 bg-transparent p-2 text-[16px] leading-7 shadow-none focus-visible:ring-0 sm:text-[15px]"
       />
 
       {attachment && (
@@ -491,40 +500,44 @@ const MessageBubble = memo(function MessageBubble({
     }
   }, [content]);
 
+  const avatar = (
+    <span
+      className={cn(
+        "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full sm:size-8",
+        isUser
+          ? "bg-primary/10 text-primary"
+          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+      )}
+    >
+      {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
+    </span>
+  );
+
   return (
-    // Outgoing (user) messages sit on the left edge, assistant answers on the
-    // right — the layout Persian chat apps use, and what the page needed.
-    <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
-      <div
-        className={cn(
-          "flex min-w-0 max-w-[86%] items-start gap-1.5 sm:max-w-[80%] sm:gap-2",
-          isUser && "flex-row-reverse",
-        )}
-      >
-        <span
-          className={cn(
-            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full sm:size-8",
-            isUser
-              ? "bg-primary/10 text-primary"
-              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-          )}
-        >
-          {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
-        </span>
+    // `dir="ltr"` on the row makes placement independent of the page's RTL
+    // direction: the user's bubble (and avatar) is pinned to the left edge,
+    // the assistant's bubble (and avatar) to the right. Text direction inside
+    // each bubble is set separately.
+    <div dir="ltr" className={cn("flex w-full", isUser ? "justify-start" : "justify-end")}>
+      <div className="flex min-w-0 max-w-[92%] items-start gap-2 sm:max-w-[80%]">
+        {isUser && avatar}
 
         <div className="flex min-w-0 flex-col items-start gap-1">
           <div
             className={cn(
-              // `break-words` keeps long tokens (FBbt ids, URLs, Latin gene
-              // names) from pushing the bubble past the phone viewport.
-              "max-w-full min-w-0 break-words rounded-3xl px-3.5 py-2.5 text-[13.5px] leading-7 sm:px-4 sm:py-3",
+              // `break-words` + `overflow-wrap:anywhere` keep long tokens
+              // (URLs, Latin gene names, base sequences) inside the bubble.
+              "min-w-0 max-w-full break-words rounded-[22px] px-3.5 py-2.5 text-[14.5px] leading-8 sm:px-4 sm:py-3 sm:text-[15px]",
               isUser
-                ? "rounded-ee-md bg-primary text-left text-primary-foreground"
-                : "rounded-es-md border border-border bg-card text-foreground",
+                ? "rounded-bl-md bg-primary text-primary-foreground"
+                : "rounded-br-md border border-border bg-card text-foreground shadow-[0_1px_2px_rgba(2,24,17,0.04)]",
             )}
           >
             {isUser ? (
-              <p dir="auto" className="whitespace-pre-wrap break-words text-left">
+              <p
+                dir="auto"
+                className="whitespace-pre-wrap text-left break-words [overflow-wrap:anywhere]"
+              >
                 {content}
               </p>
             ) : (
@@ -535,6 +548,7 @@ const MessageBubble = memo(function MessageBubble({
           {!isUser && (
             <button
               type="button"
+              dir="rtl"
               onClick={copy}
               className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               title="کپی پاسخ"
@@ -548,6 +562,8 @@ const MessageBubble = memo(function MessageBubble({
             </button>
           )}
         </div>
+
+        {!isUser && avatar}
       </div>
     </div>
   );
@@ -595,8 +611,41 @@ const MessageThread = memo(function MessageThread({
   );
 });
 
+/**
+ * Phone keyboards shrink the *visual* viewport without resizing the layout
+ * viewport (iOS especially), which used to push the docked composer behind
+ * the keyboard. Tracking the visual viewport keeps header + messages +
+ * composer inside the visible area. Desktop/tablet keep their normal height.
+ */
+function useVisualViewportHeight() {
+  const [height, setHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const apply = () => {
+      const handheld = window.matchMedia("(max-width: 1023px)").matches;
+      setHeight(handheld ? Math.round(viewport.height) : null);
+    };
+
+    apply();
+    viewport.addEventListener("resize", apply);
+    window.addEventListener("resize", apply);
+    window.addEventListener("orientationchange", apply);
+    return () => {
+      viewport.removeEventListener("resize", apply);
+      window.removeEventListener("resize", apply);
+      window.removeEventListener("orientationchange", apply);
+    };
+  }, []);
+
+  return height;
+}
+
 export default function AIChat() {
   const { isIran } = useMode();
+  const viewportHeight = useVisualViewportHeight();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const navigate = useNavigate();
   const [selectedConvo, setSelectedConvo] = useState<string | null>(null);
@@ -710,9 +759,15 @@ export default function AIChat() {
   const sendMessageConvex = useMutation(api.aiChat.sendMessage);
   const deleteConvoConvex = useMutation(api.aiChat.deleteConversation);
 
+  // Keep the newest turn in view — including after Markdown content (tables,
+  // code blocks) has been laid out and changed the thread height.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const end = messagesEndRef.current;
+    if (!end) return;
+    end.scrollIntoView({ behavior: "smooth", block: "end" });
+    const settle = window.setTimeout(() => end.scrollIntoView({ block: "end" }), 180);
+    return () => window.clearTimeout(settle);
+  }, [messages, isSending]);
 
   const activeModel = useMemo(
     () => activeModels.find((m: any) => m._id === selectedModelId) ?? null,
@@ -944,7 +999,11 @@ export default function AIChat() {
   );
 
   return (
-    <div className="flex h-screen [@supports(height:100dvh)]:h-dvh overflow-hidden bg-background" dir="rtl">
+    <div
+      className="flex h-screen w-full max-w-full overflow-hidden bg-background [@supports(height:100dvh)]:h-dvh"
+      style={viewportHeight ? { height: `${viewportHeight}px` } : undefined}
+      dir="rtl"
+    >
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside
         className={cn(
@@ -1048,7 +1107,7 @@ export default function AIChat() {
         </nav>
 
         <ScrollArea className="mt-3 min-h-0 flex-1 overscroll-contain px-4">
-          <div className="w-[276px] max-w-full space-y-4 pb-3">
+          <div className="w-full space-y-4 pb-3">
             {conversations === undefined && (
               <div className="flex justify-center py-6">
                 <Loader2 className="size-4 animate-spin text-muted-foreground" />
@@ -1183,11 +1242,11 @@ export default function AIChat() {
 
       {/* ── Main ────────────────────────────────────────────── */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-1.5 border-b border-border px-2.5 sm:h-16 sm:gap-2 sm:px-4">
+        <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-1.5 border-b border-border px-2.5 pt-[env(safe-area-inset-top)] sm:h-[calc(4rem+env(safe-area-inset-top))] sm:gap-2 sm:px-4">
           <Button
             variant="ghost"
             size="icon"
-            className="size-9 rounded-xl"
+            className="size-9 shrink-0 rounded-xl"
             onClick={() => {
               if (collapsed) setCollapsed(false);
               else setSidebarOpen((v) => !v);
@@ -1274,7 +1333,7 @@ export default function AIChat() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-9 rounded-xl" title="بیشتر">
+              <Button variant="ghost" size="icon" className="size-9 shrink-0 rounded-xl" title="بیشتر">
                 <MoreHorizontal className="size-4" />
               </Button>
             </DropdownMenuTrigger>

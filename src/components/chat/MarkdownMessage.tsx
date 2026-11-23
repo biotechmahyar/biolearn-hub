@@ -19,7 +19,7 @@ import { faNum } from "@/lib/format";
  * consistently instead of mixing giant and tiny glyphs.
  */
 
-type Align = "left" | "center" | "right";
+type Align = "start" | "left" | "center" | "right";
 
 type Block =
   | { type: "code"; lang: string; code: string }
@@ -230,8 +230,9 @@ function alignOf(cell: string): Align {
   const right = cell.endsWith(":");
   if (left && right) return "center";
   if (left) return "left";
-  // A plain `---` separator follows the table's RTL reading direction.
-  return "right";
+  if (right) return "right";
+  // A plain `---` follows each message's own direction (RTL for Persian).
+  return "start";
 }
 
 function startsBlock(line: string): boolean {
@@ -436,19 +437,24 @@ function ListNodes({ nodes, depth = 0 }: { nodes: ListNode[]; depth?: number }) 
 }
 
 const HEADING_CLASS: Record<number, string> = {
-  1: "mt-3.5 text-[16.5px] font-extrabold leading-7 first:mt-0",
-  2: "mt-3.5 text-[15.5px] font-extrabold leading-7 first:mt-0",
-  3: "mt-3 text-[14.5px] font-bold leading-7 first:mt-0",
-  4: "mt-2.5 text-[13.5px] font-bold leading-6 first:mt-0",
+  1: "mt-4 text-[18px] font-extrabold leading-8 first:mt-0",
+  2: "mt-3.5 text-[17px] font-extrabold leading-8 first:mt-0",
+  3: "mt-3 text-[16px] font-bold leading-7 first:mt-0",
+  4: "mt-2.5 text-[15px] font-bold leading-7 first:mt-0",
 };
 
 export function MarkdownMessage({ content, className }: { content: string; className?: string }) {
   const blocks = useMemo(() => parseBlocks(content ?? ""), [content]);
 
   return (
+    // `dir="auto"` keeps bidi ordering right for English answers while the
+    // explicit `text-right` still pins every answer to the right edge.
     <div
-      dir="rtl"
-      className={cn("min-w-0 text-right text-[13.5px] leading-7 sm:text-[13.5px]", className)}
+      dir="auto"
+      className={cn(
+        "min-w-0 text-right text-[14.5px] leading-8 [overflow-wrap:anywhere] sm:text-[15px]",
+        className,
+      )}
     >
       {blocks.map((block, index) => {
         switch (block.type) {
@@ -482,15 +488,15 @@ export function MarkdownMessage({ content, className }: { content: string; class
             return (
               <div
                 key={index}
-                className="my-3 overflow-x-auto rounded-xl border border-border"
+                className="my-3 max-w-full overflow-x-auto rounded-xl border border-border"
               >
-                <table className="w-full min-w-[300px] border-collapse text-[12px]">
+                <table className="w-full min-w-[280px] border-collapse text-[13px]">
                   <thead className="bg-muted/70">
                     <tr>
                       {block.head.map((cell, cellIndex) => (
                         <th
                           key={cellIndex}
-                          className="border-b border-border px-2.5 py-2 text-right font-bold text-foreground"
+                          className="border-b border-border px-2.5 py-2 text-start font-bold text-foreground"
                         >
                           {renderInline(cell)}
                         </th>
@@ -503,7 +509,7 @@ export function MarkdownMessage({ content, className }: { content: string; class
                         {row.map((cell, cellIndex) => (
                           <td
                             key={cellIndex}
-                            style={{ textAlign: block.align[cellIndex] ?? "right" }}
+                            style={{ textAlign: block.align[cellIndex] ?? "start" }}
                             className="border-b border-border/60 px-2.5 py-1.5 align-top last:border-b-0"
                           >
                             {renderInline(cell)}
