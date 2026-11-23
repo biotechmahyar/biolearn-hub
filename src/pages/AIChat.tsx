@@ -23,7 +23,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertTriangle,
-  Bot,
   Check,
   ChevronDown,
   Copy,
@@ -45,7 +44,6 @@ import {
   Send,
   Sparkles,
   Trash2,
-  User,
   Wand2,
   X,
   Zap,
@@ -500,28 +498,14 @@ const MessageBubble = memo(function MessageBubble({
     }
   }, [content]);
 
-  const avatar = (
-    <span
-      className={cn(
-        "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full sm:size-8",
-        isUser
-          ? "bg-primary/10 text-primary"
-          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-      )}
-    >
-      {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
-    </span>
-  );
-
   return (
     // `dir="ltr"` on the row makes placement independent of the page's RTL
-    // direction: the user's bubble (and avatar) is pinned to the left edge,
-    // the assistant's bubble (and avatar) to the right. Text direction inside
-    // each bubble is set separately.
+    // direction: the user's bubble is pinned to the left edge and the
+    // assistant's to the right. Text direction inside each bubble is set
+    // separately. No avatars: on narrow phones the extra 36px squeezed the
+    // bubble and pushed long words against the edge.
     <div dir="ltr" className={cn("flex w-full", isUser ? "justify-start" : "justify-end")}>
-      <div className="flex min-w-0 max-w-[92%] items-start gap-2 sm:max-w-[80%]">
-        {isUser && avatar}
-
+      <div className="flex min-w-0 max-w-[92%] items-start sm:max-w-[80%]">
         <div className="flex min-w-0 flex-col items-start gap-1">
           <div
             className={cn(
@@ -562,8 +546,6 @@ const MessageBubble = memo(function MessageBubble({
             </button>
           )}
         </div>
-
-        {!isUser && avatar}
       </div>
     </div>
   );
@@ -592,11 +574,8 @@ const MessageThread = memo(function MessageThread({
         <MessageBubble key={m._id} role={m.role} content={m.content ?? ""} />
       ))}
       {(isSending || isWaiting) && (
-        <div className="flex justify-start gap-1.5 sm:gap-2">
-          <div className="mt-0.5 flex size-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 sm:size-8 dark:text-emerald-400">
-            <Bot className="size-3.5" />
-          </div>
-          <div className="flex items-center gap-2 rounded-3xl rounded-es-md border border-border bg-card px-3.5 py-2.5 text-[12.5px] text-muted-foreground sm:px-4 sm:py-3 sm:text-[13px]">
+        <div className="flex justify-start">
+          <div className="flex items-center gap-2 rounded-[22px] rounded-br-md border border-border bg-card px-3.5 py-2.5 text-[12.5px] text-muted-foreground sm:px-4 sm:py-3 sm:text-[13px]">
             <span className="flex gap-1">
               <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
               <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
