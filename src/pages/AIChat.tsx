@@ -51,6 +51,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AssistantOrb } from "@/components/site/AssistantOrb";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
@@ -469,6 +470,89 @@ const EmptyHero = memo(function EmptyHero({ firstName }: { firstName: string }) 
   );
 });
 
+// ── Message bubble ────────────────────────────────────────────────────────
+const MessageBubble = memo(function MessageBubble({
+  role,
+  content,
+}: {
+  role: string;
+  content: string;
+}) {
+  const isUser = role === "user";
+  const [copied, setCopied] = useState(false);
+
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error("کپی ممکن نشد");
+    }
+  }, [content]);
+
+  return (
+    // Outgoing (user) messages sit on the left edge, assistant answers on the
+    // right — the layout Persian chat apps use, and what the page needed.
+    <div className={cn("flex w-full", isUser ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "flex min-w-0 max-w-[86%] items-start gap-1.5 sm:max-w-[80%] sm:gap-2",
+          isUser && "flex-row-reverse",
+        )}
+      >
+        <span
+          className={cn(
+            "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full sm:size-8",
+            isUser
+              ? "bg-primary/10 text-primary"
+              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+          )}
+        >
+          {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
+        </span>
+
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          <div
+            className={cn(
+              // `break-words` keeps long tokens (FBbt ids, URLs, Latin gene
+              // names) from pushing the bubble past the phone viewport.
+              "max-w-full min-w-0 break-words rounded-3xl px-3.5 py-2.5 text-[13.5px] leading-7 sm:px-4 sm:py-3",
+              isUser
+                ? "rounded-ee-md bg-primary text-left text-primary-foreground"
+                : "rounded-es-md border border-border bg-card text-foreground",
+            )}
+          >
+            {isUser ? (
+              <p dir="auto" className="whitespace-pre-wrap break-words text-left">
+                {content}
+              </p>
+            ) : (
+              <MarkdownMessage content={content} />
+            )}
+          </div>
+
+          {!isUser && (
+            <button
+              type="button"
+              onClick={copy}
+              className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10.5px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="کپی پاسخ"
+            >
+              {copied ? (
+                <Check className="size-3 text-emerald-500" />
+              ) : (
+                <Copy className="size-3" />
+              )}
+              {copied ? "کپی شد" : "کپی پاسخ"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 // ── Message thread (memoised) ─────────────────────────────────────────────
 const MessageThread = memo(function MessageThread({
   messages,
@@ -482,40 +566,21 @@ const MessageThread = memo(function MessageThread({
   endRef: RefObject<HTMLDivElement | null>;
 }) {
   return (
-    <div className="space-y-4 py-2 sm:space-y-6">
+    <div className="space-y-3.5 py-1 sm:space-y-6 sm:py-2">
       {messages === undefined && (
         <div className="flex justify-center py-12">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       )}
       {messages?.map((m: any) => (
-        <div
-          key={m._id}
-          className={cn("flex gap-2 sm:gap-3", m.role === "user" ? "flex-row-reverse" : "")}
-        >
-          <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-8">
-            {m.role === "user" ? <User className="size-3.5 sm:size-4" /> : <Bot className="size-3.5 sm:size-4" />}
-          </div>
-          <div
-            className={cn(
-              // `break-words` keeps long tokens (FBbt ids, URLs, Latin gene
-              // names) from pushing the bubble past the phone viewport.
-              "max-w-[86%] break-words whitespace-pre-wrap rounded-3xl px-3.5 py-2.5 text-[14px] leading-7 sm:max-w-[80%] sm:px-4 sm:py-3 sm:text-[13.5px]",
-              m.role === "user"
-                ? "rounded-ee-md bg-primary text-primary-foreground"
-                : "rounded-es-md border border-border bg-card text-foreground",
-            )}
-          >
-            {m.content}
-          </div>
-        </div>
+        <MessageBubble key={m._id} role={m.role} content={m.content ?? ""} />
       ))}
       {(isSending || isWaiting) && (
-        <div className="flex gap-2 sm:gap-3">
-          <div className="flex size-7 items-center justify-center rounded-full bg-primary/10 text-primary sm:size-8">
-            <Bot className="size-3.5 sm:size-4" />
+        <div className="flex justify-start gap-1.5 sm:gap-2">
+          <div className="mt-0.5 flex size-7 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 sm:size-8 dark:text-emerald-400">
+            <Bot className="size-3.5" />
           </div>
-          <div className="flex items-center gap-2 rounded-3xl border border-border bg-card px-3.5 py-2.5 text-[12.5px] text-muted-foreground sm:px-4 sm:py-3 sm:text-[13px]">
+          <div className="flex items-center gap-2 rounded-3xl rounded-es-md border border-border bg-card px-3.5 py-2.5 text-[12.5px] text-muted-foreground sm:px-4 sm:py-3 sm:text-[13px]">
             <span className="flex gap-1">
               <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:0ms]" />
               <span className="inline-block size-1.5 animate-bounce rounded-full bg-primary [animation-delay:150ms]" />
@@ -1140,9 +1205,11 @@ export default function AIChat() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="h-10 min-w-0 gap-1.5 rounded-2xl px-2.5 sm:gap-2 sm:px-3">
                 <Sparkles className="size-4 shrink-0 text-primary" />
-                <span className="max-w-[84px] truncate text-[12px] sm:max-w-[140px] sm:text-sm">
+                <span className="max-w-[76px] truncate text-[12px] sm:max-w-[140px] sm:text-sm">
                   {effectiveModel?.name ?? "مدل پیش‌فرض"}
-                  {!activeModel && effectiveModel ? " (پیش‌فرض)" : ""}
+                  {!activeModel && effectiveModel ? (
+                    <span className="hidden sm:inline"> (پیش‌فرض)</span>
+                  ) : null}
                 </span>
                 <ChevronDown className="size-3.5 shrink-0 opacity-70" />
               </Button>
@@ -1180,8 +1247,8 @@ export default function AIChat() {
 
           <div className="flex-1" />
 
-          {/* Remaining quota: the wide pill from md up, a compact dot below it
-              so a phone still shows the budget before it runs out. */}
+          {/* Remaining quota: the wide pill from md up, a compact dot on
+              tablets. On phones the sidebar card carries the same numbers. */}
           {usage && (
             <>
               <div className="hidden items-center gap-1.5 rounded-full bg-muted/60 px-3 py-1.5 text-[11.5px] text-muted-foreground md:flex">
@@ -1192,7 +1259,7 @@ export default function AIChat() {
                 dir="ltr"
                 title={`${faNum(Math.max(effectiveRemaining, 0))} پیام باقی‌مانده`}
                 className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-xl md:hidden",
+                  "hidden size-9 shrink-0 items-center justify-center rounded-xl sm:flex md:hidden",
                   hasReachedLimit
                     ? "bg-destructive/10 text-destructive"
                     : effectiveRemaining <= 1
@@ -1254,7 +1321,7 @@ export default function AIChat() {
 
         {/* Messages / hero */}
         <ScrollArea className="min-h-0 flex-1 overscroll-contain">
-          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-3 py-4 sm:px-6 sm:py-6">
+          <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-3 pb-4 pt-3 sm:px-6 sm:py-6">
             {!selectedConvo ? (
               /* `my-auto` instead of `justify-center`: when the hero is taller
                  than a phone viewport, `justify-center` pushes the top (the orb
@@ -1270,23 +1337,6 @@ export default function AIChat() {
                     onPick={(prompt) => composerRef.current?.setText(prompt)}
                   />
                 </div>
-
-                <div className="w-full max-w-2xl">
-                  <Composer
-                    ref={composerRef}
-                    models={activeModels}
-                    selectedModelId={selectedModelId}
-                    onSelectModel={handleModelSelect}
-                    onSubmit={submitPrompt}
-                    deepResearch={deepResearch}
-                    onToggleDeep={setDeepResearch}
-                    isSending={isSending}
-                    disabled={hasReachedLimit}
-                    placeholder={
-                      hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
-                    }
-                  />
-                </div>
               </div>
             ) : (
               <MessageThread
@@ -1299,35 +1349,41 @@ export default function AIChat() {
           </div>
         </ScrollArea>
 
-        {/* Composer (docked when a conversation is open) */}
-        {selectedConvo && (
-          <div className="shrink-0 border-t border-border bg-card/60 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4">
-            <div className="mx-auto w-full max-w-4xl">
-              {hasReachedLimit && (
-                <div className="mb-3 flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-[13px] text-amber-600">
-                  <AlertTriangle className="size-4" />
-                  محدودیت روزانه تمام شده. فردا دوباره شارژ می‌شود.
-                </div>
-              )}
-              <Composer
-                ref={composerRef}
-                models={activeModels}
-                selectedModelId={selectedModelId}
-                onSelectModel={handleModelSelect}
-                onSubmit={submitPrompt}
-                deepResearch={deepResearch}
-                onToggleDeep={setDeepResearch}
-                isSending={isSending}
-                disabled={hasReachedLimit}
-                placeholder={
-                  hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
-                }
-              />
-            </div>
+        {/* Composer — always docked above the fold, so opening the phone
+            keyboard never pushes the input out of view. */}
+        <div className="shrink-0 border-t border-border bg-card/60 p-2.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur sm:p-4">
+          <div className="mx-auto w-full max-w-4xl">
+            {hasReachedLimit && (
+              <div className="mb-3 flex items-center gap-2 rounded-2xl bg-amber-50 px-4 py-2.5 text-[13px] text-amber-600">
+                <AlertTriangle className="size-4" />
+                محدودیت روزانه تمام شده. فردا دوباره شارژ می‌شود.
+              </div>
+            )}
+            <Composer
+              ref={composerRef}
+              models={activeModels}
+              selectedModelId={selectedModelId}
+              onSelectModel={handleModelSelect}
+              onSubmit={submitPrompt}
+              deepResearch={deepResearch}
+              onToggleDeep={setDeepResearch}
+              isSending={isSending}
+              disabled={hasReachedLimit}
+              placeholder={
+                hasReachedLimit ? "محدودیت روزانه تمام شده..." : "از من هر چیزی بپرس…"
+              }
+            />
           </div>
-        )}
+        </div>
 
-        <footer className="shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-[11px] text-muted-foreground sm:text-[11.5px]">
+        <footer
+          className={cn(
+            "shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-center text-[11px] text-muted-foreground sm:text-[11.5px]",
+            // On a phone the docked composer already uses the bottom edge;
+            // the marketing line only costs viewport height there.
+            selectedConvo && "hidden sm:block",
+          )}
+        >
           برای بینش‌های بیشتر به جامعهٔ ژنوا بپیوندید —{" "}
           <button
             type="button"

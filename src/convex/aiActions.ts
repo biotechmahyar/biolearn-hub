@@ -48,6 +48,26 @@ function providerBase(provider: string, baseUrl: string): string {
 // ── Shared provider call ────────────────────────────────────────────────────
 type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
 
+/**
+ * Formatting contract for the student-facing chat.
+ *
+ * The site renders answers with a Markdown parser (headings, lists, tables,
+ * fenced code with copy, highlights). Without this the model often emits raw
+ * "#" lines that used to appear literally in the bubble. It is appended to the
+ * admin's own system prompt instead of replacing it.
+ */
+const CHAT_FORMAT_GUIDE = [
+  "── قالب پاسخ (همیشه رعایت کن) ──",
+  "- پاسخ را با Markdown بنویس؛ تیترها را با ## یا ### شروع کن تا به عنوان واقعی تبدیل شوند و هرگز # را به‌صورت جدا در متن رها نکن.",
+  "- برای مقایسه‌ها از جدول Markdown با سرستون و ردیف استفاده کن (| مفهوم | مورد A | مورد B |).",
+  "- برای هر توالی زیستی، فرمول، دستور یا کد از بلوک ``` با نام زبان استفاده کن تا کاربر بتواند کپی کند.",
+  "- فهرست‌ها را با - یا 1. بنویس، هر مورد کوتاه، و از پاراگراف‌های بسیار بلند پرهیز کن.",
+  "- نکتهٔ کلیدی را با **متن** و عبارت مهم را با ==متن== هایلایت کن.",
+  "- اگر رنگ برای تفکیک لازم بود فقط از <span style=\"color:green\">متن</span> با رنگ‌های green/red/blue/amber/purple استفاده کن.",
+  "- ایموجی را کم و فقط برای نشانه‌گذاری بخش‌ها به‌کار ببر (حداکثر یکی در هر تیتر).",
+  "- پاسخ فارسی روان با معادل انگلیسی اصطلاح تخصصی در پرانتز باشد.",
+].join("\n");
+
 type ProviderConfig = {
   apiKey: string;
   baseUrl: string;
@@ -153,8 +173,9 @@ export const callAI = action({
       conversationId: args.conversationId,
     });
 
+    const baseSystem = rawConfig.systemPrompt || "شما یک دستیار تخصصی علوم زیستی هستید.";
     const chatMessages: ChatTurn[] = [
-      { role: "system", content: rawConfig.systemPrompt || "شما یک دستیار تخصصی علوم زیستی هستید." },
+      { role: "system", content: `${baseSystem}\n\n${CHAT_FORMAT_GUIDE}` },
       ...messages.map((m: any) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
