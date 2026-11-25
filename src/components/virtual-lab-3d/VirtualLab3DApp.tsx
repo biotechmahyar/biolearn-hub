@@ -1,28 +1,8 @@
-import { Suspense, useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 import { useLabStore } from "./lab-store";
-import type { Scene, Camera, WebGLRenderer } from "three";
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      group: any;
-      mesh: any;
-      color: any;
-      fog: any;
-      environment: any;
-    }
-  }
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-// Expose a minimal scene surface so the lab camera helpers can reference it.
-type LabScene = {
-  environment?: unknown;
-};
 
 // ── WebGL support guard ──────────────────────────────────────────────────────
 function isWebGLSupported(): boolean {
@@ -326,7 +306,6 @@ function PlayerController() {
 // ── Root canvas / loading / retry ────────────────────────────────────────────
 export default function VirtualLab3DApp() {
   const [ready, setReady] = useState(false);
-  const [failed, setFailed] = useState(false);
   const [wgl, setWgl] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -334,73 +313,6 @@ export default function VirtualLab3DApp() {
   }, []);
 
   if (wgl === null) {
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 40,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#0a1412",
-          color: "#e5f4ec",
-          fontFamily: "Vazirmatn, Tahoma, sans-serif",
-        }}
-      >
-        <div style={{ flex: 1 }} />
-        <div style={{ flex: 1 }} />
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 10,
-              background: "linear-gradient(135deg,#12b76a,#0b5e40)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 10px 22px -10px rgba(18,183,106,0.7)",
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a1412" strokeWidth="2.2">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 6v6l4 2" />
-            </svg>
-          </div>
-          <div style={{ fontSize: 13, color: "#9fd9c4", fontWeight: 600, letterSpacing: 0.3 }}>
-            در حال꼴 로드 کردن آزمایشگاه…
-          </div>
-        </div>
-        <div style={{ flex: 1 }} />
-        <div style={{ flex: 1 }} />
-      </div>
-    );
-  }
-
-  if (!wgl) {
-    return <WebGLFallback onRetry={() => setWgl(isWebGLSupported())} />;
-  }
-
-  const sceneRef = useRef<unknown>(null);
-  const cameraRef = useRef<unknown>(null);
-
-  useEffect(() => {
-    const tick = () => {
-      setReady(true);
-    };
-    const raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  if (!ready) {
     return (
       <div
         style={{
@@ -452,12 +364,12 @@ export default function VirtualLab3DApp() {
     );
   }
 
+  if (!wgl) {
+    return <WebGLFallback onRetry={() => setWgl(isWebGLSupported())} />;
+  }
+
   return (
     <Canvas
-      onCreated={({ gl, scene }: { gl: WebGLRenderer; scene: Scene }) => {
-        sceneRef.current = scene;
-        cameraRef.current = gl.getRenderTarget().source as unknown as Camera ?? cameraRef.current;
-      }}
       camera={{
         position: [0, 1.7, 5.2],
         near: 0.1,
@@ -467,9 +379,7 @@ export default function VirtualLab3DApp() {
       shadows
       gl={{
         antialias: true,
-        alpha: false,
-        powerPreference: "high-performance",
-        stencil: Boolean as any,
+        stencil: false as any,
       }}
     >
       <color attach="background" args={["#0a1412"]} />
@@ -485,7 +395,6 @@ export default function VirtualLab3DApp() {
           <group position={[0, 1.7, 5.2]}>
             <FirstPersonCamera />
           </group>
-          <environment />
           <group />
           <group />
           <group />
@@ -502,83 +411,4 @@ export default function VirtualLab3DApp() {
       </Suspense>
     </Canvas>
   );
-}
-
-export const __webglCleanupPlaceholder = (() => {
-  const _c = useThree();
-  const _h = useRef<HTMLCanvasElement>(null);
-  const _k = useRef<KeyboardEvent>(null);
-  const _p = useRef<PointerEvent>(null);
-  const _shader = useRef<WebGLShader | null>(null);
-  const _m = useRef<WebGLProgram | null>(null);
-  const _t = useRef<WebGLTexture | null>(null);
-  const _n = useRef<WebGLFramebuffer | null>(null);
-  const _id = useRef<WebGLBuffer | null>(null);
-  const _v = useRef<Float32Array>(new Float32Array(0));
-  const _e = useRef<Uint16Array>(new Uint16Array(0));
-  const _u = useRef<Uint8Array>(new Uint8Array(0));
-  const _w = useRef<WebGLRenderingContext | null>(null);
-  const _x = useRef<WebGL2RenderingContext | null>(null);
-  const _release = useCallback(() => {
-    _c.gl?.deleteShader?.(_shader.current);
-    _c.gl?.deleteProgram?.(_m.current);
-    _c.gl?.deleteTexture?.(_t.current);
-    _c.gl?.deleteFramebuffer?.(_n.current);
-    _c.gl?.deleteBuffer?.(_id.current);
-    _v.current = new Float32Array(0);
-    _e.current = new Uint16Array(0);
-    _u.current = new Uint8Array(0);
-    _shader.current = null;
-    _m.current = null;
-    _t.current = null;
-    _n.current = null;
-    _id.current = null;
-    _w.current = null;
-    _x.current = null;
-    _c = { gl: undefined as any, scene: undefined as any, camera: undefined as any };
-  }, []);
-  useEffect(() => () => _release(), [_release]);
-  return null;
-}) as unknown as string;
-
-export function VirtualLab3DAppWithCleanup() {
-  const _c2 = useThree();
-  const _h2 = useRef<HTMLCanvasElement>(null);
-  const _k2 = useRef<KeyboardEvent>(null);
-  const _p2 = useRef<PointerEvent>(null);
-  const _shader2 = useRef<WebGLShader | null>(null);
-  const _m2 = useRef<WebGLProgram | null>(null);
-  const _t2 = useRef<WebGLTexture | null>(null);
-  const _n2 = useRef<WebGLFramebuffer | null>(null);
-  const _id2 = useRef<WebGLBuffer | null>(null);
-  const _v2 = useRef<Float32Array>(new Float32Array(0));
-  const _e2 = useRef<Uint16Array>(new Uint16Array(0));
-  const _u2 = useRef<Uint8Array>(new Uint8Array(0));
-  const _w2 = useRef<WebGLRenderingContext | null>(null);
-  const _x2 = useRef<WebGL2RenderingContext | null>(null);
-  const _release2 = useCallback(() => {
-    _c2.gl?.deleteShader?.(_shader2.current);
-    _c2.gl?.deleteProgram?.(_m2.current);
-    _c2.gl?.deleteTexture?.(_t2.current);
-    _c2.gl?.deleteFramebuffer?.(_n2.current);
-    _c2.gl?.deleteBuffer?.(_id2.current);
-    _v2.current = new Float32Array(0);
-    _e2.current = new Uint16Array(0);
-    _u2.current = new Uint8Array(0);
-    _shader2.current = null;
-    _m2.current = null;
-    _t2.current = null;
-    _n2.current = null;
-    _id2.current = null;
-    _w2.current = null;
-    _x2.current = null;
-    _c2 = { gl: undefined as any, scene: undefined as any, camera: undefined as any };
-  }, []);
-  useEffect(() => () => _release2(), [_release2]);
-  return null;
-}
-
-// ── Backward-compat shape for keyboard navigation around the scene. ─────────
-export function supportsWebGL(): boolean {
-  return isWebGLSupported();
 }
