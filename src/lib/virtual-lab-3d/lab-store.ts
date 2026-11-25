@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export const useLabStore = create<{
+export interface LabManagerState {
   manager: {
     yaw: number;
     pitch: number;
@@ -12,7 +12,9 @@ export const useLabStore = create<{
   setLocked: (locked: boolean) => void;
   setHoveredId: (id: string | null) => void;
   setPanelId: (id: string | null) => void;
-}>((set, get) => ({
+}
+
+export const useLabStore = create<LabManagerState>((set) => ({
   manager: {
     yaw: 0,
     pitch: 0,
@@ -21,7 +23,10 @@ export const useLabStore = create<{
   },
   hoveredId: null,
   panelId: null,
-  setLocked: (locked) => set({ manager: { ...get().manager, locked } }),
+  setLocked: (locked) =>
+    set((s) => ({
+      manager: { ...s.manager, locked },
+    })),
   setHoveredId: (hoveredId) => set({ hoveredId }),
   setPanelId: (panelId) => set({ panelId }),
 }));
