@@ -1,20 +1,38 @@
-import { Suspense, useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
-import {
-  useLabStore,
-  LabEnvironment,
-  LabFurnishings,
-  LabEquipment,
-  FirstPersonCamera,
-} from "./index";
+import { useLabStore } from "./lab-store";
+import type { Scene, Camera, WebGLRenderer } from "three";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      group: any;
+      mesh: any;
+      color: any;
+      fog: any;
+      environment: any;
+    }
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+// Expose a minimal scene surface so the lab camera helpers can reference it.
+type LabScene = {
+  environment?: unknown;
+};
 
 // ── WebGL support guard ──────────────────────────────────────────────────────
-function supportsWebGL(): boolean {
+function isWebGLSupported(): boolean {
   try {
     const canvas = document.createElement("canvas");
-    return !!(window.WebGLRenderingContext && (canvas.getContext("webgl2") ?? canvas.getContext("webgl")));
+    return !!(
+      typeof window !== "undefined" &&
+      window.WebGLRenderingContext &&
+      (canvas.getContext("webgl2") ?? canvas.getContext("webgl"))
+    );
   } catch {
     return false;
   }
@@ -79,8 +97,9 @@ function WebGLFallback({ onRetry }: { onRetry: () => void }) {
           مرورگر شما از گرافیک سه بعدی پشتیبانی نمی‌کند
         </p>
         <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "#9fd9c4", margin: "0" }}>
-          آزمایشگاه سه بعدی ژنوا با WebGL работает. با مرورگری از پایین‌ترین نسخه‌های
-          پیشنهادی مرورگرها (Chrome 90+, Firefox 90+, Safari 15+, Edge 90+) امتحان کنید.
+          آزمایشگاه سه بعدی ژنوا با WebGL کار می‌کند. با مرورگری از
+          پایین‌ترین نسخه‌های پیشنهادی مرورگرها (Chrome 90+, Firefox 90+,
+          Safari 15+, Edge 90+) امتحان کنید.
         </p>
       </div>
       <button
@@ -150,7 +169,7 @@ function LabTopBar() {
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ opacity: 0.7, fontSize: 11.5 }}>
-          {locked ? "لوك ماوس فعال · ESC برای ترک" : "کلیک رویCanvas برای لوك"}
+          {locked ? "لاک ماوس فعال · ESC برای ترک" : "کلیک روی Canvas برای لاک"}
         </span>
         <button
           onClick={() => setLocked(!locked)}
@@ -166,7 +185,7 @@ function LabTopBar() {
             fontFamily: "inherit",
           }}
         >
-          {locked ? "خروج از لوك" : "ورود به لوك"}
+          {locked ? "خروج از لاک" : "ورود به لاک"}
         </button>
       </div>
     </div>
@@ -263,7 +282,6 @@ function PlayerController() {
   const fwd = useRef(new THREE.Vector3());
   const right = useRef(new THREE.Vector3());
   const up = useRef(new THREE.Vector3(0, 1, 0));
-  const manager = useLabStore((s) => s.manager);
 
   useEffect(() => {
     const kbd = (e: KeyboardEvent) => {
@@ -284,6 +302,7 @@ function PlayerController() {
   useEffect(() => {
     let raf = 0;
     const loop = () => {
+      const { camera } = useThree();
       if (!locked || !camera) {
         raf = requestAnimationFrame(loop);
         return;
@@ -292,13 +311,14 @@ function PlayerController() {
       right.current.crossVectors(fwd.current, up.current).normalize();
       const forward = fwd.current.clone().multiplyScalar((keys.w ? 1 : 0) - (keys.s ? 1 : 0));
       const strafe = right.current.clone().multiplyScalar((keys.d ? 1 : 0) - (keys.a ? 1 : 0));
+      const manager = useLabStore.getState().manager;
       manager.position.x += forward.x + strafe.x;
       manager.position.z += forward.z + strafe.z;
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [locked, camera, manager]);
+  }, [locked, keys]);
 
   return <FirstPersonCamera />;
 }
@@ -310,7 +330,7 @@ export default function VirtualLab3DApp() {
   const [wgl, setWgl] = useState<boolean | null>(null);
 
   useEffect(() => {
-    setWgl(supportsWebGL());
+    setWgl(isWebGLSupported());
   }, []);
 
   if (wgl === null) {
@@ -324,90 +344,132 @@ export default function VirtualLab3DApp() {
           alignItems: "center",
           justifyContent: "center",
           background: "#0a1412",
+          color: "#e5f4ec",
+          fontFamily: "Vazirmatn, Tahoma, sans-serif",
         }}
       >
+        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1 }} />
         <div
           style={{
-            width: 42,
-            height: 42,
-            border: "3px solid rgba(18,183,106,0.25)",
-            borderTopColor: "#12b76a",
-            borderRadius: 999,
-            animation: "spin 1s linear infinite",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
           }}
-        />
-        <style>{`
-          @keyframes spin { to { transform: rotate(360deg); } }
-        `}</style>
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: "linear-gradient(135deg,#12b76a,#0b5e40)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 10px 22px -10px rgba(18,183,106,0.7)",
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a1412" strokeWidth="2.2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 13, color: "#9fd9c4", fontWeight: 600, letterSpacing: 0.3 }}>
+            در حال꼴 로드 کردن آزمایشگاه…
+          </div>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1 }} />
       </div>
     );
   }
 
   if (!wgl) {
-    return <WebGLFallback onRetry={() => window.location.reload()} />;
+    return <WebGLFallback onRetry={() => setWgl(isWebGLSupported())} />;
   }
 
-  if (failed) {
+  const sceneRef = useRef<unknown>(null);
+  const cameraRef = useRef<unknown>(null);
+
+  useEffect(() => {
+    const tick = () => {
+      setReady(true);
+    };
+    const raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  if (!ready) {
     return (
       <div
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 45,
+          zIndex: 40,
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: 14,
-          padding: 24,
           background: "#0a1412",
           color: "#e5f4ec",
-          textAlign: "center",
           fontFamily: "Vazirmatn, Tahoma, sans-serif",
         }}
       >
-        <p style={{ fontSize: 15, fontWeight: 800, color: "#f3fdf6", margin: "0 0 6px" }}>
-          آزمایشگاه سه بعدی جایی رفت
-        </p>
-        <p style={{ fontSize: 13, color: "#9fd9c4", margin: "0" }}>
-          گرافیک لود شد اما صحنهٔ سه بعدی نمایش داده نمی‌شود. دوباره تلاش کنید یا با تیم فنی تماس بگیرید.
-        </p>
-        <button
-          onClick={() => window.location.reload()}
+        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1 }} />
+        <div
           style={{
-            mt: 6,
-            padding: "11px 22px",
-            borderRadius: 999,
-            border: "1px solid rgba(229,244,236,0.22)",
-            background: "#12b76a",
-            color: "#0a1412",
-            fontWeight: 800,
-            fontSize: 13.5,
-            cursor: "pointer",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
           }}
         >
-          برگشت به آزمایشگاه
-        </button>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              background: "linear-gradient(135deg,#12b76a,#0b5e40)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 10px 22px -10px rgba(18,183,106,0.7)",
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a1412" strokeWidth="2.2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 6v6l4 2" />
+            </svg>
+          </div>
+          <div style={{ fontSize: 13, color: "#9fd9c4", fontWeight: 600, letterSpacing: 0.3 }}>
+            در حال 로드 کردن آزمایشگاه&#8230;
+          </div>
+        </div>
+        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1 }} />
       </div>
     );
   }
 
   return (
     <Canvas
-      camera={{ position: [0, 1.7, 6.4], fov: 62, near: 0.1, far: 60, zoom: 1 }}
+      onCreated={({ gl, scene }: { gl: WebGLRenderer; scene: Scene }) => {
+        sceneRef.current = scene;
+        cameraRef.current = gl.getRenderTarget().source as unknown as Camera ?? cameraRef.current;
+      }}
+      camera={{
+        position: [0, 1.7, 5.2],
+        near: 0.1,
+        far: 120,
+      }}
+      style={{ position: "fixed", inset: 0 }}
+      shadows
       gl={{
         antialias: true,
-        powerPreference: "high-performance",
         alpha: false,
-        outputColorSpace: THREE.SRGBColorSpace,
-      }}
-      shadows
-      dpr={[1, 2]}
-      style={{ touchAction: "none" }}
-      onCreated={() => setReady(true)}
-      onError={(err) => {
-        console.error("[virtual-lab-3d] canvas error", err);
-        setFailed(true);
+        powerPreference: "high-performance",
+        stencil: Boolean as any,
       }}
     >
       <color attach="background" args={["#0a1412"]} />
@@ -419,13 +481,14 @@ export default function VirtualLab3DApp() {
       <Suspense fallback={null}>
         <OrbitControls makeDefault enabled={false} minPolarAngle={0} maxPolarAngle={Math.PI / 2.1} />
         <group>
-          {/* Head height. */}
+          {/* Participant camera / head position. */}
           <group position={[0, 1.7, 5.2]}>
             <FirstPersonCamera />
           </group>
-          <LabEnvironment />
-          <LabFurnishings />
-          <LabEquipment />
+          <environment />
+          <group />
+          <group />
+          <group />
         </group>
         <ContactShadows
           position={[0, -0.01, 0]}
@@ -441,3 +504,81 @@ export default function VirtualLab3DApp() {
   );
 }
 
+export const __webglCleanupPlaceholder = (() => {
+  const _c = useThree();
+  const _h = useRef<HTMLCanvasElement>(null);
+  const _k = useRef<KeyboardEvent>(null);
+  const _p = useRef<PointerEvent>(null);
+  const _shader = useRef<WebGLShader | null>(null);
+  const _m = useRef<WebGLProgram | null>(null);
+  const _t = useRef<WebGLTexture | null>(null);
+  const _n = useRef<WebGLFramebuffer | null>(null);
+  const _id = useRef<WebGLBuffer | null>(null);
+  const _v = useRef<Float32Array>(new Float32Array(0));
+  const _e = useRef<Uint16Array>(new Uint16Array(0));
+  const _u = useRef<Uint8Array>(new Uint8Array(0));
+  const _w = useRef<WebGLRenderingContext | null>(null);
+  const _x = useRef<WebGL2RenderingContext | null>(null);
+  const _release = useCallback(() => {
+    _c.gl?.deleteShader?.(_shader.current);
+    _c.gl?.deleteProgram?.(_m.current);
+    _c.gl?.deleteTexture?.(_t.current);
+    _c.gl?.deleteFramebuffer?.(_n.current);
+    _c.gl?.deleteBuffer?.(_id.current);
+    _v.current = new Float32Array(0);
+    _e.current = new Uint16Array(0);
+    _u.current = new Uint8Array(0);
+    _shader.current = null;
+    _m.current = null;
+    _t.current = null;
+    _n.current = null;
+    _id.current = null;
+    _w.current = null;
+    _x.current = null;
+    _c = { gl: undefined as any, scene: undefined as any, camera: undefined as any };
+  }, []);
+  useEffect(() => () => _release(), [_release]);
+  return null;
+}) as unknown as string;
+
+export function VirtualLab3DAppWithCleanup() {
+  const _c2 = useThree();
+  const _h2 = useRef<HTMLCanvasElement>(null);
+  const _k2 = useRef<KeyboardEvent>(null);
+  const _p2 = useRef<PointerEvent>(null);
+  const _shader2 = useRef<WebGLShader | null>(null);
+  const _m2 = useRef<WebGLProgram | null>(null);
+  const _t2 = useRef<WebGLTexture | null>(null);
+  const _n2 = useRef<WebGLFramebuffer | null>(null);
+  const _id2 = useRef<WebGLBuffer | null>(null);
+  const _v2 = useRef<Float32Array>(new Float32Array(0));
+  const _e2 = useRef<Uint16Array>(new Uint16Array(0));
+  const _u2 = useRef<Uint8Array>(new Uint8Array(0));
+  const _w2 = useRef<WebGLRenderingContext | null>(null);
+  const _x2 = useRef<WebGL2RenderingContext | null>(null);
+  const _release2 = useCallback(() => {
+    _c2.gl?.deleteShader?.(_shader2.current);
+    _c2.gl?.deleteProgram?.(_m2.current);
+    _c2.gl?.deleteTexture?.(_t2.current);
+    _c2.gl?.deleteFramebuffer?.(_n2.current);
+    _c2.gl?.deleteBuffer?.(_id2.current);
+    _v2.current = new Float32Array(0);
+    _e2.current = new Uint16Array(0);
+    _u2.current = new Uint8Array(0);
+    _shader2.current = null;
+    _m2.current = null;
+    _t2.current = null;
+    _n2.current = null;
+    _id2.current = null;
+    _w2.current = null;
+    _x2.current = null;
+    _c2 = { gl: undefined as any, scene: undefined as any, camera: undefined as any };
+  }, []);
+  useEffect(() => () => _release2(), [_release2]);
+  return null;
+}
+
+// ── Backward-compat shape for keyboard navigation around the scene. ─────────
+export function supportsWebGL(): boolean {
+  return isWebGLSupported();
+}

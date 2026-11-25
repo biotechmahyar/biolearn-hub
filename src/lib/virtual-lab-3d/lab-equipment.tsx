@@ -108,8 +108,8 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
 
 // ── Instructional hint when pointer is locked ────────────────────────────────
 function InteractHint() {
-  const locked = useLabStore((s) => s.locked);
-  if (!locked) return null;
+  const _locked = useLabStore((s) => s.locked);
+  if (!_locked) return null;
 
   return (
     <div
