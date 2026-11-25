@@ -1,32 +1,32 @@
-import { useMemo, useRef, useState } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useState, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { Html, Float } from "@react-three/drei";
-import { useLabStore } from "../lab-store";
+import { useLabStore } from "./lab-store";
 
 // ── Equipment info panel (2D overlay) ────────────────────────────────────────
 function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
-  if (!open) return null;
   const item = LABS.find((s) => s.id === id);
-  if (!item) return null;
+  if (!open || !item) return null;
 
   return (
-    <Html
-      center
-      position={[0, 0.75, -2.4]}
+    <div
       style={{
-        background: "rgba(10,20,18,0.78)",
-        backdropFilter: "blur(8px)",
-        color: "#eaf4ec",
-        colorScheme: "dark",
+        position: "fixed",
+        top: "12%",
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 35,
+        minWidth: 280,
+        maxWidth: 360,
+        background: "rgba(10,20,18,0.82)",
+        backdropFilter: "blur(10px)",
         border: "1px solid rgba(229,244,236,0.18)",
         borderRadius: 16,
         padding: "14px 16px",
-        minWidth: 280,
-        maxWidth: 360,
-        boxShadow: "0 22px 46px -16px rgba(0,0,0,0.7)",
+        color: "#eaf4ec",
         fontFamily: "Vazirmatn, Tahoma, sans-serif",
         lineHeight: 1.5,
+        boxShadow: "0 22px 46px -16px rgba(0,0,0,0.7)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -36,25 +36,18 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
             height: 28,
             borderRadius: 8,
             background: "linear-gradient(135deg,#055e40,#1fb87a)",
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
             boxShadow: "0 4px 10px -2px rgba(31,184,122,0.5)",
           }}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#041a14"
-            strokeWidth="1.8"
-          >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#041a14" strokeWidth="2">
             <circle cx="12" cy="12" r="3" />
             <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
           </svg>
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <div
             style={{
               fontSize: 13.5,
@@ -71,6 +64,7 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
           </div>
         </div>
         <button
+          type="button"
           style={{
             background: "transparent",
             border: "1px solid rgba(229,244,236,0.25)",
@@ -82,10 +76,7 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
             fontWeight: 700,
             fontFamily: "inherit",
           }}
-          onClick={(e) => {
-            e.stopPropagation();
-            useLabStore.setState({ panelId: null });
-          }}
+          onClick={() => useLabStore.getState().setPanelId(null)}
         >
           ×
         </button>
@@ -106,27 +97,31 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
         }}
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" />
+          <circle cx="12" cy="12" r="10" />
           <path d="M12 8v4l3 3" />
         </svg>
         برای تعامل نزدیک شماره کلید E
       </div>
-    </Html>
+    </div>
   );
 }
 
 // ── Instructional hint when pointer is locked ────────────────────────────────
 function InteractHint() {
-  const panelId = useLabStore((s) => s.panelId);
   const locked = useLabStore((s) => s.locked);
   if (!locked) return null;
+
   return (
-    <Html
-      position={[0, 0.82, -2.6]}
+    <div
       style={{
-        background: "rgba(10,20,18,0.7)",
+        position: "fixed",
+        bottom: 16,
+        left: "50%",
+        transform: "translateX(-50%)",
+        zIndex: 30,
+        background: "rgba(10,20,18,0.72)",
         backdropFilter: "blur(4px)",
-        border: "1px solid rgba(229,244,236,0.15)",
+        border: "1px solid rgba(229,244,236,0.14)",
         borderRadius: 999,
         padding: "7px 14px",
         color: "#eaf4ec",
@@ -134,10 +129,11 @@ function InteractHint() {
         fontWeight: 700,
         fontFamily: "Vazirmatn, Tahoma, sans-serif",
         letterSpacing: 0.3,
+        boxShadow: "0 4px 12px -4px rgba(0,0,0,0.5)",
       }}
     >
-      برای تعامل با تجهیزات کلید E را بزنید · ESC برای ترک قفل ماوس
-    </Html>
+      جهت حرکت: W A S D · نگاه: ماوس · تعامل با تجهیزات: E · ترک: ESC
+    </div>
   );
 }
 
@@ -146,9 +142,21 @@ function HighlightRing({ id, position }: { id: string; position: [number, number
   const hoveredId = useLabStore((s) => s.hoveredId);
   const panelId = useLabStore((s) => s.panelId);
   const isHover = hoveredId === id || panelId === id;
+  const ref = useRef<THREE.Group>(null);
+
+  useFrame(() => {
+    if (!ref.current) return;
+    const t = performance.now() / 1000;
+    if (isHover) {
+      ref.current.position.y = position[1] + Math.sin(t * 3) * 0.012;
+    } else {
+      ref.current.position.y = position[1];
+    }
+  });
+
   return (
-    <Float speed={0.5} amplitude={0.04}>
-      <mesh position={position} rotation={[0, 0, 0]}>
+    <group position={position} rotation={[0, 0, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.62, 0.72, 48]} />
         <meshBasicMaterial
           color={isHover ? "#12b76a" : "#0a5e48"}
@@ -157,23 +165,61 @@ function HighlightRing({ id, position }: { id: string; position: [number, number
           side={THREE.DoubleSide}
         />
       </mesh>
-    </Float>
+    </group>
   );
 }
+
+// ── Eligible equipment entries ────────────────────────────────────────────────
+const LABS = [
+  {
+    id: "pipette",
+    label: "پیکتیو پیکینگ (میکرو)",
+    description:
+      "پیکتیو با دقت میکروولیتری به کار می‌رود و برای انتقال نمونه‌ها، پرایمرها و رئاکتانت‌های PCR ضروری است. دقت آن مستقیماً بر نتیجهٔ آزمایش‌های بیولوژیک اثر می‌گذارد.",
+    position: [3.4, 0.82, -2.2] as [number, number, number],
+    color: "#cfd6d9",
+    height: 0.7,
+  },
+  {
+    id: "centrifuge",
+    label: "سانتریفیوژ میکرو",
+    description:
+      "برای جداسازی اجزای نمونه بر پایه چگالی با چرخش‌های بالا (کوئلی‌ها، دی‌ان‌ای/آر‌ان‌ای، پروتئین‌ها) استفاده می‌شود. سرعت و زمان چرخش بسته به ساختار و اجزای درون‌یابد.",
+    position: [-3.6, 0.72, -2.0] as [number, number, number],
+    color: "#d4d9de",
+    height: 0.72,
+  },
+  {
+    id: "vortex",
+    label: "ورتکس مایعات",
+    description:
+      "هنگام همگن‌سازی سریع مایعات و نمونه‌ها در لوله‌های میکروتوب استفاده می‌شود. در پروتکل‌های استخراج DNA، لایزش آبشی و ترکیب رئاکتانت‌های PCR، وورتکس کوتاه یک قدم استاندارد اولیه است.",
+    position: [3.2, 0.78, 1.6] as [number, number, number],
+    color: "#d8dee3",
+    height: 0.78,
+  },
+  {
+    id: "pcr",
+    label: "اتراکای درون‌گرم‌کننده (PCR)",
+    description:
+      "دستگاه PCR برای تکثیر یک منطقه خاص از DNA در اندازه‌های میلی‌متری در یک رئاکتان به کار می‌رود. آن به‌طور مداوم بین دمای انزال، اتصال پرایمر و گسترش رئاکتان چرخش می‌کند تا تعداد کپی‌های هدف را در طی ده‌ها چرخه افزایش دهد.",
+    position: [-3.8, 0.78, 1.2] as [number, number, number],
+    color: "#dbe3e7",
+    height: 0.78,
+  },
+];
 
 // ── Equipment placeholder (colored) ──────────────────────────────────────────
 function Equipment({
   id,
   position,
-  rotation = [0, 0, 0],
-  color = "#cfd6d9",
-  height = 0.7,
+  color,
+  height,
 }: {
   id: string;
   position: [number, number, number];
-  rotation?: [number, number, number];
-  color?: string;
-  height?: number;
+  color: string;
+  height: number;
 }) {
   const hoveredId = useLabStore((s) => s.hoveredId);
   const panelId = useLabStore((s) => s.panelId);
@@ -181,7 +227,6 @@ function Equipment({
   const isHighlight = hoveredId === id || panelId === id;
   const ref = useRef<THREE.Group>(null);
 
-  // Gentle hover bob.
   useFrame(() => {
     if (!ref.current) return;
     const t = performance.now() / 1000;
@@ -196,17 +241,13 @@ function Equipment({
     <group
       ref={ref}
       position={position}
-      rotation={rotation}
-      onPointerEnter={() => useLabStore.getState().setHoveredId(id)}
-      onPointerLeave={() => useLabStore.getState().setHoveredId(null)}
       onClick={(e) => {
         e.stopPropagation();
         setPanelId(panelId === id ? null : id);
       }}
-      castShadow
     >
       {/* Body. */}
-      <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
+      <mesh castShadow receiveShadow>
         <boxGeometry args={[0.46, height, 0.46]} />
         <meshStandardMaterial
           color={isHighlight ? "#e3f5ea" : color}
@@ -227,89 +268,27 @@ function Equipment({
   );
 }
 
-// ── Real equipment catalogue ──────────────────────────────────────────────────
-const LABS = [
-  {
-    id: "pipette",
-    label: "پیکتیو پیکering (میکرو)",
-    description:
-      "پیکتیو با دقت میکروولیتری به کار می‌رود و برای انتقال عينه‌ها، پرایمرها و رئاکتانت‌های PCR ضروری است. دقت آن مستقیماً بر результативitas assays اثر می‌گذارد.",
-    position: [3.4, 0.82, -2.2],
-    color: "#cfd6d9",
-    height: 0.7,
-  },
-  {
-    id: "centrifuge",
-    label: "سانتریفیوژ میکرو",
-    description:
-      "برای جداسازی اجزای نمونه بر پایه چگالی با چرخش‌های بالا (کوئلی‌ها، دی‌ان‌ای/آر‌ان‌ای، پروتئین‌ها) استفاده می‌شود. سرعت و زمان چرخش بسته به ساختار و اجزای درون‌یابد.",
-    position: [-3.6, 0.72, -2.0],
-    color: "#d4d9de",
-    height: 0.72,
-  },
-  {
-    id: "vortex",
-    label: "ورتکس مایعات",
-    description:
-      "هنگام همگن‌سازی سریع مایعات و نمونه‌ها در لوله‌های میکروتوب استفاده می‌شود. در پروتکل‌های استخراج DNA، لایزش آبشی و ترکیب رئاکتانت‌های PCR، وورتکس کوتاه یک قدم استاندارد اولیه است.",
-    position: [3.2, 0.78, 1.6],
-    color: "#d8dee3",
-    height: 0.78,
-  },
-  {
-    id: "pcr",
-    label: "اتراکای درون‌گرم‌کننده (PCR)",
-    description:
-      "دستگاه PCR برای تکثیر یک منطقه خاص از DNA در اندازه‌های میلی‌متری در یک رئاکتان به کار می‌رود. آن به‌طور مداوم بین دمای انزال، اتصال پرایمر و گسترش رئاکتان چرخش می‌کند تا تعداد کپی‌های هدف را در طی ده‌ها چرخه افزایش دهد.",
-    position: [-3.8, 0.78, 1.2],
-    color: "#dbe3e7",
-    height: 0.78,
-  },
-];
-
 // ── Equipment cluster ─────────────────────────────────────────────────────────
 export function LabEquipment() {
-  // The equipment sits on benches; we keep hover + panel separate from the room.
-  useLabStore.setState({ locked: false });
+  const panelId = useLabStore((s) => s.panelId);
 
   return (
     <group>
       {LABS.map((item) => (
-        <Equipment key={item.id} {...item} />
+        <Equipment key={item.id} id={item.id} position={item.position} color={item.color} height={item.height} />
       ))}
       {/* Floating info ring for currently open panel. */}
       {LABS.map((item) => (
-        <HighlightRing key={`ring-${item.id}`} id={item.id} position={item.position} />
+        <HighlightRing
+          key={`ring-${item.id}`}
+          id={item.id}
+          position={[item.position[0], item.position[1] + item.height + 0.06, item.position[2]]}
+        />
       ))}
       {/* Top panel. */}
-      <EquipmentPanel
-        open={LABS.some((s) => s.id === useLabStore.getState().panelId)}
-        id={useLabStore.getState().panelId ?? ""}
-      />
+      <EquipmentPanel open={panelId != null} id={panelId ?? ""} />
     </group>
   );
 }
 
-// ── Lab bounds (invisible) ───────────────────────────────────────────────────
-export function LabBounds() {
-  const camera = useThree((s) => s.camera);
-  const manager = useLabStore.getState().manager;
-
-  // The lab room interior extends from x: -7 .. 7, z: -7 .. +6.6, y: 0 .. 3.6.
-  // We constrain the player eye to stay inside so the camera cannot clip through
-  // walls or leave the lab.
-  useFrame(() => {
-    if (!camera) return;
-    let changed = false;
-    let { x, y, z } = camera.position;
-    if (x < -7) { x = -7; changed = true; }
-    if (x > 7) { x = 7; changed = true; }
-    if (z < -7) { z = -7; changed = true; }
-    if (z > 6.6) { z = 6.6; changed = true; }
-    if (y < 1.5) { y = 1.5; changed = true; }
-    if (y > 3.3) { y = 3.3; changed = true; }
-    if (changed) camera.position.set(x, y, z);
-  });
-
-  return null;
-}
+export { EquipmentPanel, InteractHint };

@@ -1,27 +1,23 @@
 import { useMemo } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { ContactShadows, Environment, Float } from "@react-three/drei";
-import { useLabStore } from "../lab-store";
+import { ContactShadows, Environment } from "@react-three/drei";
+import { useLabStore } from "./lab-store";
 
 // ── Subtle emissive accent strip down one wall (Genova green) ──────────────
 function AccentStrip() {
   return (
-    <group position={[0, 2.4, -7.6]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 2.0, 0]} receiveShadow>
+    <group position={[0, 2.4, -7.6]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[0, 2.0, 0]} receiveShadow>
         <boxGeometry args={[11.6, 0.55, 0.08]} />
-        <meshStandardMaterial
-          color="#0a2520"
-          emissive="#0b5e40"
-          emissiveIntensity={0.35}
-        />
+        <meshStandardMaterial color="#0a2520" roughness={0.55} metalness={0.05} />
       </mesh>
-      <Float speed={0.4} amplitude={0.02}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 2.0, 0.06]}>
+      <group>
+        <mesh position={[0, 2.0, 0.06]} receiveShadow>
           <boxGeometry args={[11.6, 0.04, 0.04]} />
-          <meshStandardMaterial color="#12b76a" emissive="#12b76a" emissiveIntensity={0.5} />
+          <meshStandardMaterial color="#12b76a" roughness={0.35} metalness={0.15} emissive="#12b76a" emissiveIntensity={0.5} />
         </mesh>
-      </Float>
+      </group>
     </group>
   );
 }
@@ -40,6 +36,7 @@ function Floor() {
         color="#cfd6d9"
         roughness={0.62}
         metalness={0.02}
+        side={THREE.DoubleSide}
       />
     </mesh>
   );
@@ -49,13 +46,13 @@ function Floor() {
 function Ceiling() {
   return (
     <group position={[0, 3.6, 0]}>
-      <mesh receiveShadow>
+      <mesh receiveShadow castShadow>
         <boxGeometry args={[15.6, 0.08, 10.4]} />
-        <meshStandardMaterial color="#eef1f3" roughness={0.85} metalness={0.0} />
+        <meshStandardMaterial color="#eef1f3" roughness={0.85} metalness={0.0} side={THREE.DoubleSide} />
       </mesh>
       {/* Emissive light panels. */}
       {[...Array(8)].map((_, i) => (
-        <mesh key={i} position={[Math.floor(i / 4) * 5.2 - 2.6, 0.05, (i % 4) * 2.2 - 2.2]}>
+        <mesh key={i} position={[Math.floor(i / 4) * 5.2 - 2.6, 0.05, (i % 4) * 2.2 - 2.2]} receiveShadow castShadow>
           <planeGeometry args={[2.0, 1.4]} />
           <meshStandardMaterial
             color="#ffffff"
@@ -63,6 +60,7 @@ function Ceiling() {
             emissiveIntensity={0.55}
             transparent
             opacity={0.97}
+            side={THREE.DoubleSide}
           />
         </mesh>
       ))}
@@ -75,7 +73,7 @@ function GlassBackWall() {
   return (
     <group position={[0, 2.1, -6.66]}>
       {/* Back solid wall with large window. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow castShadow>
         <boxGeometry args={[15.4, 3.6, 0.12]} />
         <meshStandardMaterial
           color="#dadfe2"
@@ -85,7 +83,7 @@ function GlassBackWall() {
         />
       </mesh>
       {/* Window frame. */}
-      <mesh position={[0, 1.7, 0.065]} receiveShadow>
+      <mesh position={[0, 1.7, 0.065]} receiveShadow castShadow>
         <planeGeometry args={[13.8, 2.4]} />
         <meshStandardMaterial
           color="#e9f3f6"
@@ -103,10 +101,12 @@ function GlassBackWall() {
         [6.9, 1.7, 0.08, 0.1, 2.4],
         [-6.9, 1.7, 0.08, 0.1, 2.4],
       ].map(([x, y, z, w, h], i) => (
-        <mesh key={i} position={[x, y, z]} receiveShadow>
-          <boxGeometry args={[w, h, 0.1]} />
-          <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.1} />
-        </mesh>
+        <group key={i} position={[x, y, z]}>
+          <mesh rotation={[0, -Math.PI / 2, 0]} receiveShadow castShadow>
+            <boxGeometry args={[w, h, 0.1]} />
+            <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.1} />
+          </mesh>
+        </group>
       ))}
     </group>
   );
@@ -117,18 +117,18 @@ function SideWalls() {
   return (
     <>
       {/* Left wall */}
-      <mesh position={[-7.6, 1.8, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
+      <mesh position={[-7.6, 1.8, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
         <boxGeometry args={[0.12, 3.6, 12.8]} />
-        <meshStandardMaterial color="#d2d9de" roughness={0.62} metalness={0.05} />
+        <meshStandardMaterial color="#d2d9de" roughness={0.62} metalness={0.05} side={THREE.DoubleSide} />
       </mesh>
       {/* Right wall (mostly opaque with a window at far right). */}
       <group position={[7.6, 1.8, 0]}>
-        <mesh rotation={[0, -Math.PI / 2, 0]} receiveShadow>
+        <mesh rotation={[0, -Math.PI / 2, 0]} receiveShadow castShadow>
           <boxGeometry args={[0.12, 3.6, 12.8]} />
-          <meshStandardMaterial color="#d2d9de" roughness={0.62} metalness={0.05} />
+          <meshStandardMaterial color="#d2d9de" roughness={0.62} metalness={0.05} side={THREE.DoubleSide} />
         </mesh>
         {/* Window. */}
-        <mesh position={[1.6, 1.8, 0]} rotation={[0, -Math.PI / 2, 0]}>
+        <mesh position={[1.6, 1.8, 0]} rotation={[0, -Math.PI / 2, 0]} receiveShadow castShadow>
           <planeGeometry args={[3.4, 2.2]} />
           <meshStandardMaterial
             color="#eaf4f8"
@@ -136,7 +136,6 @@ function SideWalls() {
             metalness={0.15}
             transparent
             opacity={0.3}
-            side={THREE.DoubleSide}
             side={THREE.DoubleSide}
           />
         </mesh>
@@ -146,10 +145,12 @@ function SideWalls() {
           [3.2, 1.8, 0.085, 0.1, 2.2],
           [-3.1, 1.8, 0.085, 0.1, 2.2],
         ].map(([x, y, z, w, h], i) => (
-          <mesh key={i} position={[x, y, z]} rotation={[0, -Math.PI / 2, 0]} receiveShadow>
-            <boxGeometry args={[w, h, 0.1]} />
-            <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.1} />
-          </mesh>
+          <group key={i} position={[x, y, z]}>
+            <mesh rotation={[0, -Math.PI / 2, 0]} receiveShadow castShadow>
+              <boxGeometry args={[w, h, 0.1]} />
+              <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.1} />
+            </mesh>
+          </group>
         ))}
       </group>
     </>
@@ -163,59 +164,63 @@ function FrontWallAndDoors() {
   return (
     <group position={[0, 1.8, 6.66]}>
       {/* Floor edge band at the door. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.4, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.4, 0]} receiveShadow castShadow>
         <boxGeometry args={[3.4, 0.5, 0.12]} />
-        <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.05} />
+        <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.05} side={THREE.DoubleSide} />
       </mesh>
 
       {/* Left door frame. */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[-2.5, 0, 0]} receiveShadow>
-        <boxGeometry args={[0.1, 2.2, 2.8]} />
-        <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.15} />
-      </mesh>
-      {/* Door glass panel. */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[-2.5, 1.4, 0]}>
-        <planeGeometry args={[2.6, 2.1]} />
-        <meshStandardMaterial
-          color="#eef8fc"
-          roughness={0.05}
-          metalness={0.1}
-          transparent
-          opacity={0.28}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      {/* Door handle. */}
-      <mesh position={[-2.5, 0.9, 0.1]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
-        <cylinderGeometry args={[0.05, 0.05, 0.35, 24]} />
-        <meshStandardMaterial color="#8a9aa6" metalness={0.85} roughness={0.18} />
-      </mesh>
+      <group position={[-2.5, 0, 0]}>
+        <mesh rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
+          <boxGeometry args={[0.1, 2.2, 2.8]} />
+          <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.15} side={THREE.DoubleSide} />
+        </mesh>
+        {/* Door glass panel. */}
+        <mesh rotation={[0, Math.PI / 2, 0]} position={[0, 1.4, 0]} receiveShadow castShadow>
+          <planeGeometry args={[2.6, 2.1]} />
+          <meshStandardMaterial
+            color="#eef8fc"
+            roughness={0.05}
+            metalness={0.1}
+            transparent
+            opacity={0.28}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {/* Door handle. */}
+        <mesh position={[0.05, 0.9, 0.1]} rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
+          <cylinderGeometry args={[0.05, 0.05, 0.35, 24]} />
+          <meshStandardMaterial color="#8a9aa6" metalness={0.85} roughness={0.18} />
+        </mesh>
+      </group>
 
       {/* Right door frame. */}
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[2.5, 0, 0]} receiveShadow>
-        <boxGeometry args={[0.1, 2.2, 2.8]} />
-        <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.15} />
-      </mesh>
-      <mesh rotation={[0, Math.PI / 2, 0]} position={[2.5, 1.4, 0]}>
-        <planeGeometry args={[2.6, 2.1]} />
-        <meshStandardMaterial
-          color="#eef8fc"
-          roughness={0.05}
-          metalness={0.1}
-          transparent
-          opacity={0.28}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-      <mesh position={[2.5, 0.9, 0.1]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
-        <cylinderGeometry args={[0.05, 0.05, 0.35, 24]} />
-        <meshStandardMaterial color="#8a9aa6" metalness={0.85} roughness={0.18} />
-      </mesh>
+      <group position={[2.5, 0, 0]}>
+        <mesh rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
+          <boxGeometry args={[0.1, 2.2, 2.8]} />
+          <meshStandardMaterial color="#cfd6d9" roughness={0.6} metalness={0.15} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh rotation={[0, Math.PI / 2, 0]} position={[0, 1.4, 0]} receiveShadow castShadow>
+          <planeGeometry args={[2.6, 2.1]} />
+          <meshStandardMaterial
+            color="#eef8fc"
+            roughness={0.05}
+            metalness={0.1}
+            transparent
+            opacity={0.28}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        <mesh position={[0.05, 0.9, 0.1]} rotation={[0, Math.PI / 2, 0]} receiveShadow castShadow>
+          <cylinderGeometry args={[0.05, 0.05, 0.35, 24]} />
+          <meshStandardMaterial color="#8a9aa6" metalness={0.85} roughness={0.18} />
+        </mesh>
+      </group>
 
       {/* Frieze / header beam above doors. */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 2.3, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 2.3, 0]} receiveShadow castShadow>
         <boxGeometry args={[6.4, 0.18, 0.14]} />
-        <meshStandardMaterial color="#d2d9de" roughness={0.65} metalness={0.05} />
+        <meshStandardMaterial color="#d2d9de" roughness={0.65} metalness={0.05} side={THREE.DoubleSide} />
       </mesh>
     </group>
   );
@@ -240,11 +245,7 @@ function OverheadLights() {
 }
 
 // ── Lab environment ───────────────────────────────────────────────────────────
-export function LabEnvironment({ onEnter }: { onEnter: (id: string | null) => void }) {
-  // The lab frames the player at z+6; the interior extends back to z -7.6 so
-  // movement stays well inside the room. We pass a stable zMax to the manager so
-  // the player cannot run through the back or side walls.
-  useLabStore.setState({ locked: false });
+export function LabEnvironment() {
   const bounds = useMemo(
     () => ({
       minX: -7.0,
@@ -257,14 +258,6 @@ export function LabEnvironment({ onEnter }: { onEnter: (id: string | null) => vo
     }),
     [],
   );
-  const setLocked = useLabStore((s) => s.setLocked);
-
-  // When the pointer lock leaves, clear the hood highlight.
-  useEffect(() => {
-    const onLeave = () => setLocked(false);
-    window.addEventListener("pointerlockchange", onLeave);
-    return () => window.removeEventListener("pointerlockchange", onLeave);
-  }, [setLocked]);
 
   return (
     <>
@@ -285,37 +278,15 @@ export function LabEnvironment({ onEnter }: { onEnter: (id: string | null) => vo
       </group>
 
       <OverheadLights />
-
-      {/* Communicate movement bounds back to the first-person controller. */}
-      {bounds && <LabBounds {...bounds} />}
+      <ContactShadows
+        position={[0, -0.01, 0]}
+        opacity={0.35}
+        scale={60}
+        blur={2.4}
+        far={14}
+        color="#0b1412"
+      />
+      <Environment preset="apartment" blur={0.7} />
     </>
   );
-}
-
-// ── Invisible volume the player must stay inside. ─────────────────────────────
-function LabBounds({ minX, maxX, minZ, maxZ, floorY, ceilingY }: {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
-  floorY: number;
-  ceilingY: number;
-}) {
-  const manager = useLabStore((s) => s.manager);
-  const camera = useThree((s) => s.camera);
-
-  useFrame(() => {
-    if (!camera) return;
-    const pos = camera.position;
-    let changed = false;
-    if (pos.x < minX) { pos.x = minX; changed = true; }
-    if (pos.x > maxX) { pos.x = maxX; changed = true; }
-    if (pos.z < minZ) { pos.z = minZ; changed = true; }
-    if (pos.z > maxZ) { pos.z = maxZ; changed = true; }
-    if (pos.y < floorY + 1.5) { pos.y = floorY + 1.5; changed = true; }
-    if (pos.y > ceilingY - 0.3) { pos.y = ceilingY - 0.3; changed = true; }
-    if (changed) camera.position.copy(pos);
-  });
-
-  return null;
 }
