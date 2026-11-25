@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type LabManagerStateShape = {
+export const useLabStore = create<{
   manager: {
     yaw: number;
     pitch: number;
@@ -12,9 +12,7 @@ export type LabManagerStateShape = {
   setLocked: (locked: boolean) => void;
   setHoveredId: (id: string | null) => void;
   setPanelId: (id: string | null) => void;
-};
-
-export const useLabStore = create<LabManagerStateShape>((set, get) => ({
+}>((set, get) => ({
   manager: {
     yaw: 0,
     pitch: 0,
@@ -27,17 +25,3 @@ export const useLabStore = create<LabManagerStateShape>((set, get) => ({
   setHoveredId: (hoveredId) => set({ hoveredId }),
   setPanelId: (panelId) => set({ panelId }),
 }));
-
-export interface LabManagerState {
-  manager: {
-    yaw: number;
-    pitch: number;
-    locked: boolean;
-    position: { x: number; y: number; z: number };
-  };
-  hoveredId: string | null;
-  panelId: string | null;
-  setLocked: (locked: boolean) => void;
-  setHoveredId: (id: string | null) => void;
-  setPanelId: (id: string | null) => void;
-}
