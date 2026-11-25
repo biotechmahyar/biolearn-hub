@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 import { ContactShadows, Environment } from "@react-three/drei";
 import { useLabStore } from "./lab-store";
 
@@ -244,7 +246,8 @@ function OverheadLights() {
 
 // ── Lab environment ───────────────────────────────────────────────────────────
 export function LabEnvironment() {
-  const _bounds = useMemo(() => ({
+  useMemo(
+    () => ({
       minX: -7.0,
       maxX: 7.0,
       minZ: -7.0,
@@ -252,7 +255,9 @@ export function LabEnvironment() {
       floorY: 0,
       ceilingY: 2.9,
       height: 3.6,
-    }), []);
+    }),
+    [],
+  );
 
   return (
     <>

@@ -1,1 +1,1 @@
-// Not used; type declarations follow project conventions.
+// Not used; import chain uses real project packages.

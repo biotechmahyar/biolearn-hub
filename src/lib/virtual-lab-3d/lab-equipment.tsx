@@ -108,8 +108,9 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
 
 // ── Instructional hint when pointer is locked ────────────────────────────────
 function InteractHint() {
-  const _locked = useLabStore((s) => s.locked);
-  if (!_locked) return null;
+  const manager = useLabStore((s) => s.manager);
+  const locked = manager?.locked ?? false;
+  if (!locked) return null;
 
   return (
     <div
@@ -193,7 +194,7 @@ const LABS = [
     id: "vortex",
     label: "ورتکس مایعات",
     description:
-      "هنگام همگن‌سازی سریع مایعات و نمونه‌ها در لوله‌های میکروتوب استفاده می‌شود. در پروتکل‌های استخراج DNA، لایزش آبشی و ترکیب رئاکتانت‌های PCR، وورتکس کوتاه یک قدم استاندارد اولیه است.",
+      "هنگام همگن‌سازی سریع مایعات و نمونه‌ها در لوله‌های میکروتوب استفاده می‌شود. در پروتکل‌های استخراج DNA، لایزش آبشی و ترکیب رئاکتنت‌های PCR، وورتکس کوتاه یک قدم استاندارد اولیه است.",
     position: [3.2, 0.78, 1.6] as [number, number, number],
     color: "#d8dee3",
     height: 0.78,
@@ -241,8 +242,8 @@ function Equipment({
     <group
       ref={ref}
       position={position}
-      onClick={(e) => {
-        e.stopPropagation();
+      onClick={(e: unknown) => {
+        e?.stopPropagation?.();
         setPanelId(panelId === id ? null : id);
       }}
     >
