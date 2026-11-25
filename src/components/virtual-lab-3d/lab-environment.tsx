@@ -246,6 +246,7 @@ function OverheadLights() {
 
 // ── Lab environment ───────────────────────────────────────────────────────────
 export function LabEnvironment() {
+  // Track available bounds for player camera.
   useMemo(
     () => ({
       minX: -7.0,

@@ -1,9 +1,9 @@
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useLabStore } from "./lab-store";
 
-// ── Equipment info panel (2D overlay) ────────────────────────────────────────
+// ── Equipment info panel (2D overlay). ───────────────────────────────────────
 function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
   const item = LABS.find((s) => s.id === id);
   if (!open || !item) return null;
@@ -24,7 +24,7 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
         borderRadius: 16,
         padding: "14px 16px",
         color: "#eaf4ec",
-        fontFamily: "Vazirmatn, Tahoma, sans-serif",
+        fontFamily: "Vazirmattan, Tahoma, sans-serif",
         lineHeight: 1.5,
         boxShadow: "0 22px 46px -16px rgba(0,0,0,0.7)",
       }}
@@ -100,43 +100,53 @@ function EquipmentPanel({ open, id }: { open: boolean; id: string }) {
           <circle cx="12" cy="12" r="10" />
           <path d="M12 8v4l3 3" />
         </svg>
-        برای تعامل نزدیک شماره کلید E
+        برای تعامل نزدیک، کلید E را فشرده کنید
       </div>
     </div>
   );
 }
 
-// ── Instructional hint when pointer is locked ────────────────────────────────
-function InteractHint() {
-  const manager = useLabStore((s) => s.manager);
-  const locked = manager?.locked ?? false;
-  if (!locked) return null;
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: 16,
-        left: "50%",
-        transform: "translateX(-50%)",
-        zIndex: 30,
-        background: "rgba(10,20,18,0.72)",
-        backdropFilter: "blur(4px)",
-        border: "1px solid rgba(229,244,236,0.14)",
-        borderRadius: 999,
-        padding: "7px 14px",
-        color: "#eaf4ec",
-        fontSize: 12.5,
-        fontWeight: 700,
-        fontFamily: "Vazirmatn, Tahoma, sans-serif",
-        letterSpacing: 0.3,
-        boxShadow: "0 4px 12px -4px rgba(0,0,0,0.5)",
-      }}
-    >
-      جهت حرکت: W A S D · نگاه: ماوس · تعامل با تجهیزات: E · ترک: ESC
-    </div>
-  );
-}
+// ── Equipment placeholder models. ────────────────────────────────────────────
+const LABS: (
+  | { id: string; label: string; description: string; position: [number, number, number]; color: string; height: number }
+)[] = [
+  {
+    id: "pipette",
+    label: "پیکتیو پیکینگ (میکرو)",
+    description:
+      "پیکتیو با دقت میکروولیتری به کار می‌رود و برای انتقال نمونه‌ها، پرایمرها و رئاکتنت‌های PCR ضروری است. دقت آن مستقیماً بر نتیجهٔ آزمایش‌های بیولوژیک اثر می‌گذارد.",
+    position: [3.4, 0.82, -2.2],
+    color: "#cfd6d9",
+    height: 0.7,
+  },
+  {
+    id: "centrifuge",
+    label: "سانتریفیوژ میکرو",
+    description:
+      "برای جداسازی اجزای نمونه بر پایه چگالی با چرخش‌های بالا (کوئلی‌ها، دی‌ان‌ای/آر‌ان‌ای، پروتئین‌ها) استفاده می‌شود. سرعت و زمان چرخش بسته به ساختار و اجزای درون‌یابد.",
+    position: [-3.6, 0.72, -2.0],
+    color: "#d4d9de",
+    height: 0.72,
+  },
+  {
+    id: "vortex",
+    label: "ورتکس مایعات",
+    description:
+      "هنگام همگن‌سازی سریع مایعات و نمونه‌ها در لوله‌های میکروتوب استفاده می‌شود. در پروتکل‌های استخراج DNA، لایزش آبشی و ترکیب رئاکتنت‌های PCR، وورتکس کوتاه یک قدم استاندارد اولیه است.",
+    position: [3.2, 0.78, 1.6],
+    color: "#d8dee3",
+    height: 0.78,
+  },
+  {
+    id: "pcr",
+    label: "اتراکای درون‌گرم‌کننده (PCR)",
+    description:
+      "دستگاه PCR برای پشتیبانی از رئاکتنت‌های DNA در آنالیزهای غلظت‌یاب و پایش RNA در بافت‌های درون‌یابد به کار می‌رود. سپر PRSS قابل تنظیم و کالیبره، کنترل دقیق دمایی و رطوبتی است و توسط تعامل الکترونیکی به کنترل درون‌یاب می‌شود.",
+    position: [-3.8, 0.78, 1.2],
+    color: "#dbe3e7",
+    height: 0.78,
+  },
+];
 
 // ── Generic highlight ring (hover + panel open). ─────────────────────────────
 function HighlightRing({ id, position }: { id: string; position: [number, number, number] }) {
@@ -170,47 +180,7 @@ function HighlightRing({ id, position }: { id: string; position: [number, number
   );
 }
 
-// ── Eligible equipment entries ────────────────────────────────────────────────
-const LABS = [
-  {
-    id: "pipette",
-    label: "پیکتیو پیکینگ (میکرو)",
-    description:
-      "پیکتیو با دقت میکروولیتری به کار می‌رود و برای انتقال نمونه‌ها، پرایمرها و رئاکتانت‌های PCR ضروری است. دقت آن مستقیماً بر نتیجهٔ آزمایش‌های بیولوژیک اثر می‌گذارد.",
-    position: [3.4, 0.82, -2.2] as [number, number, number],
-    color: "#cfd6d9",
-    height: 0.7,
-  },
-  {
-    id: "centrifuge",
-    label: "سانتریفیوژ میکرو",
-    description:
-      "برای جداسازی اجزای نمونه بر پایه چگالی با چرخش‌های بالا (کوئلی‌ها، دی‌ان‌ای/آر‌ان‌ای، پروتئین‌ها) استفاده می‌شود. سرعت و زمان چرخش بسته به ساختار و اجزای درون‌یابد.",
-    position: [-3.6, 0.72, -2.0] as [number, number, number],
-    color: "#d4d9de",
-    height: 0.72,
-  },
-  {
-    id: "vortex",
-    label: "ورتکس مایعات",
-    description:
-      "هنگام همگن‌سازی سریع مایعات و نمونه‌ها در لوله‌های میکروتوب استفاده می‌شود. در پروتکل‌های استخراج DNA، لایزش آبشی و ترکیب رئاکتنت‌های PCR، وورتکس کوتاه یک قدم استاندارد اولیه است.",
-    position: [3.2, 0.78, 1.6] as [number, number, number],
-    color: "#d8dee3",
-    height: 0.78,
-  },
-  {
-    id: "pcr",
-    label: "اتراکای درون‌گرم‌کننده (PCR)",
-    description:
-      "دستگاه PCR برای تکثیر یک منطقه خاص از DNA در اندازه‌های میلی‌متری در یک رئاکتان به کار می‌رود. آن به‌طور مداوم بین دمای انزال، اتصال پرایمر و گسترش رئاکتان چرخش می‌کند تا تعداد کپی‌های هدف را در طی ده‌ها چرخه افزایش دهد.",
-    position: [-3.8, 0.78, 1.2] as [number, number, number],
-    color: "#dbe3e7",
-    height: 0.78,
-  },
-];
-
-// ── Equipment placeholder (colored) ──────────────────────────────────────────
+// ── Equipment placeholder (colored). ─────────────────────────────────────────
 function Equipment({
   id,
   position,
@@ -242,7 +212,7 @@ function Equipment({
     <group
       ref={ref}
       position={position}
-      onClick={(e: unknown) => {
+      onClick={(e: { stopPropagation?: () => void }) => {
         e?.stopPropagation?.();
         setPanelId(panelId === id ? null : id);
       }}
@@ -269,7 +239,7 @@ function Equipment({
   );
 }
 
-// ── Equipment cluster ─────────────────────────────────────────────────────────
+// ── Equipment cluster. ────────────────────────────────────────────────────────
 export function LabEquipment() {
   const panelId = useLabStore((s) => s.panelId);
 
@@ -292,4 +262,4 @@ export function LabEquipment() {
   );
 }
 
-export { EquipmentPanel, InteractHint };
+export { EquipmentPanel };

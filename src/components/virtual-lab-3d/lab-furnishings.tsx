@@ -43,7 +43,7 @@ function Bench({
       ))}
       {/* Top. */}
       <group position={[0, height, 0]}>
-        <mesh castShadow receiveShadow onClick={(e) => e.stopPropagation()}>
+        <mesh castShadow receiveShadow onClick={(e: unknown) => e.stopPropagation?.()}>
           <boxGeometry args={[width, 0.05, depth]} />
           <meshStandardMaterial
             color={accent ? "#dbe9e6" : color}
@@ -92,7 +92,7 @@ function Cabinet({
     >
       {/* Body. */}
       <group position={[0, height / 2 - 0.02, 0]}>
-        <mesh castShadow receiveShadow onClick={(e) => e.stopPropagation()}>
+        <mesh castShadow receiveShadow onClick={(e: unknown) => e.stopPropagation?.()}>
           <boxGeometry args={[width, height, depth]} />
           <meshStandardMaterial color={color} roughness={0.5} metalness={0.05} />
         </mesh>
@@ -170,7 +170,7 @@ function ShelvingUnit({
     >
       {/* Back board. */}
       <group position={[0, (height - 0.1) / 2 - 0.04, -depth / 2 + 0.04]}>
-        <mesh castShadow receiveShadow onClick={(e) => e.stopPropagation()}>
+        <mesh castShadow receiveShadow onClick={(e: unknown) => e.stopPropagation?.()}>
           <boxGeometry args={[width, height - 0.1, 0.04]} />
           <meshStandardMaterial color="#d7dee3" roughness={0.55} metalness={0.05} />
         </mesh>
@@ -190,7 +190,7 @@ function ShelvingUnit({
         return (
           <group key={i} position={[0, ty, -depth / 2 + 0.04]}>
             <group>
-              <mesh castShadow receiveShadow onClick={(e) => e.stopPropagation()}>
+              <mesh castShadow receiveShadow onClick={(e: unknown) => e.stopPropagation?.()}>
                 <boxGeometry args={[width - 0.12, 0.035, depth - 0.06]} />
                 <meshStandardMaterial color={isHover ? "#d8e3e8" : "#ebe4e0"} roughness={0.5} metalness={0.05} />
               </mesh>
@@ -267,7 +267,7 @@ function Stool({
     >
       {/* Base post. */}
       <group position={[0, 0.16, 0]}>
-        <mesh castShadow receiveShadow onClick={(e) => e.stopPropagation()}>
+        <mesh castShadow receiveShadow onClick={(e: unknown) => e.stopPropagation?.()}>
           <cylinderGeometry args={[0.07, 0.09, 0.32, 24]} />
           <meshStandardMaterial color="#8a9aa6" metalness={0.85} roughness={0.22} />
         </mesh>
@@ -295,7 +295,7 @@ function Stool({
       ))}
       {/* Seat. */}
       <group position={[0, height + 0.14, 0]}>
-        <mesh castShadow receiveShadow onClick={(e) => e.stopPropagation()}>
+        <mesh castShadow receiveShadow onClick={(e: unknown) => e.stopPropagation?.()}>
           <cylinderGeometry args={[0.45, 0.45, 0.07, 36]} />
           <meshStandardMaterial
             color={seatColor}
