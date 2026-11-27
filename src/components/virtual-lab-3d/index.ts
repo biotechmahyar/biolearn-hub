@@ -4,5 +4,5 @@ export { LabEquipment } from "./lab-equipment";
 export { FirstPersonCamera, default as LabPlayer } from "./lab-player";
 export type { LabManagerState } from "./lab-store";
 export { useLabStore } from "./lab-store";
-export { default as VirtualLab3DApp } from "./VirtualLab3DApp";
+export { default as VirtualLab3DApp } from "./AppShell";
 export { default as AppShell } from "./AppShell";
